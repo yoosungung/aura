@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Badge } from "./ui/badge.jsx";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
+import { Label } from "./ui/label.jsx";
 
 export function TicketLabels({ session, conversation, client, onLabeled }) {
   const [name, setName] = useState("");
@@ -38,15 +40,17 @@ export function TicketLabels({ session, conversation, client, onLabeled }) {
       {labels.length > 0 ? (
         <ul>
           {labels.map((l) => (
-            <li key={l.id || l.name}>{l.name}</li>
+            <li key={l.id || l.name}>
+              <Badge variant="secondary">{l.name}</Badge>
+            </li>
           ))}
         </ul>
       ) : null}
       <form onSubmit={onSubmit} className="flex flex-col gap-2">
-        <label className="flex flex-col gap-1 text-sm">
+        <Label>
           라벨 이름
           <Input value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
+        </Label>
         {error ? <p role="alert">{error}</p> : null}
         <Button type="submit" disabled={pending}>
           부착

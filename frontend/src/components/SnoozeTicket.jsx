@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
+import { Label } from "./ui/label.jsx";
 
 export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
   const [until, setUntil] = useState(conversation.snoozedUntil || "");
@@ -39,10 +40,10 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
 
   return (
     <form onSubmit={onSubmit} className="snooze" aria-label="티켓 스누즈">
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         스누즈 시각
         <Input value={until} onChange={(e) => setUntil(e.target.value)} required />
-      </label>
+      </Label>
       {error ? <p role="alert">{error}</p> : null}
       <Button type="submit" disabled={pending}>
         스누즈

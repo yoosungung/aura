@@ -6,6 +6,9 @@ import { LoginForm } from "./components/LoginForm.jsx";
 import { SnoozeTicket } from "./components/SnoozeTicket.jsx";
 import { TicketAttachments } from "./components/TicketAttachments.jsx";
 import { TicketLabels } from "./components/TicketLabels.jsx";
+import { Badge } from "./components/ui/badge.jsx";
+import { Button } from "./components/ui/button.jsx";
+import { Textarea } from "./components/ui/textarea.jsx";
 import { emptyState, reduce, visibleInQueue } from "./store.js";
 
 export function App({ session: initialSession, client, initialState = emptyState }) {
@@ -97,14 +100,15 @@ export function App({ session: initialSession, client, initialState = emptyState
           <ul>
             {queue.map((c) => (
               <li key={c.id}>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  className="w-full justify-between"
                   aria-current={c.id === state.selectedId ? "true" : undefined}
                   onClick={() => dispatch({ type: "select", id: c.id })}
                 >
                   {c.lastContent}
-                  {c.unread > 0 ? <span> {c.unread}</span> : null}
-                </button>
+                  {c.unread > 0 ? <Badge>{c.unread}</Badge> : null}
+                </Button>
               </li>
             ))}
           </ul>
@@ -201,12 +205,12 @@ export function App({ session: initialSession, client, initialState = emptyState
               }
             />
             <form className="composer" onSubmit={onSubmit}>
-              <input
+              <Textarea
                 aria-label="답장"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
               />
-              <button type="submit">보내기</button>
+              <Button type="submit">보내기</Button>
             </form>
           </>
         )}

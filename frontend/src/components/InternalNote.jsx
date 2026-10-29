@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
+import { Label } from "./ui/label.jsx";
 
 export function InternalNote({ session, conversation, client, onNoted }) {
   const [draft, setDraft] = useState("");
@@ -34,10 +35,10 @@ export function InternalNote({ session, conversation, client, onNoted }) {
 
   return (
     <form onSubmit={onSubmit} className="note" aria-label="내부 메모">
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         메모
         <Input value={draft} onChange={(e) => setDraft(e.target.value)} required />
-      </label>
+      </Label>
       {error ? <p role="alert">{error}</p> : null}
       <Button type="submit" disabled={pending}>
         메모

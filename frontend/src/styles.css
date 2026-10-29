@@ -59,8 +59,13 @@ body,
   border-top: 1px solid #ddd;
 }
 
-.composer input {
+.composer [data-slot="textarea"] {
   flex: 1;
+}
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
 }
 
 .members {

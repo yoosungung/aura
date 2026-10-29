@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Button } from "./ui/button.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.jsx";
 import { Input } from "./ui/input.jsx";
+import { Label } from "./ui/label.jsx";
 
 export function LoginForm({ client, gatewayUrl, onSuccess }) {
   const [email, setEmail] = useState("");
@@ -28,38 +30,40 @@ export function LoginForm({ client, gatewayUrl, onSuccess }) {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="mx-auto mt-24 flex w-full max-w-sm flex-col gap-4 bg-white p-6 text-neutral-900"
-      aria-label="로그인"
-    >
-      <h1 className="text-xl font-semibold">로그인</h1>
-      <label className="flex flex-col gap-1 text-sm">
-        이메일
-        <Input
-          type="email"
-          name="email"
-          autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        비밀번호
-        <Input
-          type="password"
-          name="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </label>
-      {error ? <p role="alert">{error}</p> : null}
-      <Button type="submit" disabled={pending}>
-        로그인
-      </Button>
-    </form>
+    <Card className="mx-auto mt-24 w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>로그인</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4" aria-label="로그인">
+          <Label>
+            이메일
+            <Input
+              type="email"
+              name="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </Label>
+          <Label>
+            비밀번호
+            <Input
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </Label>
+          {error ? <p role="alert">{error}</p> : null}
+          <Button type="submit" disabled={pending}>
+            로그인
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
+import { Label } from "./ui/label.jsx";
 
 export function InboxMembers({ session, client }) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
@@ -68,14 +69,14 @@ export function InboxMembers({ session, client }) {
     <section className="members" aria-label="인박스 멤버">
       <h2>인박스 멤버</h2>
       <form onSubmit={onAdd} className="flex flex-col gap-2">
-        <label className="flex flex-col gap-1 text-sm">
+        <Label>
           인박스 ID
           <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
+        </Label>
+        <Label>
           상담원 ID
           <Input value={userId} onChange={(e) => setUserId(e.target.value)} required />
-        </label>
+        </Label>
         {error ? <p role="alert">{error}</p> : null}
         <Button type="submit">추가</Button>
       </form>

@@ -8,6 +8,32 @@ afterEach(() => cleanup());
 
 const session = { accountId: "acc", token: "tok", gatewayUrl: "" };
 
+test("login screen is a shadcn card", async () => {
+  const { container } = render(
+    <App
+      session={{ accountId: "", token: "", gatewayUrl: "" }}
+      client={{
+        async refresh() {
+          throw new Error("offline");
+        },
+      }}
+    />,
+  );
+  await screen.findByRole("form", { name: "로그인" });
+  expect(container.querySelector('[data-slot="card"]')).toBeTruthy();
+  expect(container.querySelector('[data-slot="button"]')).toBeTruthy();
+});
+
+test("queue uses badge and thread composer uses textarea", async () => {
+  const user = userEvent.setup();
+  const { container } = render(
+    <App session={session} client={{ connect() {} }} initialState={fixtureState()} />,
+  );
+  expect(container.querySelector('[data-slot="badge"]')?.textContent).toBe("1");
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.getByLabelText("답장").tagName).toBe("TEXTAREA");
+});
+
 test("failed refresh shows the login form", async () => {
   render(
     <App

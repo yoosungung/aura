@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
+import { Label } from "./ui/label.jsx";
 
 export function AssignTicket({ session, conversation, client, onAssigned }) {
   const [assigneeId, setAssigneeId] = useState(conversation.assigneeId || "");
@@ -39,10 +40,10 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
 
   return (
     <form onSubmit={onSubmit} className="assign" aria-label="티켓 배정">
-      <label className="flex flex-col gap-1 text-sm">
+      <Label>
         담당자 ID
         <Input value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} required />
-      </label>
+      </Label>
       {error ? <p role="alert">{error}</p> : null}
       <Button type="submit" disabled={pending}>
         배정
