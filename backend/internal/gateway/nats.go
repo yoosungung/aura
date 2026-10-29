@@ -30,12 +30,21 @@ func NewBus(nc *nats.Conn, js jetstream.JetStream) Bus {
 }
 
 func (r *natsRPC) Create(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error) {
+	return r.create(ctx, accountID, inboxID, sourceID, name, traceID, false)
+}
+
+func (r *natsRPC) CreateEmail(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error) {
+	return r.create(ctx, accountID, inboxID, sourceID, name, traceID, true)
+}
+
+func (r *natsRPC) create(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string, reuse bool) (CreateOut, error) {
 	body, err := json.Marshal(contracts.ConversationsCreate{
-		AccountID: accountID.String(),
-		InboxID:   inboxID.String(),
-		SourceID:  sourceID,
-		Name:      name,
-		TraceID:   traceID,
+		AccountID:    accountID.String(),
+		InboxID:      inboxID.String(),
+		SourceID:     sourceID,
+		Name:         name,
+		TraceID:      traceID,
+		ReuseContact: reuse,
 	})
 	if err != nil {
 		return CreateOut{}, err
@@ -77,6 +86,93 @@ func (r *natsRPC) Create(ctx context.Context, accountID, inboxID uuid.UUID, sour
 		ContactID: contactID, ContactInboxID: ciID,
 		ConversationID: convID, DisplayID: out.DisplayID,
 	}, nil
+}
+
+func (r *natsRPC) ResolveInbox(ctx context.Context, email string) (uuid.UUID, uuid.UUID, error) {
+	body, err := json.Marshal(map[string]any{"email": email})
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectInboxResolveEmail, body)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	var out struct {
+		OK        bool   `json:"ok"`
+		Error     string `json:"error"`
+		AccountID string `json:"account_id"`
+		InboxID   string `json:"inbox_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	if !out.OK {
+		if out.Error == "" {
+			out.Error = "rpc_failed"
+		}
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%s", out.Error)
+	}
+	accountID, err := uuid.Parse(out.AccountID)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	inboxID, err := uuid.Parse(out.InboxID)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	return accountID, inboxID, nil
+}
+
+func (r *natsRPC) ResolveThread(ctx context.Context, accountID, inboxID uuid.UUID, sourceID string, replyIDs []string, displayID int64) (CreateOut, bool, bool, error) {
+	body, err := json.Marshal(map[string]any{
+		"account_id": accountID.String(), "inbox_id": inboxID.String(),
+		"source_id": sourceID, "reply_ids": replyIDs, "display_id": displayID,
+	})
+	if err != nil {
+		return CreateOut{}, false, false, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectResolveThread, body)
+	if err != nil {
+		return CreateOut{}, false, false, err
+	}
+	var out struct {
+		OK             bool   `json:"ok"`
+		Error          string `json:"error"`
+		Found          bool   `json:"found"`
+		Duplicate      bool   `json:"duplicate"`
+		ContactID      string `json:"contact_id"`
+		ContactInboxID string `json:"contact_inbox_id"`
+		ConversationID string `json:"conversation_id"`
+		DisplayID      int64  `json:"display_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return CreateOut{}, false, false, err
+	}
+	if !out.OK {
+		if out.Error == "" {
+			out.Error = "rpc_failed"
+		}
+		return CreateOut{}, false, false, fmt.Errorf("%s", out.Error)
+	}
+	if !out.Found {
+		return CreateOut{}, false, out.Duplicate, nil
+	}
+	contactID, err := uuid.Parse(out.ContactID)
+	if err != nil {
+		return CreateOut{}, false, false, err
+	}
+	ciID, err := uuid.Parse(out.ContactInboxID)
+	if err != nil {
+		return CreateOut{}, false, false, err
+	}
+	convID, err := uuid.Parse(out.ConversationID)
+	if err != nil {
+		return CreateOut{}, false, false, err
+	}
+	return CreateOut{
+		ContactID: contactID, ContactInboxID: ciID,
+		ConversationID: convID, DisplayID: out.DisplayID,
+	}, true, out.Duplicate, nil
 }
 
 func (r *natsRPC) Login(ctx context.Context, email, password string) (AuthOut, error) {

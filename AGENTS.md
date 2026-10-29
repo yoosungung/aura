@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P3 착수. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본(contracts 코드젠 포함)·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
+P4 착수 (`gateway-email` 인입 SMTP). Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본(contracts 코드젠 포함)·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
 

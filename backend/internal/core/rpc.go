@@ -32,6 +32,8 @@ const (
 	SubjectMessagesList      = "helpdesk.rpc.conversations.messages"
 	SubjectContactsList      = "helpdesk.rpc.contacts.list"
 	SubjectContactIdentify   = "helpdesk.rpc.contacts.identify"
+	SubjectInboxResolveEmail = "helpdesk.rpc.inboxes.resolve_email"
+	SubjectResolveThread     = "helpdesk.rpc.conversations.resolve_thread"
 	QueueGroup               = "svc-core"
 )
 
@@ -166,6 +168,20 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subIdentify.Unsubscribe()
+	subResolveEmail, err := nc.QueueSubscribe(SubjectInboxResolveEmail, QueueGroup, func(msg *nats.Msg) {
+		s.handleResolveInbox(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subResolveEmail.Unsubscribe()
+	subResolveThread, err := nc.QueueSubscribe(SubjectResolveThread, QueueGroup, func(msg *nats.Msg) {
+		s.handleResolveThread(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subResolveThread.Unsubscribe()
 	cc, err := s.consumeSnoozeWakes(ctx)
 	if err != nil {
 		return err
@@ -195,11 +211,12 @@ func (s *Service) handleCreate(msg *nats.Msg) {
 		return
 	}
 	out, err := s.Create(context.Background(), CreateInput{
-		AccountID: accountID,
-		InboxID:   inboxID,
-		SourceID:  req.SourceID,
-		Name:      req.Name,
-		TraceID:   req.TraceID,
+		AccountID:    accountID,
+		InboxID:      inboxID,
+		SourceID:     req.SourceID,
+		Name:         req.Name,
+		TraceID:      req.TraceID,
+		ReuseContact: req.ReuseContact,
 	})
 	if err != nil {
 		_ = msg.Respond(rpcErr(err))
@@ -702,6 +719,69 @@ func (s *Service) handleIdentify(msg *nats.Msg) {
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "contact_id": out.ContactID.String(),
 		"identifier": out.Identifier, "name": out.Name, "email": out.Email,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleResolveInbox(msg *nats.Msg) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, inboxID, err := s.ResolveInbox(context.Background(), req.Email)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "account_id": accountID.String(), "inbox_id": inboxID.String(),
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleResolveThread(msg *nats.Msg) {
+	var req struct {
+		AccountID string   `json:"account_id"`
+		InboxID   string   `json:"inbox_id"`
+		SourceID  string   `json:"source_id"`
+		ReplyIDs  []string `json:"reply_ids"`
+		DisplayID int64    `json:"display_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	inboxID, err := uuid.Parse(req.InboxID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, found, dup, err := s.ResolveThread(context.Background(), ThreadInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: req.SourceID,
+		ReplyIDs: req.ReplyIDs, DisplayID: req.DisplayID,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok":               true,
+		"found":            found,
+		"duplicate":        dup,
+		"contact_id":       out.ContactID.String(),
+		"contact_inbox_id": out.ContactInboxID.String(),
+		"conversation_id":  out.ConversationID.String(),
+		"display_id":       out.DisplayID,
+		"status":           out.Status,
+		"version":          out.Version,
 	})
 	_ = msg.Respond(body)
 }

@@ -59,19 +59,26 @@ type SubmitResult struct {
 	Attachments    []AttachmentOut
 }
 
+type EmailResolver interface {
+	ResolveInbox(ctx context.Context, email string) (accountID, inboxID uuid.UUID, err error)
+	ResolveThread(ctx context.Context, accountID, inboxID uuid.UUID, sourceID string, replyIDs []string, displayID int64) (out CreateOut, found, duplicate bool, err error)
+	CreateEmail(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error)
+}
+
 type Service struct {
-	Secret  []byte
-	RPC     Creator
-	Auth    Authenticator
-	Members Members
-	Assign  Assigner
-	Notes   Noter
-	Snooze  Snoozer
-	Labels  Labeler
+	Secret   []byte
+	RPC      Creator
+	Email    EmailResolver
+	Auth     Authenticator
+	Members  Members
+	Assign   Assigner
+	Notes    Noter
+	Snooze   Snoozer
+	Labels   Labeler
 	Catalog  Catalog
 	Identify Identifier
 	Bus      Bus
-	Blobs   BlobStore
+	Blobs    BlobStore
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {
@@ -105,7 +112,7 @@ func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUI
 	if contactID == uuid.Nil || contactInboxID == uuid.Nil || conversationID == uuid.Nil {
 		return SubmitResult{}, ErrInvalid
 	}
-	msgID, _, err := s.publishMessage(ctx, tok.AccountID, inboxID, conversationID, contactID, contactInboxID, tok.ContactID, req.Content, "Contact", MessageIncoming, nil)
+	msgID, _, err := s.publishMessage(ctx, tok.AccountID, inboxID, conversationID, contactID, contactInboxID, tok.ContactID, req.Content, "Contact", MessageIncoming, messageMeta{})
 	if err != nil {
 		return SubmitResult{}, err
 	}
@@ -141,7 +148,7 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 	if strings.TrimSpace(req.Content) == "" || conversationID == uuid.Nil || req.ContactID == uuid.Nil || req.ContactInboxID == uuid.Nil {
 		return SubmitResult{}, ErrInvalid
 	}
-	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing, nil)
+	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing, messageMeta{})
 	if err != nil {
 		return SubmitResult{}, err
 	}
@@ -153,7 +160,13 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 	}, nil
 }
 
-func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conversationID, contactID, contactInboxID, senderID uuid.UUID, content, senderType string, messageType int, attachments []any) (uuid.UUID, []byte, error) {
+type messageMeta struct {
+	SourceID    string
+	ContentRef  string
+	Attachments []any
+}
+
+func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conversationID, contactID, contactInboxID, senderID uuid.UUID, content, senderType string, messageType int, meta messageMeta) (uuid.UUID, []byte, error) {
 	msgID, err := uuid.NewV7()
 	if err != nil {
 		return uuid.Nil, nil, err
@@ -161,8 +174,8 @@ func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conver
 	if senderID == uuid.Nil {
 		senderID = contactID
 	}
-	if attachments == nil {
-		attachments = []any{}
+	if meta.Attachments == nil {
+		meta.Attachments = []any{}
 	}
 	traceID := newTraceID()
 	env, err := json.Marshal(contracts.MessageCreated{
@@ -171,10 +184,10 @@ func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conver
 		AccountID:  accountID.String(), InboxID: inboxID.String(),
 		ConversationID: conversationID.String(), TraceID: traceID, HopCount: 0,
 		Payload: contracts.MessageCreatedPayload{
-			Content: content, MessageType: messageType, Private: false, Status: "sent",
-			ContentType: "text", SenderType: senderType, SenderID: senderID.String(),
+			Content: content, ContentRef: meta.ContentRef, MessageType: messageType, Private: false, Status: "sent",
+			ContentType: "text", SourceID: meta.SourceID, SenderType: senderType, SenderID: senderID.String(),
 			ContactID: contactID.String(), ContactInboxID: contactInboxID.String(),
-			Attachments: attachments,
+			Attachments: meta.Attachments,
 		},
 	})
 	if err != nil {

@@ -54,7 +54,7 @@ func (s *Service) SubmitAttachment(ctx context.Context, tok Token, accountID, co
 	att := map[string]any{
 		"id": attID.String(), "file_type": fileType, "external_url": url, "file_size": size,
 	}
-	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, filename, "User", MessageOutgoing, []any{att})
+	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, filename, "User", MessageOutgoing, messageMeta{Attachments: []any{att}})
 	if err != nil {
 		return SubmitResult{}, err
 	}

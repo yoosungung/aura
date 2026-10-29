@@ -3,11 +3,12 @@
 package contracts
 
 type ConversationsCreate struct {
-	AccountID string `json:"account_id"`
-	InboxID   string `json:"inbox_id"`
-	SourceID  string `json:"source_id"`
-	Name      string `json:"name,omitempty"`
-	TraceID   string `json:"trace_id"`
+	AccountID    string `json:"account_id"`
+	InboxID      string `json:"inbox_id"`
+	SourceID     string `json:"source_id"`
+	Name         string `json:"name,omitempty"`
+	TraceID      string `json:"trace_id"`
+	ReuseContact bool   `json:"reuse_contact,omitempty"`
 }
 
 type ConversationsTransition struct {

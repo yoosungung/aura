@@ -55,7 +55,7 @@
 
 ## P4 옴니채널
 
-- `gateway-email`: In-Reply-To / References → `source_id`, 구분자 `##- Please type your reply above this line -##`, 제목 `[#REQ-{display_id}]`.
+- `gateway-email` 인입: SMTP `:25` + `emersion/go-smtp` / `go-message`. 웹훅 HMAC은 없고 MX DATA가 신뢰 경계. In-Reply-To / References → `messages.source_id`, 구분자 `##- Please type your reply above this line -##`, 제목 `[#REQ-{display_id}]`. 코어 생성 RPC(`reuse_contact`) 성공 뒤에만 JetStream `message_created`.
 - `gateway-kakao`: 상담톡 30일 세션, 세션 밖 알림톡 템플릿.
 - `helpdesk.tasks.outbound.email` / `outbound.kakao`.
 - 256KB 초과 본문·MIME은 오브젝트 스토리지 Claim-Check (`content_ref`).

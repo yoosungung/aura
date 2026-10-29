@@ -10,6 +10,7 @@
     "inbox_id": { "type": "string", "format": "uuid" },
     "source_id": { "type": "string", "minLength": 1 },
     "name": { "type": "string" },
-    "trace_id": { "type": "string", "minLength": 1 }
+    "trace_id": { "type": "string", "minLength": 1 },
+    "reuse_contact": { "type": "boolean" }
   }
 }

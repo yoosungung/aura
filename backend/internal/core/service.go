@@ -3,11 +3,13 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -21,11 +23,12 @@ type Service struct {
 }
 
 type CreateInput struct {
-	AccountID uuid.UUID
-	InboxID   uuid.UUID
-	SourceID  string
-	Name      string
-	TraceID   string
+	AccountID    uuid.UUID
+	InboxID      uuid.UUID
+	SourceID     string
+	Name         string
+	TraceID      string
+	ReuseContact bool
 }
 
 type CreateResult struct {
@@ -90,14 +93,50 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (CreateResult, err
 	if name == "" {
 		name = "Guest"
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO contacts (id, account_id, name) VALUES ($1,$2,$3)`, contactID, in.AccountID, name); err != nil {
-		return CreateResult{}, err
+
+	reused := false
+	if in.ReuseContact {
+		var existingCI, existingContact uuid.UUID
+		err := tx.QueryRow(ctx, `
+			SELECT id, contact_id FROM contact_inboxes WHERE inbox_id = $1 AND source_id = $2`,
+			in.InboxID, in.SourceID,
+		).Scan(&existingCI, &existingContact)
+		if err == nil {
+			ciID = existingCI
+			contactID = existingContact
+			reused = true
+		} else if err != pgx.ErrNoRows {
+			return CreateResult{}, err
+		}
 	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO contact_inboxes (id, account_id, contact_id, inbox_id, source_id, pubsub_token)
-		VALUES ($1,$2,$3,$4,$5,$6)`,
-		ciID, in.AccountID, contactID, in.InboxID, in.SourceID, uuid.NewString()); err != nil {
-		return CreateResult{}, err
+
+	if !reused {
+		var email any
+		if in.ReuseContact {
+			email = in.SourceID
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO contacts (id, account_id, name, email) VALUES ($1,$2,$3,$4)`,
+			contactID, in.AccountID, name, email); err != nil {
+			if !(in.ReuseContact && isUniqueViolation(err)) {
+				return CreateResult{}, err
+			}
+			if err := tx.QueryRow(ctx, `SELECT id FROM contacts WHERE account_id = $1 AND email = $2`,
+				in.AccountID, in.SourceID).Scan(&contactID); err != nil {
+				return CreateResult{}, err
+			}
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO contact_inboxes (id, account_id, contact_id, inbox_id, source_id, pubsub_token)
+			VALUES ($1,$2,$3,$4,$5,$6)`,
+			ciID, in.AccountID, contactID, in.InboxID, in.SourceID, uuid.NewString()); err != nil {
+			if !(in.ReuseContact && isUniqueViolation(err)) {
+				return CreateResult{}, err
+			}
+			if err := tx.QueryRow(ctx, `SELECT id, contact_id FROM contact_inboxes WHERE inbox_id = $1 AND source_id = $2`,
+				in.InboxID, in.SourceID).Scan(&ciID, &contactID); err != nil {
+				return CreateResult{}, err
+			}
+		}
 	}
 
 	var displayID int64
@@ -237,4 +276,9 @@ func (s *Service) publishOutbox(ctx context.Context, accountID, eventID uuid.UUI
 	_, _ = tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, accountID.String())
 	_, _ = tx.Exec(ctx, `UPDATE event_outbox SET published_at = CURRENT_TIMESTAMP WHERE id = $1`, eventID)
 	_ = tx.Commit(ctx)
+}
+
+func isUniqueViolation(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && pe.Code == "23505"
 }
