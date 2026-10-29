@@ -63,6 +63,12 @@ func Postgres(t *testing.T) (admin *pgx.Conn, app *pgx.Conn) {
 
 func NATS(t *testing.T) jetstream.JetStream {
 	t.Helper()
+	_, js := NATSConn(t)
+	return js
+}
+
+func NATSConn(t *testing.T) (*nats.Conn, jetstream.JetStream) {
+	t.Helper()
 	ctx := context.Background()
 	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
@@ -94,5 +100,5 @@ func NATS(t *testing.T) jetstream.JetStream {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return js
+	return nc, js
 }

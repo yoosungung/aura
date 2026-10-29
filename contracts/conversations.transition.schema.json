@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yoosungung/aura/contracts/conversations.transition.schema.json",
+  "title": "helpdesk.rpc.conversations.transition",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["account_id", "conversation_id", "new_status", "expected_version", "trace_id"],
+  "properties": {
+    "account_id": { "type": "string", "format": "uuid" },
+    "conversation_id": { "type": "string", "format": "uuid" },
+    "new_status": { "type": "string", "enum": ["unassigned", "open", "pending", "snoozed", "resolved"] },
+    "expected_version": { "type": "integer", "minimum": 1 },
+    "actor_type": { "type": "string" },
+    "actor_id": { "type": "string", "format": "uuid" },
+    "trace_id": { "type": "string", "minLength": 1 }
+  }
+}

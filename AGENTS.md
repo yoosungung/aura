@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P1 백본 완료 (`message_created` 멱등 적재·DLQ). 다음은 [ROADMAP.md](ROADMAP.md) P2. 실행은 [backend/DESIGN.md](backend/DESIGN.md) `## Commands`.
+P2 진행 중 (`svc-core` 생성 RPC·FSM CAS). P1 백본 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md) `## Commands`.
 

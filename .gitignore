@@ -6,5 +6,6 @@
 venv/
 node_modules/
 dist/
+docs/reference_code/
 *.pem
 credentials.json

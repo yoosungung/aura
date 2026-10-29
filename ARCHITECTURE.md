@@ -73,13 +73,15 @@ nats stream add INGESTION_DLQ \
   --storage file --retention limits --max-age 30d
 ```
 
-`helpdesk.realtime.>` 는 스트림에 넣지 않는다.
+`helpdesk.realtime.>` 와 `helpdesk.rpc.>` 는 스트림에 넣지 않는다. RPC는 NATS Core Request-Reply다.
 
 | 구분 | 서브젝트 | 핵심 필드 | 발행 | 소비 |
 |---|---|---|---|---|
 | Core | `helpdesk.realtime.<account_id>.<conversation_id>.typing` | `user_type`, `user_id`, `is_typing` | gateway-\* | gateway-web |
 | Core | `helpdesk.realtime.<account_id>.agent.presence` | `user_id`, `status` | svc-core | gateway-web |
 | Core | `helpdesk.realtime.<account_id>.<conversation_id>.updated` | `event` (`conversation.created` 등) | ingestion 적재 후 또는 gateway | gateway-web, 위젯 |
+| Core | `helpdesk.rpc.conversations.create` | `account_id`, `inbox_id`, `source_id` | gateway-\* | svc-core |
+| Core | `helpdesk.rpc.conversations.transition` | `conversation_id`, `new_status`, `expected_version` | gateway-\* | svc-core |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |

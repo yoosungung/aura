@@ -8,7 +8,9 @@
 
 ```sh
 docker compose -f deploy/compose/docker-compose.yml up -d
-cd backend && go test ./... && go run ./cmd/ingestion-worker
+cd backend && go test ./...
+go run ./cmd/ingestion-worker
+go run ./cmd/svc-core
 ```
 
 명령의 정본은 [backend/DESIGN.md](backend/DESIGN.md) `## Commands`. 스택은 Go 코어, Python `svc-ai-agent`, React 상담원 SPA다.
