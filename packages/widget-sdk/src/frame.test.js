@@ -93,6 +93,31 @@ test("frame send uses own origin API after parent init", async () => {
   assert.equal(frame.token(), "rotated");
 });
 
+test("setUser with identifier_hash posts identify", async () => {
+  const win = fakeFrame();
+  const calls = [];
+  const frame = createFrame(win, {
+    async fetch(url, opts) {
+      calls.push({ url, opts });
+      return { ok: true, json: async () => ({ identifier: "user-1" }) };
+    },
+    WebSocket: function WS() {},
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("setUser", { identifier: "user-1", identifier_hash: "abc", name: "Ada" }),
+  });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://help.example/public/api/v1/inboxes/inbox-1/identify");
+  assert.equal(JSON.parse(calls[0].opts.body).identifier_hash, "abc");
+  assert.equal(frame.identifier(), "user-1");
+});
+
 test("setUser without identifier_hash does not bind identity", async () => {
   const win = fakeFrame();
   const frame = createFrame(win, {

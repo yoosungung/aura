@@ -21,6 +21,8 @@ export function createFrame(win, deps = {}) {
 
   let token = "";
   let inboxId = "";
+  let boundIdentifier = "";
+  let pendingUser = null;
   let socket;
 
   const apiBase = win.location.origin;
@@ -38,11 +40,37 @@ export function createFrame(win, deps = {}) {
     if (msg.event === "init") {
       token = msg.payload.token ?? "";
       inboxId = msg.payload.inboxId ?? "";
+      bindUser();
     }
-    if (msg.event === "setUser" && msg.payload.identifier_hash) {
-      // P3: HMAC bind. P2 stores nothing without a server round-trip.
+    if (msg.event === "setUser" && msg.payload.identifier_hash && msg.payload.identifier) {
+      pendingUser = {
+        identifier: msg.payload.identifier,
+        identifier_hash: msg.payload.identifier_hash,
+        name: msg.payload.name || "",
+        email: msg.payload.email || "",
+      };
+      bindUser();
     }
   });
+
+  async function bindUser() {
+    if (!pendingUser || !token || !inboxId) {
+      return;
+    }
+    const res = await fetchImpl(`${apiBase}/public/api/v1/inboxes/${inboxId}/identify`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(pendingUser),
+    });
+    if (!res.ok) {
+      return;
+    }
+    boundIdentifier = pendingUser.identifier;
+    pendingUser = null;
+  }
 
   function connectWS() {
     if (!token || !WebSocketImpl) {
@@ -102,12 +130,13 @@ export function createFrame(win, deps = {}) {
     }
     append(content, "Contact");
     connectWS();
+    await bindUser();
     return body;
   }
 
   return {
     send,
     token: () => token,
-    identifier: () => "",
+    identifier: () => boundIdentifier,
   };
 }

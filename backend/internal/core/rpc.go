@@ -31,6 +31,7 @@ const (
 	SubjectConversationsList = "helpdesk.rpc.conversations.list"
 	SubjectMessagesList      = "helpdesk.rpc.conversations.messages"
 	SubjectContactsList      = "helpdesk.rpc.contacts.list"
+	SubjectContactIdentify   = "helpdesk.rpc.contacts.identify"
 	QueueGroup               = "svc-core"
 )
 
@@ -158,6 +159,13 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subContactList.Unsubscribe()
+	subIdentify, err := nc.QueueSubscribe(SubjectContactIdentify, QueueGroup, func(msg *nats.Msg) {
+		s.handleIdentify(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subIdentify.Unsubscribe()
 	cc, err := s.consumeSnoozeWakes(ctx)
 	if err != nil {
 		return err
@@ -650,6 +658,51 @@ func (s *Service) handleContactsList(msg *nats.Msg) {
 		})
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "contacts": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleIdentify(msg *nats.Msg) {
+	var req struct {
+		AccountID      string `json:"account_id"`
+		InboxID        string `json:"inbox_id"`
+		ContactID      string `json:"contact_id"`
+		Identifier     string `json:"identifier"`
+		IdentifierHash string `json:"identifier_hash"`
+		Name           string `json:"name"`
+		Email          string `json:"email"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	inboxID, err := uuid.Parse(req.InboxID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	contactID, err := uuid.Parse(req.ContactID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.IdentifyContact(context.Background(), IdentifyInput{
+		AccountID: accountID, InboxID: inboxID, ContactID: contactID,
+		Identifier: req.Identifier, IdentifierHash: req.IdentifierHash,
+		Name: req.Name, Email: req.Email,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "contact_id": out.ContactID.String(),
+		"identifier": out.Identifier, "name": out.Name, "email": out.Email,
+	})
 	_ = msg.Respond(body)
 }
 

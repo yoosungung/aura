@@ -92,6 +92,7 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.messages` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.identify` | `inbox_id`, `contact_id`, `identifier`, `identifier_hash` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.login` | `email`, `password` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
@@ -204,6 +205,7 @@ nats stream add INGESTION_DLQ \
 - `POST /auth/refresh` 쿠키만. 새 `access_token`
 - `DELETE /auth/sign_out` 세션 폐기, 쿠키 삭제
 - `POST /public/api/v1/inboxes/{inbox_id}/auth` `{ pubsub_token }` → Contact `access_token`
+- `POST /public/api/v1/inboxes/{inbox_id}/identify` `{ identifier, identifier_hash, name, email }`
 
 세션 쿠키는 refresh/logout 전용이다. SPA는 쿠키를 읽지 않고 `access_token`을 메모리에 둔다. API는 `Authorization: Bearer`, WS는 `/ws?token=`. 접근 토큰 TTL은 15분, 세션은 7일. 클레임에 `exp`와 `sid`가 없으면 거절한다. 비밀번호는 Argon2id(m=19456 KiB, t=2, p=1). 쿠키에는 난수를 두고 DB에는 SHA-256 다이제스트만 둔다.
 
@@ -242,7 +244,7 @@ Realtime 접근 토큰: User는 배속 인박스의 `helpdesk.realtime.<account_
 호스트는 로더 스크립트만 넣고 본체는 iframe이다.
 
 - `postMessage` 수신부는 `event.origin` 이 등록된 헬프데스크 origin(또는 허용 호스트)이 아니면 return. origin 미검증 금지.
-- `window.$aura.setUser(identifier, { name, email, identifier_hash })` 의 `identifier_hash` 는 서버 HMAC-SHA256(`identifier`, inbox HMAC secret). 불일치면 식별자 바인딩 거부.
+- `window.$aura.setUser(identifier, { name, email, identifier_hash })` 의 `identifier_hash` 는 서버 HMAC-SHA256(`identifier`, inbox HMAC secret) **소문자 hex**. 불일치면 식별자 바인딩 거부. 현재 컨택트에만 쓰고, 다른 컨택트 identifier와 겹치면 거절한다.
 - 고객 WS는 Contact 토큰만 사용한다.
 
 ## 8. Ego-Graph 읽기

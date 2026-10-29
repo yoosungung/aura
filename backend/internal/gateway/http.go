@@ -20,6 +20,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /auth/sign_in", s.handleSignIn)
 	mux.HandleFunc("POST /auth/refresh", s.handleRefresh)
 	mux.HandleFunc("DELETE /auth/sign_out", s.handleSignOut)
+	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/identify", s.handleIdentify)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations", s.handleConversationList)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleMessageList)
