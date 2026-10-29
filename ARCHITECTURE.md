@@ -89,6 +89,9 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.conversations.label.add` | `actor_user_id`, `conversation_id`, `name` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.label.remove` | `actor_user_id`, `conversation_id`, `label_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.label.list` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.messages` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.login` | `email`, `password` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
@@ -215,6 +218,9 @@ nats stream add INGESTION_DLQ \
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/labels`
 - `DELETE /api/v1/accounts/{account_id}/conversations/{id}/labels/{label_id}`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
+- `GET /api/v1/accounts/{account_id}/conversations`
+- `GET /api/v1/accounts/{account_id}/conversations/{id}/messages`
+- `PUT /api/v1/accounts/{account_id}/conversations/{id}/status`
 - `GET /api/v1/accounts/{account_id}/contacts`
 - `POST /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{id}/messages`
 - `POST /platform/api/v1/accounts`

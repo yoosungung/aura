@@ -52,6 +52,7 @@ func main() {
 			Notes:   n,
 			Snooze:  n,
 			Labels:  n,
+			Catalog: n,
 			Bus:     gateway.NewBus(nc, js),
 			Blobs:   &gateway.FilerStore{Endpoint: filer, Public: public},
 		},

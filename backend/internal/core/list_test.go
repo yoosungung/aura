@@ -1,0 +1,122 @@
+package core_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/yoosungung/aura/internal/core"
+	"github.com/yoosungung/aura/internal/testutil"
+)
+
+func TestListConversations_OnlyActorInboxes(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	otherInbox, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `INSERT INTO inboxes (id, account_id, name, channel_type, hmac_secret)
+		VALUES ($1,$2,'other','web','secret')`, otherInbox, accountID); err != nil {
+		t.Fatal(err)
+	}
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	if err := svc.AddInboxMember(ctx, core.MemberInput{
+		ActorUserID: adminID, AccountID: accountID, InboxID: inboxID, UserID: agentID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mine, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "w1", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: otherInbox, SourceID: "w2", Name: "Bob",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := svc.ListConversations(ctx, core.ListInput{
+		ActorUserID: agentID, AccountID: accountID, InboxIDs: []uuid.UUID{inboxID, otherInbox},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != mine.ConversationID {
+		t.Fatalf("%+v", list)
+	}
+}
+
+func TestListMessagesAndContacts(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	svc := &core.Service{DB: app}
+	created, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "w1", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, accountID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO messages (id, account_id, inbox_id, conversation_id, message_type, content, sender_type, sender_id)
+		VALUES ($1,$2,$3,$4,0,'결제 오류','Contact',$5)`,
+		msgID, accountID, inboxID, created.ConversationID, created.ContactID); err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, err := svc.ListMessages(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: accountID, ConversationID: created.ConversationID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].Content != "결제 오류" {
+		t.Fatalf("%+v", msgs)
+	}
+
+	contacts, err := svc.ListContacts(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: accountID, InboxIDs: []uuid.UUID{inboxID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contacts) != 1 || contacts[0].ID != created.ContactID || contacts[0].Name != "Ada" {
+		t.Fatalf("%+v", contacts)
+	}
+}
+
+func TestTransition_ActorMustBelongToInbox(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	outsider := seedUser(t, admin, accountID, "out@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	created, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "w1", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Transition(ctx, core.TransitionInput{
+		AccountID: accountID, ConversationID: created.ConversationID,
+		NewStatus: core.StatusResolved, ExpectedVersion: 1,
+		ActorType: "User", ActorID: &outsider,
+	})
+	if err != core.ErrDenied {
+		t.Fatalf("got %v", err)
+	}
+}

@@ -158,6 +158,11 @@ func (s *Service) Transition(ctx context.Context, in TransitionInput) (Transitio
 	if version != in.ExpectedVersion {
 		return TransitionResult{}, ErrConflict
 	}
+	if in.ActorID != nil {
+		if err := requireAssignActor(ctx, tx, in.AccountID, inboxID, *in.ActorID); err != nil {
+			return TransitionResult{}, err
+		}
+	}
 	if !CanTransition(status, in.NewStatus) {
 		return TransitionResult{}, ErrForbidden
 	}

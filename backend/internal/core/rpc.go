@@ -28,6 +28,9 @@ const (
 	SubjectLabelAdd          = "helpdesk.rpc.conversations.label.add"
 	SubjectLabelRemove       = "helpdesk.rpc.conversations.label.remove"
 	SubjectLabelList         = "helpdesk.rpc.conversations.label.list"
+	SubjectConversationsList = "helpdesk.rpc.conversations.list"
+	SubjectMessagesList      = "helpdesk.rpc.conversations.messages"
+	SubjectContactsList      = "helpdesk.rpc.contacts.list"
 	QueueGroup               = "svc-core"
 )
 
@@ -134,6 +137,27 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subLabelList.Unsubscribe()
+	subConvList, err := nc.QueueSubscribe(SubjectConversationsList, QueueGroup, func(msg *nats.Msg) {
+		s.handleConversationsList(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subConvList.Unsubscribe()
+	subMsgList, err := nc.QueueSubscribe(SubjectMessagesList, QueueGroup, func(msg *nats.Msg) {
+		s.handleMessagesList(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subMsgList.Unsubscribe()
+	subContactList, err := nc.QueueSubscribe(SubjectContactsList, QueueGroup, func(msg *nats.Msg) {
+		s.handleContactsList(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subContactList.Unsubscribe()
 	cc, err := s.consumeSnoozeWakes(ctx)
 	if err != nil {
 		return err
@@ -498,6 +522,134 @@ func (s *Service) handleMemberList(msg *nats.Msg) {
 		})
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "members": members})
+	_ = msg.Respond(body)
+}
+
+func parseListInput(msg *nats.Msg) (ListInput, error) {
+	var req struct {
+		ActorUserID    string   `json:"actor_user_id"`
+		AccountID      string   `json:"account_id"`
+		InboxIDs       []string `json:"inbox_ids"`
+		ConversationID string   `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		return ListInput{}, err
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		return ListInput{}, err
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		return ListInput{}, err
+	}
+	in := ListInput{ActorUserID: actor, AccountID: accountID}
+	for _, s := range req.InboxIDs {
+		id := parseUUID(s)
+		if id != uuid.Nil {
+			in.InboxIDs = append(in.InboxIDs, id)
+		}
+	}
+	if req.ConversationID != "" {
+		id, err := uuid.Parse(req.ConversationID)
+		if err != nil {
+			return ListInput{}, err
+		}
+		in.ConversationID = id
+	}
+	return in, nil
+}
+
+func parseUUID(s string) uuid.UUID {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}
+
+func (s *Service) handleConversationsList(msg *nats.Msg) {
+	in, err := parseListInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListConversations(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, c := range list {
+		row := map[string]any{
+			"id":               c.ID.String(),
+			"inbox_id":         c.InboxID.String(),
+			"contact_id":       c.ContactID.String(),
+			"contact_inbox_id": c.ContactInboxID.String(),
+			"status":           c.Status,
+			"version":          c.Version,
+			"display_id":       c.DisplayID,
+			"last_content":     c.LastContent,
+		}
+		if c.AssigneeID != uuid.Nil {
+			row["assignee_id"] = c.AssigneeID.String()
+		}
+		if c.SnoozedUntil != nil {
+			row["snoozed_until"] = c.SnoozedUntil.UTC().Format(time.RFC3339)
+		}
+		rows = append(rows, row)
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "conversations": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleMessagesList(msg *nats.Msg) {
+	in, err := parseListInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListMessages(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, m := range list {
+		atts := make([]map[string]any, 0, len(m.Attachments))
+		for _, a := range m.Attachments {
+			atts = append(atts, map[string]any{
+				"id": a.ID.String(), "file_type": a.FileType, "external_url": a.ExternalURL, "file_size": a.FileSize,
+			})
+		}
+		rows = append(rows, map[string]any{
+			"id": m.ID.String(), "content": m.Content, "sender_type": m.SenderType,
+			"private": m.Private, "created_at": m.CreatedAt.UTC().Format(time.RFC3339Nano),
+			"attachments": atts,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "messages": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleContactsList(msg *nats.Msg) {
+	in, err := parseListInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListContacts(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, c := range list {
+		rows = append(rows, map[string]any{
+			"id": c.ID.String(), "name": c.Name, "email": c.Email, "identifier": c.Identifier,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "contacts": rows})
 	_ = msg.Respond(body)
 }
 

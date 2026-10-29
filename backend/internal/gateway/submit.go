@@ -68,6 +68,7 @@ type Service struct {
 	Notes   Noter
 	Snooze  Snoozer
 	Labels  Labeler
+	Catalog Catalog
 	Bus     Bus
 	Blobs   BlobStore
 }
