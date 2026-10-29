@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yoosungung/aura/contracts/message_created.schema.json",
+  "title": "helpdesk.events message_created",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "schema_version",
+    "type",
+    "occurred_at",
+    "account_id",
+    "inbox_id",
+    "conversation_id",
+    "trace_id",
+    "hop_count",
+    "payload"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "schema_version": { "type": "integer", "const": 1 },
+    "type": { "type": "string", "const": "message_created" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "account_id": { "type": "string", "format": "uuid" },
+    "inbox_id": { "type": "string", "format": "uuid" },
+    "conversation_id": { "type": "string", "format": "uuid" },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "causation_id": { "type": "string", "format": "uuid" },
+    "hop_count": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "content",
+        "message_type",
+        "private",
+        "status",
+        "content_type",
+        "sender_type",
+        "sender_id",
+        "contact_id",
+        "contact_inbox_id"
+      ],
+      "properties": {
+        "content": { "type": "string" },
+        "content_ref": { "type": "string" },
+        "message_type": { "type": "integer", "enum": [0, 1, 2, 3] },
+        "private": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["sent", "delivered", "read", "failed"] },
+        "content_type": { "type": "string", "enum": ["text", "input_csat", "form"] },
+        "source_id": { "type": "string" },
+        "sender_type": { "type": "string", "enum": ["User", "Contact", "AgentBot"] },
+        "sender_id": { "type": "string", "format": "uuid" },
+        "contact_id": { "type": "string", "format": "uuid" },
+        "contact_inbox_id": { "type": "string", "format": "uuid" },
+        "attachments": { "type": "array" }
+      }
+    }
+  }
+}

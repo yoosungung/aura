@@ -24,7 +24,7 @@
 - 배치: 500건 또는 100ms. 엔티티 계층 정렬 Upsert. `ON CONFLICT (id) DO NOTHING`. 실패 시 단건 폴백, 영구 실패는 `helpdesk.dlq.ingestion` ACK.
 - 부모 행(`contacts`/`conversations`)은 테스트 픽스처로 넣는다. 생성 RPC는 P2.
 
-성공: 같은 `message_created`를 두 번 publish해도 `messages` 행은 하나. 독성 1건은 DLQ로 가고 나머지 배치는 커밋된다. TDD: 마이그레이션 → JetStream 컨슈머 → 배치 플러시 → DLQ.
+성공: 같은 `message_created`를 두 번 publish해도 `messages` 행은 하나. 독성 1건은 DLQ로 가고 나머지 배치는 커밋된다. TDD: 마이그레이션 → JetStream 컨슈머 → 배치 플러시 → DLQ. **완료.**
 
 ## P2 라이브챗 알파
 

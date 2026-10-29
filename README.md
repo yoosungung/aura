@@ -6,6 +6,9 @@
 
 ## 로컬 실행
 
-P0(문서)까지 완료했다. compose·마이그레이션·워커 명령은 P1에서 `deploy/compose/`와 `backend/DESIGN.md`의 `## Commands`에 생긴다. 그 전까지 실행할 바이너리는 없다.
+```sh
+docker compose -f deploy/compose/docker-compose.yml up -d
+cd backend && go test ./... && go run ./cmd/ingestion-worker
+```
 
-스택은 Go 코어, Python `svc-ai-agent`, React 상담원 SPA다.
+명령의 정본은 [backend/DESIGN.md](backend/DESIGN.md) `## Commands`. 스택은 Go 코어, Python `svc-ai-agent`, React 상담원 SPA다.

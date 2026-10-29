@@ -14,6 +14,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ARCHITECTURE.md` | **계약사항(불변 규칙)** + 컴포넌트 *간* 인터페이스 형태(스키마·레이아웃·이벤트) | 루트 |
 | `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
+| `contracts/` | 이벤트 JSON Schema | `contracts/` |
+| `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `???/` |
  
@@ -36,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P0 문서 완료. 계약은 [ARCHITECTURE.md](ARCHITECTURE.md)(컨택트·대화·FSM은 `svc-core` 동기 커밋, 메시지 등은 ingestion). 일정은 [ROADMAP.md](ROADMAP.md) P1(백본)이 다음이다. 코드·compose는 아직 없다.
+P1 백본 완료 (`message_created` 멱등 적재·DLQ). 다음은 [ROADMAP.md](ROADMAP.md) P2. 실행은 [backend/DESIGN.md](backend/DESIGN.md) `## Commands`.
 
