@@ -99,6 +99,21 @@ describe("reduce realtime", () => {
       true,
     );
     assert.equal(visibleInQueue({ status: "open" }, now), true);
+    assert.equal(visibleInQueue({ status: "resolved" }, now), false);
+  });
+
+  it("applies status_changed and drops resolved from the thread", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    s = reduce(s, { type: "select", id: "c1" });
+    s = reduce(s, {
+      type: "realtime",
+      event: { event: "conversation.status_changed", conversation_id: "c1", status: "resolved", version: 2 },
+    });
+    assert.equal(s.conversations[0].status, "resolved");
+    assert.equal(s.selectedId, null);
   });
 
   it("appends a label onto the conversation", () => {

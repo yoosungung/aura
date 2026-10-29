@@ -3,23 +3,52 @@ export function wsUrl(gatewayUrl, token) {
   return `${http.replace(/^http/, "ws")}/ws?token=${encodeURIComponent(token)}`;
 }
 
-export function connect(session, onEvent) {
+export function connect(session, onEvent, deps = {}) {
   if (!session.token || typeof WebSocket === "undefined") {
     return () => {};
   }
-  const ws = new WebSocket(wsUrl(session.gatewayUrl, session.token));
-  ws.onmessage = (ev) => {
-    let data;
-    try {
-      data = JSON.parse(ev.data);
-    } catch {
+  let closed = false;
+  let socket;
+  let token = session.token;
+  const refresh = deps.refresh || session.refresh;
+  function open(nextToken) {
+    if (closed || !nextToken) {
       return;
     }
-    if (data.type === "event") {
-      onEvent(data);
-    }
+    token = nextToken;
+    const ws = new WebSocket(wsUrl(session.gatewayUrl, nextToken));
+    socket = ws;
+    ws.onmessage = (ev) => {
+      let data;
+      try {
+        data = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (data.type === "event") {
+        onEvent(data);
+      }
+    };
+    ws.onclose = () => {
+      if (closed || typeof refresh !== "function") {
+        return;
+      }
+      Promise.resolve(refresh({ gatewayUrl: session.gatewayUrl }))
+        .then((data) => {
+          const next = data?.access_token;
+          if (closed || !next || next === token) {
+            return;
+          }
+          open(next);
+        })
+        .catch(() => {});
+    };
+  }
+  open(token);
+  return () => {
+    closed = true;
+    socket?.close();
   };
-  return () => ws.close();
 }
 
 export async function sendReply(req, fetchImpl = fetch) {

@@ -1,8 +1,34 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
+  it("reconnects websocket with a refreshed access token", async () => {
+    const socks = [];
+    const prev = globalThis.WebSocket;
+    globalThis.WebSocket = class {
+      constructor(url) {
+        this.url = url;
+        socks.push(this);
+      }
+      close() {}
+    };
+    try {
+      const stop = connect(
+        { token: "t1", gatewayUrl: "http://gw" },
+        () => {},
+        { refresh: async () => ({ access_token: "t2" }) },
+      );
+      socks[0].onclose();
+      await new Promise((r) => setTimeout(r, 0));
+      assert.equal(socks[0].url, "ws://gw/ws?token=t1");
+      assert.equal(socks[1].url, "ws://gw/ws?token=t2");
+      stop();
+    } finally {
+      globalThis.WebSocket = prev;
+    }
+  });
+
   it("builds a ws url from the http origin", () => {
     assert.equal(
       wsUrl("http://127.0.0.1:8080", "tok"),

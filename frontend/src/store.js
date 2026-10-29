@@ -35,6 +35,9 @@ export function parseSession(search, env = {}) {
 }
 
 export function visibleInQueue(c, now = Date.now()) {
+  if (c.status === "resolved") {
+    return false;
+  }
   if (c.status !== "snoozed") {
     return true;
   }
@@ -88,6 +91,32 @@ export function reduce(state, action) {
       ),
     };
   }
+  if (action.type === "unlabeled") {
+    return {
+      ...state,
+      conversations: state.conversations.map((c) =>
+        c.id === action.conversationId
+          ? { ...c, labels: (c.labels || []).filter((l) => l.id !== action.labelId) }
+          : c,
+      ),
+    };
+  }
+  if (action.type === "resolved") {
+    return {
+      ...state,
+      conversations: state.conversations.map((c) =>
+        c.id === action.conversationId ? { ...c, status: "resolved", version: action.version } : c,
+      ),
+      selectedId: state.selectedId === action.conversationId ? null : state.selectedId,
+    };
+  }
+  if (action.type === "hydrate") {
+    return {
+      ...state,
+      conversations: action.conversations || state.conversations,
+      messages: action.messages ? { ...state.messages, ...action.messages } : state.messages,
+    };
+  }
   if (action.type === "realtime") {
     return applyRealtime(state, action.event);
   }
@@ -95,7 +124,22 @@ export function reduce(state, action) {
 }
 
 function applyRealtime(state, event) {
-  if (!event || event.event !== "message.created") {
+  if (!event) {
+    return state;
+  }
+  if (event.event === "conversation.status_changed" || event.event === "status_changed") {
+    const convId = event.conversation_id;
+    const status = event.status || event.payload?.new_status;
+    const version = event.version;
+    return {
+      ...state,
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, status, version: version || c.version } : c,
+      ),
+      selectedId: status === "resolved" && state.selectedId === convId ? null : state.selectedId,
+    };
+  }
+  if (event.event !== "message.created") {
     return state;
   }
   const convId = event.conversation_id;

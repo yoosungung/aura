@@ -57,7 +57,9 @@ export function App({ session: initialSession, client, initialState = emptyState
     if (!session.token || !client.connect) {
       return undefined;
     }
-    return client.connect(session, (event) => dispatch({ type: "realtime", event }));
+    return client.connect(session, (event) => dispatch({ type: "realtime", event }), {
+      refresh: client.refresh,
+    });
   }, [session, client]);
 
   async function onSubmit(e) {
