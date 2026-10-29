@@ -62,9 +62,10 @@ func (f *fakeRPC) n() int {
 }
 
 type fakeBus struct {
-	mu       sync.Mutex
-	events   []string
-	realtime []string
+	mu        sync.Mutex
+	events    []string
+	realtime  []string
+	schedules []uuid.UUID
 }
 
 func (f *fakeBus) PublishEvent(_ context.Context, subject string, _ []byte) error {
@@ -78,6 +79,13 @@ func (f *fakeBus) PublishRealtime(subject string, _ []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.realtime = append(f.realtime, subject)
+	return nil
+}
+
+func (f *fakeBus) ScheduleSnoozeWake(_ context.Context, _, conversationID uuid.UUID, _ time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.schedules = append(f.schedules, conversationID)
 	return nil
 }
 

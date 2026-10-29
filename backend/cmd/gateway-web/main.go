@@ -48,6 +48,7 @@ func main() {
 			Members: n,
 			Assign:  n,
 			Notes:   n,
+			Snooze:  n,
 			Bus:     gateway.NewBus(nc, js),
 		},
 		NC: nc,

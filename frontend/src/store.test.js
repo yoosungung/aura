@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { emptyState, reduce } from "./store.js";
+import { emptyState, reduce, visibleInQueue } from "./store.js";
 
 function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
   return {
@@ -86,5 +86,18 @@ describe("reduce realtime", () => {
     assert.equal(s.conversations[0].lastContent, "결제 오류");
     assert.equal(s.conversations[0].unread, 1);
     assert.equal(s.messages.c1[1].private, true);
+  });
+
+  it("hides snoozed tickets until the wake time", () => {
+    const now = Date.parse("2026-10-29T12:00:00Z");
+    assert.equal(
+      visibleInQueue({ status: "snoozed", snoozedUntil: "2026-10-29T13:00:00Z" }, now),
+      false,
+    );
+    assert.equal(
+      visibleInQueue({ status: "snoozed", snoozedUntil: "2026-10-29T11:00:00Z" }, now),
+      true,
+    );
+    assert.equal(visibleInQueue({ status: "open" }, now), true);
   });
 });

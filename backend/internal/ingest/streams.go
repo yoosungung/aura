@@ -9,9 +9,12 @@ import (
 
 const (
 	ConversationsStream = "CONVERSATIONS_STREAM"
+	TasksStream         = "TASKS_STREAM"
 	IngestionDLQ        = "INGESTION_DLQ"
 	ConsumerName        = "ingestion"
+	SnoozeWakeConsumer  = "svc-core-snooze"
 	EventsFilter        = "helpdesk.events.*.*.*.message_created"
+	SnoozeWakeFilter    = "helpdesk.tasks.snooze.wake.*"
 	DLQSubject          = "helpdesk.dlq.ingestion"
 )
 
@@ -22,6 +25,17 @@ func EnsureStreams(ctx context.Context, js jetstream.JetStream) (jetstream.Consu
 		Storage:  jetstream.FileStorage,
 		MaxAge:   90 * 24 * time.Hour,
 		Discard:  jetstream.DiscardOld,
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name:              TasksStream,
+		Subjects:          []string{"helpdesk.tasks.>"},
+		Storage:           jetstream.FileStorage,
+		Retention:         jetstream.WorkQueuePolicy,
+		AllowMsgSchedules: true,
+		MaxAge:            7 * 24 * time.Hour,
+		Discard:           jetstream.DiscardOld,
 	}); err != nil {
 		return nil, err
 	}

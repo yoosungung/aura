@@ -128,6 +128,32 @@ test("ticket view posts an internal note", async () => {
   expect(screen.getByRole("log").textContent).toContain("환불 검토");
 });
 
+test("ticket view snoozes and hides the card until then", async () => {
+  const user = userEvent.setup();
+  const snoozed = [];
+  const until = new Date(Date.now() + 3600_000).toISOString();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async snoozeConversation(req) {
+          snoozed.push(req);
+          return { status: "snoozed", version: 2, snoozed_until: until };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("스누즈 시각"), until);
+  await user.click(screen.getByRole("button", { name: "스누즈" }));
+  expect(snoozed[0].conversationId).toBe("c1");
+  expect(snoozed[0].snoozedUntil).toBe(until);
+  expect(screen.queryByRole("button", { name: /결제 오류/ })).toBeNull();
+  expect(screen.getByText("대기 중인 대화가 없습니다")).toBeTruthy();
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];

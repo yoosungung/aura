@@ -24,6 +24,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleAgentMessage)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/conversations/{conversation_id}/assignee", s.handleAssign)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/notes", s.handleNote)
+	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/conversations/{conversation_id}/snooze", s.handleSnooze)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members", s.handleInboxMembers)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)
 	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)

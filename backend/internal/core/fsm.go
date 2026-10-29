@@ -7,6 +7,7 @@ const (
 	StatusOpen       = "open"
 	StatusPending    = "pending"
 	StatusResolved   = "resolved"
+	StatusSnoozed    = "snoozed"
 )
 
 var (

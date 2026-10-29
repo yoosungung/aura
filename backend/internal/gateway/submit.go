@@ -28,6 +28,7 @@ type Creator interface {
 type Bus interface {
 	PublishEvent(ctx context.Context, subject string, data []byte) error
 	PublishRealtime(subject string, data []byte) error
+	ScheduleSnoozeWake(ctx context.Context, accountID, conversationID uuid.UUID, until time.Time) error
 }
 
 type CreateOut struct {
@@ -63,6 +64,7 @@ type Service struct {
 	Members Members
 	Assign  Assigner
 	Notes   Noter
+	Snooze  Snoozer
 	Bus     Bus
 }
 

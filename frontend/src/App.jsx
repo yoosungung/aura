@@ -3,7 +3,8 @@ import { AssignTicket } from "./components/AssignTicket.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
-import { emptyState, reduce } from "./store.js";
+import { SnoozeTicket } from "./components/SnoozeTicket.jsx";
+import { emptyState, reduce, visibleInQueue } from "./store.js";
 
 export function App({ session: initialSession, client, initialState = emptyState }) {
   const [session, setSession] = useState(initialSession);
@@ -12,7 +13,8 @@ export function App({ session: initialSession, client, initialState = emptyState
   );
   const [state, dispatch] = useReducer(reduce, initialState);
   const [draft, setDraft] = useState("");
-  const selected = state.conversations.find((c) => c.id === state.selectedId);
+  const queue = state.conversations.filter((c) => visibleInQueue(c));
+  const selected = queue.find((c) => c.id === state.selectedId);
 
   useEffect(() => {
     if (!booting) {
@@ -87,11 +89,11 @@ export function App({ session: initialSession, client, initialState = emptyState
       <nav className="queue" aria-label="대기열">
         <h1>대기열</h1>
         {session.role === "administrator" ? <InboxMembers session={session} client={client} /> : null}
-        {state.conversations.length === 0 ? (
+        {queue.length === 0 ? (
           <p>대기 중인 대화가 없습니다</p>
         ) : (
           <ul>
-            {state.conversations.map((c) => (
+            {queue.map((c) => (
               <li key={c.id}>
                 <button
                   type="button"
@@ -117,6 +119,13 @@ export function App({ session: initialSession, client, initialState = emptyState
               conversation={selected}
               client={client}
               onAssigned={(next) => dispatch({ type: "assigned", ...next })}
+            />
+            <SnoozeTicket
+              key={`snooze-${selected.id}`}
+              session={session}
+              conversation={selected}
+              client={client}
+              onSnoozed={(next) => dispatch({ type: "snoozed", ...next })}
             />
             <ol className="log" role="log">
               {(state.messages[selected.id] || []).map((m) => (

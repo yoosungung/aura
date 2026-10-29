@@ -34,6 +34,14 @@ export function parseSession(search, env = {}) {
   };
 }
 
+export function visibleInQueue(c, now = Date.now()) {
+  if (c.status !== "snoozed") {
+    return true;
+  }
+  const until = Date.parse(c.snoozedUntil || "");
+  return Number.isFinite(until) && until <= now;
+}
+
 export function reduce(state, action) {
   if (action.type === "select") {
     return {
@@ -50,6 +58,16 @@ export function reduce(state, action) {
       conversations: state.conversations.map((c) =>
         c.id === action.conversationId
           ? { ...c, assigneeId: action.assigneeId, status: action.status, version: action.version }
+          : c,
+      ),
+    };
+  }
+  if (action.type === "snoozed") {
+    return {
+      ...state,
+      conversations: state.conversations.map((c) =>
+        c.id === action.conversationId
+          ? { ...c, status: action.status, snoozedUntil: action.snoozedUntil, version: action.version }
           : c,
       ),
     };

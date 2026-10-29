@@ -14,7 +14,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 6. **테넌트 격리는 PG RLS.** `account_id`가 있는 테이블은 RLS ENABLE + FORCE다. 요청 트랜잭션 안에서만 `SELECT set_config('app.current_account_id', $id, true)` 한다. 커넥션 풀에 테넌트 GUC를 남기지 않는다. 애플리케이션 WHERE만으로 격리를 끝내지 않는다. 정책 식의 `current_setting(...)`은 `(SELECT …)`로 감싸 InitPlan으로 한 번만 평가한다.
 7. **발행자가 UUIDv7로 ID를 만든다.** 이벤트 도메인 PK는 RFC 9562 UUIDv7이고, 게이트웨이와 `svc-core`가 생성한다. `SERIAL` PK에 `ON CONFLICT (id)` 로 멱등을 만들지 않는다. 재전송은 `ON CONFLICT (id) DO NOTHING` 또는 도메인 UNIQUE(`source_id`)로 막는다. PostgreSQL은 16+를 유지하므로 DB `DEFAULT`는 `gen_random_uuid()`를 쓸 수 있으나, 이벤트 도메인 행은 `DEFAULT`에 의존하지 않는다.
 8. **Realtime은 유실을 허용한다.** typing·presence·큐 푸시는 NATS Core(`helpdesk.realtime.>`)다. 대화 불변 로그는 JetStream Limits 90일(`helpdesk.events.>`). 작업은 JetStream WorkQueue(`helpdesk.tasks.>`).
-9. **WorkQueue 컨슈머 필터는 겹치지 않는다.** `helpdesk.tasks.ai.>`, `helpdesk.tasks.outbound.>`, `helpdesk.tasks.ontology.>`, `helpdesk.tasks.webhooks.>`, `helpdesk.tasks.sla.>` 로 분리한다.
+9. **WorkQueue 컨슈머 필터는 겹치지 않는다.** `helpdesk.tasks.ai.>`, `helpdesk.tasks.outbound.>`, `helpdesk.tasks.ontology.>`, `helpdesk.tasks.webhooks.>`, `helpdesk.tasks.sla.>`, `helpdesk.tasks.snooze.>` 로 분리한다.
 10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다. API·WS는 짧은 만료 HMAC 접근 토큰만 받는다. `users.pubsub_token` / `contact_inboxes.pubsub_token`은 시드이며 Bearer·쿼리 토큰으로 쓰지 않는다.
 11. **카카오 세션은 30일이다.** 상담톡은 고객 마지막 메시지 후 30일. 알림톡은 세션 없이 템플릿. WhatsApp 24시간 창은 `gateway-social` 전용이다.
 12. **이벤트 Envelope는 하위 호환으로만 진화한다.** `schema_version`은 필수다. 필드 삭제·의미 변경을 하지 않는다. 필수 필드를 추가할 때는 기본값을 정한다. `trace_id`(W3C Trace Context), `causation_id`(유발 이벤트 id, 최초 발행이면 생략), `hop_count`를 넣는다. `hop_count > 5`인 이벤트는 자동화가 드롭한다.
@@ -67,7 +67,7 @@ nats stream add CONVERSATIONS_STREAM \
 
 nats stream add TASKS_STREAM \
   --subjects "helpdesk.tasks.>" \
-  --storage file --retention workqueue
+  --storage file --retention workqueue --allow-msg-schedules --max-age 7d
 
 nats stream add INGESTION_DLQ \
   --subjects "helpdesk.dlq.ingestion" \
@@ -85,6 +85,7 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.conversations.transition` | `conversation_id`, `new_status`, `expected_version` | gateway-\* | svc-core |
 | Core | `helpdesk.rpc.conversations.assign` | `actor_user_id`, `conversation_id`, `assignee_id`, `expected_version` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.note` | `actor_user_id`, `conversation_id`, `content` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.snooze` | `actor_user_id`, `conversation_id`, `snoozed_until`, `expected_version` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.login` | `email`, `password` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
@@ -101,6 +102,8 @@ nats stream add INGESTION_DLQ \
 | WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
 | WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `event` | automation, svc-core | svc-core 워커 |
 | WorkQueue | `helpdesk.tasks.sla.evaluate` | `conversation_id` | sla-routing 스케줄 | sla-routing |
+| WorkQueue | `helpdesk.tasks.snooze.schedule.<conversation_id>` | `account_id`, `conversation_id`. 헤더 `Nats-Schedule: @at <RFC3339>`, `Nats-Schedule-Target` | gateway-web | (스케줄 보관, 컨슈머 없음) |
+| WorkQueue | `helpdesk.tasks.snooze.wake.<conversation_id>` | `account_id`, `conversation_id` | JetStream 스케줄러 | svc-core |
 | Limits | `helpdesk.dlq.ingestion` | 원본 envelope, `error` | ingestion | 운영 재처리 |
 
 `<channel_type>` 은 `web` \| `kakao` \| `email` \| `social`.
@@ -174,7 +177,7 @@ nats stream add INGESTION_DLQ \
 | `unassigned` | 고객 첫 인입, 담당자 없음 | 인박스 큐, 자동배정 큐, greeting | `open`, `snoozed`, `resolved` |
 | `open` | 배정 또는 수동 접수, reopen | FRT/NRT 타이머 | `pending`, `snoozed`, `resolved`, `unassigned` |
 | `pending` | 상담원이 고객 확인 요청 | NRT 일시정지 | `open`, `resolved` |
-| `snoozed` | `snoozed_until` 지정 | 큐 숨김. 시각 도래 또는 고객 메시지 시 `open` | `open`, `resolved` |
+| `snoozed` | `snoozed_until` 지정 | 큐 숨김. 시각 도래는 NATS 스케줄 → svc-core `WakeDue` FSM으로 `open`. 고객 메시지 시에도 `open` | `open`, `resolved` |
 | `resolved` | 상담원/고객/규칙이 종결 | CSAT 발송, RT 확정, ontology extract 태스크 | `open` (고객 재인입, 같은 `conversation_id`) |
 
 전이 결정은 `svc-core`. 허용되지 않은 전이와 `expected_version` 불일치는 Request-Reply 에러. 상태 컬럼은 core가 전이 트랜잭션에서 갱신하고, 같은 커밋에서 `status_changed`를 발행한다. ingestion은 이 이벤트를 멱등 반영할 뿐 전이를 승인하지 않는다.
@@ -203,6 +206,7 @@ nats stream add INGESTION_DLQ \
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/notes`
 - `PUT /api/v1/accounts/{account_id}/conversations/{id}/assignee`
+- `PUT /api/v1/accounts/{account_id}/conversations/{id}/snooze`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/contacts`
 - `POST /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{id}/messages`

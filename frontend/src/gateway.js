@@ -125,6 +125,28 @@ export async function assignConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function snoozeConversation(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, snoozedUntil, expectedVersion } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/snooze`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        snoozed_until: snoozedUntil,
+        expected_version: expectedVersion,
+      }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error("snooze failed");
+  }
+  return res.json();
+}
+
 export async function sendNote(req, fetchImpl = fetch) {
   const { gatewayUrl, accountId, token, conversationId, content } = req;
   const res = await fetchImpl(
@@ -153,4 +175,5 @@ export const liveClient = {
   listInboxMembers,
   assignConversation,
   sendNote,
+  snoozeConversation,
 };

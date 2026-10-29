@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
@@ -22,6 +23,7 @@ const (
 	SubjectInboxMemberList   = "helpdesk.rpc.inbox_members.list"
 	SubjectAssign            = "helpdesk.rpc.conversations.assign"
 	SubjectNote              = "helpdesk.rpc.conversations.note"
+	SubjectSnooze            = "helpdesk.rpc.conversations.snooze"
 	QueueGroup               = "svc-core"
 )
 
@@ -118,6 +120,18 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subNote.Unsubscribe()
+	subSnooze, err := nc.QueueSubscribe(SubjectSnooze, QueueGroup, func(msg *nats.Msg) {
+		s.handleSnooze(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subSnooze.Unsubscribe()
+	cc, err := s.consumeSnoozeWakes(ctx)
+	if err != nil {
+		return err
+	}
+	defer cc.Stop()
 	if err := nc.Flush(); err != nil {
 		return err
 	}
@@ -305,6 +319,56 @@ func (s *Service) handleNote(msg *nats.Msg) {
 		"sender_id":        out.SenderID.String(),
 		"content":          out.Content,
 		"private":          out.Private,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleSnooze(msg *nats.Msg) {
+	var req struct {
+		ActorUserID     string `json:"actor_user_id"`
+		AccountID       string `json:"account_id"`
+		ConversationID  string `json:"conversation_id"`
+		SnoozedUntil    string `json:"snoozed_until"`
+		ExpectedVersion int    `json:"expected_version"`
+		TraceID         string `json:"trace_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	convID, err := uuid.Parse(req.ConversationID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	until, err := time.Parse(time.RFC3339Nano, req.SnoozedUntil)
+	if err != nil {
+		_ = msg.Respond(rpcErr(ErrInvalid))
+		return
+	}
+	out, err := s.Snooze(context.Background(), SnoozeInput{
+		ActorUserID: actor, AccountID: accountID, ConversationID: convID,
+		Until: until, ExpectedVersion: req.ExpectedVersion, TraceID: req.TraceID,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok":            true,
+		"status":        out.Status,
+		"version":       out.Version,
+		"snoozed_until": out.SnoozedUntil.Format(time.RFC3339),
 	})
 	_ = msg.Respond(body)
 }

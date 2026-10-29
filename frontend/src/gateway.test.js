@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addInboxMember, assignConversation, sendNote, sendReply, signIn, wsUrl } from "./gateway.js";
+import { addInboxMember, assignConversation, sendNote, sendReply, signIn, snoozeConversation, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -115,5 +115,29 @@ describe("gateway client", () => {
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/notes");
     assert.equal(calls[0].opts.method, "POST");
     assert.deepEqual(JSON.parse(calls[0].opts.body), { content: "환불 검토" });
+  });
+
+  it("puts conversation snooze until", async () => {
+    const calls = [];
+    await snoozeConversation(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        conversationId: "c1",
+        snoozedUntil: "2026-10-30T00:00:00Z",
+        expectedVersion: 1,
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ status: "snoozed" }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/snooze");
+    assert.equal(calls[0].opts.method, "PUT");
+    assert.deepEqual(JSON.parse(calls[0].opts.body), {
+      snoozed_until: "2026-10-30T00:00:00Z",
+      expected_version: 1,
+    });
   });
 });
