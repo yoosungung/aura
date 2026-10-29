@@ -15,10 +15,11 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 7. **발행자가 UUIDv7로 ID를 만든다.** 이벤트 도메인 PK는 RFC 9562 UUIDv7이고, 게이트웨이와 `svc-core`가 생성한다. `SERIAL` PK에 `ON CONFLICT (id)` 로 멱등을 만들지 않는다. 재전송은 `ON CONFLICT (id) DO NOTHING` 또는 도메인 UNIQUE(`source_id`)로 막는다. PostgreSQL은 16+를 유지하므로 DB `DEFAULT`는 `gen_random_uuid()`를 쓸 수 있으나, 이벤트 도메인 행은 `DEFAULT`에 의존하지 않는다.
 8. **Realtime은 유실을 허용한다.** typing·presence·큐 푸시는 NATS Core(`helpdesk.realtime.>`)다. 대화 불변 로그는 JetStream Limits 90일(`helpdesk.events.>`). 작업은 JetStream WorkQueue(`helpdesk.tasks.>`).
 9. **WorkQueue 컨슈머 필터는 겹치지 않는다.** `helpdesk.tasks.ai.>`, `helpdesk.tasks.outbound.>`, `helpdesk.tasks.ontology.>`, `helpdesk.tasks.webhooks.>`, `helpdesk.tasks.sla.>` 로 분리한다.
-10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다.
+10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다. API·WS는 짧은 만료 HMAC 접근 토큰만 받는다. `users.pubsub_token` / `contact_inboxes.pubsub_token`은 시드이며 Bearer·쿼리 토큰으로 쓰지 않는다.
 11. **카카오 세션은 30일이다.** 상담톡은 고객 마지막 메시지 후 30일. 알림톡은 세션 없이 템플릿. WhatsApp 24시간 창은 `gateway-social` 전용이다.
 12. **이벤트 Envelope는 하위 호환으로만 진화한다.** `schema_version`은 필수다. 필드 삭제·의미 변경을 하지 않는다. 필수 필드를 추가할 때는 기본값을 정한다. `trace_id`(W3C Trace Context), `causation_id`(유발 이벤트 id, 최초 발행이면 생략), `hop_count`를 넣는다. `hop_count > 5`인 이벤트는 자동화가 드롭한다.
 13. **ingestion은 독성 이벤트 때문에 배치를 무한 NACK하지 않는다.** 플러시 순서는 `contacts` → `contact_inboxes` → `conversations` → `messages` → `attachments` → 상태/배정이다. 배치 트랜잭션이 실패하면 단건(또는 `SAVEPOINT`)으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`으로 보낸 뒤 ACK한다.
+14. **상담원 인증은 자체 세션이다.** 이메일+비밀번호. P3에 OIDC를 두지 않는다. 비밀번호는 Argon2id로만 저장한다. 세션 행은 `svc-core`가 PG에 커밋하고, `gateway-web`이 접근 토큰을 서명한다. 게이트웨이는 `users`를 읽지 않는다.
 
 ## 2. 토폴로지와 서비스 경계
 
@@ -82,6 +83,10 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.realtime.<account_id>.<conversation_id>.updated` | `event` (`conversation.created` 등) | ingestion 적재 후 또는 gateway | gateway-web, 위젯 |
 | Core | `helpdesk.rpc.conversations.create` | `account_id`, `inbox_id`, `source_id` | gateway-\* | svc-core |
 | Core | `helpdesk.rpc.conversations.transition` | `conversation_id`, `new_status`, `expected_version` | gateway-\* | svc-core |
+| Core | `helpdesk.rpc.auth.login` | `email`, `password` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.auth.contact` | `inbox_id`, `pubsub_token` | gateway-web | svc-core |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
@@ -175,9 +180,18 @@ nats stream add INGESTION_DLQ \
 
 | 계층 | 호출자 | 인증 | 베이스 | 범위 |
 |---|---|---|---|---|
-| Application API | 상담원·관리자·SPA | User Bearer | `/api/v1/accounts/{account_id}` | 배속 인박스의 대화·설정 |
-| Client API | 위젯·모바일 | `inbox_identifier` + `contact_identifier` | `/public/api/v1/inboxes/{inbox_id}` | 자기 대화만 |
+| Application API | 상담원·관리자·SPA | User Bearer (짧은 만료 HMAC) | `/api/v1/accounts/{account_id}` | 배속 인박스의 대화·설정 |
+| Client API | 위젯·모바일 | Contact Bearer (짧은 만료 HMAC) | `/public/api/v1/inboxes/{inbox_id}` | 자기 대화만 |
 | Platform API | 슈퍼어드민·프로비저너 | platform token | `/platform/api/v1` | 테넌트·유저 생성 |
+
+인증 경로 (계정 경로 밖):
+
+- `POST /auth/sign_in` `{ email, password }` → `Set-Cookie: aura_session` (HttpOnly, SameSite=Lax, Path=/, 프로덕션만 Secure) + JSON `{ access_token, expires_in, user }`
+- `POST /auth/refresh` 쿠키만. 새 `access_token`
+- `DELETE /auth/sign_out` 세션 폐기, 쿠키 삭제
+- `POST /public/api/v1/inboxes/{inbox_id}/auth` `{ pubsub_token }` → Contact `access_token`
+
+세션 쿠키는 refresh/logout 전용이다. SPA는 쿠키를 읽지 않고 `access_token`을 메모리에 둔다. API는 `Authorization: Bearer`, WS는 `/ws?token=`. 접근 토큰 TTL은 15분, 세션은 7일. 클레임에 `exp`와 `sid`가 없으면 거절한다. 비밀번호는 Argon2id(m=19456 KiB, t=2, p=1). 쿠키에는 난수를 두고 DB에는 SHA-256 다이제스트만 둔다.
 
 대표 경로:
 
@@ -196,7 +210,7 @@ nats stream add INGESTION_DLQ \
 
 Agent라도 `inbox_members`에 없는 인박스 대화는 목록·읽기 모두 거절.
 
-Realtime 토큰: User PubSub 토큰은 배속 인박스의 `helpdesk.realtime.<account_id>.>` 중 인가된 conversation. Contact PubSub 토큰은 해당 `conversation_id` 만.
+Realtime 접근 토큰: User는 배속 인박스의 `helpdesk.realtime.<account_id>.>` 중 인가된 conversation. Contact는 해당 `conversation_id` 만. 구독 범위는 로그인/시드 교환 시 `inbox_members`에서 스냅샷한 클레임이다.
 
 ## 7. 위젯 보안
 
@@ -271,11 +285,11 @@ CREATE POLICY <t>_tenant ON <t>
   WITH CHECK (account_id = (SELECT NULLIF(current_setting('app.current_account_id', true), '')::uuid));
 ```
 
-ingestion은 배치를 `account_id`로 묶고 그룹마다 위 트랜잭션을 연다. `users`는 글로벌이라 RLS 없음. `account_users`는 RLS 있음. 마이그레이션·슈퍼유저는 `FORCE`를 우회하므로 런타임 롤은 `NOBYPASSRLS` 일반 롤이다.
+ingestion은 배치를 `account_id`로 묶고 그룹마다 위 트랜잭션을 연다. `users`와 `sessions`는 글로벌이라 RLS 없음. `account_users`는 RLS 있음. 마이그레이션·슈퍼유저는 `FORCE`를 우회하므로 런타임 롤은 `NOBYPASSRLS` 일반 롤이다.
 
 ## 10. DDL
 
-PostgreSQL 16+. 이벤트 도메인 PK는 발행자가 만든 UUIDv7. P1 마이그레이션의 정본은 이 절이다.
+PostgreSQL 16+. 이벤트 도메인 PK는 발행자가 만든 UUIDv7. 이 절이 스키마 정본이다. P1 `0001_init.sql`은 `password_digest`/`sessions`가 없고, P3 마이그레이션이 추가한다.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -301,10 +315,19 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     display_name VARCHAR(255),
+    password_digest TEXT NOT NULL,
     availability_status VARCHAR(50) DEFAULT 'offline' NOT NULL,
     pubsub_token VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE sessions (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_digest CHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE account_users (

@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P2 진행 중 (`frontend` 2-Pane). `gateway-web`·`widget-sdk`·`svc-core`·P1 백본 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
+P3 착수. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P2 라이브챗 알파·P1 백본 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
 

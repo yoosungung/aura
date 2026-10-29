@@ -35,13 +35,13 @@
 - `frontend`: 큐 + 스레드(3-Pane 중 좌·중).
 - `packages/widget-sdk`: iframe + origin 화이트리스트 `postMessage`.
 
-성공: 외부 페이지 위젯 메시지 → core 생성 → NATS → PG → 상담원 화면, 답장이 위젯에 보인다. 동시에 두 전이를 보내면 하나만 커밋된다. snooze·카카오·이메일은 아직 없다.
+성공: 외부 페이지 위젯 메시지 → core 생성 → NATS → PG → 상담원 화면, 답장이 위젯에 보인다. 동시에 두 전이를 보내면 하나만 커밋된다. snooze·카카오·이메일은 아직 없다. **완료.**
 
 ## P3 헬프데스크 MVP
 
 목표: 한 팀이 웹 채널만으로 실제 상담을 끝낸다.
 
-- 로그인과 RBAC (`administrator`/`agent`). Auth 방식은 아래 미결정을 P3 착수 전에 고른다.
+- 로그인과 RBAC (`administrator`/`agent`). 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 접근 토큰. OIDC는 두지 않는다.
 - `inbox_members`, 수동 배정, 내부 메모, snooze, 라벨, 매크로·저장응답.
 - 첨부: MinIO + `attachments`.
 - Application API (대화·메시지·컨택트).
@@ -98,13 +98,12 @@
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
 - Task Fair Queuing(테넌트 쿼터)
 
-## 미결정 (P3 착수 전에 고친다)
+## 미결정
 
 | 항목 | 선택지 | 기본 가정 |
 |---|---|---|
-| Auth | 자체 세션 vs OIDC | P2는 개발용 토큰. P3에서 결정 |
 | LLM 벤더 | OpenAI 호환 / 기타 | P7 착수 전. P1–P6는 `vector(1536)`. 모델 교체는 P7 embeddings 분리로 검토 |
 | NATS 격리 | account 대 subject prefix `helpdesk.events.<account_id>.>` | P1–P6는 subject prefix. account 격리는 P7 운영 검토 |
 | 첨부 버킷 | 테넌트 prefix vs 버킷 분리 | P3는 MinIO 단일 버킷 + `account_id/` prefix |
 
-Auth와 무관하게 `users.pubsub_token` / `contact_inboxes.pubsub_token` 컬럼은 유지한다. P3부터 WS 인증은 짧은 만료 서명 토큰이다.
+**결정됨 — Auth.** 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.
