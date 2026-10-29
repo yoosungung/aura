@@ -23,8 +23,9 @@
 - `contracts/`: `message_created` JSON Schema. Envelope에 `schema_version`, `trace_id`, `causation_id`, `hop_count`. ID는 UUIDv7.
 - 배치: 500건 또는 100ms. 엔티티 계층 정렬 Upsert. `ON CONFLICT (id) DO NOTHING`. 실패 시 단건 폴백, 영구 실패는 `helpdesk.dlq.ingestion` ACK.
 - 부모 행(`contacts`/`conversations`)은 테스트 픽스처로 넣는다. 생성 RPC는 P2.
+- **남음 — contracts 코드젠.** 세 스키마(`message_created` 이벤트, `conversations.create` RPC, `conversations.transition` RPC)에서 Go 구조체를 생성해 게이트웨이·코어·ingestion이 같은 타입을 쓴다. 지금은 그 파일을 import·읽기·생성하지 않고, 필드 이름을 손으로 맞춘 구조체만 있다. 생성기는 작고 가벼운 기존 라이브러리를 우선한다. 맞는 게 없으면 짧고 단순한 커스텀 생성기만 둔다. 복잡한 코드젠은 두지 않는다.
 
-성공: 같은 `message_created`를 두 번 publish해도 `messages` 행은 하나. 독성 1건은 DLQ로 가고 나머지 배치는 커밋된다. TDD: 마이그레이션 → JetStream 컨슈머 → 배치 플러시 → DLQ. **완료.**
+성공: 같은 `message_created`를 두 번 publish해도 `messages` 행은 하나. 독성 1건은 DLQ로 가고 나머지 배치는 커밋된다. TDD: 마이그레이션 → JetStream 컨슈머 → 배치 플러시 → DLQ. 생성 타입이 그 페이로드를 직렬화한다. **코드젠 미완료.**
 
 ## P2 라이브챗 알파
 
@@ -109,3 +110,5 @@
 **결정됨 — Auth.** 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.
 
 **결정됨 — 스누즈 깨움.** PG `conversations.snoozed_until`은 상태 컬럼으로 유지한다. 시각 도래의 주체는 NATS JetStream 스케줄 메시지(`Nats-Schedule: @at`, 스트림 `AllowMsgSchedules`)다. 게이트웨이는 스케줄만 발행하고, `svc-core` 컨슈머가 `helpdesk.tasks.snooze.wake.*`를 받아 FSM으로 `open` 전이한다.
+
+**할 일 — 라벨·매크로·저장응답 사용법.** [ARCHITECTURE.md](ARCHITECTURE.md) §10 DDL에 `labels`/`conversation_labels`·`macros`·`canned_responses` 테이블은 있으나, 상담원 사용법이 비어 있다. 매크로·저장응답은 `actions` JSON 예·`short_code` 예가 없고 대표 API 경로에도 엔드포인트가 없다. 라벨은 [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)에 「라벨 부착」·「커스텀 라벨 목록」·「라벨링」만 있고, 계정 카탈로그 vs 티켓 부착 모델과 상담원 실사용이 안 적혀 있다. P3 구현 전에 그 분석과 스키마를 기준으로, 상담원이 라벨·매크로·저장응답을 어떻게 쓰는지 문서화한다.
