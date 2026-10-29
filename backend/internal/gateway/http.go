@@ -1,0 +1,126 @@
+package gateway
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
+)
+
+type Server struct {
+	Service *Service
+	NC      *nats.Conn
+}
+
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
+	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleAgentMessage)
+	mux.HandleFunc("GET /ws", s.handleWS)
+	return mux
+}
+
+func (s *Server) handleContactMessage(w http.ResponseWriter, r *http.Request) {
+	tok, err := s.bearer(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	inboxID, err := uuid.Parse(r.PathValue("inbox_id"))
+	if err != nil {
+		http.Error(w, "invalid inbox", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Content        string `json:"content"`
+		Name           string `json:"name"`
+		SourceID       string `json:"source_id"`
+		ConversationID string `json:"conversation_id"`
+		ContactID      string `json:"contact_id"`
+		ContactInboxID string `json:"contact_inbox_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	out, err := s.Service.SubmitContact(r.Context(), tok, inboxID, SubmitRequest{
+		Content:        body.Content,
+		Name:           body.Name,
+		SourceID:       body.SourceID,
+		ConversationID: parseUUID(body.ConversationID),
+		ContactID:      parseUUID(body.ContactID),
+		ContactInboxID: parseUUID(body.ContactInboxID),
+	})
+	s.writeSubmit(w, out, err)
+}
+
+func (s *Server) handleAgentMessage(w http.ResponseWriter, r *http.Request) {
+	tok, err := s.bearer(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	accountID, err := uuid.Parse(r.PathValue("account_id"))
+	if err != nil {
+		http.Error(w, "invalid account", http.StatusBadRequest)
+		return
+	}
+	conversationID, err := uuid.Parse(r.PathValue("conversation_id"))
+	if err != nil {
+		http.Error(w, "invalid conversation", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Content        string `json:"content"`
+		InboxID        string `json:"inbox_id"`
+		ContactID      string `json:"contact_id"`
+		ContactInboxID string `json:"contact_inbox_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	out, err := s.Service.SubmitAgent(r.Context(), tok, accountID, conversationID, SubmitRequest{
+		Content:        body.Content,
+		InboxID:        parseUUID(body.InboxID),
+		ContactID:      parseUUID(body.ContactID),
+		ContactInboxID: parseUUID(body.ContactInboxID),
+	})
+	s.writeSubmit(w, out, err)
+}
+
+func (s *Server) writeSubmit(w http.ResponseWriter, out SubmitResult, err error) {
+	if err != nil {
+		code := http.StatusBadGateway
+		if errors.Is(err, ErrForbidden) {
+			code = http.StatusForbidden
+		} else if errors.Is(err, ErrInvalid) {
+			code = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), code)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"message_id":       out.MessageID.String(),
+		"conversation_id":  out.ConversationID.String(),
+		"contact_id":       out.ContactID.String(),
+		"contact_inbox_id": out.ContactInboxID.String(),
+		"display_id":       out.DisplayID,
+		"token":            out.Token,
+	})
+}
+
+func (s *Server) bearer(r *http.Request) (Token, error) {
+	h := r.Header.Get("Authorization")
+	raw, ok := strings.CutPrefix(h, "Bearer ")
+	if !ok {
+		return Token{}, fmtUnauthorized
+	}
+	return Parse(s.Service.Secret, raw)
+}
+
+var fmtUnauthorized = errors.New("unauthorized")

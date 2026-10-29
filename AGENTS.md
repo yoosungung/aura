@@ -17,7 +17,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `contracts/` | 이벤트 JSON Schema | `contracts/` |
 | `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
-| `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `???/` |
+| `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `packages/widget-sdk/` |
  
 규칙:
  
@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P2 진행 중 (`svc-core` 생성 RPC·FSM CAS). P1 백본 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md) `## Commands`.
+P2 진행 중 (`packages/widget-sdk`). `gateway-web`·`svc-core`·P1 백본 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
 
