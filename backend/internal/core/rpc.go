@@ -21,6 +21,7 @@ const (
 	SubjectInboxMemberRemove = "helpdesk.rpc.inbox_members.remove"
 	SubjectInboxMemberList   = "helpdesk.rpc.inbox_members.list"
 	SubjectAssign            = "helpdesk.rpc.conversations.assign"
+	SubjectNote              = "helpdesk.rpc.conversations.note"
 	QueueGroup               = "svc-core"
 )
 
@@ -110,6 +111,13 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subAssign.Unsubscribe()
+	subNote, err := nc.QueueSubscribe(SubjectNote, QueueGroup, func(msg *nats.Msg) {
+		s.handleNote(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subNote.Unsubscribe()
 	if err := nc.Flush(); err != nil {
 		return err
 	}
@@ -248,6 +256,55 @@ func (s *Service) handleAssign(msg *nats.Msg) {
 		"assignee_id": out.AssigneeID.String(),
 		"status":      out.Status,
 		"version":     out.Version,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleNote(msg *nats.Msg) {
+	var req struct {
+		ActorUserID    string `json:"actor_user_id"`
+		AccountID      string `json:"account_id"`
+		ConversationID string `json:"conversation_id"`
+		Content        string `json:"content"`
+		TraceID        string `json:"trace_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	convID, err := uuid.Parse(req.ConversationID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.AddNote(context.Background(), NoteInput{
+		ActorUserID: actor, AccountID: accountID, ConversationID: convID,
+		Content: req.Content, TraceID: req.TraceID,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok":               true,
+		"message_id":       out.MessageID.String(),
+		"inbox_id":         out.InboxID.String(),
+		"conversation_id":  out.ConversationID.String(),
+		"contact_id":       out.ContactID.String(),
+		"contact_inbox_id": out.ContactInboxID.String(),
+		"sender_id":        out.SenderID.String(),
+		"content":          out.Content,
+		"private":          out.Private,
 	})
 	_ = msg.Respond(body)
 }
@@ -410,6 +467,8 @@ func rpcErr(err error) []byte {
 		code = ErrUnauthorized.Error()
 	} else if errors.Is(err, ErrDenied) {
 		code = ErrDenied.Error()
+	} else if errors.Is(err, ErrInvalid) {
+		code = ErrInvalid.Error()
 	}
 	body, _ := json.Marshal(map[string]any{"ok": false, "error": code})
 	return body

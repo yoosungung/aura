@@ -15,6 +15,7 @@ var (
 	ErrNotFound     = errors.New("not_found")
 	ErrUnauthorized = errors.New("unauthorized")
 	ErrDenied       = errors.New("forbidden")
+	ErrInvalid      = errors.New("invalid")
 )
 
 var allowed = map[string][]string{

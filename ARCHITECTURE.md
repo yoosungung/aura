@@ -84,6 +84,7 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.conversations.create` | `account_id`, `inbox_id`, `source_id` | gateway-\* | svc-core |
 | Core | `helpdesk.rpc.conversations.transition` | `conversation_id`, `new_status`, `expected_version` | gateway-\* | svc-core |
 | Core | `helpdesk.rpc.conversations.assign` | `actor_user_id`, `conversation_id`, `assignee_id`, `expected_version` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.note` | `actor_user_id`, `conversation_id`, `content` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.login` | `email`, `password` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
@@ -200,6 +201,7 @@ nats stream add INGESTION_DLQ \
 대표 경로:
 
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`
+- `POST /api/v1/accounts/{account_id}/conversations/{id}/notes`
 - `PUT /api/v1/accounts/{account_id}/conversations/{id}/assignee`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/contacts`

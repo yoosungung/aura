@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addInboxMember, assignConversation, sendReply, signIn, wsUrl } from "./gateway.js";
+import { addInboxMember, assignConversation, sendNote, sendReply, signIn, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -95,5 +95,25 @@ describe("gateway client", () => {
       assignee_id: "u1",
       expected_version: 1,
     });
+  });
+
+  it("posts an internal note", async () => {
+    const calls = [];
+    await sendNote(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        conversationId: "c1",
+        content: "환불 검토",
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ private: true }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/notes");
+    assert.equal(calls[0].opts.method, "POST");
+    assert.deepEqual(JSON.parse(calls[0].opts.body), { content: "환불 검토" });
   });
 });

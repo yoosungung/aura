@@ -62,6 +62,7 @@ type Service struct {
 	Auth    Authenticator
 	Members Members
 	Assign  Assigner
+	Notes   Noter
 	Bus     Bus
 }
 

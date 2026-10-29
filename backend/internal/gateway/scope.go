@@ -1,6 +1,10 @@
 package gateway
 
-import "github.com/google/uuid"
+import (
+	"encoding/json"
+
+	"github.com/google/uuid"
+)
 
 func CanSubscribe(tok Token, inboxID, conversationID uuid.UUID) bool {
 	if inboxID == uuid.Nil || conversationID == uuid.Nil || tok.AccountID == uuid.Nil {
@@ -14,6 +18,23 @@ func CanSubscribe(tok Token, inboxID, conversationID uuid.UUID) bool {
 	default:
 		return false
 	}
+}
+
+func HidePrivateFromContact(tok Token, raw []byte) bool {
+	if tok.Kind != KindContact {
+		return false
+	}
+	var payload struct {
+		Message struct {
+			Payload struct {
+				Private bool `json:"private"`
+			} `json:"payload"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	return payload.Message.Payload.Private
 }
 
 func (t Token) AllowsInbox(inboxID uuid.UUID) bool {

@@ -104,6 +104,30 @@ test("ticket view assigns to an inbox agent", async () => {
   expect(assigned[0].expectedVersion).toBe(1);
 });
 
+test("ticket view posts an internal note", async () => {
+  const user = userEvent.setup();
+  const notes = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendNote(req) {
+          notes.push(req);
+          return { message_id: "n1", content: req.content, private: true };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("메모"), "환불 검토");
+  await user.click(screen.getByRole("button", { name: "메모" }));
+  expect(notes[0].content).toBe("환불 검토");
+  expect(notes[0].conversationId).toBe("c1");
+  expect(screen.getByRole("log").textContent).toContain("환불 검토");
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];

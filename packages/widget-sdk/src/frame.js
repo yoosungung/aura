@@ -60,6 +60,9 @@ export function createFrame(win, deps = {}) {
       if (payload.type !== "event" || payload.event !== "message.created") {
         return;
       }
+      if (payload.message?.payload?.private) {
+        return;
+      }
       const content = payload.message?.payload?.content;
       if (content) append(content, payload.message?.payload?.sender_type);
     };

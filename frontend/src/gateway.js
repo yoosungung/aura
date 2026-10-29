@@ -125,6 +125,25 @@ export async function assignConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function sendNote(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, content } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/notes`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error("note failed");
+  }
+  return res.json();
+}
+
 export const liveClient = {
   connect,
   sendReply,
@@ -133,4 +152,5 @@ export const liveClient = {
   addInboxMember,
   listInboxMembers,
   assignConversation,
+  sendNote,
 };

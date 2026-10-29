@@ -52,6 +52,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		if !CanSubscribe(tok, parseUUID(payload.InboxID), parseUUID(payload.ConversationID)) {
 			return
 		}
+		if HidePrivateFromContact(tok, msg.Data) {
+			return
+		}
 		_ = writeRaw(msg.Data)
 	})
 	if err != nil {

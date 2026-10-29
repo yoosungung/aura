@@ -76,3 +76,16 @@ body,
   padding: 12px;
   border-bottom: 1px solid #ddd;
 }
+
+.note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 12px;
+  border-top: 1px solid #ddd;
+}
+
+.log [data-private="true"] {
+  font-style: italic;
+  color: #555;
+}

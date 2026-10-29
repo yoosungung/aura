@@ -10,7 +10,7 @@
 - 호스트 수신부는 `event.origin === helpdeskOrigin`만 통과한다. 호스트 `window.location.origin`과 비교하지 않는다(위젯은 교차 origin이다).
 - 프레임 수신부는 쿼리 `parent_origin`(http/https origin)과 `event.origin`이 같을 때만 통과한다. `ready` 뒤에 호스트가 `init{ token, inboxId }`를 보낸다. API·WS base는 `window.location.origin`이다.
 - P2 `setUser`는 프레임으로 전달만 하고 식별자를 바인딩하지 않는다. HMAC 검증은 P3.
-- Contact `pubsub_token`은 시드다. 프레임이 `POST /public/api/v1/inboxes/{inbox_id}/auth`로 짧은 만료 접근 토큰을 받는다.
+- Contact `pubsub_token`은 시드다. 프레임이 `POST /public/api/v1/inboxes/{inbox_id}/auth`로 짧은 만료 접근 토큰을 받는다. `private` 메시지는 그리지 않는다.
 
 ## Commands
 

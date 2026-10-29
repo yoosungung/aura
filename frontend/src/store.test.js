@@ -64,4 +64,27 @@ describe("reduce realtime", () => {
     assert.equal(s.selectedId, "c1");
     assert.equal(s.conversations[0].unread, 0);
   });
+
+  it("keeps private notes off the queue card", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    s = reduce(s, {
+      type: "realtime",
+      event: {
+        type: "event",
+        event: "message.created",
+        inbox_id: "i1",
+        conversation_id: "c1",
+        message: {
+          id: "n1",
+          payload: { content: "내부 확인", sender_type: "User", private: true },
+        },
+      },
+    });
+    assert.equal(s.conversations[0].lastContent, "결제 오류");
+    assert.equal(s.conversations[0].unread, 1);
+    assert.equal(s.messages.c1[1].private, true);
+  });
 });
