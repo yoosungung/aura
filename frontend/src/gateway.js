@@ -154,6 +154,59 @@ export async function assignConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function removeConversationLabel(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, labelId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/labels/${labelId}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    throw new Error("label remove failed");
+  }
+}
+
+export async function listConversations(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/conversations`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("list conversations failed");
+  }
+  return res.json();
+}
+
+export async function listMessages(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/messages`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    throw new Error("list messages failed");
+  }
+  return res.json();
+}
+
+export async function resolveConversation(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, expectedVersion } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/status`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ new_status: "resolved", expected_version: expectedVersion }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error("resolve failed");
+  }
+  return res.json();
+}
+
 export async function addConversationLabel(req, fetchImpl = fetch) {
   const { gatewayUrl, accountId, token, conversationId, name } = req;
   const res = await fetchImpl(
@@ -246,5 +299,9 @@ export const liveClient = {
   sendNote,
   snoozeConversation,
   addConversationLabel,
+  removeConversationLabel,
+  listConversations,
+  listMessages,
+  resolveConversation,
   uploadAttachment,
 };

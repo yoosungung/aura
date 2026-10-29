@@ -4,7 +4,7 @@ import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 
-export function TicketLabels({ session, conversation, client, onLabeled }) {
+export function TicketLabels({ session, conversation, client, onLabeled, onUnlabeled }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -40,8 +40,31 @@ export function TicketLabels({ session, conversation, client, onLabeled }) {
       {labels.length > 0 ? (
         <ul>
           {labels.map((l) => (
-            <li key={l.id || l.name}>
+            <li key={l.id || l.name} className="flex items-center gap-2">
               <Badge variant="secondary">{l.name}</Badge>
+              {l.id && client.removeConversationLabel ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await client.removeConversationLabel({
+                        gatewayUrl: session.gatewayUrl,
+                        accountId: session.accountId,
+                        token: session.token,
+                        conversationId: conversation.id,
+                        labelId: l.id,
+                      });
+                      onUnlabeled?.({ conversationId: conversation.id, labelId: l.id });
+                    } catch {
+                      setError("라벨을 제거하지 못했습니다");
+                    }
+                  }}
+                >
+                  제거
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>

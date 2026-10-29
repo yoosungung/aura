@@ -24,6 +24,31 @@ export function fixtureState() {
   };
 }
 
+export function conversationsFromAPI(rows) {
+  return (rows || []).map((c) => ({
+    id: c.id,
+    inboxId: c.inbox_id,
+    contactId: c.contact_id,
+    contactInboxId: c.contact_inbox_id,
+    assigneeId: c.assignee_id,
+    status: c.status,
+    version: c.version,
+    snoozedUntil: c.snoozed_until,
+    lastContent: c.last_content,
+    unread: 0,
+  }));
+}
+
+export function messagesFromAPI(rows) {
+  return (rows || []).map((m) => ({
+    id: m.id,
+    content: m.content,
+    senderType: m.sender_type,
+    private: m.private,
+    attachments: m.attachments || [],
+  }));
+}
+
 export function parseSession(search, env = {}) {
   const p = new URLSearchParams(search);
   return {

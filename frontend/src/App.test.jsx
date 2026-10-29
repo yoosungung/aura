@@ -304,6 +304,82 @@ test("ticket view keeps a note, a label, and an attachment on the same thread", 
   expect(screen.getByRole("log").textContent).toContain("receipt.png");
 });
 
+test("ticket view removes an attached label", async () => {
+  const user = userEvent.setup();
+  const removed = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async addConversationLabel(req) {
+          return { id: "l1", name: req.name };
+        },
+        async removeConversationLabel(req) {
+          removed.push(req);
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("라벨 이름"), "환불");
+  await user.click(screen.getByRole("button", { name: "부착" }));
+  await user.click(screen.getByRole("button", { name: "제거" }));
+  expect(removed[0].labelId).toBe("l1");
+  expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).not.toContain("환불");
+});
+
+test("workspace hydrates the queue from the conversation list", async () => {
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listConversations() {
+          return {
+            conversations: [
+              {
+                id: "c9",
+                inbox_id: "i1",
+                contact_id: "p1",
+                contact_inbox_id: "ci1",
+                last_content: "배송 문의",
+                status: "open",
+                version: 1,
+              },
+            ],
+          };
+        },
+      }}
+    />,
+  );
+  expect(await screen.findByRole("button", { name: /배송 문의/ })).toBeTruthy();
+});
+
+test("ticket view resolves and hides the card", async () => {
+  const user = userEvent.setup();
+  const resolved = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async resolveConversation(req) {
+          resolved.push(req);
+          return { status: "resolved", version: 2 };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "해결" }));
+  expect(resolved[0].conversationId).toBe("c1");
+  expect(screen.queryByRole("button", { name: /결제 오류/ })).toBeNull();
+  expect(screen.getByText("대기 중인 대화가 없습니다")).toBeTruthy();
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];

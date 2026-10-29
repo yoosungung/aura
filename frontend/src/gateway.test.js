@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, listConversations, removeConversationLabel, resolveConversation, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -185,6 +185,37 @@ describe("gateway client", () => {
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/labels");
     assert.equal(calls[0].opts.method, "POST");
     assert.deepEqual(JSON.parse(calls[0].opts.body), { name: "환불" });
+  });
+
+  it("deletes a conversation label and lists conversations", async () => {
+    const calls = [];
+    await removeConversationLabel(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", conversationId: "c1", labelId: "l1" },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/labels/l1");
+    assert.equal(calls[0].opts.method, "DELETE");
+    const listed = await listConversations(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok" },
+      async (url) => ({ ok: true, json: async () => ({ conversations: [{ id: "c1" }] }) }),
+    );
+    assert.equal(listed.conversations[0].id, "c1");
+  });
+
+  it("puts conversation resolved status", async () => {
+    const calls = [];
+    await resolveConversation(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", conversationId: "c1", expectedVersion: 1 },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ status: "resolved", version: 2 }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/status");
+    assert.deepEqual(JSON.parse(calls[0].opts.body), { new_status: "resolved", expected_version: 1 });
   });
 
   it("posts a conversation attachment as multipart", async () => {

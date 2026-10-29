@@ -3,13 +3,14 @@ import { AssignTicket } from "./components/AssignTicket.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
+import { ResolveTicket } from "./components/ResolveTicket.jsx";
 import { SnoozeTicket } from "./components/SnoozeTicket.jsx";
 import { TicketAttachments } from "./components/TicketAttachments.jsx";
 import { TicketLabels } from "./components/TicketLabels.jsx";
 import { Badge } from "./components/ui/badge.jsx";
 import { Button } from "./components/ui/button.jsx";
 import { Textarea } from "./components/ui/textarea.jsx";
-import { emptyState, reduce, visibleInQueue } from "./store.js";
+import { conversationsFromAPI, emptyState, messagesFromAPI, reduce, visibleInQueue } from "./store.js";
 
 export function App({ session: initialSession, client, initialState = emptyState }) {
   const [session, setSession] = useState(initialSession);
@@ -61,6 +62,54 @@ export function App({ session: initialSession, client, initialState = emptyState
       refresh: client.refresh,
     });
   }, [session, client]);
+
+  useEffect(() => {
+    if (!session.token || session.fixture || !client.listConversations) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listConversations({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+      })
+      .then((data) => {
+        if (!cancelled) {
+          dispatch({ type: "hydrate", conversations: conversationsFromAPI(data.conversations) });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, client]);
+
+  useEffect(() => {
+    if (!state.selectedId || !session.token || !client.listMessages) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listMessages({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        conversationId: state.selectedId,
+      })
+      .then((data) => {
+        if (!cancelled) {
+          dispatch({
+            type: "hydrate",
+            messages: { [state.selectedId]: messagesFromAPI(data.messages) },
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [state.selectedId, session, client]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -141,6 +190,14 @@ export function App({ session: initialSession, client, initialState = emptyState
               conversation={selected}
               client={client}
               onLabeled={(next) => dispatch({ type: "labeled", ...next })}
+              onUnlabeled={(next) => dispatch({ type: "unlabeled", ...next })}
+            />
+            <ResolveTicket
+              key={`resolve-${selected.id}`}
+              session={session}
+              conversation={selected}
+              client={client}
+              onResolved={(next) => dispatch({ type: "resolved", ...next })}
             />
             <ol className="log" role="log">
               {(state.messages[selected.id] || []).map((m) => (
