@@ -59,6 +59,7 @@ type SubmitResult struct {
 type Service struct {
 	Secret []byte
 	RPC    Creator
+	Auth   Authenticator
 	Bus    Bus
 }
 

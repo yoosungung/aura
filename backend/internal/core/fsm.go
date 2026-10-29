@@ -10,9 +10,10 @@ const (
 )
 
 var (
-	ErrConflict  = errors.New("conflict")
-	ErrForbidden = errors.New("forbidden_transition")
-	ErrNotFound  = errors.New("not_found")
+	ErrConflict     = errors.New("conflict")
+	ErrForbidden    = errors.New("forbidden_transition")
+	ErrNotFound     = errors.New("not_found")
+	ErrUnauthorized = errors.New("unauthorized")
 )
 
 var allowed = map[string][]string{

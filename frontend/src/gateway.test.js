@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { sendReply, wsUrl } from "./gateway.js";
+import { sendReply, signIn, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -38,5 +38,19 @@ describe("gateway client", () => {
       contact_id: "p1",
       contact_inbox_id: "ci1",
     });
+  });
+
+  it("posts sign in with credentials", async () => {
+    const calls = [];
+    const data = await signIn(
+      { gatewayUrl: "http://gw", email: "ada@acme.test", password: "s3cret" },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ access_token: "tok", user: { account_id: "acc" } }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/auth/sign_in");
+    assert.equal(calls[0].opts.credentials, "include");
+    assert.equal(data.access_token, "tok");
   });
 });

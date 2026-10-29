@@ -8,6 +8,38 @@ afterEach(() => cleanup());
 
 const session = { accountId: "acc", token: "tok", gatewayUrl: "" };
 
+test("failed refresh shows the login form", async () => {
+  render(
+    <App
+      session={{ accountId: "", token: "", gatewayUrl: "" }}
+      client={{
+        async refresh() {
+          throw new Error("offline");
+        },
+      }}
+    />,
+  );
+  expect(await screen.findByRole("form", { name: "로그인" })).toBeTruthy();
+});
+
+test("login form signs in and shows the queue", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ accountId: "", token: "", gatewayUrl: "" }}
+      client={{
+        async signIn() {
+          return { access_token: "tok", user: { account_id: "acc" } };
+        },
+      }}
+    />,
+  );
+  await user.type(screen.getByLabelText("이메일"), "ada@acme.test");
+  await user.type(screen.getByLabelText("비밀번호"), "s3cret");
+  await user.click(screen.getByRole("button", { name: "로그인" }));
+  expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+});
+
 test("selecting a queue card shows the thread", async () => {
   const user = userEvent.setup();
   render(

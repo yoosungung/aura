@@ -17,6 +17,9 @@ type Server struct {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /auth/sign_in", s.handleSignIn)
+	mux.HandleFunc("POST /auth/refresh", s.handleRefresh)
+	mux.HandleFunc("DELETE /auth/sign_out", s.handleSignOut)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleAgentMessage)
 	mux.HandleFunc("GET /ws", s.handleWS)

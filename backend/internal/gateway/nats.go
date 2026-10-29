@@ -20,7 +20,7 @@ type natsBus struct {
 	js jetstream.JetStream
 }
 
-func NewRPC(nc *nats.Conn) Creator {
+func NewRPC(nc *nats.Conn) *natsRPC {
 	return &natsRPC{nc: nc}
 }
 
@@ -75,6 +75,101 @@ func (r *natsRPC) Create(ctx context.Context, accountID, inboxID uuid.UUID, sour
 	return CreateOut{
 		ContactID: contactID, ContactInboxID: ciID,
 		ConversationID: convID, DisplayID: out.DisplayID,
+	}, nil
+}
+
+func (r *natsRPC) Login(ctx context.Context, email, password string) (AuthOut, error) {
+	return r.authRPC(ctx, core.SubjectAuthLogin, map[string]any{"email": email, "password": password})
+}
+
+func (r *natsRPC) Refresh(ctx context.Context, sessionToken string) (AuthOut, error) {
+	return r.authRPC(ctx, core.SubjectAuthRefresh, map[string]any{"session_token": sessionToken})
+}
+
+func (r *natsRPC) Logout(ctx context.Context, sessionToken string) error {
+	body, err := json.Marshal(map[string]any{"session_token": sessionToken})
+	if err != nil {
+		return err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectAuthLogout, body)
+	if err != nil {
+		return err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return err
+	}
+	if !out.OK {
+		if out.Error == "" {
+			out.Error = "rpc_failed"
+		}
+		return fmt.Errorf("%s", out.Error)
+	}
+	return nil
+}
+
+func (r *natsRPC) authRPC(ctx context.Context, subject string, payload map[string]any) (AuthOut, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return AuthOut{}, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, subject, body)
+	if err != nil {
+		return AuthOut{}, err
+	}
+	var out struct {
+		OK           bool   `json:"ok"`
+		Error        string `json:"error"`
+		UserID       string `json:"user_id"`
+		Email        string `json:"email"`
+		Name         string `json:"name"`
+		SessionID    string `json:"session_id"`
+		SessionToken string `json:"session_token"`
+		Accounts     []struct {
+			AccountID string   `json:"account_id"`
+			Role      string   `json:"role"`
+			InboxIDs  []string `json:"inbox_ids"`
+		} `json:"accounts"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return AuthOut{}, err
+	}
+	if !out.OK {
+		if out.Error == "" {
+			out.Error = "rpc_failed"
+		}
+		return AuthOut{}, fmt.Errorf("%s", out.Error)
+	}
+	userID, err := uuid.Parse(out.UserID)
+	if err != nil {
+		return AuthOut{}, err
+	}
+	sessionID, err := uuid.Parse(out.SessionID)
+	if err != nil {
+		return AuthOut{}, err
+	}
+	accounts := make([]AuthAccount, 0, len(out.Accounts))
+	for _, a := range out.Accounts {
+		accountID, err := uuid.Parse(a.AccountID)
+		if err != nil {
+			return AuthOut{}, err
+		}
+		ids := make([]uuid.UUID, 0, len(a.InboxIDs))
+		for _, s := range a.InboxIDs {
+			id, err := uuid.Parse(s)
+			if err != nil {
+				return AuthOut{}, err
+			}
+			ids = append(ids, id)
+		}
+		accounts = append(accounts, AuthAccount{AccountID: accountID, Role: a.Role, InboxIDs: ids})
+	}
+	return AuthOut{
+		UserID: userID, Email: out.Email, Name: out.Name,
+		SessionID: sessionID, SessionToken: out.SessionToken, Accounts: accounts,
 	}, nil
 }
 

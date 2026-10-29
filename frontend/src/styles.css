@@ -1,9 +1,17 @@
+@import "tailwindcss";
+
+html {
+  color-scheme: light;
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
   font-family: sans-serif;
+  background: #fff;
+  color: #111;
 }
 
 .workspace {

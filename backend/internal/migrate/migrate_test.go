@@ -33,6 +33,29 @@ func TestUp_MessagesRLSAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestUp_AuthSchema(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+
+	var col string
+	if err := admin.QueryRow(ctx, `
+		SELECT column_name FROM information_schema.columns
+		WHERE table_name = 'users' AND column_name = 'password_digest'`).Scan(&col); err != nil {
+		t.Fatalf("password_digest: %v", err)
+	}
+	var n int
+	if err := app.QueryRow(ctx, `SELECT count(*) FROM sessions`).Scan(&n); err != nil {
+		t.Fatalf("sessions: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected empty sessions, got %d", n)
+	}
+	var proname string
+	if err := admin.QueryRow(ctx, `SELECT proname FROM pg_proc WHERE proname = 'auth_login_membership'`).Scan(&proname); err != nil {
+		t.Fatalf("auth_login_membership: %v", err)
+	}
+}
+
 func TestUp_AppCannotBypassRLS(t *testing.T) {
 	ctx := context.Background()
 	_, app := testutil.Postgres(t)

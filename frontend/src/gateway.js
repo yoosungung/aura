@@ -46,4 +46,35 @@ export async function sendReply(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export const liveClient = { connect, sendReply };
+export async function signIn({ gatewayUrl, email, password }, fetchImpl = fetch) {
+  const base = gatewayUrl || "";
+  const res = await fetchImpl(`${base}/auth/sign_in`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    throw new Error("unauthorized");
+  }
+  return res.json();
+}
+
+export async function refreshSession({ gatewayUrl }, fetchImpl = fetch) {
+  const base = gatewayUrl || "";
+  try {
+    const res = await fetchImpl(`${base}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export const liveClient = { connect, sendReply, signIn, refresh: refreshSession };

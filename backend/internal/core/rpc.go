@@ -12,9 +12,12 @@ import (
 )
 
 const (
-	SubjectCreate     = "helpdesk.rpc.conversations.create"
-	SubjectTransition = "helpdesk.rpc.conversations.transition"
-	QueueGroup        = "svc-core"
+	SubjectCreate      = "helpdesk.rpc.conversations.create"
+	SubjectTransition  = "helpdesk.rpc.conversations.transition"
+	SubjectAuthLogin   = "helpdesk.rpc.auth.login"
+	SubjectAuthRefresh = "helpdesk.rpc.auth.refresh"
+	SubjectAuthLogout  = "helpdesk.rpc.auth.logout"
+	QueueGroup         = "svc-core"
 )
 
 type createReq struct {
@@ -54,6 +57,27 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subTr.Unsubscribe()
+	subLogin, err := nc.QueueSubscribe(SubjectAuthLogin, QueueGroup, func(msg *nats.Msg) {
+		s.handleLogin(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subLogin.Unsubscribe()
+	subRefresh, err := nc.QueueSubscribe(SubjectAuthRefresh, QueueGroup, func(msg *nats.Msg) {
+		s.handleRefresh(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subRefresh.Unsubscribe()
+	subLogout, err := nc.QueueSubscribe(SubjectAuthLogout, QueueGroup, func(msg *nats.Msg) {
+		s.handleLogout(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subLogout.Unsubscribe()
 	if err := nc.Flush(); err != nil {
 		return err
 	}
@@ -146,6 +170,80 @@ func (s *Service) handleTransition(msg *nats.Msg) {
 	_ = msg.Respond(body)
 }
 
+func (s *Service) handleLogin(msg *nats.Msg) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.Login(context.Background(), LoginInput{Email: req.Email, Password: req.Password})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	_ = msg.Respond(authOK(out))
+}
+
+func (s *Service) handleRefresh(msg *nats.Msg) {
+	var req struct {
+		SessionToken string `json:"session_token"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.Refresh(context.Background(), req.SessionToken)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	_ = msg.Respond(authOK(out))
+}
+
+func (s *Service) handleLogout(msg *nats.Msg) {
+	var req struct {
+		SessionToken string `json:"session_token"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.Logout(context.Background(), req.SessionToken); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
+	_ = msg.Respond(body)
+}
+
+func authOK(out AuthResult) []byte {
+	accounts := make([]map[string]any, 0, len(out.Accounts))
+	for _, a := range out.Accounts {
+		ids := make([]string, 0, len(a.InboxIDs))
+		for _, id := range a.InboxIDs {
+			ids = append(ids, id.String())
+		}
+		accounts = append(accounts, map[string]any{
+			"account_id": a.AccountID.String(),
+			"role":       a.Role,
+			"inbox_ids":  ids,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok":            true,
+		"user_id":       out.UserID.String(),
+		"email":         out.Email,
+		"name":          out.Name,
+		"session_id":    out.SessionID.String(),
+		"session_token": out.SessionToken,
+		"accounts":      accounts,
+	})
+	return body
+}
+
 func rpcErr(err error) []byte {
 	code := err.Error()
 	if errors.Is(err, ErrConflict) {
@@ -154,6 +252,8 @@ func rpcErr(err error) []byte {
 		code = ErrForbidden.Error()
 	} else if errors.Is(err, ErrNotFound) {
 		code = ErrNotFound.Error()
+	} else if errors.Is(err, ErrUnauthorized) {
+		code = ErrUnauthorized.Error()
 	}
 	body, _ := json.Marshal(map[string]any{"ok": false, "error": code})
 	return body

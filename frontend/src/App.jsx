@@ -1,10 +1,45 @@
 import { useEffect, useReducer, useState } from "react";
+import { LoginForm } from "./components/LoginForm.jsx";
 import { emptyState, reduce } from "./store.js";
 
-export function App({ session, client, initialState = emptyState }) {
+export function App({ session: initialSession, client, initialState = emptyState }) {
+  const [session, setSession] = useState(initialSession);
+  const [booting, setBooting] = useState(
+    !initialSession.token && !initialSession.fixture && typeof client.refresh === "function",
+  );
   const [state, dispatch] = useReducer(reduce, initialState);
   const [draft, setDraft] = useState("");
   const selected = state.conversations.find((c) => c.id === state.selectedId);
+
+  useEffect(() => {
+    if (!booting) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .refresh({ gatewayUrl: initialSession.gatewayUrl })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        if (data?.access_token) {
+          setSession({
+            ...initialSession,
+            token: data.access_token,
+            accountId: data.user?.account_id || initialSession.accountId,
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) {
+          setBooting(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [booting, client, initialSession]);
 
   useEffect(() => {
     if (!session.token || !client.connect) {
@@ -29,8 +64,17 @@ export function App({ session, client, initialState = emptyState }) {
     setDraft("");
   }
 
+  if (booting) {
+    return <p className="bg-white p-6 text-neutral-900">불러오는 중</p>;
+  }
   if (!session.token && !session.fixture) {
-    return <p>User 토큰이 필요합니다. <code>?account_id=&amp;token=</code></p>;
+    return (
+      <LoginForm
+        client={client}
+        gatewayUrl={session.gatewayUrl}
+        onSuccess={(next) => setSession({ ...session, ...next })}
+      />
+    );
   }
 
   return (
