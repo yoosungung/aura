@@ -14,7 +14,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ARCHITECTURE.md` | **계약사항(불변 규칙)** + 컴포넌트 *간* 인터페이스 형태(스키마·레이아웃·이벤트) | 루트 |
 | `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
-| `contracts/` | 이벤트 JSON Schema | `contracts/` |
+| `contracts/` | 이벤트·RPC JSON Schema. Go 생성 타입은 `backend/internal/contracts` | `contracts/` |
 | `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/` |
@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P3 착수. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P2 라이브챗 알파·P1 백본 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
+P3 착수. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본(contracts 코드젠 포함)·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
 

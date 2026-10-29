@@ -6,59 +6,48 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/yoosungung/aura/internal/contracts"
 )
 
-type Envelope struct {
-	ID             uuid.UUID       `json:"id"`
-	SchemaVersion  int             `json:"schema_version"`
-	Type           string          `json:"type"`
-	OccurredAt     time.Time       `json:"occurred_at"`
-	AccountID      uuid.UUID       `json:"account_id"`
-	InboxID        uuid.UUID       `json:"inbox_id"`
-	ConversationID uuid.UUID       `json:"conversation_id"`
-	TraceID        string          `json:"trace_id"`
-	CausationID    *uuid.UUID      `json:"causation_id"`
-	HopCount       int             `json:"hop_count"`
-	Payload        json.RawMessage `json:"payload"`
-}
-
-type MessageCreated struct {
-	Content        string    `json:"content"`
-	MessageType    int       `json:"message_type"`
-	Private        bool      `json:"private"`
-	Status         string    `json:"status"`
-	ContentType    string    `json:"content_type"`
-	SourceID       *string   `json:"source_id"`
-	SenderType     string    `json:"sender_type"`
-	SenderID       uuid.UUID `json:"sender_id"`
-	ContactID      uuid.UUID `json:"contact_id"`
-	ContactInboxID uuid.UUID `json:"contact_inbox_id"`
-}
-
-func Parse(raw []byte) (Envelope, error) {
-	var env Envelope
+func Parse(raw []byte) (contracts.MessageCreated, error) {
+	var env contracts.MessageCreated
 	if err := json.Unmarshal(raw, &env); err != nil {
-		return Envelope{}, fmt.Errorf("invalid json: %w", err)
+		return contracts.MessageCreated{}, fmt.Errorf("invalid json: %w", err)
 	}
-	if env.ID == uuid.Nil || env.SchemaVersion != 1 || env.Type == "" || env.TraceID == "" {
-		return Envelope{}, fmt.Errorf("invalid envelope")
+	if env.SchemaVersion != 1 || env.Type == "" || env.TraceID == "" {
+		return contracts.MessageCreated{}, fmt.Errorf("invalid envelope")
 	}
-	if env.AccountID == uuid.Nil || env.InboxID == uuid.Nil || env.ConversationID == uuid.Nil {
-		return Envelope{}, fmt.Errorf("invalid envelope ids")
+	if _, err := uuid.Parse(env.ID); err != nil {
+		return contracts.MessageCreated{}, fmt.Errorf("invalid envelope ids")
+	}
+	if _, err := uuid.Parse(env.AccountID); err != nil {
+		return contracts.MessageCreated{}, fmt.Errorf("invalid envelope ids")
+	}
+	if _, err := uuid.Parse(env.InboxID); err != nil {
+		return contracts.MessageCreated{}, fmt.Errorf("invalid envelope ids")
+	}
+	if _, err := uuid.Parse(env.ConversationID); err != nil {
+		return contracts.MessageCreated{}, fmt.Errorf("invalid envelope ids")
 	}
 	return env, nil
 }
 
-func (e Envelope) MessageCreated() (MessageCreated, error) {
+func MessagePayload(e contracts.MessageCreated) (contracts.MessageCreatedPayload, error) {
 	if e.Type != "message_created" {
-		return MessageCreated{}, fmt.Errorf("type %s", e.Type)
+		return contracts.MessageCreatedPayload{}, fmt.Errorf("type %s", e.Type)
 	}
-	var p MessageCreated
-	if err := json.Unmarshal(e.Payload, &p); err != nil {
-		return MessageCreated{}, fmt.Errorf("payload: %w", err)
+	p := e.Payload
+	if p.SenderType == "" || p.SenderID == "" || p.ContactID == "" || p.ContactInboxID == "" {
+		return contracts.MessageCreatedPayload{}, fmt.Errorf("invalid message payload")
 	}
-	if p.SenderType == "" || p.SenderID == uuid.Nil || p.ContactID == uuid.Nil || p.ContactInboxID == uuid.Nil {
-		return MessageCreated{}, fmt.Errorf("invalid message payload")
+	if _, err := uuid.Parse(p.SenderID); err != nil {
+		return contracts.MessageCreatedPayload{}, fmt.Errorf("invalid message payload")
+	}
+	if _, err := uuid.Parse(p.ContactID); err != nil {
+		return contracts.MessageCreatedPayload{}, fmt.Errorf("invalid message payload")
+	}
+	if _, err := uuid.Parse(p.ContactInboxID); err != nil {
+		return contracts.MessageCreatedPayload{}, fmt.Errorf("invalid message payload")
 	}
 	if p.Status == "" {
 		p.Status = "sent"
@@ -67,4 +56,11 @@ func (e Envelope) MessageCreated() (MessageCreated, error) {
 		p.ContentType = "text"
 	}
 	return p, nil
+}
+
+func parseOccurred(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339, s)
 }

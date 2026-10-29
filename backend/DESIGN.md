@@ -4,6 +4,7 @@
 
 ## 내부 설계
 
+- NATS 페이로드 타입은 [contracts/](../contracts/) JSON Schema에서 생성한다. `go-jsonschema`는 draft-07만 받아 2020-12 스키마와 안 맞고, 검증 코드까지 뽑아서 쓰지 않는다. `go generate ./internal/contracts`가 짧은 생성기로 `internal/contracts` 구조체를 만든다. 게이트웨이·코어·ingestion이 그 타입으로 `message_created`와 `conversations.create`/`transition`을 직렬화한다.
 - 런타임 롤은 `aura_app` (`NOBYPASSRLS`). 슈퍼유저 DSN은 마이그레이션·시드만 쓴다.
 - 워커는 기동 시 스트림 `CONVERSATIONS_STREAM`, `TASKS_STREAM`(`AllowMsgSchedules`), `INGESTION_DLQ`를 보장하고, durable pull consumer `ingestion`으로 `helpdesk.events.*.*.*.message_created`만 Fetch한다. 배치 상한 500건, 대기 100ms.
 - 플러시는 `account_id`로 묶고, 그룹마다 `set_config('app.current_account_id', …, true)` 후 `INSERT … ON CONFLICT (id) DO NOTHING` 한다. 배치 실패 시 단건으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`에 `{ "error", "raw" }`를 넣은 뒤 원본 ACK.
@@ -21,6 +22,7 @@
 ```sh
 docker compose -f deploy/compose/docker-compose.yml up -d
 cd backend
+go generate ./internal/contracts
 go test ./...
 go run ./cmd/ingestion-worker
 go run ./cmd/svc-core

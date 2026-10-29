@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/core"
 )
 
@@ -83,31 +84,17 @@ func (s *Server) handleNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) publishNoteRealtime(accountID uuid.UUID, out NoteOut) error {
-	payload, err := json.Marshal(map[string]any{
-		"content":          out.Content,
-		"message_type":     MessageOutgoing,
-		"private":          true,
-		"status":           "sent",
-		"content_type":     "text",
-		"sender_type":      "User",
-		"sender_id":        out.SenderID.String(),
-		"contact_id":       out.ContactID.String(),
-		"contact_inbox_id": out.ContactInboxID.String(),
-		"attachments":      []any{},
-	})
-	if err != nil {
-		return err
-	}
-	env, err := json.Marshal(map[string]any{
-		"id":              out.MessageID.String(),
-		"schema_version":  1,
-		"type":            "message_created",
-		"occurred_at":     time.Now().UTC().Format(time.RFC3339Nano),
-		"account_id":      accountID.String(),
-		"inbox_id":        out.InboxID.String(),
-		"conversation_id": out.ConversationID.String(),
-		"hop_count":       0,
-		"payload":         json.RawMessage(payload),
+	env, err := json.Marshal(contracts.MessageCreated{
+		ID: out.MessageID.String(), SchemaVersion: 1, Type: "message_created",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		AccountID:  accountID.String(), InboxID: out.InboxID.String(),
+		ConversationID: out.ConversationID.String(), HopCount: 0,
+		Payload: contracts.MessageCreatedPayload{
+			Content: out.Content, MessageType: MessageOutgoing, Private: true, Status: "sent",
+			ContentType: "text", SenderType: "User", SenderID: out.SenderID.String(),
+			ContactID: out.ContactID.String(), ContactInboxID: out.ContactInboxID.String(),
+			Attachments: []any{},
+		},
 	})
 	if err != nil {
 		return err

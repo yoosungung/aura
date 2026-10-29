@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/core"
 )
 
@@ -29,12 +30,12 @@ func NewBus(nc *nats.Conn, js jetstream.JetStream) Bus {
 }
 
 func (r *natsRPC) Create(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error) {
-	body, err := json.Marshal(map[string]any{
-		"account_id": accountID.String(),
-		"inbox_id":   inboxID.String(),
-		"source_id":  sourceID,
-		"name":       name,
-		"trace_id":   traceID,
+	body, err := json.Marshal(contracts.ConversationsCreate{
+		AccountID: accountID.String(),
+		InboxID:   inboxID.String(),
+		SourceID:  sourceID,
+		Name:      name,
+		TraceID:   traceID,
 	})
 	if err != nil {
 		return CreateOut{}, err

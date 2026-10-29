@@ -39,7 +39,7 @@ func (f *Flusher) Flush(ctx context.Context, items []Ackable) error {
 			}
 			continue
 		}
-		key := env.AccountID.String()
+		key := env.AccountID
 		byAccount[key] = append(byAccount[key], it)
 	}
 	for _, group := range byAccount {
@@ -106,7 +106,7 @@ func applyAll(ctx context.Context, tx pgx.Tx, items []Ackable) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, env.AccountID.String()); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, env.AccountID); err != nil {
 		return err
 	}
 	for _, it := range items {
@@ -122,13 +122,17 @@ func insertMessage(ctx context.Context, tx pgx.Tx, raw []byte) error {
 	if err != nil {
 		return err
 	}
-	msg, err := env.MessageCreated()
+	msg, err := MessagePayload(env)
 	if err != nil {
 		return err
 	}
 	var source any
-	if msg.SourceID != nil && *msg.SourceID != "" {
-		source = *msg.SourceID
+	if msg.SourceID != "" {
+		source = msg.SourceID
+	}
+	occurred, err := parseOccurred(env.OccurredAt)
+	if err != nil {
+		return err
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO messages (
@@ -139,7 +143,7 @@ func insertMessage(ctx context.Context, tx pgx.Tx, raw []byte) error {
 		ON CONFLICT (id) DO NOTHING
 	`, env.ID, env.AccountID, env.InboxID, env.ConversationID,
 		msg.MessageType, msg.Content, msg.Private, msg.Status, source,
-		msg.ContentType, msg.SenderType, msg.SenderID, env.OccurredAt)
+		msg.ContentType, msg.SenderType, msg.SenderID, occurred)
 	return err
 }
 

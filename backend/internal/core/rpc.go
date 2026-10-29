@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/ingest"
 )
 
@@ -29,24 +30,6 @@ const (
 	SubjectLabelList         = "helpdesk.rpc.conversations.label.list"
 	QueueGroup               = "svc-core"
 )
-
-type createReq struct {
-	AccountID string `json:"account_id"`
-	InboxID   string `json:"inbox_id"`
-	SourceID  string `json:"source_id"`
-	Name      string `json:"name"`
-	TraceID   string `json:"trace_id"`
-}
-
-type transitionReq struct {
-	AccountID       string  `json:"account_id"`
-	ConversationID  string  `json:"conversation_id"`
-	NewStatus       string  `json:"new_status"`
-	ExpectedVersion int     `json:"expected_version"`
-	ActorType       string  `json:"actor_type"`
-	ActorID         *string `json:"actor_id"`
-	TraceID         string  `json:"trace_id"`
-}
 
 func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) error {
 	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
@@ -164,7 +147,7 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 }
 
 func (s *Service) handleCreate(msg *nats.Msg) {
-	var req createReq
+	var req contracts.ConversationsCreate
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		_ = msg.Respond(rpcErr(err))
 		return
@@ -203,7 +186,7 @@ func (s *Service) handleCreate(msg *nats.Msg) {
 }
 
 func (s *Service) handleTransition(msg *nats.Msg) {
-	var req transitionReq
+	var req contracts.ConversationsTransition
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		_ = msg.Respond(rpcErr(err))
 		return
@@ -219,8 +202,8 @@ func (s *Service) handleTransition(msg *nats.Msg) {
 		return
 	}
 	var actorID *uuid.UUID
-	if req.ActorID != nil && *req.ActorID != "" {
-		id, err := uuid.Parse(*req.ActorID)
+	if req.ActorID != "" {
+		id, err := uuid.Parse(req.ActorID)
 		if err != nil {
 			_ = msg.Respond(rpcErr(err))
 			return

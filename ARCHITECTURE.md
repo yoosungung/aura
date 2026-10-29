@@ -113,7 +113,7 @@ nats stream add INGESTION_DLQ \
 
 ## 4. 이벤트 JSON
 
-모든 `helpdesk.events.>` 페이로드는 이 envelope다. 언어별 모델은 [contracts/](contracts/) JSON Schema에서 생성한다. P1에서 스키마 파일을 추가한다.
+모든 `helpdesk.events.>` 페이로드는 이 envelope다. 언어별 모델은 [contracts/](contracts/) JSON Schema에서 생성한다. Go는 `backend/internal/contracts`다.
 
 ```json
 {

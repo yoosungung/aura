@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/core"
 	"github.com/yoosungung/aura/internal/ingest"
 	"github.com/yoosungung/aura/internal/testutil"
@@ -163,11 +164,8 @@ func TestRPC_CreateThenTransition(t *testing.T) {
 	}()
 	time.Sleep(200 * time.Millisecond)
 
-	req, _ := json.Marshal(map[string]any{
-		"account_id": accountID.String(),
-		"inbox_id":   inboxID.String(),
-		"source_id":  "widget-rpc",
-		"trace_id":   "tr",
+	req, _ := json.Marshal(contracts.ConversationsCreate{
+		AccountID: accountID.String(), InboxID: inboxID.String(), SourceID: "widget-rpc", TraceID: "tr",
 	})
 	reply, err := nc.Request(core.SubjectCreate, req, 5*time.Second)
 	if err != nil {
@@ -185,12 +183,9 @@ func TestRPC_CreateThenTransition(t *testing.T) {
 		t.Fatalf("create %s", reply.Data)
 	}
 
-	tr, _ := json.Marshal(map[string]any{
-		"account_id":       accountID.String(),
-		"conversation_id":  created.ConversationID,
-		"new_status":       core.StatusOpen,
-		"expected_version": created.Version,
-		"trace_id":         "tr",
+	tr, _ := json.Marshal(contracts.ConversationsTransition{
+		AccountID: accountID.String(), ConversationID: created.ConversationID,
+		NewStatus: core.StatusOpen, ExpectedVersion: created.Version, TraceID: "tr",
 	})
 	reply, err = nc.Request(core.SubjectTransition, tr, 5*time.Second)
 	if err != nil {

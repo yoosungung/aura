@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/ingest"
 	"github.com/yoosungung/aura/internal/testutil"
 )
@@ -63,26 +64,15 @@ func mustV7(t *testing.T) uuid.UUID {
 
 func event(t *testing.T, f fixture, msgID, conv uuid.UUID, content string) []byte {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{
-		"id":              msgID.String(),
-		"schema_version":  1,
-		"type":            "message_created",
-		"occurred_at":     time.Now().UTC().Format(time.RFC3339),
-		"account_id":      f.Account.String(),
-		"inbox_id":        f.Inbox.String(),
-		"conversation_id": conv.String(),
-		"trace_id":        "4bf92f3577b34da6a3ce929d0e0e4736",
-		"hop_count":       0,
-		"payload": map[string]any{
-			"content":          content,
-			"message_type":     0,
-			"private":          false,
-			"status":           "sent",
-			"content_type":     "text",
-			"sender_type":      "Contact",
-			"sender_id":        f.Contact.String(),
-			"contact_id":       f.Contact.String(),
-			"contact_inbox_id": f.ContactInbox.String(),
+	body, err := json.Marshal(contracts.MessageCreated{
+		ID: msgID.String(), SchemaVersion: 1, Type: "message_created",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339),
+		AccountID:  f.Account.String(), InboxID: f.Inbox.String(), ConversationID: conv.String(),
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736", HopCount: 0,
+		Payload: contracts.MessageCreatedPayload{
+			Content: content, MessageType: 0, Private: false, Status: "sent",
+			ContentType: "text", SenderType: "Contact", SenderID: f.Contact.String(),
+			ContactID: f.Contact.String(), ContactInboxID: f.ContactInbox.String(),
 		},
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/yoosungung/aura/internal/contracts"
 )
 
 const (
@@ -157,32 +158,17 @@ func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conver
 		senderID = contactID
 	}
 	traceID := newTraceID()
-	payload, err := json.Marshal(map[string]any{
-		"content":          content,
-		"message_type":     messageType,
-		"private":          false,
-		"status":           "sent",
-		"content_type":     "text",
-		"sender_type":      senderType,
-		"sender_id":        senderID.String(),
-		"contact_id":       contactID.String(),
-		"contact_inbox_id": contactInboxID.String(),
-		"attachments":      []any{},
-	})
-	if err != nil {
-		return uuid.Nil, nil, err
-	}
-	env, err := json.Marshal(map[string]any{
-		"id":              msgID.String(),
-		"schema_version":  1,
-		"type":            "message_created",
-		"occurred_at":     time.Now().UTC().Format(time.RFC3339Nano),
-		"account_id":      accountID.String(),
-		"inbox_id":        inboxID.String(),
-		"conversation_id": conversationID.String(),
-		"trace_id":        traceID,
-		"hop_count":       0,
-		"payload":         json.RawMessage(payload),
+	env, err := json.Marshal(contracts.MessageCreated{
+		ID: msgID.String(), SchemaVersion: 1, Type: "message_created",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		AccountID:  accountID.String(), InboxID: inboxID.String(),
+		ConversationID: conversationID.String(), TraceID: traceID, HopCount: 0,
+		Payload: contracts.MessageCreatedPayload{
+			Content: content, MessageType: messageType, Private: false, Status: "sent",
+			ContentType: "text", SenderType: senderType, SenderID: senderID.String(),
+			ContactID: contactID.String(), ContactInboxID: contactInboxID.String(),
+			Attachments: []any{},
+		},
 	})
 	if err != nil {
 		return uuid.Nil, nil, err

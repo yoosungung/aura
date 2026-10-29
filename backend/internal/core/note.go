@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/yoosungung/aura/internal/contracts"
 )
 
 type NoteInput struct {
@@ -88,32 +89,17 @@ func (s *Service) AddNote(ctx context.Context, in NoteInput) (NoteResult, error)
 }
 
 func (s *Service) writeNoteOutbox(ctx context.Context, tx pgx.Tx, in NoteInput, msgID, inboxID, contactID, contactInboxID uuid.UUID, content string) error {
-	payload, err := json.Marshal(map[string]any{
-		"content":          content,
-		"message_type":     1,
-		"private":          true,
-		"status":           "sent",
-		"content_type":     "text",
-		"sender_type":      "User",
-		"sender_id":        in.ActorUserID.String(),
-		"contact_id":       contactID.String(),
-		"contact_inbox_id": contactInboxID.String(),
-		"attachments":      []any{},
-	})
-	if err != nil {
-		return err
-	}
-	env, err := json.Marshal(map[string]any{
-		"id":              msgID.String(),
-		"schema_version":  1,
-		"type":            "message_created",
-		"occurred_at":     time.Now().UTC().Format(time.RFC3339Nano),
-		"account_id":      in.AccountID.String(),
-		"inbox_id":        inboxID.String(),
-		"conversation_id": in.ConversationID.String(),
-		"trace_id":        in.TraceID,
-		"hop_count":       0,
-		"payload":         json.RawMessage(payload),
+	env, err := json.Marshal(contracts.MessageCreated{
+		ID: msgID.String(), SchemaVersion: 1, Type: "message_created",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		AccountID:  in.AccountID.String(), InboxID: inboxID.String(),
+		ConversationID: in.ConversationID.String(), TraceID: in.TraceID, HopCount: 0,
+		Payload: contracts.MessageCreatedPayload{
+			Content: content, MessageType: 1, Private: true, Status: "sent",
+			ContentType: "text", SenderType: "User", SenderID: in.ActorUserID.String(),
+			ContactID: contactID.String(), ContactInboxID: contactInboxID.String(),
+			Attachments: []any{},
+		},
 	})
 	if err != nil {
 		return err
