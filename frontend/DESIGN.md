@@ -9,7 +9,7 @@
 - 대화 목록 REST는 아직 없다. 큐는 `helpdesk.realtime`의 `message.created`로 upsert한다. 같은 `messages.id`는 무시한다. 선택하지 않은 대화는 unread를 올린다.
 - 답장은 `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`에 `inbox_id`·`contact_id`·`contact_inbox_id`를 넣는다(게이트웨이가 대화 행을 조회하지 않음).
 - 로컬 개발은 Vite가 `/auth`·`/api`·`/ws`를 `gateway-web(:8080)`으로 프록시한다. 브라우저 CORS를 게이트웨이에 열지 않는다.
-- 부트스트랩: 로그인 화면. `?fixture=1`은 WS 없이 큐·스레드를 채운다. 우측 Living Profile은 P7.
+- 부트스트랩: 로그인 화면. `administrator`는 큐 아래 인박스 멤버 추가 UI를 본다. `?fixture=1`은 WS 없이 큐·스레드를 채운다. 우측 Living Profile은 P7.
 
 ## Commands
 

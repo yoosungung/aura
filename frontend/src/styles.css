@@ -62,3 +62,9 @@ body,
 .composer input {
   flex: 1;
 }
+
+.members {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #ddd;
+}

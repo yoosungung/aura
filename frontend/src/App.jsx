@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useState } from "react";
+import { InboxMembers } from "./components/InboxMembers.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
 import { emptyState, reduce } from "./store.js";
 
@@ -27,6 +28,8 @@ export function App({ session: initialSession, client, initialState = emptyState
             ...initialSession,
             token: data.access_token,
             accountId: data.user?.account_id || initialSession.accountId,
+            role: data.user?.role || initialSession.role,
+            inboxIds: data.user?.inbox_ids || initialSession.inboxIds,
           });
         }
       })
@@ -81,6 +84,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     <div className="workspace">
       <nav className="queue" aria-label="대기열">
         <h1>대기열</h1>
+        {session.role === "administrator" ? <InboxMembers session={session} client={client} /> : null}
         {state.conversations.length === 0 ? (
           <p>대기 중인 대화가 없습니다</p>
         ) : (

@@ -9,7 +9,7 @@
 - 플러시는 `account_id`로 묶고, 그룹마다 `set_config('app.current_account_id', …, true)` 후 `INSERT … ON CONFLICT (id) DO NOTHING` 한다. 배치 실패 시 단건으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`에 `{ "error", "raw" }`를 넣은 뒤 원본 ACK.
 - `svc-core`는 `helpdesk.rpc.conversations.create` / `transition`을 queue group `svc-core`로 받는다. 생성은 컨택트·인박스링크·`account_sequences` 채번·대화(`unassigned`, `version=1`)를 한 트랜잭션에 넣는다. 전이는 허용표 + `version` CAS이고, 성공 시 `event_outbox`에 `status_changed`를 쓴 뒤 JetStream에 발행한다. P2는 snooze 전이를 거절한다.
 - `gateway-web`은 PG에 붙지 않는다. 접근 토큰은 HMAC 클레임에 `exp`·`sid`가 있는 15분 토큰이다. Contact는 `account_id`·`inbox_id`·`source_id`(생성 후 `conversation_id`), User는 `account_id`·`inbox_ids`. 로그인·리프레시·로그아웃은 `helpdesk.rpc.auth.*` → `svc-core`. 세션 쿠키 `aura_session`은 opaque 난수이고 DB에는 SHA-256만 둔다. `pubsub_token`은 시드다.
-- 로그인은 테넌트 GUC 이전이다. `account_users`/`inbox_members` 스냅샷은 SECURITY DEFINER `auth_login_membership(user_id)`만 쓴다.
+- 로그인은 테넌트 GUC 이전이다. `account_users`/`inbox_members` 스냅샷은 SECURITY DEFINER `auth_login_membership(user_id)`만 쓴다. 인박스 멤버 추가·삭제는 `administrator`만 `helpdesk.rpc.inbox_members.*`로 한다.
 - Client API `POST /public/api/v1/inboxes/{inbox_id}/messages`: 토큰에 대화 ID가 없으면 `helpdesk.rpc.conversations.create`가 성공한 뒤에만 `message_created`와 `helpdesk.realtime.<account_id>.<conversation_id>.updated`를 발행한다. RPC 실패 시 둘 다 없다. 기존 대화는 create를 건너뛴다.
 - Application API `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`: User 토큰의 `inbox_ids`에 요청 `inbox_id`가 있을 때만 outgoing `message_created`. 대화 행 조회가 없으므로 바디에 `inbox_id`·`contact_id`·`contact_inbox_id`가 필요하다.
 - WS `GET /ws?token=`: Contact는 자기 `conversation_id`만, User는 클레임 `inbox_ids`에 속한 대화만 받는다. 연결 후 `{"type":"ready"}`.

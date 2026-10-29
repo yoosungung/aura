@@ -87,6 +87,9 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.contact` | `inbox_id`, `pubsub_token` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inbox_members.add` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inbox_members.remove` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
@@ -196,6 +199,7 @@ nats stream add INGESTION_DLQ \
 대표 경로:
 
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`
+- `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/contacts`
 - `POST /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{id}/messages`
 - `POST /platform/api/v1/accounts`

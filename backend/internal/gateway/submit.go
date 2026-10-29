@@ -57,10 +57,11 @@ type SubmitResult struct {
 }
 
 type Service struct {
-	Secret []byte
-	RPC    Creator
-	Auth   Authenticator
-	Bus    Bus
+	Secret  []byte
+	RPC     Creator
+	Auth    Authenticator
+	Members Members
+	Bus     Bus
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {

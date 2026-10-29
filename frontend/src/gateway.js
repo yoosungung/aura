@@ -77,4 +77,37 @@ export async function refreshSession({ gatewayUrl }, fetchImpl = fetch) {
   }
 }
 
-export const liveClient = { connect, sendReply, signIn, refresh: refreshSession };
+export async function addInboxMember(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, inboxId, userId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/members/${userId}`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!res.ok) {
+    throw new Error("add member failed");
+  }
+}
+
+export async function listInboxMembers(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, inboxId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/members`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    throw new Error("list members failed");
+  }
+  return res.json();
+}
+
+export const liveClient = {
+  connect,
+  sendReply,
+  signIn,
+  refresh: refreshSession,
+  addInboxMember,
+  listInboxMembers,
+};

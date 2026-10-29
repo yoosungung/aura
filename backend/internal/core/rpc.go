@@ -12,12 +12,15 @@ import (
 )
 
 const (
-	SubjectCreate      = "helpdesk.rpc.conversations.create"
-	SubjectTransition  = "helpdesk.rpc.conversations.transition"
-	SubjectAuthLogin   = "helpdesk.rpc.auth.login"
-	SubjectAuthRefresh = "helpdesk.rpc.auth.refresh"
-	SubjectAuthLogout  = "helpdesk.rpc.auth.logout"
-	QueueGroup         = "svc-core"
+	SubjectCreate            = "helpdesk.rpc.conversations.create"
+	SubjectTransition        = "helpdesk.rpc.conversations.transition"
+	SubjectAuthLogin         = "helpdesk.rpc.auth.login"
+	SubjectAuthRefresh       = "helpdesk.rpc.auth.refresh"
+	SubjectAuthLogout        = "helpdesk.rpc.auth.logout"
+	SubjectInboxMemberAdd    = "helpdesk.rpc.inbox_members.add"
+	SubjectInboxMemberRemove = "helpdesk.rpc.inbox_members.remove"
+	SubjectInboxMemberList   = "helpdesk.rpc.inbox_members.list"
+	QueueGroup               = "svc-core"
 )
 
 type createReq struct {
@@ -78,6 +81,27 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subLogout.Unsubscribe()
+	subAdd, err := nc.QueueSubscribe(SubjectInboxMemberAdd, QueueGroup, func(msg *nats.Msg) {
+		s.handleMemberMutate(msg, s.AddInboxMember)
+	})
+	if err != nil {
+		return err
+	}
+	defer subAdd.Unsubscribe()
+	subRemove, err := nc.QueueSubscribe(SubjectInboxMemberRemove, QueueGroup, func(msg *nats.Msg) {
+		s.handleMemberMutate(msg, s.RemoveInboxMember)
+	})
+	if err != nil {
+		return err
+	}
+	defer subRemove.Unsubscribe()
+	subList, err := nc.QueueSubscribe(SubjectInboxMemberList, QueueGroup, func(msg *nats.Msg) {
+		s.handleMemberList(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subList.Unsubscribe()
 	if err := nc.Flush(); err != nil {
 		return err
 	}
@@ -219,6 +243,78 @@ func (s *Service) handleLogout(msg *nats.Msg) {
 	_ = msg.Respond(body)
 }
 
+type memberReq struct {
+	ActorUserID string `json:"actor_user_id"`
+	AccountID   string `json:"account_id"`
+	InboxID     string `json:"inbox_id"`
+	UserID      string `json:"user_id"`
+}
+
+func parseMemberInput(msg *nats.Msg) (MemberInput, error) {
+	var req memberReq
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		return MemberInput{}, err
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		return MemberInput{}, err
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		return MemberInput{}, err
+	}
+	inboxID, err := uuid.Parse(req.InboxID)
+	if err != nil {
+		return MemberInput{}, err
+	}
+	in := MemberInput{ActorUserID: actor, AccountID: accountID, InboxID: inboxID}
+	if req.UserID != "" {
+		userID, err := uuid.Parse(req.UserID)
+		if err != nil {
+			return MemberInput{}, err
+		}
+		in.UserID = userID
+	}
+	return in, nil
+}
+
+func (s *Service) handleMemberMutate(msg *nats.Msg, fn func(context.Context, MemberInput) error) {
+	in, err := parseMemberInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := fn(context.Background(), in); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleMemberList(msg *nats.Msg) {
+	in, err := parseMemberInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListInboxMembers(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	members := make([]map[string]any, 0, len(list))
+	for _, m := range list {
+		members = append(members, map[string]any{
+			"user_id": m.UserID.String(),
+			"email":   m.Email,
+			"name":    m.Name,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "members": members})
+	_ = msg.Respond(body)
+}
+
 func authOK(out AuthResult) []byte {
 	accounts := make([]map[string]any, 0, len(out.Accounts))
 	for _, a := range out.Accounts {
@@ -254,6 +350,8 @@ func rpcErr(err error) []byte {
 		code = ErrNotFound.Error()
 	} else if errors.Is(err, ErrUnauthorized) {
 		code = ErrUnauthorized.Error()
+	} else if errors.Is(err, ErrDenied) {
+		code = ErrDenied.Error()
 	}
 	body, _ := json.Marshal(map[string]any{"ok": false, "error": code})
 	return body

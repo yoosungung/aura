@@ -49,6 +49,37 @@ test("selecting a queue card shows the thread", async () => {
   expect(screen.getByRole("log").textContent).toContain("결제 오류");
 });
 
+test("administrator can add an inbox member", async () => {
+  const user = userEvent.setup();
+  const added = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [] };
+        },
+        async addInboxMember(req) {
+          added.push(req);
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
+  await user.type(screen.getByLabelText("상담원 ID"), "user-1");
+  await user.click(screen.getByRole("button", { name: "추가" }));
+  expect(added[0].userId).toBe("user-1");
+  expect(added[0].inboxId).toBe("i1");
+});
+
+test("agent does not see inbox member admin", () => {
+  render(
+    <App session={{ ...session, role: "agent" }} client={{ connect() {} }} />,
+  );
+  expect(screen.queryByRole("region", { name: "인박스 멤버" })).toBeNull();
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];

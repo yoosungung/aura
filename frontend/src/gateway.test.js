@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { sendReply, signIn, wsUrl } from "./gateway.js";
+import { addInboxMember, sendReply, signIn, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -52,5 +52,24 @@ describe("gateway client", () => {
     assert.equal(calls[0].url, "http://gw/auth/sign_in");
     assert.equal(calls[0].opts.credentials, "include");
     assert.equal(data.access_token, "tok");
+  });
+
+  it("puts inbox members as admin", async () => {
+    const calls = [];
+    await addInboxMember(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        inboxId: "i1",
+        userId: "u1",
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/members/u1");
+    assert.equal(calls[0].opts.method, "PUT");
   });
 });

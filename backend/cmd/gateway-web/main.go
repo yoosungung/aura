@@ -42,10 +42,11 @@ func main() {
 	n := gateway.NewRPC(nc)
 	srv := &gateway.Server{
 		Service: &gateway.Service{
-			Secret: secret,
-			RPC:    n,
-			Auth:   n,
-			Bus:    gateway.NewBus(nc, js),
+			Secret:  secret,
+			RPC:     n,
+			Auth:    n,
+			Members: n,
+			Bus:     gateway.NewBus(nc, js),
 		},
 		NC: nc,
 	}
