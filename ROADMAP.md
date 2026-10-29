@@ -42,12 +42,14 @@
 
 목표: 한 팀이 웹 채널만으로 실제 상담을 끝낸다.
 
+- shadcn/ui 도입. 기존 P3 프론트 화면(로그인, 큐, 인박스 멤버, 스레드 답장, 배정, 내부 메모, 스누즈, 라벨 부착, 첨부)을 shadcn 기반으로 마이그레이션한다.
 - 로그인과 RBAC (`administrator`/`agent`). 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 접근 토큰. OIDC는 두지 않는다.
 - `inbox_members`, 수동 배정, 내부 메모, snooze, 라벨, 매크로·저장응답.
 - 첨부: SeaweedFS + `attachments`.
 - Application API (대화·메시지·컨택트).
 - `setUser` HMAC.
 - WebSocket은 짧은 만료 서명 토큰. `pubsub_token`은 시드로만 유지한다.
+- 프론트 잔여 화면: 라벨 제거, 새로고침 후 대화 목록, 매크로·저장응답 UI, 티켓 `resolved` 버튼·해결 화면.
 
 성공: 관리자가 상담원을 인박스에 넣고, 상담원이 메모·라벨·첨부로 티켓을 resolved 한다.
 
@@ -112,3 +114,11 @@
 **결정됨 — 스누즈 깨움.** PG `conversations.snoozed_until`은 상태 컬럼으로 유지한다. 시각 도래의 주체는 NATS JetStream 스케줄 메시지(`Nats-Schedule: @at`, 스트림 `AllowMsgSchedules`)다. 게이트웨이는 스케줄만 발행하고, `svc-core` 컨슈머가 `helpdesk.tasks.snooze.wake.*`를 받아 FSM으로 `open` 전이한다.
 
 **할 일 — 라벨·매크로·저장응답 사용법.** [ARCHITECTURE.md](ARCHITECTURE.md) §10 DDL에 `labels`/`conversation_labels`·`macros`·`canned_responses` 테이블은 있으나, 상담원 사용법이 비어 있다. 매크로·저장응답은 `actions` JSON 예·`short_code` 예가 없고 대표 API 경로에도 엔드포인트가 없다. 라벨은 [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)에 「라벨 부착」·「커스텀 라벨 목록」·「라벨링」만 있고, 계정 카탈로그 vs 티켓 부착 모델과 상담원 실사용이 안 적혀 있다. P3 구현 전에 그 분석과 스키마를 기준으로, 상담원이 라벨·매크로·저장응답을 어떻게 쓰는지 문서화한다.
+
+**미결 — 에릭 결정 (P3).** 목록만 둔다. 구현하지 않는다.
+
+- 라벨과 매크로를 상담원이 어떻게 쓸지
+- 셋유저로 고객을 묶은 뒤 익명 대화를 합칠지
+- 인박스 HMAC 시크릿을 누가 복사하고 어떻게 돌릴지
+- 새로고침할 때 대화 목록 필터를 어떻게 할지
+- 해결 화면에 pending 상태를 넣을지
