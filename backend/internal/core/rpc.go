@@ -20,6 +20,7 @@ const (
 	SubjectInboxMemberAdd    = "helpdesk.rpc.inbox_members.add"
 	SubjectInboxMemberRemove = "helpdesk.rpc.inbox_members.remove"
 	SubjectInboxMemberList   = "helpdesk.rpc.inbox_members.list"
+	SubjectAssign            = "helpdesk.rpc.conversations.assign"
 	QueueGroup               = "svc-core"
 )
 
@@ -102,6 +103,13 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subList.Unsubscribe()
+	subAssign, err := nc.QueueSubscribe(SubjectAssign, QueueGroup, func(msg *nats.Msg) {
+		s.handleAssign(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subAssign.Unsubscribe()
 	if err := nc.Flush(); err != nil {
 		return err
 	}
@@ -190,6 +198,56 @@ func (s *Service) handleTransition(msg *nats.Msg) {
 		"ok":      true,
 		"status":  out.Status,
 		"version": out.Version,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleAssign(msg *nats.Msg) {
+	var req struct {
+		ActorUserID     string `json:"actor_user_id"`
+		AccountID       string `json:"account_id"`
+		ConversationID  string `json:"conversation_id"`
+		AssigneeID      string `json:"assignee_id"`
+		ExpectedVersion int    `json:"expected_version"`
+		TraceID         string `json:"trace_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	convID, err := uuid.Parse(req.ConversationID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	assignee, err := uuid.Parse(req.AssigneeID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.Assign(context.Background(), AssignInput{
+		ActorUserID: actor, AccountID: accountID, ConversationID: convID,
+		AssigneeID: assignee, ExpectedVersion: req.ExpectedVersion, TraceID: req.TraceID,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok":          true,
+		"assignee_id": out.AssigneeID.String(),
+		"status":      out.Status,
+		"version":     out.Version,
 	})
 	_ = msg.Respond(body)
 }

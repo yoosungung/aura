@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addInboxMember, sendReply, signIn, wsUrl } from "./gateway.js";
+import { addInboxMember, assignConversation, sendReply, signIn, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -71,5 +71,29 @@ describe("gateway client", () => {
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/members/u1");
     assert.equal(calls[0].opts.method, "PUT");
+  });
+
+  it("puts conversation assignee", async () => {
+    const calls = [];
+    await assignConversation(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        conversationId: "c1",
+        assigneeId: "u1",
+        expectedVersion: 1,
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ assignee_id: "u1", status: "open", version: 2 }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/assignee");
+    assert.equal(calls[0].opts.method, "PUT");
+    assert.deepEqual(JSON.parse(calls[0].opts.body), {
+      assignee_id: "u1",
+      expected_version: 1,
+    });
   });
 });

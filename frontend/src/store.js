@@ -14,6 +14,7 @@ export function fixtureState() {
         contactInboxId: "ci1",
         lastContent: "결제 오류",
         unread: 1,
+        version: 1,
       },
     ],
     selectedId: null,
@@ -40,6 +41,16 @@ export function reduce(state, action) {
       selectedId: action.id,
       conversations: state.conversations.map((c) =>
         c.id === action.id ? { ...c, unread: 0 } : c,
+      ),
+    };
+  }
+  if (action.type === "assigned") {
+    return {
+      ...state,
+      conversations: state.conversations.map((c) =>
+        c.id === action.conversationId
+          ? { ...c, assigneeId: action.assigneeId, status: action.status, version: action.version }
+          : c,
       ),
     };
   }

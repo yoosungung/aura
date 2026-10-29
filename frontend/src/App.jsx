@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useState } from "react";
+import { AssignTicket } from "./components/AssignTicket.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
 import { emptyState, reduce } from "./store.js";
@@ -109,6 +110,13 @@ export function App({ session: initialSession, client, initialState = emptyState
           <p>대화를 선택하세요</p>
         ) : (
           <>
+            <AssignTicket
+              key={selected.id}
+              session={session}
+              conversation={selected}
+              client={client}
+              onAssigned={(next) => dispatch({ type: "assigned", ...next })}
+            />
             <ol className="log" role="log">
               {(state.messages[selected.id] || []).map((m) => (
                 <li key={m.id} data-sender={m.senderType}>

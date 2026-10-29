@@ -61,6 +61,7 @@ type Service struct {
 	RPC     Creator
 	Auth    Authenticator
 	Members Members
+	Assign  Assigner
 	Bus     Bus
 }
 

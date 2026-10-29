@@ -103,6 +103,28 @@ export async function listInboxMembers(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function assignConversation(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, assigneeId, expectedVersion } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/assignee`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        assignee_id: assigneeId,
+        expected_version: expectedVersion,
+      }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error("assign failed");
+  }
+  return res.json();
+}
+
 export const liveClient = {
   connect,
   sendReply,
@@ -110,4 +132,5 @@ export const liveClient = {
   refresh: refreshSession,
   addInboxMember,
   listInboxMembers,
+  assignConversation,
 };

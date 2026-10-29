@@ -46,6 +46,7 @@ func main() {
 			RPC:     n,
 			Auth:    n,
 			Members: n,
+			Assign:  n,
 			Bus:     gateway.NewBus(nc, js),
 		},
 		NC: nc,

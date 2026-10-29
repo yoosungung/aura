@@ -80,6 +80,30 @@ test("agent does not see inbox member admin", () => {
   expect(screen.queryByRole("region", { name: "인박스 멤버" })).toBeNull();
 });
 
+test("ticket view assigns to an inbox agent", async () => {
+  const user = userEvent.setup();
+  const assigned = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async assignConversation(req) {
+          assigned.push(req);
+          return { assignee_id: "user-1", status: "open", version: 2 };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("담당자 ID"), "user-1");
+  await user.click(screen.getByRole("button", { name: "배정" }));
+  expect(assigned[0].assigneeId).toBe("user-1");
+  expect(assigned[0].conversationId).toBe("c1");
+  expect(assigned[0].expectedVersion).toBe(1);
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];
@@ -96,7 +120,7 @@ test("reply posts through the gateway client", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
-  await user.type(screen.getByRole("textbox"), "확인했습니다");
+  await user.type(screen.getByLabelText("답장"), "확인했습니다");
   await user.click(screen.getByRole("button", { name: "보내기" }));
   expect(sent[0].content).toBe("확인했습니다");
   expect(sent[0].conversation.id).toBe("c1");
