@@ -1,0 +1,56 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family: sans-serif;
+}
+
+.workspace {
+  display: flex;
+  height: 100%;
+}
+
+.queue {
+  width: 320px;
+  border-right: 1px solid #ddd;
+  overflow: auto;
+  padding: 12px;
+}
+
+.queue ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.queue button {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+}
+
+.thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.log {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 16px;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid #ddd;
+}
+
+.composer input {
+  flex: 1;
+}

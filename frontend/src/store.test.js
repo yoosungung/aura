@@ -1,0 +1,67 @@
+import assert from "node:assert/strict";
+import { describe, it } from "vitest";
+import { emptyState, reduce } from "./store.js";
+
+function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
+  return {
+    type: "event",
+    event: "message.created",
+    inbox_id: inbox,
+    conversation_id: conv,
+    message: {
+      id,
+      payload: {
+        content,
+        sender_type: "Contact",
+        contact_id: contact,
+        contact_inbox_id: "ci1",
+      },
+    },
+  };
+}
+
+describe("reduce realtime", () => {
+  it("upserts a queue card and appends the thread", () => {
+    const s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    assert.equal(s.conversations.length, 1);
+    assert.equal(s.conversations[0].lastContent, "결제 오류");
+    assert.equal(s.conversations[0].unread, 1);
+    assert.equal(s.messages.c1[0].content, "결제 오류");
+  });
+
+  it("does not duplicate the same message id", () => {
+    const event = created({ id: "m1", conv: "c1", content: "hi" });
+    const s1 = reduce(emptyState, { type: "realtime", event });
+    const s2 = reduce(s1, { type: "realtime", event });
+    assert.equal(s2.messages.c1.length, 1);
+    assert.equal(s2.conversations[0].unread, 1);
+  });
+
+  it("moves the latest conversation to the top", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "one" }),
+    });
+    s = reduce(s, {
+      type: "realtime",
+      event: created({ id: "m2", conv: "c2", content: "two" }),
+    });
+    assert.deepEqual(
+      s.conversations.map((c) => c.id),
+      ["c2", "c1"],
+    );
+  });
+
+  it("clears unread on select", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "hi" }),
+    });
+    s = reduce(s, { type: "select", id: "c1" });
+    assert.equal(s.selectedId, "c1");
+    assert.equal(s.conversations[0].unread, 0);
+  });
+});
