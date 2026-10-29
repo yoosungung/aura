@@ -4,6 +4,7 @@ import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
 import { SnoozeTicket } from "./components/SnoozeTicket.jsx";
+import { TicketLabels } from "./components/TicketLabels.jsx";
 import { emptyState, reduce, visibleInQueue } from "./store.js";
 
 export function App({ session: initialSession, client, initialState = emptyState }) {
@@ -126,6 +127,13 @@ export function App({ session: initialSession, client, initialState = emptyState
               conversation={selected}
               client={client}
               onSnoozed={(next) => dispatch({ type: "snoozed", ...next })}
+            />
+            <TicketLabels
+              key={`labels-${selected.id}`}
+              session={session}
+              conversation={selected}
+              client={client}
+              onLabeled={(next) => dispatch({ type: "labeled", ...next })}
             />
             <ol className="log" role="log">
               {(state.messages[selected.id] || []).map((m) => (

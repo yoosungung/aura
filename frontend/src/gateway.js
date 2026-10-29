@@ -125,6 +125,25 @@ export async function assignConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function addConversationLabel(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, name } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/labels`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error("label failed");
+  }
+  return res.json();
+}
+
 export async function snoozeConversation(req, fetchImpl = fetch) {
   const { gatewayUrl, accountId, token, conversationId, snoozedUntil, expectedVersion } = req;
   const res = await fetchImpl(
@@ -176,4 +195,5 @@ export const liveClient = {
   assignConversation,
   sendNote,
   snoozeConversation,
+  addConversationLabel,
 };

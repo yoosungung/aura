@@ -65,6 +65,7 @@ type Service struct {
 	Assign  Assigner
 	Notes   Noter
 	Snooze  Snoozer
+	Labels  Labeler
 	Bus     Bus
 }
 

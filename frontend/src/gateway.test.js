@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addInboxMember, assignConversation, sendNote, sendReply, signIn, snoozeConversation, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, sendNote, sendReply, signIn, snoozeConversation, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -139,5 +139,25 @@ describe("gateway client", () => {
       snoozed_until: "2026-10-30T00:00:00Z",
       expected_version: 1,
     });
+  });
+
+  it("posts a conversation label name", async () => {
+    const calls = [];
+    await addConversationLabel(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        conversationId: "c1",
+        name: "환불",
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ id: "l1", name: "환불" }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/labels");
+    assert.equal(calls[0].opts.method, "POST");
+    assert.deepEqual(JSON.parse(calls[0].opts.body), { name: "환불" });
   });
 });

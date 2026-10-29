@@ -62,6 +62,22 @@ export function reduce(state, action) {
       ),
     };
   }
+  if (action.type === "labeled") {
+    return {
+      ...state,
+      conversations: state.conversations.map((c) => {
+        if (c.id !== action.conversationId) {
+          return c;
+        }
+        const labels = c.labels || [];
+        const next = action.label;
+        if (next?.id && labels.some((l) => l.id === next.id)) {
+          return c;
+        }
+        return { ...c, labels: [...labels, next] };
+      }),
+    };
+  }
   if (action.type === "snoozed") {
     return {
       ...state,
@@ -108,6 +124,7 @@ function applyRealtime(state, event) {
     contactInboxId: payload.contact_inbox_id,
     lastContent: content,
     unread: selected ? 0 : (prev?.unread ?? 0) + 1,
+    labels: prev?.labels,
   };
   return {
     ...state,

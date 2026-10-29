@@ -24,6 +24,9 @@ const (
 	SubjectAssign            = "helpdesk.rpc.conversations.assign"
 	SubjectNote              = "helpdesk.rpc.conversations.note"
 	SubjectSnooze            = "helpdesk.rpc.conversations.snooze"
+	SubjectLabelAdd          = "helpdesk.rpc.conversations.label.add"
+	SubjectLabelRemove       = "helpdesk.rpc.conversations.label.remove"
+	SubjectLabelList         = "helpdesk.rpc.conversations.label.list"
 	QueueGroup               = "svc-core"
 )
 
@@ -127,6 +130,27 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subSnooze.Unsubscribe()
+	subLabelAdd, err := nc.QueueSubscribe(SubjectLabelAdd, QueueGroup, func(msg *nats.Msg) {
+		s.handleLabelAdd(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subLabelAdd.Unsubscribe()
+	subLabelRemove, err := nc.QueueSubscribe(SubjectLabelRemove, QueueGroup, func(msg *nats.Msg) {
+		s.handleLabelRemove(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subLabelRemove.Unsubscribe()
+	subLabelList, err := nc.QueueSubscribe(SubjectLabelList, QueueGroup, func(msg *nats.Msg) {
+		s.handleLabelList(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subLabelList.Unsubscribe()
 	cc, err := s.consumeSnoozeWakes(ctx)
 	if err != nil {
 		return err

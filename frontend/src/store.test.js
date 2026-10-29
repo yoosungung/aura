@@ -100,4 +100,34 @@ describe("reduce realtime", () => {
     );
     assert.equal(visibleInQueue({ status: "open" }, now), true);
   });
+
+  it("appends a label onto the conversation", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    s = reduce(s, {
+      type: "labeled",
+      conversationId: "c1",
+      label: { id: "l1", name: "환불" },
+    });
+    assert.deepEqual(s.conversations[0].labels, [{ id: "l1", name: "환불" }]);
+  });
+
+  it("keeps labels when a later public message arrives", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    s = reduce(s, {
+      type: "labeled",
+      conversationId: "c1",
+      label: { id: "l1", name: "환불" },
+    });
+    s = reduce(s, {
+      type: "realtime",
+      event: created({ id: "m2", conv: "c1", content: "확인 부탁" }),
+    });
+    assert.deepEqual(s.conversations[0].labels, [{ id: "l1", name: "환불" }]);
+  });
 });

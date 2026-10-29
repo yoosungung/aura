@@ -128,6 +128,56 @@ test("ticket view posts an internal note", async () => {
   expect(screen.getByRole("log").textContent).toContain("환불 검토");
 });
 
+test("ticket view attaches a label by name", async () => {
+  const user = userEvent.setup();
+  const labeled = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async addConversationLabel(req) {
+          labeled.push(req);
+          return { id: "l1", name: req.name };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("라벨 이름"), "환불");
+  await user.click(screen.getByRole("button", { name: "부착" }));
+  expect(labeled[0].conversationId).toBe("c1");
+  expect(labeled[0].name).toBe("환불");
+  expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).toContain("환불");
+});
+
+test("ticket view keeps a note and a label on the same thread", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendNote(req) {
+          return { message_id: "n1", content: req.content };
+        },
+        async addConversationLabel(req) {
+          return { id: "l1", name: req.name };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("메모"), "환불 검토");
+  await user.click(screen.getByRole("button", { name: "메모" }));
+  await user.type(screen.getByLabelText("라벨 이름"), "환불");
+  await user.click(screen.getByRole("button", { name: "부착" }));
+  expect(screen.getByRole("log").textContent).toContain("환불 검토");
+  expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).toContain("환불");
+});
+
 test("ticket view snoozes and hides the card until then", async () => {
   const user = userEvent.setup();
   const snoozed = [];
