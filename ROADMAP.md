@@ -18,7 +18,7 @@
 
 목표: 이벤트 한 건이 PG에 멱등으로 적재된다.
 
-- `deploy/compose/`: PostgreSQL 16+pgvector, NATS JetStream. MinIO는 P3.
+- `deploy/compose/`: PostgreSQL 16+pgvector, NATS JetStream. SeaweedFS는 P3.
 - `backend/`: Go module, `cmd/ingestion-worker`, [ARCHITECTURE.md](ARCHITECTURE.md) §10 DDL 마이그레이션, RLS FORCE (`(SELECT current_setting(...))` InitPlan).
 - `contracts/`: `message_created` JSON Schema. Envelope에 `schema_version`, `trace_id`, `causation_id`, `hop_count`. ID는 UUIDv7.
 - 배치: 500건 또는 100ms. 엔티티 계층 정렬 Upsert. `ON CONFLICT (id) DO NOTHING`. 실패 시 단건 폴백, 영구 실패는 `helpdesk.dlq.ingestion` ACK.
@@ -44,7 +44,7 @@
 
 - 로그인과 RBAC (`administrator`/`agent`). 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 접근 토큰. OIDC는 두지 않는다.
 - `inbox_members`, 수동 배정, 내부 메모, snooze, 라벨, 매크로·저장응답.
-- 첨부: MinIO + `attachments`.
+- 첨부: SeaweedFS + `attachments`.
 - Application API (대화·메시지·컨택트).
 - `setUser` HMAC.
 - WebSocket은 짧은 만료 서명 토큰. `pubsub_token`은 시드로만 유지한다.
@@ -105,7 +105,7 @@
 |---|---|---|
 | LLM 벤더 | OpenAI 호환 / 기타 | P7 착수 전. P1–P6는 `vector(1536)`. 모델 교체는 P7 embeddings 분리로 검토 |
 | NATS 격리 | account 대 subject prefix `helpdesk.events.<account_id>.>` | P1–P6는 subject prefix. account 격리는 P7 운영 검토 |
-| 첨부 버킷 | 테넌트 prefix vs 버킷 분리 | P3는 MinIO 단일 버킷 + `account_id/` prefix |
+| 첨부 버킷 | 테넌트 prefix vs 버킷 분리 | P3는 SeaweedFS 필러 단일 트리 + `account_id/` prefix |
 
 **결정됨 — Auth.** 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.
 

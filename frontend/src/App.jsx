@@ -4,6 +4,7 @@ import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
 import { SnoozeTicket } from "./components/SnoozeTicket.jsx";
+import { TicketAttachments } from "./components/TicketAttachments.jsx";
 import { TicketLabels } from "./components/TicketLabels.jsx";
 import { emptyState, reduce, visibleInQueue } from "./store.js";
 
@@ -139,9 +140,40 @@ export function App({ session: initialSession, client, initialState = emptyState
               {(state.messages[selected.id] || []).map((m) => (
                 <li key={m.id} data-sender={m.senderType} data-private={m.private ? "true" : undefined}>
                   {m.content}
+                  {(m.attachments || []).map((a) => (
+                    <a key={a.id || a.external_url} href={a.external_url}>
+                      {a.external_url}
+                    </a>
+                  ))}
                 </li>
               ))}
             </ol>
+            <TicketAttachments
+              key={`attach-${selected.id}`}
+              session={session}
+              conversation={selected}
+              client={client}
+              onAttached={(data) =>
+                dispatch({
+                  type: "realtime",
+                  event: {
+                    event: "message.created",
+                    conversation_id: selected.id,
+                    inbox_id: selected.inboxId,
+                    message: {
+                      id: data.message_id,
+                      payload: {
+                        content: data.filename || "",
+                        sender_type: "User",
+                        attachments: data.attachments,
+                        contact_id: selected.contactId,
+                        contact_inbox_id: selected.contactInboxId,
+                      },
+                    },
+                  },
+                })
+              }
+            />
             <InternalNote
               key={`note-${selected.id}`}
               session={session}

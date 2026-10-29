@@ -56,6 +56,7 @@ type SubmitResult struct {
 	ContactInboxID uuid.UUID
 	DisplayID      int64
 	Token          string
+	Attachments    []AttachmentOut
 }
 
 type Service struct {
@@ -68,6 +69,7 @@ type Service struct {
 	Snooze  Snoozer
 	Labels  Labeler
 	Bus     Bus
+	Blobs   BlobStore
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {
@@ -101,7 +103,7 @@ func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUI
 	if contactID == uuid.Nil || contactInboxID == uuid.Nil || conversationID == uuid.Nil {
 		return SubmitResult{}, ErrInvalid
 	}
-	msgID, _, err := s.publishMessage(ctx, tok.AccountID, inboxID, conversationID, contactID, contactInboxID, tok.ContactID, req.Content, "Contact", MessageIncoming)
+	msgID, _, err := s.publishMessage(ctx, tok.AccountID, inboxID, conversationID, contactID, contactInboxID, tok.ContactID, req.Content, "Contact", MessageIncoming, nil)
 	if err != nil {
 		return SubmitResult{}, err
 	}
@@ -137,7 +139,7 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 	if strings.TrimSpace(req.Content) == "" || conversationID == uuid.Nil || req.ContactID == uuid.Nil || req.ContactInboxID == uuid.Nil {
 		return SubmitResult{}, ErrInvalid
 	}
-	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing)
+	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing, nil)
 	if err != nil {
 		return SubmitResult{}, err
 	}
@@ -149,13 +151,16 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 	}, nil
 }
 
-func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conversationID, contactID, contactInboxID, senderID uuid.UUID, content, senderType string, messageType int) (uuid.UUID, []byte, error) {
+func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conversationID, contactID, contactInboxID, senderID uuid.UUID, content, senderType string, messageType int, attachments []any) (uuid.UUID, []byte, error) {
 	msgID, err := uuid.NewV7()
 	if err != nil {
 		return uuid.Nil, nil, err
 	}
 	if senderID == uuid.Nil {
 		senderID = contactID
+	}
+	if attachments == nil {
+		attachments = []any{}
 	}
 	traceID := newTraceID()
 	env, err := json.Marshal(contracts.MessageCreated{
@@ -167,7 +172,7 @@ func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conver
 			Content: content, MessageType: messageType, Private: false, Status: "sent",
 			ContentType: "text", SenderType: senderType, SenderID: senderID.String(),
 			ContactID: contactID.String(), ContactInboxID: contactInboxID.String(),
-			Attachments: []any{},
+			Attachments: attachments,
 		},
 	})
 	if err != nil {

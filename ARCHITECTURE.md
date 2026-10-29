@@ -207,6 +207,7 @@ nats stream add INGESTION_DLQ \
 대표 경로:
 
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`
+- `POST /api/v1/accounts/{account_id}/conversations/{id}/attachments`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/notes`
 - `PUT /api/v1/accounts/{account_id}/conversations/{id}/assignee`
 - `PUT /api/v1/accounts/{account_id}/conversations/{id}/snooze`
@@ -613,4 +614,7 @@ CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_n
 
 카카오 아웃바운드: 상담톡 세션이 살아 있으면 상담톡, 아니면 알림톡 템플릿. 세션 연장은 고객 인입 메시지 기준 30일.
 
-첨부 `external_url` 은 오브젝트 스토리지(로컬 MinIO). 게이트웨이는 파일을 스토리지에 올린 뒤 URL만 이벤트에 넣는다.
+첨부 `external_url` 은 오브젝트 스토리지(로컬 SeaweedFS 필러). 게이트웨이는 파일을 `{account_id}/{attachment_id}/` 경로에 올린 뒤 URL만 이벤트에 넣는다. `message_created` payload `attachments` 원소는 `{ id, file_type, external_url, file_size }`다. ingestion이 `attachments` 행을 멱등 insert한다.
+
+대표 경로:
+- `POST /api/v1/accounts/{account_id}/conversations/{id}/attachments` (multipart `file` + `inbox_id`·`contact_id`·`contact_inbox_id`)

@@ -166,6 +166,27 @@ export async function snoozeConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function uploadAttachment(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversation, file } = req;
+  const body = new FormData();
+  body.append("file", file);
+  body.append("inbox_id", conversation.inboxId);
+  body.append("contact_id", conversation.contactId);
+  body.append("contact_inbox_id", conversation.contactInboxId);
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversation.id}/attachments`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    },
+  );
+  if (!res.ok) {
+    throw new Error("attach failed");
+  }
+  return res.json();
+}
+
 export async function sendNote(req, fetchImpl = fetch) {
   const { gatewayUrl, accountId, token, conversationId, content } = req;
   const res = await fetchImpl(
@@ -196,4 +217,5 @@ export const liveClient = {
   sendNote,
   snoozeConversation,
   addConversationLabel,
+  uploadAttachment,
 };

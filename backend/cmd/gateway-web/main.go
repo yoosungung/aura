@@ -39,6 +39,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	filer := getenv("AURA_FILER_URL", "http://127.0.0.1:8888")
+	public := getenv("AURA_FILER_PUBLIC_URL", filer)
 	n := gateway.NewRPC(nc)
 	srv := &gateway.Server{
 		Service: &gateway.Service{
@@ -51,6 +53,7 @@ func main() {
 			Snooze:  n,
 			Labels:  n,
 			Bus:     gateway.NewBus(nc, js),
+			Blobs:   &gateway.FilerStore{Endpoint: filer, Public: public},
 		},
 		NC: nc,
 	}

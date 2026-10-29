@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, sendNote, sendReply, signIn, snoozeConversation, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("builds a ws url from the http origin", () => {
@@ -159,5 +159,34 @@ describe("gateway client", () => {
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/labels");
     assert.equal(calls[0].opts.method, "POST");
     assert.deepEqual(JSON.parse(calls[0].opts.body), { name: "환불" });
+  });
+
+  it("posts a conversation attachment as multipart", async () => {
+    const calls = [];
+    const file = new File(["pngdata"], "receipt.png", { type: "image/png" });
+    await uploadAttachment(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        conversation: {
+          id: "c1",
+          inboxId: "i1",
+          contactId: "p1",
+          contactInboxId: "ci1",
+        },
+        file,
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ message_id: "m2", attachments: [] }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/attachments");
+    assert.equal(calls[0].opts.method, "POST");
+    assert.equal(calls[0].opts.headers.Authorization, "Bearer tok");
+    assert.ok(calls[0].opts.body instanceof FormData);
+    assert.equal(calls[0].opts.body.get("inbox_id"), "i1");
+    assert.equal(calls[0].opts.body.get("file").name, "receipt.png");
   });
 });

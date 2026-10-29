@@ -64,15 +64,26 @@ func (f *fakeRPC) n() int {
 type fakeBus struct {
 	mu        sync.Mutex
 	events    []string
+	payloads  [][]byte
 	realtime  []string
 	schedules []uuid.UUID
 }
 
-func (f *fakeBus) PublishEvent(_ context.Context, subject string, _ []byte) error {
+func (f *fakeBus) PublishEvent(_ context.Context, subject string, data []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.events = append(f.events, subject)
+	f.payloads = append(f.payloads, append([]byte(nil), data...))
 	return nil
+}
+
+func (f *fakeBus) lastEvent() []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.payloads) == 0 {
+		return nil
+	}
+	return f.payloads[len(f.payloads)-1]
 }
 
 func (f *fakeBus) PublishRealtime(subject string, _ []byte) error {

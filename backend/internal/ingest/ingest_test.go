@@ -3,6 +3,7 @@ package ingest_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,6 +89,65 @@ func countMessages(t *testing.T, admin *pgx.Conn) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+func countAttachments(t *testing.T, admin *pgx.Conn) int {
+	t.Helper()
+	var n int
+	if err := admin.QueryRow(context.Background(), `SELECT count(*) FROM attachments`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestFlush_AttachmentRowFromPayload(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	js := testutil.NATS(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	fxt := seed(t, admin)
+	msgID, attID := mustV7(t), mustV7(t)
+	raw := event(t, fxt, msgID, fxt.Conversation, "receipt.png")
+	var env map[string]any
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatal(err)
+	}
+	payload := env["payload"].(map[string]any)
+	payload["attachments"] = []any{map[string]any{
+		"id": attID.String(), "file_type": "image",
+		"external_url": "http://127.0.0.1:8888/" + fxt.Account.String() + "/" + attID.String() + "/receipt.png",
+		"file_size": 7,
+	}}
+	raw, err := json.Marshal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flusher := &ingest.Flusher{DB: app, JS: js}
+	ack := func(context.Context) error { return nil }
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: raw, Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: raw, Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := countMessages(t, admin); n != 1 {
+		t.Fatalf("messages=%d want 1", n)
+	}
+	if n := countAttachments(t, admin); n != 1 {
+		t.Fatalf("attachments=%d want 1", n)
+	}
+	var fileType, url string
+	var size int
+	if err := admin.QueryRow(ctx, `SELECT file_type, external_url, file_size FROM attachments WHERE id=$1`, attID).
+		Scan(&fileType, &url, &size); err != nil {
+		t.Fatal(err)
+	}
+	if fileType != "image" || size != 7 || !strings.Contains(url, attID.String()) {
+		t.Fatalf("type=%s size=%d url=%s", fileType, size, url)
+	}
 }
 
 func TestFlush_DuplicateMessageCreatedIsIdempotent(t *testing.T) {

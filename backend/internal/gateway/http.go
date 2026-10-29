@@ -22,6 +22,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /auth/sign_out", s.handleSignOut)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleAgentMessage)
+	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/attachments", s.handleAttachment)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/conversations/{conversation_id}/assignee", s.handleAssign)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/notes", s.handleNote)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/conversations/{conversation_id}/snooze", s.handleSnooze)
@@ -102,6 +103,59 @@ func (s *Server) handleAgentMessage(w http.ResponseWriter, r *http.Request) {
 		ContactInboxID: parseUUID(body.ContactInboxID),
 	})
 	s.writeSubmit(w, out, err)
+}
+
+func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	tok, err := s.bearer(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	accountID, err := uuid.Parse(r.PathValue("account_id"))
+	if err != nil {
+		http.Error(w, "invalid account", http.StatusBadRequest)
+		return
+	}
+	conversationID, err := uuid.Parse(r.PathValue("conversation_id"))
+	if err != nil {
+		http.Error(w, "invalid conversation", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
+		http.Error(w, "invalid multipart", http.StatusBadRequest)
+		return
+	}
+	file, hdr, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "invalid file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	out, err := s.Service.SubmitAttachment(r.Context(), tok, accountID, conversationID, AttachRequest{
+		InboxID:        parseUUID(r.FormValue("inbox_id")),
+		ContactID:      parseUUID(r.FormValue("contact_id")),
+		ContactInboxID: parseUUID(r.FormValue("contact_inbox_id")),
+		Filename:       hdr.Filename,
+		ContentType:    hdr.Header.Get("Content-Type"),
+		Size:           hdr.Size,
+		Body:           file,
+	})
+	if err != nil {
+		s.writeSubmit(w, out, err)
+		return
+	}
+	atts := make([]map[string]any, 0, len(out.Attachments))
+	for _, a := range out.Attachments {
+		atts = append(atts, map[string]any{
+			"id": a.ID, "file_type": a.FileType, "external_url": a.ExternalURL, "file_size": a.FileSize,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"message_id":      out.MessageID.String(),
+		"conversation_id": out.ConversationID.String(),
+		"attachments":     atts,
+	})
 }
 
 func (s *Server) writeSubmit(w http.ResponseWriter, out SubmitResult, err error) {

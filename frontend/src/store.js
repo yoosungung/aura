@@ -108,7 +108,13 @@ function applyRealtime(state, event) {
   }
   const content = payload.content ?? "";
   const isPrivate = payload.private === true;
-  const msg = { id: msgId, content, senderType: payload.sender_type, private: isPrivate };
+  const msg = {
+    id: msgId,
+    content,
+    senderType: payload.sender_type,
+    private: isPrivate,
+    attachments: payload.attachments || [],
+  };
   const selected = state.selectedId === convId;
   const prev = state.conversations.find((c) => c.id === convId);
   if (isPrivate) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -113,6 +114,9 @@ func applyAll(ctx context.Context, tx pgx.Tx, items []Ackable) error {
 		if err := insertMessage(ctx, tx, it.Data); err != nil {
 			return err
 		}
+		if err := insertAttachments(ctx, tx, it.Data); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -145,6 +149,58 @@ func insertMessage(ctx context.Context, tx pgx.Tx, raw []byte) error {
 		msg.MessageType, msg.Content, msg.Private, msg.Status, source,
 		msg.ContentType, msg.SenderType, msg.SenderID, occurred)
 	return err
+}
+
+func insertAttachments(ctx context.Context, tx pgx.Tx, raw []byte) error {
+	env, err := Parse(raw)
+	if err != nil {
+		return err
+	}
+	msg, err := MessagePayload(env)
+	if err != nil {
+		return err
+	}
+	for _, rawAtt := range msg.Attachments {
+		m, ok := rawAtt.(map[string]any)
+		if !ok {
+			return fmt.Errorf("invalid attachment")
+		}
+		id, _ := m["id"].(string)
+		fileType, _ := m["file_type"].(string)
+		url, _ := m["external_url"].(string)
+		if id == "" || fileType == "" || url == "" {
+			return fmt.Errorf("invalid attachment")
+		}
+		if _, err := uuid.Parse(id); err != nil {
+			return fmt.Errorf("invalid attachment")
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO attachments (id, account_id, message_id, file_type, external_url, file_size)
+			VALUES ($1,$2,$3,$4,$5,$6)
+			ON CONFLICT (id) DO NOTHING
+		`, id, env.AccountID, env.ID, fileType, url, attachmentSize(m["file_size"]))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func attachmentSize(v any) any {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		return int(i)
+	default:
+		return nil
+	}
 }
 
 func (f *Flusher) deadLetter(ctx context.Context, raw []byte, cause error) error {

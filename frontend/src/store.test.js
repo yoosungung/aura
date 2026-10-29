@@ -130,4 +130,29 @@ describe("reduce realtime", () => {
     });
     assert.deepEqual(s.conversations[0].labels, [{ id: "l1", name: "환불" }]);
   });
+
+  it("keeps attachment urls on the thread message", () => {
+    const s = reduce(emptyState, {
+      type: "realtime",
+      event: {
+        type: "event",
+        event: "message.created",
+        inbox_id: "i1",
+        conversation_id: "c1",
+        message: {
+          id: "m2",
+          payload: {
+            content: "receipt.png",
+            sender_type: "User",
+            contact_id: "p1",
+            contact_inbox_id: "ci1",
+            attachments: [
+              { id: "a1", file_type: "image", external_url: "http://filer/receipt.png", file_size: 7 },
+            ],
+          },
+        },
+      },
+    });
+    assert.equal(s.messages.c1[0].attachments[0].external_url, "http://filer/receipt.png");
+  });
 });

@@ -204,6 +204,80 @@ test("ticket view snoozes and hides the card until then", async () => {
   expect(screen.getByText("대기 중인 대화가 없습니다")).toBeTruthy();
 });
 
+test("ticket view uploads an attachment", async () => {
+  const user = userEvent.setup();
+  const uploaded = [];
+  const file = new File(["pngdata"], "receipt.png", { type: "image/png" });
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async uploadAttachment(req) {
+          uploaded.push(req);
+          return {
+            message_id: "m2",
+            attachments: [
+              {
+                id: "a1",
+                file_type: "image",
+                external_url: "http://127.0.0.1:8888/acc/a1/receipt.png",
+                file_size: 7,
+              },
+            ],
+          };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.upload(screen.getByLabelText("첨부 파일"), file);
+  await user.click(screen.getByRole("button", { name: "첨부" }));
+  expect(uploaded[0].conversation.id).toBe("c1");
+  expect(uploaded[0].file.name).toBe("receipt.png");
+  expect(screen.getByRole("log").textContent).toContain("receipt.png");
+  expect(screen.getByRole("log").textContent).toContain("http://127.0.0.1:8888/acc/a1/receipt.png");
+});
+
+test("ticket view keeps a note, a label, and an attachment on the same thread", async () => {
+  const user = userEvent.setup();
+  const file = new File(["pngdata"], "receipt.png", { type: "image/png" });
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendNote(req) {
+          return { message_id: "n1", content: req.content };
+        },
+        async addConversationLabel(req) {
+          return { id: "l1", name: req.name };
+        },
+        async uploadAttachment() {
+          return {
+            message_id: "m2",
+            attachments: [
+              { id: "a1", file_type: "image", external_url: "http://filer/receipt.png", file_size: 7 },
+            ],
+          };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("메모"), "환불 검토");
+  await user.click(screen.getByRole("button", { name: "메모" }));
+  await user.type(screen.getByLabelText("라벨 이름"), "환불");
+  await user.click(screen.getByRole("button", { name: "부착" }));
+  await user.upload(screen.getByLabelText("첨부 파일"), file);
+  await user.click(screen.getByRole("button", { name: "첨부" }));
+  expect(screen.getByRole("log").textContent).toContain("환불 검토");
+  expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).toContain("환불");
+  expect(screen.getByRole("log").textContent).toContain("receipt.png");
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];
