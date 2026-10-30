@@ -240,6 +240,7 @@ export function App({ session: initialSession, client, initialState = emptyState
         const menu = document.querySelector("details.macros-menu");
         if (menu) {
           menu.open = true;
+          queueMicrotask(() => menu.querySelector("section.macros button")?.focus());
         }
         return;
       }
@@ -787,6 +788,18 @@ export function App({ session: initialSession, client, initialState = emptyState
                         placeholder="/ 를 입력해 저장응답 삽입"
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            !e.shiftKey &&
+                            !e.metaKey &&
+                            !e.ctrlKey &&
+                            cannedHits.length > 0
+                          ) {
+                            e.preventDefault();
+                            insertCanned(cannedHits[0]);
+                          }
+                        }}
                       />
                       <Button type="submit">보내기</Button>
                     </form>

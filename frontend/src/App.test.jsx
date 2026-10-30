@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { App } from "./App.jsx";
@@ -346,6 +346,31 @@ test("ticket view attaches a label by name", async () => {
   expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).toContain("환불");
 });
 
+test("ticket view attaches a catalog label chip", async () => {
+  const user = userEvent.setup();
+  const labeled = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listAccountLabels() {
+          return { labels: [{ id: "l9", name: "VIP" }] };
+        },
+        async addConversationLabel(req) {
+          labeled.push(req);
+          return { id: "l9", name: req.name };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(await screen.findByRole("button", { name: "VIP" }));
+  expect(labeled[0].name).toBe("VIP");
+  expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).toContain("VIP");
+});
+
 test("ticket view keeps a note and a label on the same thread", async () => {
   const user = userEvent.setup();
   render(
@@ -439,6 +464,38 @@ test("ticket view uploads an attachment", async () => {
   expect(attach.textContent).toContain("열기");
   expect(attach.querySelector("img")?.getAttribute("src")).toContain("receipt.png");
   expect(document.querySelector(".attach-clip")).toBeTruthy();
+});
+
+test("composer dock drop and paste attach a file", async () => {
+  const user = userEvent.setup();
+  const uploaded = [];
+  const file = new File(["pngdata"], "drop.png", { type: "image/png" });
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async uploadAttachment(req) {
+          uploaded.push(req);
+          return {
+            message_id: "m2",
+            attachments: [{ id: "a1", file_type: "image", file_name: req.file.name, external_url: "http://filer/drop.png" }],
+          };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  fireEvent.drop(document.querySelector(".composer-dock"), {
+    dataTransfer: { files: [file], types: ["Files"] },
+  });
+  expect(uploaded[0].file.name).toBe("drop.png");
+  const pasted = new File(["pngdata"], "paste.png", { type: "image/png" });
+  fireEvent.paste(screen.getByLabelText("답장"), {
+    clipboardData: { files: [pasted] },
+  });
+  expect(uploaded[1].file.name).toBe("paste.png");
 });
 
 test("non-image attachments show a document icon", async () => {
@@ -647,7 +704,7 @@ test("composer inserts a canned response from slash", async () => {
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   expect(screen.getByLabelText("답장").getAttribute("placeholder")).toMatch(/저장응답/);
   await user.type(screen.getByLabelText("답장"), "/인사");
-  await user.click(screen.getByRole("button", { name: "/인사" }));
+  await user.keyboard("{Enter}");
   expect(screen.getByLabelText("답장").value).toBe("안녕하세요");
 });
 
@@ -1063,6 +1120,7 @@ test("keyboard j k r n and e drive the workspace", async () => {
 
 test("mod k opens the macro menu", async () => {
   const user = userEvent.setup();
+  const ran = [];
   render(
     <App
       session={session}
@@ -1071,6 +1129,10 @@ test("mod k opens the macro menu", async () => {
         async listMacros() {
           return { macros: [{ id: "m1", name: "환불 완료" }] };
         },
+        async executeMacro(req) {
+          ran.push(req);
+          return {};
+        },
       }}
       initialState={fixtureState()}
     />,
@@ -1078,7 +1140,9 @@ test("mod k opens the macro menu", async () => {
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   await user.keyboard("{Meta>}k{/Meta}");
   expect(document.querySelector("details.macros-menu")?.open).toBe(true);
-  expect(await screen.findByRole("button", { name: "실행" })).toBeTruthy();
+  expect(await screen.findByRole("button", { name: "실행" })).toBe(document.activeElement);
+  await user.keyboard("{Enter}");
+  expect(ran[0].macroId).toBe("m1");
 });
 
 test("mod enter submits the composer", async () => {

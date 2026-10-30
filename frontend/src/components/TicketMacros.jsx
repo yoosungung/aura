@@ -28,6 +28,10 @@ export function TicketMacros({ session, conversation, client, onRan, allowCreate
       .then((data) => {
         if (!cancelled) {
           setMacros(data?.macros || []);
+          const menu = document.querySelector("details.macros-menu");
+          if (menu?.open) {
+            queueMicrotask(() => menu.querySelector("section.macros button")?.focus());
+          }
         }
       })
       .catch(() => {});

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button.jsx";
 import { Label } from "./ui/label.jsx";
 
@@ -30,6 +30,39 @@ export function TicketAttachments({ session, conversation, client, onAttached })
       setPending(false);
     }
   }
+
+  useEffect(() => {
+    const dock = document.querySelector(".composer-dock");
+    if (!dock) {
+      return undefined;
+    }
+    function pickedFile(bag) {
+      return bag?.files?.[0] || null;
+    }
+    function onDragOver(e) {
+      e.preventDefault();
+    }
+    function onDrop(e) {
+      e.preventDefault();
+      uploadPicked(pickedFile(e.dataTransfer));
+    }
+    function onPaste(e) {
+      const picked = pickedFile(e.clipboardData);
+      if (!picked) {
+        return;
+      }
+      e.preventDefault();
+      uploadPicked(picked);
+    }
+    dock.addEventListener("dragover", onDragOver);
+    dock.addEventListener("drop", onDrop);
+    dock.addEventListener("paste", onPaste);
+    return () => {
+      dock.removeEventListener("dragover", onDragOver);
+      dock.removeEventListener("drop", onDrop);
+      dock.removeEventListener("paste", onPaste);
+    };
+  }, [session, conversation, client]);
 
   async function onSubmit(e) {
     e.preventDefault();

@@ -33,10 +33,9 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
     };
   }, [client, session]);
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    const value = name.trim();
-    if (!value || !client.addConversationLabel) {
+  async function attachName(value) {
+    const next = value.trim();
+    if (!next || !client.addConversationLabel) {
       return;
     }
     setError("");
@@ -47,7 +46,7 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
         accountId: session.accountId,
         token: session.token,
         conversationId: conversation.id,
-        name: value,
+        name: next,
       });
       setName("");
       onLabeled?.({ conversationId: conversation.id, label: data });
@@ -57,6 +56,14 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
       setPending(false);
     }
   }
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    await attachName(name);
+  }
+
+  const taken = new Set(labels.map((l) => l.name));
+  const unused = catalog.filter((l) => l.name && !taken.has(l.name));
 
   return (
     <section className="labels" aria-label="티켓 라벨">
@@ -91,6 +98,22 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
             </li>
           ))}
         </ul>
+      ) : null}
+      {unused.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {unused.map((l) => (
+            <Button
+              key={l.id || l.name}
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => attachName(l.name)}
+            >
+              {l.name}
+            </Button>
+          ))}
+        </div>
       ) : null}
       <form onSubmit={onSubmit} className="flex flex-col gap-2">
         <Label>
