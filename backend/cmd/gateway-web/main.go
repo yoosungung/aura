@@ -46,6 +46,7 @@ func main() {
 		Service: &gateway.Service{
 			Secret:   secret,
 			RPC:      n,
+			Email:    n,
 			Auth:     n,
 			Members:  n,
 			Inboxes:  n,

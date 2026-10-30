@@ -112,12 +112,13 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inboxes.get` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inboxes.rotate_hmac` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.email_reply` | `actor_user_id`, `account_id`, `conversation_id`. 이메일 인박스면 `from`/`to`/`display_id`/`in_reply_to`, 아니면 `skip` | gateway-web | svc-core |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.csat_submitted` | `rating`, `feedback` | gateway-\* | ingestion |
 | WorkQueue | `helpdesk.tasks.ai.reasoning` | `conversation_id`, `trigger_message_id` | gateway-\*, svc-core | svc-ai-agent |
-| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id` | svc-core, svc-ai-agent | gateway-\<channel_type\> |
+| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
 | WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
 | WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `event` | automation, svc-core | svc-core 워커 |
 | WorkQueue | `helpdesk.tasks.sla.evaluate` | `conversation_id` | sla-routing 스케줄 | sla-routing |
@@ -650,6 +651,8 @@ CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_n
 `channel_type`: `web` \| `kakao` \| `email` \| `social`. `availability_status`: `online` \| `offline` \| `busy`. `priority`: `low` \| `medium` \| `high` \| `urgent`. `messages.status`: `sent` \| `delivered` \| `read` \| `failed`. `conversations.display_id` 는 이메일 제목 `[#REQ-{display_id}]` 토큰이다. 채번은 `account_sequences`에서 `INSERT ... ON CONFLICT (account_id) DO UPDATE SET last_conversation_display_id = account_sequences.last_conversation_display_id + 1 RETURNING last_conversation_display_id` 로만 한다. `MAX(display_id)+1` 금지.
 
 이메일 스레딩 순서: (1) `In-Reply-To`/`References` → `messages.source_id` (2) 본문 구분자 `##- Please type your reply above this line -##` (3) 제목 `[#REQ-{display_id}]` (4) 없으면 새 대화.
+
+`gateway-email` 아웃바운드는 WorkQueue `helpdesk.tasks.outbound.email`이다. 상담원 답장은 `gateway-web`이 `conversations.email_reply`로 인박스 채널을 확인하고, 이메일이면 `message_created`(`payload.source_id`=Message-ID) 뒤에 태스크를 넣는다. 게이트웨이는 From=인박스 `email_address`, To=`contact_inboxes.source_id`, 제목 `[#REQ-{display_id}]`, `In-Reply-To`/`References`, 본문 구분자 `##- Please type your reply above this line -##` 로 MIME을 만들어 `AURA_SMTP_RELAY`(기본 `127.0.0.1:2525`)로 보낸다. PG는 쓰지 않는다.
 
 `gateway-email` 인입은 SMTP `:25`(환경 `AURA_SMTP_ADDR`)다. MX·포워딩이 DATA에 넣는 MIME이 신뢰 경계이며, 웹훅 HMAC 서명은 없다. `inboxes.email_address`는 소문자 UNIQUE이고, 테넌트 GUC 없이 `inbox_by_email` SECURITY DEFINER로만 조회한다. Session.Data가 `emersion/go-message`로 파싱·스레딩한다. 본문이 NATS 256KB를 넘기면 SeaweedFS에 raw MIME을 두고 payload `content_ref`만 넣는다. PG는 쓰지 않는다. 같은 Message-ID는 `message_created`를 재발행하지 않는다. 스레드가 없으면 `conversations.create`(`reuse_contact=true`, `contact_inboxes.source_id`=From)가 성공한 뒤에만 `message_created`(`payload.source_id`=Message-ID)를 JetStream에 발행한다.
 

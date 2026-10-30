@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/contracts"
 )
 
@@ -59,10 +60,18 @@ type SubmitResult struct {
 	Attachments    []AttachmentOut
 }
 
+type EmailReplyOut struct {
+	From      string
+	To        string
+	InReplyTo string
+	DisplayID int64
+}
+
 type EmailResolver interface {
 	ResolveInbox(ctx context.Context, email string) (accountID, inboxID uuid.UUID, err error)
 	ResolveThread(ctx context.Context, accountID, inboxID uuid.UUID, sourceID string, replyIDs []string, displayID int64) (out CreateOut, found, duplicate bool, err error)
 	CreateEmail(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error)
+	EmailReply(ctx context.Context, actor, account, conversation uuid.UUID) (EmailReplyOut, bool, error)
 }
 
 type Service struct {
@@ -82,6 +91,8 @@ type Service struct {
 	Identify Identifier
 	Bus      Bus
 	Blobs    BlobStore
+	JS       jetstream.JetStream
+	Mailer   Mailer
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {
@@ -151,9 +162,35 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 	if strings.TrimSpace(req.Content) == "" || conversationID == uuid.Nil || req.ContactID == uuid.Nil || req.ContactInboxID == uuid.Nil {
 		return SubmitResult{}, ErrInvalid
 	}
-	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing, messageMeta{})
+	meta := messageMeta{}
+	var reply EmailReplyOut
+	if s.Email != nil {
+		out, skip, err := s.Email.EmailReply(ctx, tok.UserID, accountID, conversationID)
+		if err != nil {
+			return SubmitResult{}, err
+		}
+		if !skip {
+			meta.SourceID = newTraceID() + "@aura.invalid"
+			reply = out
+		}
+	}
+	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing, meta)
 	if err != nil {
 		return SubmitResult{}, err
+	}
+	if meta.SourceID != "" {
+		task, err := json.Marshal(OutboundTask{
+			AccountID: accountID.String(), InboxID: req.InboxID.String(),
+			ConversationID: conversationID.String(), MessageID: msgID.String(),
+			From: reply.From, To: reply.To, Content: req.Content,
+			InReplyTo: reply.InReplyTo, SourceID: meta.SourceID, DisplayID: reply.DisplayID,
+		})
+		if err != nil {
+			return SubmitResult{}, err
+		}
+		if err := s.Bus.PublishEvent(ctx, OutboundEmailSubject, task); err != nil {
+			return SubmitResult{}, err
+		}
 	}
 	return SubmitResult{
 		MessageID:      msgID,

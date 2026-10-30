@@ -8,14 +8,15 @@ import (
 )
 
 const (
-	ConversationsStream = "CONVERSATIONS_STREAM"
-	TasksStream         = "TASKS_STREAM"
-	IngestionDLQ        = "INGESTION_DLQ"
-	ConsumerName        = "ingestion"
-	SnoozeWakeConsumer  = "svc-core-snooze"
-	EventsFilter        = "helpdesk.events.*.*.*.message_created"
-	SnoozeWakeFilter    = "helpdesk.tasks.snooze.wake.*"
-	DLQSubject          = "helpdesk.dlq.ingestion"
+	ConversationsStream   = "CONVERSATIONS_STREAM"
+	TasksStream           = "TASKS_STREAM"
+	IngestionDLQ          = "INGESTION_DLQ"
+	ConsumerName          = "ingestion"
+	SnoozeWakeConsumer    = "svc-core-snooze"
+	OutboundEmailConsumer = "gateway-email-outbound"
+	EventsFilter          = "helpdesk.events.*.*.*.message_created"
+	SnoozeWakeFilter      = "helpdesk.tasks.snooze.wake.*"
+	DLQSubject            = "helpdesk.dlq.ingestion"
 )
 
 func EnsureStreams(ctx context.Context, js jetstream.JetStream) (jetstream.Consumer, error) {

@@ -175,6 +175,36 @@ func (r *natsRPC) ResolveThread(ctx context.Context, accountID, inboxID uuid.UUI
 	}, true, out.Duplicate, nil
 }
 
+func (r *natsRPC) EmailReply(ctx context.Context, actor, account, conversation uuid.UUID) (EmailReplyOut, bool, error) {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(),
+		"conversation_id": conversation.String(),
+	})
+	if err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectEmailReply, body)
+	if err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	var out struct {
+		OK        bool   `json:"ok"`
+		Error     string `json:"error"`
+		Skip      bool   `json:"skip"`
+		From      string `json:"from"`
+		To        string `json:"to"`
+		InReplyTo string `json:"in_reply_to"`
+		DisplayID int64  `json:"display_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	if !out.OK {
+		return EmailReplyOut{}, false, memberRPCErr(out.Error)
+	}
+	return EmailReplyOut{From: out.From, To: out.To, InReplyTo: out.InReplyTo, DisplayID: out.DisplayID}, out.Skip, nil
+}
+
 func (r *natsRPC) Login(ctx context.Context, email, password string) (AuthOut, error) {
 	return r.authRPC(ctx, core.SubjectAuthLogin, map[string]any{"email": email, "password": password})
 }

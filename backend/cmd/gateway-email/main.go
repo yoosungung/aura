@@ -38,11 +38,18 @@ func main() {
 
 	n := gateway.NewRPC(nc)
 	svc := &gateway.Service{
-		RPC:   n,
-		Email: n,
-		Bus:   gateway.NewBus(nc, js),
-		Blobs: &gateway.FilerStore{Endpoint: filer, Public: public},
+		RPC:    n,
+		Email:  n,
+		Bus:    gateway.NewBus(nc, js),
+		Blobs:  &gateway.FilerStore{Endpoint: filer, Public: public},
+		JS:     js,
+		Mailer: gateway.SMTPRelay{Addr: getenv("AURA_SMTP_RELAY", "127.0.0.1:2525")},
 	}
+	go func() {
+		if err := svc.ConsumeOutbound(ctx); err != nil && ctx.Err() == nil {
+			log.Print(err)
+		}
+	}()
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {

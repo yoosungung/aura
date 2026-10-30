@@ -16,6 +16,8 @@ import (
 	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/core"
 	"github.com/yoosungung/aura/internal/gateway"
+	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/testutil"
 )
 
 func rfc822(s string) []byte {
@@ -34,6 +36,9 @@ type fakeEmail struct {
 	inboxErr  error
 	threadErr error
 	createErr error
+	reply     gateway.EmailReplyOut
+	replySkip bool
+	replyErr  error
 }
 
 func (f *fakeEmail) ResolveInbox(_ context.Context, _ string) (uuid.UUID, uuid.UUID, error) {
@@ -52,6 +57,12 @@ func (f *fakeEmail) ResolveThread(_ context.Context, _, _ uuid.UUID, _ string, _
 		return gateway.CreateOut{}, false, false, f.threadErr
 	}
 	return f.thread, f.found, f.dup, nil
+}
+
+func (f *fakeEmail) EmailReply(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (gateway.EmailReplyOut, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reply, f.replySkip, f.replyErr
 }
 
 func (f *fakeEmail) CreateEmail(_ context.Context, _, _ uuid.UUID, _, _, _ string) (gateway.CreateOut, error) {
@@ -84,6 +95,32 @@ func (m *memBlob) Put(_ context.Context, key string, r io.Reader, _ int64, _ str
 	}
 	m.objects[key] = b
 	return "http://filer/" + key, nil
+}
+
+func TestBuildOutboundMIME_ThreadsForReply(t *testing.T) {
+	raw, err := gateway.BuildOutboundMIME(gateway.OutboundMail{
+		From: "Support@acme.test", To: "ada@example.com", Content: "확인했습니다",
+		DisplayID: 7, MessageID: "out@aura", InReplyTo: "old@x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := gateway.ParseMIME(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From != "support@acme.test" || got.To != "ada@example.com" {
+		t.Fatalf("addr %+v", got)
+	}
+	if got.DisplayID != 7 || got.MessageID != "out@aura" {
+		t.Fatalf("meta %+v", got)
+	}
+	if len(got.ReplyIDs) == 0 || got.ReplyIDs[0] != "old@x" {
+		t.Fatalf("reply %v", got.ReplyIDs)
+	}
+	if got.Content != "확인했습니다" {
+		t.Fatalf("content %q", got.Content)
+	}
 }
 
 func TestParseMIME_InReplyToAndDelimiter(t *testing.T) {
@@ -249,6 +286,81 @@ func TestAcceptEmail_LargeBodyClaimCheck(t *testing.T) {
 	if len(blobs.objects) != 1 {
 		t.Fatalf("blobs %d", len(blobs.objects))
 	}
+}
+
+type fakeMailer struct {
+	mu   sync.Mutex
+	from string
+	to   []string
+	raw  []byte
+}
+
+func (f *fakeMailer) Send(from string, to []string, raw []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.from = from
+	f.to = append([]string(nil), to...)
+	f.raw = append([]byte(nil), raw...)
+	return nil
+}
+
+func TestDeliverOutbound_SendsThreadedMail(t *testing.T) {
+	mailer := &fakeMailer{}
+	svc := &gateway.Service{Mailer: mailer}
+	if err := svc.DeliverOutbound(context.Background(), gateway.OutboundTask{
+		From: "support@acme.test", To: "ada@example.com", Content: "확인했습니다",
+		SourceID: "out@aura", InReplyTo: "old@x", DisplayID: 7,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := gateway.ParseMIME(mailer.raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From != "support@acme.test" || got.To != "ada@example.com" || got.Content != "확인했습니다" || got.MessageID != "out@aura" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestConsumeOutbound_SendsThreadedMail(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, js := testutil.NATSConn(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	mailer := &fakeMailer{}
+	svc := &gateway.Service{JS: js, Mailer: mailer}
+	go func() { _ = svc.ConsumeOutbound(ctx) }()
+	time.Sleep(200 * time.Millisecond)
+	task, err := json.Marshal(gateway.OutboundTask{
+		From: "support@acme.test", To: "ada@example.com", Content: "확인했습니다",
+		SourceID: "out@aura", InReplyTo: "old@x", DisplayID: 7,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := js.Publish(ctx, gateway.OutboundEmailSubject, task); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		mailer.mu.Lock()
+		raw := mailer.raw
+		mailer.mu.Unlock()
+		if len(raw) > 0 {
+			got, err := gateway.ParseMIME(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.From != "support@acme.test" || got.To != "ada@example.com" || got.Content != "확인했습니다" || got.MessageID != "out@aura" {
+				t.Fatalf("%+v", got)
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("no outbound mail")
 }
 
 func TestServeSMTP_DataPublishesMessageCreated(t *testing.T) {

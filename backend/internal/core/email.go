@@ -7,6 +7,59 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type EmailReplyOut struct {
+	From      string
+	To        string
+	InReplyTo string
+	DisplayID int64
+}
+
+func (s *Service) EmailReply(ctx context.Context, in ListInput) (EmailReplyOut, bool, error) {
+	if in.ActorUserID == uuid.Nil || in.AccountID == uuid.Nil || in.ConversationID == uuid.Nil {
+		return EmailReplyOut{}, false, ErrDenied
+	}
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, in.AccountID.String()); err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	var inboxID uuid.UUID
+	var channel, from, to, inReply string
+	var displayID int64
+	err = tx.QueryRow(ctx, `
+		SELECT c.inbox_id, i.channel_type, COALESCE(i.email_address, ''), COALESCE(ci.source_id, ''), c.display_id,
+			COALESCE((SELECT m.source_id FROM messages m
+				WHERE m.conversation_id = c.id AND COALESCE(m.source_id, '') <> ''
+				ORDER BY m.created_at DESC LIMIT 1), '')
+		FROM conversations c
+		JOIN inboxes i ON i.id = c.inbox_id
+		JOIN contact_inboxes ci ON ci.id = c.contact_inbox_id
+		WHERE c.id = $1`, in.ConversationID,
+	).Scan(&inboxID, &channel, &from, &to, &displayID, &inReply)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return EmailReplyOut{}, false, ErrNotFound
+		}
+		return EmailReplyOut{}, false, err
+	}
+	if err := requireAssignActor(ctx, tx, in.AccountID, inboxID, in.ActorUserID); err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return EmailReplyOut{}, false, err
+	}
+	if channel != "email" {
+		return EmailReplyOut{}, true, nil
+	}
+	if from == "" || to == "" {
+		return EmailReplyOut{}, false, ErrInvalid
+	}
+	return EmailReplyOut{From: from, To: to, InReplyTo: inReply, DisplayID: displayID}, false, nil
+}
+
 type ThreadInput struct {
 	AccountID uuid.UUID
 	InboxID   uuid.UUID

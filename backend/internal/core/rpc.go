@@ -43,6 +43,7 @@ const (
 	SubjectInboxGet           = "helpdesk.rpc.inboxes.get"
 	SubjectInboxRotateHMAC    = "helpdesk.rpc.inboxes.rotate_hmac"
 	SubjectResolveThread      = "helpdesk.rpc.conversations.resolve_thread"
+	SubjectEmailReply         = "helpdesk.rpc.conversations.email_reply"
 	QueueGroup                = "svc-core"
 )
 
@@ -201,6 +202,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subResolveThread.Unsubscribe()
+	subEmailReply, err := nc.QueueSubscribe(SubjectEmailReply, QueueGroup, s.handleEmailReply)
+	if err != nil {
+		return err
+	}
+	defer subEmailReply.Unsubscribe()
 	subLabelCatalogList, err := nc.QueueSubscribe(SubjectLabelCatalogList, QueueGroup, s.handleLabelCatalogList)
 	if err != nil {
 		return err
@@ -804,6 +810,45 @@ func (s *Service) handleIdentify(msg *nats.Msg) {
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "contact_id": out.ContactID.String(),
 		"identifier": out.Identifier, "name": out.Name, "email": out.Email,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleEmailReply(msg *nats.Msg) {
+	var req struct {
+		ActorUserID    string `json:"actor_user_id"`
+		AccountID      string `json:"account_id"`
+		ConversationID string `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	convID, err := uuid.Parse(req.ConversationID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, skip, err := s.EmailReply(context.Background(), ListInput{
+		ActorUserID: actor, AccountID: accountID, ConversationID: convID,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "skip": skip, "from": out.From, "to": out.To,
+		"in_reply_to": out.InReplyTo, "display_id": out.DisplayID,
 	})
 	_ = msg.Respond(body)
 }

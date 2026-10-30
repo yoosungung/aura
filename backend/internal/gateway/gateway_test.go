@@ -200,6 +200,61 @@ func TestSubmit_AgentOtherInbox_Forbidden(t *testing.T) {
 	}
 }
 
+func TestSubmit_AgentEmailPublishesOutbound(t *testing.T) {
+	accountID, inboxID := mustV7(t), mustV7(t)
+	convID, contactID, ciID := mustV7(t), mustV7(t), mustV7(t)
+	bus := &fakeBus{}
+	email := &fakeEmail{reply: gateway.EmailReplyOut{
+		From: "support@acme.test", To: "ada@example.com", InReplyTo: "old@x", DisplayID: 9,
+	}}
+	svc := &gateway.Service{Secret: secret, Bus: bus, Email: email}
+	tok := gateway.Token{
+		Kind: gateway.KindUser, AccountID: accountID, UserID: mustV7(t),
+		InboxIDs: []uuid.UUID{inboxID},
+	}
+	out, err := svc.SubmitAgent(context.Background(), tok, accountID, convID, gateway.SubmitRequest{
+		Content: "확인했습니다", InboxID: inboxID, ContactID: contactID, ContactInboxID: ciID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.MessageID == uuid.Nil {
+		t.Fatal("message id")
+	}
+	bus.mu.Lock()
+	defer bus.mu.Unlock()
+	if len(bus.events) != 2 || bus.events[1] != gateway.OutboundEmailSubject {
+		t.Fatalf("events %v", bus.events)
+	}
+	var task gateway.OutboundTask
+	if err := json.Unmarshal(bus.payloads[1], &task); err != nil {
+		t.Fatal(err)
+	}
+	if task.From != "support@acme.test" || task.To != "ada@example.com" || task.DisplayID != 9 || task.InReplyTo != "old@x" || task.Content != "확인했습니다" || task.SourceID == "" {
+		t.Fatalf("%+v", task)
+	}
+}
+
+func TestSubmit_AgentWebSkipsOutbound(t *testing.T) {
+	accountID, inboxID := mustV7(t), mustV7(t)
+	bus := &fakeBus{}
+	email := &fakeEmail{replySkip: true}
+	svc := &gateway.Service{Secret: secret, Bus: bus, Email: email}
+	tok := gateway.Token{
+		Kind: gateway.KindUser, AccountID: accountID, UserID: mustV7(t),
+		InboxIDs: []uuid.UUID{inboxID},
+	}
+	if _, err := svc.SubmitAgent(context.Background(), tok, accountID, mustV7(t), gateway.SubmitRequest{
+		Content: "web", InboxID: inboxID, ContactID: mustV7(t), ContactInboxID: mustV7(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ev, _ := bus.counts()
+	if ev != 1 {
+		t.Fatalf("events=%d", ev)
+	}
+}
+
 func TestCanSubscribe_ContactOwnOnly(t *testing.T) {
 	conv := mustV7(t)
 	inbox := mustV7(t)

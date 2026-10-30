@@ -28,6 +28,58 @@ type ParsedMail struct {
 	Raw       []byte
 }
 
+type OutboundMail struct {
+	From      string
+	To        string
+	Subject   string
+	MessageID string
+	InReplyTo string
+	Content   string
+	DisplayID int64
+}
+
+func BuildOutboundMIME(in OutboundMail) ([]byte, error) {
+	from := normalizeAddr(in.From)
+	to := normalizeAddr(in.To)
+	if from == "" || to == "" || strings.TrimSpace(in.Content) == "" {
+		return nil, ErrInvalid
+	}
+	var h mail.Header
+	h.SetAddressList("From", []*mail.Address{{Address: from}})
+	h.SetAddressList("To", []*mail.Address{{Address: to}})
+	subj := in.Subject
+	if subj == "" {
+		subj = "[#REQ-" + strconv.FormatInt(in.DisplayID, 10) + "]"
+	} else if extractDisplayID(subj) == 0 && in.DisplayID > 0 {
+		subj = subj + " [#REQ-" + strconv.FormatInt(in.DisplayID, 10) + "]"
+	}
+	h.SetSubject(subj)
+	mid := strings.Trim(in.MessageID, "<>")
+	if mid == "" {
+		return nil, ErrInvalid
+	}
+	h.SetMessageID(mid)
+	if in.InReplyTo != "" {
+		parent := strings.Trim(in.InReplyTo, "<>")
+		h.SetMsgIDList("In-Reply-To", []string{parent})
+		h.SetMsgIDList("References", []string{parent})
+	}
+	h.SetContentType("text/plain", map[string]string{"charset": "utf-8"})
+	var buf bytes.Buffer
+	w, err := mail.CreateSingleInlineWriter(&buf, h)
+	if err != nil {
+		return nil, err
+	}
+	body := strings.TrimSpace(in.Content) + "\r\n\r\n" + replyDelimiter + "\r\n"
+	if _, err := io.WriteString(w, body); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func ParseMIME(raw []byte) (ParsedMail, error) {
 	out := ParsedMail{Raw: raw}
 	mr, err := mail.CreateReader(bytes.NewReader(raw))
