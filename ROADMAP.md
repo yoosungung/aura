@@ -85,12 +85,13 @@
 
 ## P6 플랫폼
 
-- Client API 정식화, Platform API (테넌트 프로비저닝).
-- HMAC 아웃바운드 웹훅 + 재시도 큐 (`helpdesk.tasks.webhooks.deliver`).
+- Client API 정식화: Contact 스코프 대화 목록·메시지 GET/POST (`/public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations...`). 기존 `POST .../messages`는 유지.
+- Platform API: `POST /platform/api/v1/accounts`(계정+administrator+웹 인박스), `POST /platform/api/v1/users`. Bearer `AURA_PLATFORM_TOKEN`.
+- HMAC 아웃바운드 웹훅 + 재시도 큐 (`helpdesk.tasks.webhooks.deliver`). `message_created` 구독 fanout과 자동화 `send_webhook`. 헤더 `X-Helpdesk-Signature`/`X-Helpdesk-Timestamp`.
 - 리포트: 대화 / 상담원 / 인박스 / CSAT%(4–5점 비율) / SLA hit rate. P5.5 설정 뷰 위에 올린다.
 - Help Center `articles` + 위젯 검색. P5.5 `widget.html` 위에 올린다.
 
-성공: 외부 CRM이 `message_created` 웹훅을 검증해 받고, 관리자가 CSAT%와 SLA hit rate를 본다.
+성공: 외부 CRM이 `message_created` 웹훅을 검증해 받고, 관리자가 CSAT%와 SLA hit rate를 본다. **완료.**
 
 ## P7 AI-Native 출시
 

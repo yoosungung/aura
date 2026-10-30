@@ -19,3 +19,14 @@ document.getElementById("close")?.addEventListener("click", () => {
     window.parent.postMessage(encode("close"), parent);
   }
 });
+document.getElementById("help")?.addEventListener("click", () => {
+  const panel = document.getElementById("help-panel");
+  if (panel) {
+    panel.hidden = !panel.hidden;
+  }
+});
+document.getElementById("help-search")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = event.currentTarget.elements.namedItem("q");
+  frame.searchHelp(input?.value || "").catch(() => {});
+});

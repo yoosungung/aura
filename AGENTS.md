@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P5.5 상담 워크스페이스 완료(4-Zone 셸·통합 컴포저·401 refresh·위젯 런처·Contact `/auth`). P5 운영 자동화 완료(배정·KV, SLA 시계, 자동화 `hop_count>5`, resolved CSAT). P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 다음은 P6 플랫폼. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
+P6 플랫폼 완료(Platform API 테넌트 프로비저닝, Client API 정식 경로, HMAC 웹훅·재시도, 리포트 CSAT%/SLA hit rate, Help Center·위젯 검색). P5.5 상담 워크스페이스 완료(4-Zone 셸·통합 컴포저·401 refresh·위젯 런처·Contact `/auth`). P5 운영 자동화 완료(배정·KV, SLA 시계, 자동화 `hop_count>5`, resolved CSAT). P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 다음은 P7 AI-Native 출시. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
 

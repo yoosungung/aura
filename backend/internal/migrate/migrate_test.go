@@ -80,6 +80,15 @@ func TestUp_KakaoSenderKey(t *testing.T) {
 	}
 }
 
+func TestUp_PublicArticlesSearch(t *testing.T) {
+	ctx := context.Background()
+	admin, _ := testutil.Postgres(t)
+	var proname string
+	if err := admin.QueryRow(ctx, `SELECT proname FROM pg_proc WHERE proname = 'public_articles_search'`).Scan(&proname); err != nil {
+		t.Fatalf("public_articles_search: %v", err)
+	}
+}
+
 func TestUp_AppCannotBypassRLS(t *testing.T) {
 	ctx := context.Background()
 	_, app := testutil.Postgres(t)

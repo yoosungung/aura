@@ -14,41 +14,52 @@ import (
 )
 
 const (
-	SubjectCreate             = "helpdesk.rpc.conversations.create"
-	SubjectTransition         = "helpdesk.rpc.conversations.transition"
-	SubjectAuthLogin          = "helpdesk.rpc.auth.login"
-	SubjectAuthRefresh        = "helpdesk.rpc.auth.refresh"
-	SubjectAuthLogout         = "helpdesk.rpc.auth.logout"
-	SubjectAuthContact        = "helpdesk.rpc.auth.contact"
-	SubjectInboxMemberAdd     = "helpdesk.rpc.inbox_members.add"
-	SubjectInboxMemberRemove  = "helpdesk.rpc.inbox_members.remove"
-	SubjectInboxMemberList    = "helpdesk.rpc.inbox_members.list"
-	SubjectAssign             = "helpdesk.rpc.conversations.assign"
-	SubjectNote               = "helpdesk.rpc.conversations.note"
-	SubjectSnooze             = "helpdesk.rpc.conversations.snooze"
-	SubjectLabelAdd           = "helpdesk.rpc.conversations.label.add"
-	SubjectLabelRemove        = "helpdesk.rpc.conversations.label.remove"
-	SubjectLabelList          = "helpdesk.rpc.conversations.label.list"
-	SubjectLabelCatalogList   = "helpdesk.rpc.labels.list"
-	SubjectLabelCatalogCreate = "helpdesk.rpc.labels.create"
-	SubjectCannedList         = "helpdesk.rpc.canned.list"
-	SubjectCannedCreate       = "helpdesk.rpc.canned.create"
-	SubjectMacroList          = "helpdesk.rpc.macros.list"
-	SubjectMacroCreate        = "helpdesk.rpc.macros.create"
-	SubjectMacroExecute       = "helpdesk.rpc.macros.execute"
-	SubjectConversationsList  = "helpdesk.rpc.conversations.list"
-	SubjectMessagesList       = "helpdesk.rpc.conversations.messages"
-	SubjectContactsList       = "helpdesk.rpc.contacts.list"
-	SubjectContactIdentify    = "helpdesk.rpc.contacts.identify"
-	SubjectInboxResolveEmail  = "helpdesk.rpc.inboxes.resolve_email"
-	SubjectInboxResolveKakao  = "helpdesk.rpc.inboxes.resolve_kakao"
-	SubjectInboxGet           = "helpdesk.rpc.inboxes.get"
-	SubjectInboxRotateHMAC    = "helpdesk.rpc.inboxes.rotate_hmac"
-	SubjectResolveThread      = "helpdesk.rpc.conversations.resolve_thread"
-	SubjectResolveKakao       = "helpdesk.rpc.conversations.resolve_kakao"
-	SubjectEmailReply         = "helpdesk.rpc.conversations.email_reply"
-	SubjectKakaoReply         = "helpdesk.rpc.conversations.kakao_reply"
-	QueueGroup                = "svc-core"
+	SubjectCreate               = "helpdesk.rpc.conversations.create"
+	SubjectTransition           = "helpdesk.rpc.conversations.transition"
+	SubjectAuthLogin            = "helpdesk.rpc.auth.login"
+	SubjectAuthRefresh          = "helpdesk.rpc.auth.refresh"
+	SubjectAuthLogout           = "helpdesk.rpc.auth.logout"
+	SubjectAuthContact          = "helpdesk.rpc.auth.contact"
+	SubjectInboxMemberAdd       = "helpdesk.rpc.inbox_members.add"
+	SubjectInboxMemberRemove    = "helpdesk.rpc.inbox_members.remove"
+	SubjectInboxMemberList      = "helpdesk.rpc.inbox_members.list"
+	SubjectAssign               = "helpdesk.rpc.conversations.assign"
+	SubjectNote                 = "helpdesk.rpc.conversations.note"
+	SubjectSnooze               = "helpdesk.rpc.conversations.snooze"
+	SubjectLabelAdd             = "helpdesk.rpc.conversations.label.add"
+	SubjectLabelRemove          = "helpdesk.rpc.conversations.label.remove"
+	SubjectLabelList            = "helpdesk.rpc.conversations.label.list"
+	SubjectLabelCatalogList     = "helpdesk.rpc.labels.list"
+	SubjectLabelCatalogCreate   = "helpdesk.rpc.labels.create"
+	SubjectCannedList           = "helpdesk.rpc.canned.list"
+	SubjectCannedCreate         = "helpdesk.rpc.canned.create"
+	SubjectMacroList            = "helpdesk.rpc.macros.list"
+	SubjectMacroCreate          = "helpdesk.rpc.macros.create"
+	SubjectMacroExecute         = "helpdesk.rpc.macros.execute"
+	SubjectConversationsList    = "helpdesk.rpc.conversations.list"
+	SubjectMessagesList         = "helpdesk.rpc.conversations.messages"
+	SubjectContactsList         = "helpdesk.rpc.contacts.list"
+	SubjectContactIdentify      = "helpdesk.rpc.contacts.identify"
+	SubjectInboxResolveEmail    = "helpdesk.rpc.inboxes.resolve_email"
+	SubjectInboxResolveKakao    = "helpdesk.rpc.inboxes.resolve_kakao"
+	SubjectInboxGet             = "helpdesk.rpc.inboxes.get"
+	SubjectInboxRotateHMAC      = "helpdesk.rpc.inboxes.rotate_hmac"
+	SubjectResolveThread        = "helpdesk.rpc.conversations.resolve_thread"
+	SubjectResolveKakao         = "helpdesk.rpc.conversations.resolve_kakao"
+	SubjectEmailReply           = "helpdesk.rpc.conversations.email_reply"
+	SubjectKakaoReply           = "helpdesk.rpc.conversations.kakao_reply"
+	SubjectPlatformAccount      = "helpdesk.rpc.platform.accounts.create"
+	SubjectPlatformUser         = "helpdesk.rpc.platform.users.create"
+	SubjectWebhookList          = "helpdesk.rpc.webhooks.list"
+	SubjectWebhookCreate        = "helpdesk.rpc.webhooks.create"
+	SubjectWebhookDelete        = "helpdesk.rpc.webhooks.delete"
+	SubjectReportsGet           = "helpdesk.rpc.reports.get"
+	SubjectArticleList          = "helpdesk.rpc.articles.list"
+	SubjectArticleCreate        = "helpdesk.rpc.articles.create"
+	SubjectArticleSearch        = "helpdesk.rpc.articles.search"
+	SubjectContactConversations = "helpdesk.rpc.contacts.conversations"
+	SubjectContactMessages      = "helpdesk.rpc.contacts.messages"
+	QueueGroup                  = "svc-core"
 )
 
 func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) error {
@@ -273,6 +284,19 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer cc.Stop()
+	if err := s.subscribeP6(nc); err != nil {
+		return err
+	}
+	fanout, err := s.consumeWebhookEvents(ctx)
+	if err != nil {
+		return err
+	}
+	defer fanout.Stop()
+	deliver, err := s.consumeWebhookDeliveries(ctx)
+	if err != nil {
+		return err
+	}
+	defer deliver.Stop()
 	if err := nc.Flush(); err != nil {
 		return err
 	}

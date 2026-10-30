@@ -11,9 +11,10 @@ import (
 )
 
 type Server struct {
-	Service   *Service
-	NC        *nats.Conn
-	WidgetDir string
+	Service       *Service
+	NC            *nats.Conn
+	WidgetDir     string
+	PlatformToken string
 }
 
 func (s *Server) Handler() http.Handler {
@@ -33,7 +34,13 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /src/", files)
 	}
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
+	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{conversation_id}/messages", s.handleContactMessage)
+	mux.HandleFunc("GET /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations", s.handleContactConversations)
+	mux.HandleFunc("GET /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{conversation_id}/messages", s.handleContactMessages)
+	mux.HandleFunc("GET /public/api/v1/inboxes/{inbox_id}/articles", s.handlePublicArticles)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/csat", s.handleContactCSAT)
+	mux.HandleFunc("POST /platform/api/v1/accounts", s.handlePlatformAccount)
+	mux.HandleFunc("POST /platform/api/v1/users", s.handlePlatformUser)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations", s.handleConversationList)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleMessageList)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/conversations/{conversation_id}/status", s.handleStatus)
@@ -58,6 +65,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}", s.handleInboxHMAC)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/inboxes/{inbox_id}/hmac/rotate", s.handleInboxHMAC)
+	mux.HandleFunc("GET /api/v1/accounts/{account_id}/webhooks", s.handleWebhooks)
+	mux.HandleFunc("POST /api/v1/accounts/{account_id}/webhooks", s.handleWebhooks)
+	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/webhooks/{webhook_id}", s.handleWebhooks)
+	mux.HandleFunc("GET /api/v1/accounts/{account_id}/reports", s.handleReports)
+	mux.HandleFunc("GET /api/v1/accounts/{account_id}/articles", s.handleArticles)
+	mux.HandleFunc("POST /api/v1/accounts/{account_id}/articles", s.handleArticles)
 	mux.HandleFunc("GET /ws", s.handleWS)
 	return mux
 }
@@ -84,6 +97,17 @@ func (s *Server) handleContactMessage(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
+	}
+	if pathContact := r.PathValue("contact_id"); pathContact != "" {
+		id := parseUUID(pathContact)
+		if id == uuid.Nil || id != tok.ContactID {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		body.ContactID = pathContact
+	}
+	if pathConv := r.PathValue("conversation_id"); pathConv != "" {
+		body.ConversationID = pathConv
 	}
 	out, err := s.Service.SubmitContact(r.Context(), tok, inboxID, SubmitRequest{
 		Content:        body.Content,

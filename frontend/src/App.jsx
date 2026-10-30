@@ -1,8 +1,11 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { AssignTicket } from "./components/AssignTicket.jsx";
+import { ArticleSettings } from "./components/ArticleSettings.jsx";
 import { CatalogSettings } from "./components/CatalogSettings.jsx";
 import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
+import { ReportSettings } from "./components/ReportSettings.jsx";
+import { WebhookSettings } from "./components/WebhookSettings.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
 import { ResolveTicket } from "./components/ResolveTicket.jsx";
@@ -566,10 +569,34 @@ export function App({ session: initialSession, client, initialState = emptyState
             >
               카탈로그
             </Button>
+            <Button
+              size="sm"
+              variant={settingsTab === "webhooks" ? "secondary" : "ghost"}
+              onClick={() => setSettingsTab("webhooks")}
+            >
+              웹훅
+            </Button>
+            <Button
+              size="sm"
+              variant={settingsTab === "reports" ? "secondary" : "ghost"}
+              onClick={() => setSettingsTab("reports")}
+            >
+              리포트
+            </Button>
+            <Button
+              size="sm"
+              variant={settingsTab === "articles" ? "secondary" : "ghost"}
+              onClick={() => setSettingsTab("articles")}
+            >
+              도움말
+            </Button>
           </div>
           {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
           {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
           {settingsTab === "catalog" ? <CatalogSettings session={session} client={client} /> : null}
+          {settingsTab === "webhooks" ? <WebhookSettings session={session} client={client} /> : null}
+          {settingsTab === "reports" ? <ReportSettings session={session} client={client} /> : null}
+          {settingsTab === "articles" ? <ArticleSettings session={session} client={client} /> : null}
         </section>
       ) : (
         <>

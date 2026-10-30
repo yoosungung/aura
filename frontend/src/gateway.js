@@ -466,6 +466,76 @@ export async function executeMacro(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function getReport(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/reports`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("report failed");
+  }
+  return res.json();
+}
+
+export async function listWebhooks(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/webhooks`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("webhook list failed");
+  }
+  return res.json();
+}
+
+export async function createWebhook(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, url, subscriptions } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/webhooks`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url, subscriptions }),
+  });
+  if (!res.ok) {
+    throw new Error("webhook create failed");
+  }
+  return res.json();
+}
+
+export async function listArticles(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("article list failed");
+  }
+  return res.json();
+}
+
+export async function createArticle(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, title, slug, body, published } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title, slug, body, published }),
+  });
+  if (!res.ok) {
+    throw new Error("article create failed");
+  }
+  return res.json();
+}
+
 export async function sendNote(req, fetchImpl = fetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, content } = req;
@@ -513,4 +583,9 @@ export const liveClient = {
   listMessages,
   resolveConversation,
   uploadAttachment,
+  getReport,
+  listWebhooks,
+  createWebhook,
+  listArticles,
+  createArticle,
 };

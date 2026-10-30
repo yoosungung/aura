@@ -8,19 +8,23 @@ import (
 )
 
 const (
-	ConversationsStream   = "CONVERSATIONS_STREAM"
-	TasksStream           = "TASKS_STREAM"
-	IngestionDLQ          = "INGESTION_DLQ"
-	ConsumerName          = "ingestion"
-	SnoozeWakeConsumer    = "svc-core-snooze"
-	OutboundEmailConsumer = "gateway-email-outbound"
-	OutboundKakaoConsumer = "gateway-kakao-outbound"
-	SLARoutingConsumer    = "sla-routing"
-	AutomationConsumer    = "svc-automation"
-	EventsFilter          = "helpdesk.events.*.*.*.message_created"
-	CsatSubmittedFilter   = "helpdesk.events.*.*.*.csat_submitted"
-	SnoozeWakeFilter      = "helpdesk.tasks.snooze.wake.*"
-	DLQSubject            = "helpdesk.dlq.ingestion"
+	ConversationsStream    = "CONVERSATIONS_STREAM"
+	TasksStream            = "TASKS_STREAM"
+	IngestionDLQ           = "INGESTION_DLQ"
+	ConsumerName           = "ingestion"
+	SnoozeWakeConsumer     = "svc-core-snooze"
+	OutboundEmailConsumer  = "gateway-email-outbound"
+	OutboundKakaoConsumer  = "gateway-kakao-outbound"
+	SLARoutingConsumer     = "sla-routing"
+	AutomationConsumer     = "svc-automation"
+	WebhookFanoutConsumer  = "svc-core-webhook-fanout"
+	WebhookDeliverConsumer = "svc-core-webhooks"
+	EventsFilter           = "helpdesk.events.*.*.*.message_created"
+	CsatSubmittedFilter    = "helpdesk.events.*.*.*.csat_submitted"
+	SnoozeWakeFilter       = "helpdesk.tasks.snooze.wake.*"
+	WebhookDeliverSubject  = "helpdesk.tasks.webhooks.deliver"
+	WebhookDeliverFilter   = "helpdesk.tasks.webhooks.deliver"
+	DLQSubject             = "helpdesk.dlq.ingestion"
 )
 
 func EnsureStreams(ctx context.Context, js jetstream.JetStream) (jetstream.Consumer, error) {

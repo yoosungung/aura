@@ -60,11 +60,17 @@ func main() {
 			Catalog:     n,
 			Identify:    n,
 			ContactAuth: n,
+			Platform:    n,
+			Webhooks:    n,
+			Reports:     n,
+			Articles:    n,
+			ContactAPI:  n,
 			Bus:         gateway.NewBus(nc, js),
 			Blobs:       &gateway.FilerStore{Endpoint: filer, Public: public},
 		},
-		NC:        nc,
-		WidgetDir: getenv("AURA_WIDGET_DIR", "../packages/widget-sdk"),
+		NC:            nc,
+		WidgetDir:     getenv("AURA_WIDGET_DIR", "../packages/widget-sdk"),
+		PlatformToken: os.Getenv("AURA_PLATFORM_TOKEN"),
 	}
 	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
 	go func() {

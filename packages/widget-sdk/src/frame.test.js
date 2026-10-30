@@ -507,6 +507,30 @@ test("frame exchanges a new access token after 401 and retries send", async () =
   assert.match(socks[1].url, /access-2/);
 });
 
+test("frame searches published help articles without a contact token", async () => {
+  const win = fakeFrame();
+  const calls = [];
+  const frame = createFrame(win, {
+    async fetch(url) {
+      calls.push(String(url));
+      return {
+        ok: true,
+        json: async () => ({ articles: [{ title: "결제 오류", body: "한도를 확인하세요" }] }),
+      };
+    },
+    WebSocket: function WS() {},
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  const hits = await frame.searchHelp("결제");
+  assert.equal(hits[0].title, "결제 오류");
+  const articleCalls = calls.filter((u) => u.includes("/articles"));
+  assert.equal(articleCalls.length, 1);
+  assert.match(articleCalls[0], /\/public\/api\/v1\/inboxes\/inbox-1\/articles\?q=/);
+});
+
 test("setUser without identifier_hash does not bind identity", async () => {
   const win = fakeFrame();
   const frame = createFrame(win, {

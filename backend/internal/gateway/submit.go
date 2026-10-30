@@ -96,6 +96,11 @@ type Service struct {
 	Mailer      Mailer
 	Kakao       KakaoResolver
 	KakaoSender KakaoSender
+	Platform    Platform
+	Webhooks    WebhookStore
+	Reports     Reporter
+	Articles    ArticleStore
+	ContactAPI  ContactCatalog
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {

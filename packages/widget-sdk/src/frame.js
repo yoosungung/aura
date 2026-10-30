@@ -257,6 +257,35 @@ export function createFrame(win, deps = {}) {
     });
   }
 
+  async function searchHelp(query) {
+    if (!inboxId) {
+      return [];
+    }
+    const res = await fetchImpl(
+      `${apiBase}/public/api/v1/inboxes/${inboxId}/articles?q=${encodeURIComponent(query || "")}`,
+    );
+    if (!res.ok) {
+      return [];
+    }
+    const body = await res.json();
+    const articles = body.articles || [];
+    const list = win.document.getElementById("help-results");
+    if (list && typeof list.replaceChildren === "function" && win.document.createElement) {
+      list.replaceChildren();
+      for (const article of articles) {
+        const item = win.document.createElement("li");
+        const title = win.document.createElement("strong");
+        title.textContent = article.title || "";
+        const excerpt = win.document.createElement("p");
+        excerpt.textContent = article.body || "";
+        item.appendChild(title);
+        item.appendChild(excerpt);
+        list.appendChild(item);
+      }
+    }
+    return articles;
+  }
+
   async function send(content) {
     if (!inboxId && !seed) {
       throw new Error("not initialized");
@@ -280,6 +309,7 @@ export function createFrame(win, deps = {}) {
 
   return {
     send,
+    searchHelp,
     token: () => token,
     identifier: () => boundIdentifier,
   };

@@ -1412,3 +1412,77 @@ test("note composer uses amber send and kakao session warning", async () => {
   await user.click(screen.getByRole("button", { name: "내부 메모" }));
   expect(screen.getByRole("button", { name: "메모" }).className).toMatch(/amber/);
 });
+
+test("administrator sees CSAT percent and SLA hit rate", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async getReport() {
+          return { csat_percent: 80, sla_hit_rate: 75, conversations: { total: 10, resolved: 4 } };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "리포트" }));
+  expect(screen.getByRole("region", { name: "리포트" }).textContent).toContain("80");
+  expect(screen.getByRole("region", { name: "리포트" }).textContent).toContain("75");
+});
+
+test("administrator registers a webhook", async () => {
+  const user = userEvent.setup();
+  const created = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listWebhooks() {
+          return { webhooks: [] };
+        },
+        async createWebhook(req) {
+          created.push(req);
+          return { id: "wh1", url: req.url };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "웹훅" }));
+  await user.type(screen.getByLabelText("웹훅 URL"), "https://crm.example/hook");
+  await user.click(screen.getByRole("button", { name: "웹훅 추가" }));
+  expect(created[0].url).toBe("https://crm.example/hook");
+  expect(screen.getByRole("region", { name: "웹훅" }).textContent).toContain("https://crm.example/hook");
+});
+
+test("administrator publishes a help article", async () => {
+  const user = userEvent.setup();
+  const created = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listArticles() {
+          return { articles: [] };
+        },
+        async createArticle(req) {
+          created.push(req);
+          return { id: "a1", title: req.title, slug: req.slug };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "도움말" }));
+  await user.type(screen.getByLabelText("문서 제목"), "결제 오류");
+  await user.type(screen.getByLabelText("slug"), "pay-error");
+  await user.type(screen.getByLabelText("본문"), "한도를 확인하세요");
+  await user.click(screen.getByRole("button", { name: "문서 게시" }));
+  expect(created[0].title).toBe("결제 오류");
+  expect(created[0].published).toBe(true);
+  expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 오류");
+});

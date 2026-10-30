@@ -15,6 +15,9 @@ test("widget.html chrome matches layout §4", () => {
   assert.match(html, /#composer[^}]*height:\s*60px/);
   assert.match(html, /Pretendard/);
   assert.match(html, /aria-label="닫기"/);
+  assert.match(html, /aria-label="도움말"/);
+  assert.match(html, /aria-label="도움말 검색"/);
+  assert.match(html, /id="help-results"/);
   assert.match(html, /aria-label="메시지를 입력하세요"/);
   assert.match(html, /data-sender="Contact"/);
   assert.match(html, /data-sender="User"/);

@@ -7,7 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/contracts"
+	"github.com/yoosungung/aura/internal/ingest"
 )
 
 const MaxHop = 5
@@ -18,6 +20,7 @@ type DB interface {
 
 type Service struct {
 	DB DB
+	JS jetstream.JetStream
 }
 
 type fact struct {
@@ -98,7 +101,7 @@ func (s *Service) Handle(ctx context.Context, env contracts.MessageCreated) erro
 		if !match(r.conditions, f) {
 			continue
 		}
-		if err := applyActions(ctx, tx, accountID, conversationID, r.actions); err != nil {
+		if err := s.applyActions(ctx, tx, accountID, conversationID, r.actions, env); err != nil {
 			return err
 		}
 	}
@@ -150,7 +153,7 @@ func match(raw []byte, f fact) bool {
 	return true
 }
 
-func applyActions(ctx context.Context, tx pgx.Tx, accountID, conversationID uuid.UUID, raw []byte) error {
+func (s *Service) applyActions(ctx context.Context, tx pgx.Tx, accountID, conversationID uuid.UUID, raw []byte, env contracts.MessageCreated) error {
 	var acts []action
 	if err := json.Unmarshal(raw, &acts); err != nil {
 		return nil
@@ -182,6 +185,25 @@ func applyActions(ctx context.Context, tx pgx.Tx, accountID, conversationID uuid
 					conversationID, p); err != nil {
 					return err
 				}
+			}
+		case "send_webhook":
+			if s.JS == nil || len(a.ActionParams) == 0 {
+				continue
+			}
+			webhookID := strings.TrimSpace(a.ActionParams[0])
+			if webhookID == "" {
+				continue
+			}
+			body, err := json.Marshal(map[string]any{
+				"webhook_id": webhookID,
+				"account_id": accountID.String(),
+				"event":      env,
+			})
+			if err != nil {
+				return err
+			}
+			if _, err := s.JS.Publish(ctx, ingest.WebhookDeliverSubject, body); err != nil {
+				return err
 			}
 		}
 	}

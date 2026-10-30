@@ -48,9 +48,9 @@ ingestion-worker  svc-core    svc-ai-agent
 | `gateway-email` | SMTP `:25` MIME 수신, In-Reply-To 스레딩, SMTP 발송 | 없음 |
 | `gateway-social` | WhatsApp/SMS. P7 이후 | 없음 |
 | `svc-ingestion-worker` | `helpdesk.events.>` Pull 배치(500건 또는 100ms). 계층 정렬·단건 폴백·DLQ | 메시지·첨부·온톨로지·도구감사·CSAT·적용 SLA. 컨택트·대화는 멱등 업서트 |
-| `svc-core` | FSM, 컨택트·대화 생성, Application/Platform API, 설정 CRUD, Request-Reply | 설정 쓰기, `contacts`/`conversations` 쓰기, 나머지 이벤트 도메인 읽기 |
+| `svc-core` | FSM, 컨택트·대화 생성, Application/Platform API, 설정 CRUD, 웹훅 배달, Request-Reply | 설정 쓰기, `contacts`/`conversations` 쓰기, 나머지 이벤트 도메인 읽기 |
 | `svc-sla-routing` | 라운드로빈·capacity, FRT/NRT/RT 감시. `C_current`는 JetStream KV 원자 증감(P5), PG는 대사 | 읽기. 전이는 이벤트 |
-| `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. P5 액션은 `add_label`/`change_priority`. 웹훅은 P6 | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 이벤트 |
+| `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. 액션은 `add_label`/`change_priority`/`send_webhook` | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 `helpdesk.tasks.webhooks.deliver` |
 | `svc-ai-agent` | Ego-Graph 읽기, ReAct/Tool, 온톨로지 추출 요청 | Ego-Graph 읽기만 |
 | `frontend` | 상담원 Rail + 3-Pane SPA | 없음 |
 | `packages/widget-sdk` | 호스트 런처(Shadow DOM) + 교차출처 iframe + postMessage | 없음 |
@@ -111,6 +111,17 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.contact` | `inbox_id`, `pubsub_token` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.accounts.create` | `name`, `locale`, `user`(`name`/`email`/`password`) | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.users.create` | `account_id`, `name`, `email`, `password`, `role` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.webhooks.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.webhooks.create` | `actor_user_id`, `account_id`, `url`, `subscriptions` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.webhooks.delete` | `actor_user_id`, `account_id`, `webhook_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.reports.get` | `actor_user_id`, `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.articles.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.articles.create` | `actor_user_id`, `account_id`, `title`, `slug`, `body`, `published` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.articles.search` | `inbox_id`, `query`. 공개 게시글. SECURITY DEFINER | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.conversations` | `account_id`, `inbox_id`, `contact_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.messages` | `account_id`, `inbox_id`, `contact_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.add` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.remove` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
@@ -118,7 +129,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.inboxes.rotate_hmac` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.email_reply` | `actor_user_id`, `account_id`, `conversation_id`. 이메일 인박스면 `from`/`to`/`display_id`/`in_reply_to`, 아니면 `skip` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.kakao_reply` | `actor_user_id`, `account_id`, `conversation_id`. 카카오 인박스면 `from`(sender_key)/`to`(userKey)/`session_live`, 아니면 `skip` | gateway-web | svc-core |
-| Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
+| Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai, svc-core webhook fanout |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.csat_submitted` | `rating`, `feedback` | gateway-\* | ingestion |
@@ -126,7 +137,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | WorkQueue | `helpdesk.tasks.ai.reasoning` | `conversation_id`, `trigger_message_id` | gateway-\*, svc-core | svc-ai-agent |
 | WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
 | WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
-| WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `event` | automation, svc-core | svc-core 워커 |
+| WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `account_id`, `event` | automation `send_webhook`, svc-core fanout | svc-core 워커. 5xx·네트워크는 NAK 재시도(최대 5), 2xx·4xx는 ACK |
 | WorkQueue | `helpdesk.tasks.sla.evaluate` | `conversation_id` | sla-routing 스케줄 | sla-routing |
 | WorkQueue | `helpdesk.tasks.snooze.schedule.<conversation_id>` | `account_id`, `conversation_id`. 헤더 `Nats-Schedule: @at <RFC3339>`, `Nats-Schedule-Target` | gateway-web | (스케줄 보관, 컨슈머 없음) |
 | WorkQueue | `helpdesk.tasks.snooze.wake.<conversation_id>` | `account_id`, `conversation_id` | JetStream 스케줄러 | svc-core |
@@ -275,8 +286,18 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `PUT /api/v1/accounts/{account_id}/conversations/{id}/status`
 - `GET /api/v1/accounts/{account_id}/contacts`
 - `POST /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{id}/messages`
+- `GET /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations`
+- `GET /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{id}/messages`
 - `POST /public/api/v1/inboxes/{inbox_id}/csat` (`rating` 1–5, `feedback` optional. Contact 토큰, 자기 대화)
-- `POST /platform/api/v1/accounts`
+- `GET /public/api/v1/inboxes/{inbox_id}/articles?q=` 게시된 Help Center. Contact 토큰 없음
+- `POST /platform/api/v1/accounts` `{ name, locale, user: { name, email, password } }` → 계정·administrator·기본 웹 인박스
+- `POST /platform/api/v1/users` `{ account_id, name, email, password, role }`
+- `GET`/`POST /api/v1/accounts/{account_id}/webhooks`
+- `DELETE /api/v1/accounts/{account_id}/webhooks/{webhook_id}`
+- `GET /api/v1/accounts/{account_id}/reports` (`conversations` 상태별, `agents`, `inboxes`, `csat_percent` 4–5점 비율, `sla_hit_rate`)
+- `GET`/`POST /api/v1/accounts/{account_id}/articles`
+
+Platform API는 `Authorization: Bearer` 가 환경 `AURA_PLATFORM_TOKEN` 과 같아야 한다. 토큰이 비면 거절한다.
 
 | 권한 | Super Admin | Administrator | Agent | Collaborator |
 |---|---|---|---|---|
@@ -583,7 +604,7 @@ CREATE TABLE automation_rules (
     enabled BOOLEAN DEFAULT TRUE NOT NULL
 );
 -- conditions: [{attribute_key, filter_operator, values}] Chatwoot 호환. AND.
--- actions: [{action_name, action_params}]. P5는 add_label / change_priority.
+-- actions: [{action_name, action_params}]. add_label / change_priority / send_webhook(webhook_id).
 
 CREATE TABLE sla_policies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

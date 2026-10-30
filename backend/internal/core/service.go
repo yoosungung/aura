@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,9 +20,10 @@ type DB interface {
 }
 
 type Service struct {
-	DB DB
-	JS jetstream.JetStream
-	NC *nats.Conn
+	DB   DB
+	JS   jetstream.JetStream
+	NC   *nats.Conn
+	HTTP *http.Client
 }
 
 type CreateInput struct {

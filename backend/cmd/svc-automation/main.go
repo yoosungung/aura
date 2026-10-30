@@ -54,7 +54,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	svc := &automation.Service{DB: app}
+	svc := &automation.Service{DB: app, JS: js}
 	log.Print("svc-automation running")
 	if err := svc.Consume(ctx, js); err != nil && !errors.Is(err, context.Canceled) {
 		log.Fatal(err)
