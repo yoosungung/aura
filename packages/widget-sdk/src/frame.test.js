@@ -199,6 +199,55 @@ function messageLog() {
   };
 }
 
+test("frame reauths CSAT after 401", async () => {
+  const win = fakeFrame();
+  const calls = [];
+  const log = messageLog();
+  let sock;
+  let auths = 0;
+  let csats = 0;
+  win.document = log.document;
+  const frame = createFrame(win, {
+    async fetch(url, opts) {
+      calls.push({ url, opts });
+      if (String(url).endsWith("/auth")) {
+        auths += 1;
+        return { ok: true, json: async () => ({ access_token: `access-${auths}` }) };
+      }
+      if (String(url).endsWith("/csat")) {
+        csats += 1;
+        if (csats === 1) {
+          return { ok: false, status: 401, json: async () => ({}) };
+        }
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor() {
+        sock = this;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("hi");
+  sock.onmessage({
+    data: JSON.stringify({
+      type: "event",
+      event: "message.created",
+      conversation_id: "c1",
+      message: { payload: { content_type: "input_csat", content: "상담은 어떠셨나요?" } },
+    }),
+  });
+  await log.buttons[4]();
+  assert.equal(auths, 2);
+  assert.equal(csats, 2);
+  assert.equal(frame.token(), "access-2");
+});
+
 test("frame rates CSAT over public API", async () => {
   const win = fakeFrame();
   const calls = [];
@@ -275,6 +324,46 @@ test("frame marks agent and customer bubbles for the widget timeline", async () 
   assert.equal(log.items[0].children[0].textContent, "고객");
   assert.equal(log.items[1].dataset.sender, "User");
   assert.equal(log.items[1].children[0].textContent, "상담원");
+});
+
+test("frame exchanges a new access token after 401 and retries send", async () => {
+  const win = fakeFrame();
+  let auths = 0;
+  let messages = 0;
+  const socks = [];
+  const frame = createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        auths += 1;
+        return { ok: true, json: async () => ({ access_token: `access-${auths}` }) };
+      }
+      messages += 1;
+      if (messages === 1) {
+        return { ok: false, status: 401, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 1;
+        socks.push(this);
+      }
+      close() {
+        this.readyState = 3;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("hi");
+  assert.equal(auths, 2);
+  assert.equal(messages, 2);
+  assert.equal(frame.token(), "access-2");
+  assert.equal(socks.length, 2);
+  assert.match(socks[1].url, /access-2/);
 });
 
 test("setUser without identifier_hash does not bind identity", async () => {

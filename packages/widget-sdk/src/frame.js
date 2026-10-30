@@ -96,16 +96,34 @@ export function createFrame(win, deps = {}) {
     return exchanging;
   }
 
+  function authHeaders(extra = {}) {
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...extra,
+    };
+  }
+
+  async function apiFetch(path, init, retried = false) {
+    await ensureAuth();
+    const res = await fetchImpl(`${apiBase}${path}`, {
+      ...init,
+      headers: authHeaders(init.headers),
+    });
+    if (res.status === 401 && !retried) {
+      token = "";
+      exchanging = null;
+      return apiFetch(path, init, true);
+    }
+    return res;
+  }
+
   async function bindUser() {
-    if (!pendingUser || !token || !inboxId) {
+    if (!pendingUser || !inboxId) {
       return;
     }
-    const res = await fetchImpl(`${apiBase}/public/api/v1/inboxes/${inboxId}/identify`, {
+    const res = await apiFetch(`/public/api/v1/inboxes/${inboxId}/identify`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(pendingUser),
     });
     if (!res.ok) {
@@ -202,9 +220,7 @@ export function createFrame(win, deps = {}) {
       btn.type = "button";
       btn.textContent = String(n);
       btn.setAttribute("aria-label", `${n}점`);
-      btn.addEventListener("click", () => {
-        rate(n);
-      });
+      btn.addEventListener("click", () => rate(n));
       row.appendChild(btn);
     }
     item.appendChild(row);
@@ -212,40 +228,24 @@ export function createFrame(win, deps = {}) {
   }
 
   async function rate(rating) {
-    await ensureAuth();
-    if (!token || !inboxId) {
+    if (!inboxId) {
       return;
     }
-    await fetchImpl(`${apiBase}/public/api/v1/inboxes/${inboxId}/csat`, {
+    await apiFetch(`/public/api/v1/inboxes/${inboxId}/csat`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({ rating }),
     });
   }
 
   async function send(content) {
-    await ensureAuth();
-    if (!token || !inboxId) {
+    if (!inboxId && !seed) {
       throw new Error("not initialized");
     }
-    const res = await fetchImpl(`${apiBase}/public/api/v1/inboxes/${inboxId}/messages`, {
+    const res = await apiFetch(`/public/api/v1/inboxes/${inboxId}/messages`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({ content }),
     });
     if (!res.ok) {
-      if (res.status === 401) {
-        token = "";
-        exchanging = null;
-        await ensureAuth();
-        return send(content);
-      }
       throw new Error("send failed");
     }
     const body = await res.json();

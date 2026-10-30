@@ -52,11 +52,14 @@ export function createLoader(win, opts) {
     launcher.style.display = "none";
     host.style.display = "none";
   }
-  win.document.body.appendChild(host);
+  const mountRoot = () => win.document.body || win.document.documentElement;
+  mountRoot().appendChild(host);
 
   const iframe = win.document.createElement("iframe");
   iframe.id = FRAME_ID;
   iframe.title = "Aura";
+  iframe.referrerPolicy = "no-referrer";
+  iframe.setAttribute?.("referrerpolicy", "no-referrer");
   iframe.src = widgetSrc(opts.baseUrl, win.location.origin);
   iframe.style.border = "0";
   iframe.style.position = "fixed";
@@ -72,21 +75,8 @@ export function createLoader(win, opts) {
   let frameMounted = false;
   function setFrameMounted(on) {
     if (on && !frameMounted) {
-      win.document.body.appendChild(iframe);
+      mountRoot().appendChild(iframe);
       frameMounted = true;
-    } else if (!on && frameMounted) {
-      if (typeof iframe.remove === "function") {
-        iframe.remove();
-      } else if (iframe.parentNode?.removeChild) {
-        iframe.parentNode.removeChild(iframe);
-      } else {
-        const kids = win.document.body.children;
-        const i = Array.prototype.indexOf.call(kids, iframe);
-        if (i >= 0 && kids.splice) {
-          kids.splice(i, 1);
-        }
-      }
-      frameMounted = false;
     }
   }
 
@@ -122,7 +112,6 @@ export function createLoader(win, opts) {
       iframe.style.inset = "";
       iframe.style.width = "0px";
       iframe.style.height = "0px";
-      setFrameMounted(false);
       launcher.style.display = hideLauncher ? "none" : "";
       if (hideLauncher) {
         host.style.display = "none";

@@ -201,6 +201,56 @@ test("open loader fills the mobile viewport", () => {
   assert.equal(api.iframe.style.inset, "0");
 });
 
+test("closed iframe after open stays hidden in the document without trapping clicks", () => {
+  const win = fakeHost();
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  assert.equal(api.iframe.referrerPolicy, "no-referrer");
+  api.toggle();
+  const src = api.iframe.src;
+  api.toggle();
+  assert.equal(api.open, false);
+  assert.equal(api.iframe.style.display, "none");
+  assert.equal(api.iframe.style.pointerEvents, "none");
+  assert.equal(api.iframe.style.width, "0px");
+  assert.equal(api.iframe.style.height, "0px");
+  assert.equal(
+    win.document.body.children.some((el) => el.id === "aura-widget-frame"),
+    true,
+  );
+  win.deliver({
+    origin: "https://help.example",
+    data: encode("unread", { count: 2 }),
+  });
+  const host = win.document.body.children.find((el) => el.id === "aura-widget-host");
+  const badge = host.shadow.host.children.find((el) => el.dataset?.badge === "unread");
+  assert.equal(badge.textContent, "2");
+  api.toggle();
+  assert.equal(api.iframe.src, src);
+  assert.equal(api.iframe.style.pointerEvents, "auto");
+});
+
+test("loader mounts on documentElement when body is missing", () => {
+  const win = fakeHost();
+  const html = {
+    children: [],
+    appendChild(el) {
+      this.children.push(el);
+    },
+  };
+  win.document.documentElement = html;
+  win.document.body = null;
+  createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  assert.equal(html.children[0].id, "aura-widget-host");
+});
+
 test("open loader follows the mobile visual viewport when the keyboard opens", () => {
   const win = fakeHost();
   win.innerWidth = 390;
