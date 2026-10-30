@@ -189,7 +189,7 @@ export function createFrame(win, deps = {}) {
         return;
       }
       const content = msg.content;
-      if (content) {
+      if (content && msg.sender_type !== "Contact") {
         append(content, msg.sender_type);
         if (msg.sender_type === "User" && !open) {
           unread += 1;

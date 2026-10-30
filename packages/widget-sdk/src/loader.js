@@ -60,6 +60,10 @@ export function createLoader(win, opts) {
   iframe.title = "Aura";
   iframe.referrerPolicy = "no-referrer";
   iframe.setAttribute?.("referrerpolicy", "no-referrer");
+  iframe.sandbox = "allow-scripts allow-forms allow-same-origin";
+  iframe.setAttribute?.("sandbox", "allow-scripts allow-forms allow-same-origin");
+  iframe.allow = "";
+  iframe.setAttribute?.("allow", "");
   iframe.src = widgetSrc(opts.baseUrl, win.location.origin);
   iframe.style.border = "0";
   iframe.style.position = "fixed";
@@ -164,7 +168,7 @@ export function createLoader(win, opts) {
     if (msg.event === "close") {
       applyOpen(false);
     }
-    if (msg.event === "resize" && msg.payload) {
+    if (msg.event === "resize" && msg.payload && api.open) {
       if (msg.payload.height) iframe.style.height = `${msg.payload.height}px`;
       if (msg.payload.width) iframe.style.width = `${msg.payload.width}px`;
     }

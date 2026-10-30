@@ -252,6 +252,31 @@ test("closed iframe after open stays hidden in the document without trapping cli
   assert.equal(api.iframe.style.pointerEvents, "auto");
 });
 
+test("closed loader ignores resize so the iframe cannot trap host clicks", () => {
+  const win = fakeHost();
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  const sandbox = String(api.iframe.sandbox || api.iframe.attrs?.sandbox || "");
+  assert.match(sandbox, /allow-scripts/);
+  assert.match(sandbox, /allow-forms/);
+  assert.match(sandbox, /allow-same-origin/);
+  assert.doesNotMatch(sandbox, /allow-top-navigation/);
+  api.toggle();
+  api.toggle();
+  win.deliver({
+    origin: "https://help.example",
+    source: api.iframe.contentWindow,
+    data: encode("resize", { width: 380, height: 640 }),
+  });
+  assert.equal(api.open, false);
+  assert.equal(api.iframe.style.width, "0px");
+  assert.equal(api.iframe.style.height, "0px");
+  assert.equal(api.iframe.style.pointerEvents, "none");
+});
+
 test("loader mounts on documentElement when body is missing", () => {
   const win = fakeHost();
   const html = {

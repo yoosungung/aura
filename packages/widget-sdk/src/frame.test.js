@@ -432,6 +432,41 @@ test("frame marks agent and customer bubbles for the widget timeline", async () 
   assert.equal(log.items[1].children[0].textContent, "상담원");
 });
 
+test("frame does not paint a contact websocket echo after send", async () => {
+  const win = fakeFrame();
+  const log = messageLog();
+  let sock;
+  win.document = log.document;
+  const frame = createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        return { ok: true, json: async () => ({ access_token: "access" }) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor() {
+        sock = this;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("결제 문의드립니다.");
+  sock.onmessage({
+    data: JSON.stringify({
+      type: "event",
+      event: "message.created",
+      conversation_id: "c1",
+      message: { payload: { content: "결제 문의드립니다.", sender_type: "Contact" } },
+    }),
+  });
+  assert.equal(log.items.length, 1);
+  assert.equal(log.items[0].dataset.sender, "Contact");
+});
+
 test("frame exchanges a new access token after 401 and retries send", async () => {
   const win = fakeFrame();
   let auths = 0;
