@@ -233,6 +233,7 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
   expect(screen.getByRole("region", { name: "HMAC 시크릿" })).toBeTruthy();
+  expect(screen.getByText("••••••••")).toBeTruthy();
   expect(screen.queryByText("secret")).toBeNull();
   await user.click(screen.getByRole("button", { name: "보기" }));
   expect(screen.getByText("secret")).toBeTruthy();
@@ -409,6 +410,40 @@ test("ticket view uploads an attachment", async () => {
   expect(attach.textContent).toContain("열기");
   expect(attach.querySelector("img")?.getAttribute("src")).toContain("receipt.png");
   expect(document.querySelector(".attach-clip")).toBeTruthy();
+});
+
+test("non-image attachments show a document icon", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        ...fixtureState(),
+        selectedId: "c1",
+        messages: {
+          c1: [
+            {
+              id: "m1",
+              content: "로그",
+              senderType: "Contact",
+              attachments: [
+                {
+                  id: "a2",
+                  file_type: "application/pdf",
+                  file_name: "trace.pdf",
+                  external_url: "http://filer/trace.pdf",
+                  file_size: 2048,
+                },
+              ],
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.getByRole("link", { name: /trace.pdf/ }).textContent).toContain("📄");
 });
 
 test("ticket view keeps a note, a label, and an attachment on the same thread", async () => {
@@ -772,6 +807,9 @@ test("thread header folds assign snooze and macros into disclosures", async () =
   await user.click(screen.getByText("담당자", { selector: "summary" }));
   expect(assign.open).toBe(true);
   expect(screen.getByLabelText("담당자 ID")).toBeTruthy();
+  await user.click(screen.getByText("스누즈", { selector: "summary" }));
+  expect(assign.open).toBe(false);
+  expect(snooze.open).toBe(true);
 });
 
 test("laptop width puts context behind a drawer", async () => {
@@ -862,6 +900,30 @@ test("ticket view assigns from the inbox member select", async () => {
   expect(screen.getByLabelText("담당자 ID").closest("label").className).toMatch(/field-fallback/);
   await user.click(screen.getByRole("button", { name: "배정" }));
   expect(assigned[0].assigneeId).toBe("user-1");
+});
+
+test("snooze preset submits immediately", async () => {
+  const user = userEvent.setup();
+  const snoozed = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async snoozeConversation(req) {
+          snoozed.push(req);
+          return { status: "snoozed", version: 2, snoozed_until: req.snoozedUntil };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "스누즈");
+  await user.click(screen.getByRole("button", { name: "1시간 뒤" }));
+  expect(snoozed).toHaveLength(1);
+  expect(Date.parse(snoozed[0].snoozedUntil)).toBeGreaterThan(Date.now());
+  expect(screen.queryByRole("button", { name: /결제 오류/ })).toBeNull();
 });
 
 test("ticket view snooze input is datetime-local", async () => {

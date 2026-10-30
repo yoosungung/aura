@@ -588,7 +588,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         고객 정보
                       </Button>
                     ) : null}
-                    <details className="header-menu assign-menu">
+                    <details className="header-menu assign-menu" name="thread-actions" onToggle={closeOtherMenus}>
                       <summary>담당자</summary>
                       <AssignTicket
                         key={selected.id}
@@ -598,7 +598,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         onAssigned={(next) => dispatch({ type: "assigned", ...next })}
                       />
                     </details>
-                    <details className="header-menu snooze-menu">
+                    <details className="header-menu snooze-menu" name="thread-actions" onToggle={closeOtherMenus}>
                       <summary>스누즈</summary>
                       <SnoozeTicket
                         key={`snooze-${selected.id}`}
@@ -608,7 +608,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         onSnoozed={(next) => dispatch({ type: "snoozed", ...next })}
                       />
                     </details>
-                    <details className="header-menu macros-menu">
+                    <details className="header-menu macros-menu" name="thread-actions" onToggle={closeOtherMenus}>
                       <summary>매크로</summary>
                       <TicketMacros
                         key={`macros-${selected.id}`}
@@ -650,7 +650,11 @@ export function App({ session: initialSession, client, initialState = emptyState
                           >
                             {isImageAttachment(a) ? (
                               <img className="attach-thumb" src={a.external_url} alt={name} />
-                            ) : null}
+                            ) : (
+                              <span className="attach-icon" aria-hidden="true">
+                                📄
+                              </span>
+                            )}
                             {name}
                             {a.file_size != null ? ` (${a.file_size} B)` : null}
                             {" 열기"}
@@ -868,6 +872,21 @@ function kakaoSessionLine(messages) {
   }
   const warn = /(만료|[123]일 남음)/.test(label);
   return <Badge variant={warn ? "destructive" : "secondary"}>{label}</Badge>;
+}
+
+function closeOtherMenus(e) {
+  if (!e.currentTarget.open) {
+    return;
+  }
+  const root = e.currentTarget.parentElement;
+  if (!root) {
+    return;
+  }
+  for (const el of root.querySelectorAll("details.header-menu")) {
+    if (el !== e.currentTarget) {
+      el.open = false;
+    }
+  }
 }
 
 function bubbleClass(m) {

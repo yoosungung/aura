@@ -58,7 +58,7 @@ export function InboxHmac({ session, client }) {
         인박스 ID
         <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
       </Label>
-      {revealed && secret ? <p>{secret}</p> : null}
+      {revealed && secret ? <p>{secret}</p> : <p>••••••••</p>}
       <div className="flex gap-2">
         <Button type="button" onClick={() => load(client.getInbox)}>
           보기

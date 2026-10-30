@@ -8,10 +8,9 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function onSubmit(e) {
-    e.preventDefault();
+  async function snoozeTo(localValue) {
     setError("");
-    const value = toRFC3339(until.trim());
+    const value = toRFC3339((localValue ?? until).trim());
     if (!value || !client.snoozeConversation) {
       return;
     }
@@ -38,8 +37,18 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
     }
   }
 
+  async function onSubmit(e) {
+    e.preventDefault();
+    await snoozeTo(until);
+  }
+
+  function applyPreset(localValue) {
+    setUntil(localValue);
+    snoozeTo(localValue);
+  }
+
   function presetHours(hours) {
-    setUntil(toLocalInput(new Date(Date.now() + hours * 3600_000)));
+    applyPreset(toLocalInput(new Date(Date.now() + hours * 3600_000)));
   }
 
   function presetTodaySix() {
@@ -48,14 +57,14 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
     if (d.getTime() <= Date.now()) {
       d.setDate(d.getDate() + 1);
     }
-    setUntil(toLocalInput(d));
+    applyPreset(toLocalInput(d));
   }
 
   function presetTomorrowNine() {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     d.setHours(9, 0, 0, 0);
-    setUntil(toLocalInput(d));
+    applyPreset(toLocalInput(d));
   }
 
   function presetNextMonday() {
@@ -63,7 +72,7 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
     const add = (8 - d.getDay()) % 7 || 7;
     d.setDate(d.getDate() + add);
     d.setHours(9, 0, 0, 0);
-    setUntil(toLocalInput(d));
+    applyPreset(toLocalInput(d));
   }
 
   return (
