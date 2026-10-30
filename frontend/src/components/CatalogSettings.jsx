@@ -10,6 +10,9 @@ export function CatalogSettings({ session, client }) {
   const [labelName, setLabelName] = useState("");
   const [shortCode, setShortCode] = useState("");
   const [content, setContent] = useState("");
+  const [macros, setMacros] = useState([]);
+  const [macroName, setMacroName] = useState("");
+  const [macroMessage, setMacroMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -29,11 +32,19 @@ export function CatalogSettings({ session, client }) {
             token: session.token,
           })
         : Promise.resolve({ canned_responses: [] }),
+      client.listMacros
+        ? client.listMacros({
+            gatewayUrl: session.gatewayUrl,
+            accountId: session.accountId,
+            token: session.token,
+          })
+        : Promise.resolve({ macros: [] }),
     ])
-      .then(([labelData, cannedData]) => {
+      .then(([labelData, cannedData, macroData]) => {
         if (!cancelled) {
           setLabels(labelData?.labels || []);
           setCanned(cannedData?.canned_responses || []);
+          setMacros(macroData?.macros || []);
         }
       })
       .catch(() => {});
@@ -84,6 +95,29 @@ export function CatalogSettings({ session, client }) {
     }
   }
 
+  async function onCreateMacro(e) {
+    e.preventDefault();
+    if (!client.createMacro || !macroName.trim() || !macroMessage.trim()) {
+      return;
+    }
+    setError("");
+    try {
+      const created = await client.createMacro({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        name: macroName.trim(),
+        visibility: "account",
+        actions: [{ action_name: "send_message", action_params: [macroMessage.trim()] }],
+      });
+      setMacros((prev) => [...prev, created]);
+      setMacroName("");
+      setMacroMessage("");
+    } catch {
+      setError("매크로를 만들지 못했습니다");
+    }
+  }
+
   return (
     <section className="catalog" aria-label="카탈로그">
       <h2>라벨·저장응답</h2>
@@ -115,6 +149,26 @@ export function CatalogSettings({ session, client }) {
         </Label>
         <Button type="submit">저장응답 추가</Button>
       </form>
+      {macros.length > 0 ? (
+        <ul>
+          {macros.map((m) => (
+            <li key={m.id || m.name}>{m.name}</li>
+          ))}
+        </ul>
+      ) : null}
+      {client.createMacro ? (
+        <form onSubmit={onCreateMacro} className="flex flex-col gap-2">
+          <Label>
+            매크로 이름
+            <Input value={macroName} onChange={(e) => setMacroName(e.target.value)} required />
+          </Label>
+          <Label>
+            공개 메시지
+            <Textarea value={macroMessage} onChange={(e) => setMacroMessage(e.target.value)} required />
+          </Label>
+          <Button type="submit">매크로 저장</Button>
+        </form>
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
     </section>
   );

@@ -267,6 +267,28 @@ test("ticket view assigns to an inbox agent", async () => {
   expect(assigned[0].expectedVersion).toBe(1);
 });
 
+test("assign to me submits immediately", async () => {
+  const user = userEvent.setup();
+  const assigned = [];
+  render(
+    <App
+      session={{ ...session, userId: "me" }}
+      client={{
+        connect() {},
+        async assignConversation(req) {
+          assigned.push(req);
+          return { assignee_id: req.assigneeId, status: "open", version: 2 };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "담당자");
+  await user.click(screen.getByRole("button", { name: "나에게 배정" }));
+  expect(assigned[0].assigneeId).toBe("me");
+});
+
 test("ticket view posts an internal note", async () => {
   const user = userEvent.setup();
   const notes = [];
@@ -679,6 +701,38 @@ test("administrator adds a catalog label", async () => {
   await user.click(screen.getByRole("button", { name: "라벨 추가" }));
   expect(created[0].name).toBe("결제");
   expect(screen.getByRole("region", { name: "카탈로그" }).textContent).toContain("결제");
+});
+
+test("administrator creates a shared macro in catalog settings", async () => {
+  const user = userEvent.setup();
+  const created = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listAccountLabels() {
+          return { labels: [] };
+        },
+        async listCanned() {
+          return { canned_responses: [] };
+        },
+        async createMacro(req) {
+          created.push(req);
+          return { id: "m9", name: req.name };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "카탈로그" }));
+  await user.type(screen.getByLabelText("매크로 이름"), "환불 완료");
+  await user.type(screen.getByLabelText("공개 메시지"), "환불했습니다");
+  await user.click(screen.getByRole("button", { name: "매크로 저장" }));
+  expect(created[0].name).toBe("환불 완료");
+  expect(created[0].visibility).toBe("account");
+  expect(screen.getByRole("region", { name: "카탈로그" }).textContent).toContain("환불 완료");
 });
 
 test("reply posts through the gateway client", async () => {

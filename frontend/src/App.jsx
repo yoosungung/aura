@@ -616,6 +616,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         conversation={selected}
                         client={client}
                         onRan={applyMacro}
+                        allowCreate={session.role !== "administrator"}
                       />
                     </details>
                     <ResolveTicket
@@ -656,7 +657,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                               </span>
                             )}
                             {name}
-                            {a.file_size != null ? ` (${a.file_size} B)` : null}
+                            {a.file_size != null ? ` (${formatFileSize(a.file_size)})` : null}
                             {" 열기"}
                           </a>
                         );
@@ -898,6 +899,13 @@ function bubbleClass(m) {
     return `bubble bubble-in bg-slate-100 text-slate-900${sending}`;
   }
   return `bubble bubble-out${sending}`;
+}
+
+function formatFileSize(n) {
+  if (n < 1024) {
+    return `${n} B`;
+  }
+  return `${Math.round(n / 1024)} KB`;
 }
 
 function isImageAttachment(a) {

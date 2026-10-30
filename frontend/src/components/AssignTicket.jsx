@@ -33,10 +33,8 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
     };
   }, [client, conversation.inboxId, session]);
 
-  async function onSubmit(e) {
-    e.preventDefault();
+  async function assignTo(id) {
     setError("");
-    const id = assigneeId.trim();
     if (!id || !client.assignConversation) {
       return;
     }
@@ -61,6 +59,11 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
     } finally {
       setPending(false);
     }
+  }
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    await assignTo(assigneeId.trim());
   }
 
   return (
@@ -100,7 +103,10 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setAssigneeId(session.userId)}
+          onClick={() => {
+            setAssigneeId(session.userId);
+            assignTo(session.userId);
+          }}
         >
           나에게 배정
         </Button>

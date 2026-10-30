@@ -4,7 +4,7 @@ import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
 
-export function TicketMacros({ session, conversation, client, onRan }) {
+export function TicketMacros({ session, conversation, client, onRan, allowCreate }) {
   const [macros, setMacros] = useState([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState("");
@@ -96,7 +96,9 @@ export function TicketMacros({ session, conversation, client, onRan }) {
     }
   }
 
-  if (!client.listMacros && !client.createMacro) {
+  const canCreate = allowCreate !== false && !!client.createMacro;
+
+  if (!client.listMacros && !canCreate) {
     return null;
   }
 
@@ -114,12 +116,12 @@ export function TicketMacros({ session, conversation, client, onRan }) {
           ))}
         </ul>
       ) : null}
-      {client.createMacro ? (
+      {canCreate ? (
         <Button type="button" variant="ghost" size="sm" onClick={() => setCreating((v) => !v)}>
           매크로 만들기
         </Button>
       ) : null}
-      {client.createMacro && creating ? (
+      {canCreate && creating ? (
         <form onSubmit={onCreate} className="flex flex-col gap-2">
           <Label>
             매크로 이름
