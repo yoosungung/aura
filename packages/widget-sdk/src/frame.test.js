@@ -86,11 +86,46 @@ test("frame send uses own origin API after parent init", async () => {
   await frame.send("결제 오류");
   assert.equal(
     calls[0].url,
+    "https://help.example/public/api/v1/inboxes/inbox-1/auth",
+  );
+  assert.equal(JSON.parse(calls[0].opts.body).pubsub_token, "guest");
+  assert.equal(
+    calls[1].url,
     "https://help.example/public/api/v1/inboxes/inbox-1/messages",
   );
-  assert.equal(calls[0].opts.headers.Authorization, "Bearer guest");
-  assert.equal(JSON.parse(calls[0].opts.body).content, "결제 오류");
+  assert.equal(calls[1].opts.headers.Authorization, "Bearer rotated");
+  assert.equal(JSON.parse(calls[1].opts.body).content, "결제 오류");
   assert.equal(frame.token(), "rotated");
+});
+
+test("frame reuses an open websocket across sends", async () => {
+  const win = fakeFrame();
+  const socks = [];
+  const frame = createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        return { ok: true, json: async () => ({ access_token: "access" }) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 1;
+        socks.push(this);
+      }
+      close() {
+        this.readyState = 3;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("하나");
+  await frame.send("둘");
+  assert.equal(socks.length, 1);
 });
 
 test("setUser with identifier_hash posts identify", async () => {
@@ -99,6 +134,9 @@ test("setUser with identifier_hash posts identify", async () => {
   const frame = createFrame(win, {
     async fetch(url, opts) {
       calls.push({ url, opts });
+      if (String(url).endsWith("/auth")) {
+        return { ok: true, json: async () => ({ access_token: "access" }) };
+      }
       return { ok: true, json: async () => ({ identifier: "user-1" }) };
     },
     WebSocket: function WS() {},
@@ -112,9 +150,10 @@ test("setUser with identifier_hash posts identify", async () => {
     data: encode("setUser", { identifier: "user-1", identifier_hash: "abc", name: "Ada" }),
   });
   await new Promise((r) => setTimeout(r, 0));
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "https://help.example/public/api/v1/inboxes/inbox-1/identify");
-  assert.equal(JSON.parse(calls[0].opts.body).identifier_hash, "abc");
+  const identify = calls.find((c) => String(c.url).endsWith("/identify"));
+  assert.ok(identify);
+  assert.equal(identify.url, "https://help.example/public/api/v1/inboxes/inbox-1/identify");
+  assert.equal(JSON.parse(identify.opts.body).identifier_hash, "abc");
   assert.equal(frame.identifier(), "user-1");
 });
 

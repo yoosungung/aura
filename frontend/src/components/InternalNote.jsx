@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button.jsx";
-import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import { Textarea } from "./ui/textarea.jsx";
 
 export function InternalNote({ session, conversation, client, onNoted }) {
   const [draft, setDraft] = useState("");
@@ -37,7 +37,7 @@ export function InternalNote({ session, conversation, client, onNoted }) {
     <form onSubmit={onSubmit} className="note" aria-label="내부 메모">
       <Label>
         메모
-        <Input value={draft} onChange={(e) => setDraft(e.target.value)} required />
+        <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} required />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
       <Button type="submit" disabled={pending}>

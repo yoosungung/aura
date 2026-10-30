@@ -1,9 +1,25 @@
 <!doctype html>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aura</title>
+<style>
+  html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; background: #f8fafc; color: #0f172a; }
+  header { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+  header button { border: 0; background: transparent; font-size: 16px; cursor: pointer; }
+  #messages { flex: 1; margin: 0; padding: 16px; overflow: auto; list-style: none; }
+  #messages li { max-width: 80%; margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; }
+  #messages li[data-sender="User"] { margin-left: auto; background: #18181b; color: #fafafa; }
+  #composer { display: flex; gap: 8px; padding: 12px; background: #fff; border-top: 1px solid #e2e8f0; }
+  #composer input { flex: 1; height: 36px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; }
+</style>
+<header>
+  <strong>Aura 고객센터</strong>
+  <button type="button" id="close" aria-label="닫기">✕</button>
+</header>
 <ol id="messages"></ol>
 <form id="composer">
-  <input name="content" autocomplete="off" />
-  <button type="submit">Send</button>
+  <input name="content" autocomplete="off" aria-label="메시지를 입력하세요" placeholder="메시지를 입력하세요" />
+  <button type="submit">전송</button>
 </form>
 <script type="module" src="./widget.js"></script>

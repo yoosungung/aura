@@ -75,6 +75,26 @@ test("selecting a queue card shows the thread", async () => {
   expect(screen.getByRole("log").textContent).toContain("결제 오류");
 });
 
+test("administrator settings live behind the rail", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [] };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "인박스 멤버" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
+});
+
 test("administrator can add an inbox member", async () => {
   const user = userEvent.setup();
   const added = [];
@@ -92,6 +112,7 @@ test("administrator can add an inbox member", async () => {
       }}
     />,
   );
+  await user.click(screen.getByRole("button", { name: "설정" }));
   expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
   await user.type(screen.getByLabelText("상담원 ID"), "user-1");
   await user.click(screen.getByRole("button", { name: "추가" }));
@@ -128,6 +149,7 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
       }}
     />,
   );
+  await user.click(screen.getByRole("button", { name: "설정" }));
   expect(screen.getByRole("region", { name: "HMAC 시크릿" })).toBeTruthy();
   expect(screen.queryByText("secret")).toBeNull();
   await user.click(screen.getByRole("button", { name: "보기" }));
@@ -178,6 +200,7 @@ test("ticket view posts an internal note", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "내부 메모" }));
   await user.type(screen.getByLabelText("메모"), "환불 검토");
   await user.click(screen.getByRole("button", { name: "메모" }));
   expect(notes[0].content).toBe("환불 검토");
@@ -227,6 +250,7 @@ test("ticket view keeps a note and a label on the same thread", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "내부 메모" }));
   await user.type(screen.getByLabelText("메모"), "환불 검토");
   await user.click(screen.getByRole("button", { name: "메모" }));
   await user.type(screen.getByLabelText("라벨 이름"), "환불");
@@ -324,6 +348,7 @@ test("ticket view keeps a note, a label, and an attachment on the same thread", 
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "내부 메모" }));
   await user.type(screen.getByLabelText("메모"), "환불 검토");
   await user.click(screen.getByRole("button", { name: "메모" }));
   await user.type(screen.getByLabelText("라벨 이름"), "환불");
@@ -522,6 +547,7 @@ test("administrator adds a catalog label", async () => {
       initialState={fixtureState()}
     />,
   );
+  await user.click(screen.getByRole("button", { name: "설정" }));
   await user.type(screen.getByLabelText("카탈로그 라벨"), "결제");
   await user.click(screen.getByRole("button", { name: "라벨 추가" }));
   expect(created[0].name).toBe("결제");

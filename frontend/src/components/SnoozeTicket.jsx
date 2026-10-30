@@ -38,14 +38,21 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
     }
   }
 
+  function presetHours(hours) {
+    setUntil(new Date(Date.now() + hours * 3600_000).toISOString());
+  }
+
   return (
     <form onSubmit={onSubmit} className="snooze" aria-label="티켓 스누즈">
+      <Button type="button" variant="outline" size="sm" onClick={() => presetHours(1)}>
+        1시간 뒤
+      </Button>
       <Label>
         스누즈 시각
         <Input value={until} onChange={(e) => setUntil(e.target.value)} required />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" size="sm" disabled={pending}>
         스누즈
       </Button>
     </form>

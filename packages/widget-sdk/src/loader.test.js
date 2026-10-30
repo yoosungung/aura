@@ -22,10 +22,27 @@ function fakeHost(origin = "https://shop.example") {
         style: {},
         title: "",
         sent: [],
+        children: [],
+        textContent: "",
         contentWindow: {
           postMessage(data, target) {
             el.sent.push({ data, target });
           },
+        },
+        appendChild(child) {
+          this.children.push(child);
+        },
+        attachShadow() {
+          this.shadow = {
+            innerHTML: "",
+            appendChild(child) {
+              this.host = child;
+            },
+            querySelector() {
+              return this.host;
+            },
+          };
+          return this.shadow;
         },
       };
       return el;
@@ -83,4 +100,20 @@ test("javascript baseUrl does not create an iframe", () => {
     createLoader(win, { baseUrl: "javascript:alert(1)", inboxId: "i", token: "t" }),
   );
   assert.equal(win.document.body.children.length, 0);
+});
+
+test("closed loader does not let the iframe intercept host clicks", () => {
+  const win = fakeHost();
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  assert.equal(api.open, false);
+  assert.equal(api.iframe.style.display, "none");
+  assert.equal(api.iframe.style.pointerEvents, "none");
+  api.toggle();
+  assert.equal(api.open, true);
+  assert.notEqual(api.iframe.style.display, "none");
+  assert.equal(api.iframe.style.pointerEvents, "auto");
 });

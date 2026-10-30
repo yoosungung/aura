@@ -12,6 +12,7 @@ export function TicketMacros({ session, conversation, client, onRan }) {
   const [message, setMessage] = useState("");
   const [label, setLabel] = useState("");
   const [resolve, setResolve] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (!client.listMacros) {
@@ -114,6 +115,11 @@ export function TicketMacros({ session, conversation, client, onRan }) {
         </ul>
       ) : null}
       {client.createMacro ? (
+        <Button type="button" variant="ghost" size="sm" onClick={() => setCreating((v) => !v)}>
+          매크로 만들기
+        </Button>
+      ) : null}
+      {client.createMacro && creating ? (
         <form onSubmit={onCreate} className="flex flex-col gap-2">
           <Label>
             매크로 이름

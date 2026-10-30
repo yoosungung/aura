@@ -19,11 +19,14 @@ export function createFrame(win, deps = {}) {
     };
   }
 
+  let seed = "";
   let token = "";
   let inboxId = "";
   let boundIdentifier = "";
   let pendingUser = null;
   let socket;
+  let lastWsToken = "";
+  let exchanging;
 
   const apiBase = win.location.origin;
 
@@ -38,9 +41,13 @@ export function createFrame(win, deps = {}) {
       return;
     }
     if (msg.event === "init") {
-      token = msg.payload.token ?? "";
+      seed = msg.payload.token ?? "";
       inboxId = msg.payload.inboxId ?? "";
-      bindUser();
+      exchanging = null;
+      token = "";
+      ensureAuth()
+        .then(() => bindUser())
+        .catch(() => {});
     }
     if (msg.event === "setUser" && msg.payload.identifier_hash && msg.payload.identifier) {
       pendingUser = {
@@ -49,9 +56,44 @@ export function createFrame(win, deps = {}) {
         name: msg.payload.name || "",
         email: msg.payload.email || "",
       };
-      bindUser();
+      ensureAuth()
+        .then(() => bindUser())
+        .catch(() => {});
+    }
+    if (msg.event === "toggle" && msg.payload?.open === false) {
+      win.parent.postMessage(encode("close"), parentOrigin);
     }
   });
+
+  async function ensureAuth() {
+    if (token) {
+      return token;
+    }
+    if (!seed || !inboxId) {
+      throw new Error("not initialized");
+    }
+    if (!exchanging) {
+      exchanging = (async () => {
+        const res = await fetchImpl(`${apiBase}/public/api/v1/inboxes/${inboxId}/auth`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pubsub_token: seed }),
+        });
+        if (!res.ok) {
+          exchanging = null;
+          throw new Error("auth failed");
+        }
+        const body = await res.json();
+        token = body.access_token || body.token || "";
+        connectWS();
+        return token;
+      })().catch((err) => {
+        exchanging = null;
+        throw err;
+      });
+    }
+    return exchanging;
+  }
 
   async function bindUser() {
     if (!pendingUser || !token || !inboxId) {
@@ -76,8 +118,19 @@ export function createFrame(win, deps = {}) {
     if (!token || !WebSocketImpl) {
       return;
     }
+    const connecting = 0;
+    const open = 1;
+    if (
+      socket &&
+      lastWsToken === token &&
+      (socket.readyState === connecting || socket.readyState === open || socket.readyState == null)
+    ) {
+      return;
+    }
+    socket?.close?.();
     const wsBase = apiBase.replace(/^http/, "ws");
     socket = new WebSocketImpl(`${wsBase}/ws?token=${encodeURIComponent(token)}`);
+    lastWsToken = token;
     socket.onmessage = (event) => {
       let payload;
       try {
@@ -93,7 +146,7 @@ export function createFrame(win, deps = {}) {
       }
       const msg = payload.message?.payload || {};
       if (msg.content_type === "input_csat") {
-        appendCSAT(msg.content, payload.conversation_id);
+        appendCSAT(msg.content);
         return;
       }
       const content = msg.content;
@@ -135,6 +188,7 @@ export function createFrame(win, deps = {}) {
   }
 
   async function rate(rating) {
+    await ensureAuth();
     if (!token || !inboxId) {
       return;
     }
@@ -149,6 +203,7 @@ export function createFrame(win, deps = {}) {
   }
 
   async function send(content) {
+    await ensureAuth();
     if (!token || !inboxId) {
       throw new Error("not initialized");
     }
@@ -161,11 +216,17 @@ export function createFrame(win, deps = {}) {
       body: JSON.stringify({ content }),
     });
     if (!res.ok) {
+      if (res.status === 401) {
+        token = "";
+        exchanging = null;
+        await ensureAuth();
+        return send(content);
+      }
       throw new Error("send failed");
     }
     const body = await res.json();
-    if (body.token) {
-      token = body.token;
+    if (body.access_token || body.token) {
+      token = body.access_token || body.token;
     }
     append(content, "Contact");
     connectWS();

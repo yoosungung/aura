@@ -29,7 +29,7 @@ export function ResolveTicket({ session, conversation, client, onResolved }) {
   }
 
   return (
-    <div className="resolve flex items-center gap-2 p-3" aria-label="티켓 해결">
+    <div className="resolve" aria-label="티켓 해결">
       {error ? <p role="alert">{error}</p> : null}
       {conversation.status !== "pending" ? (
         <Button type="button" variant="outline" onClick={() => onStatus("pending")} disabled={!!busy}>
