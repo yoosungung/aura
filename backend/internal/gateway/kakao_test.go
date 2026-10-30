@@ -190,9 +190,9 @@ func TestHTTP_CstalkMessage_A000(t *testing.T) {
 }
 
 type fakeKakaoSender struct {
-	mu                             sync.Mutex
-	consult, alim                  int
-	from, to, phone, template, msg string
+	mu            sync.Mutex
+	consult       int
+	from, to, msg string
 }
 
 func (f *fakeKakaoSender) SendConsult(_ context.Context, senderKey, userKey, message string) error {
@@ -200,14 +200,6 @@ func (f *fakeKakaoSender) SendConsult(_ context.Context, senderKey, userKey, mes
 	defer f.mu.Unlock()
 	f.consult++
 	f.from, f.to, f.msg = senderKey, userKey, message
-	return nil
-}
-
-func (f *fakeKakaoSender) SendAlimtalk(_ context.Context, senderKey, userKey, phone, template, message string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.alim++
-	f.from, f.to, f.phone, f.template, f.msg = senderKey, userKey, phone, template, message
 	return nil
 }
 
@@ -219,21 +211,20 @@ func TestDeliverKakao_ConsultWhenSessionLive(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if sender.consult != 1 || sender.alim != 0 || sender.msg != "확인했습니다" {
+	if sender.consult != 1 || sender.msg != "확인했습니다" {
 		t.Fatalf("%+v", sender)
 	}
 }
 
-func TestDeliverKakao_AlimtalkWhenExpired(t *testing.T) {
+func TestDeliverKakao_SkipsWhenExpired(t *testing.T) {
 	sender := &fakeKakaoSender{}
 	svc := &gateway.Service{KakaoSender: sender}
 	if err := svc.DeliverKakaoOutbound(context.Background(), gateway.OutboundTask{
-		From: "sender-acme", To: "user-ada", Content: "확인했습니다",
-		SessionLive: false, Template: "TPL_CS", Phone: "01012345678",
+		From: "sender-acme", To: "user-ada", Content: "확인했습니다", SessionLive: false,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if sender.alim != 1 || sender.consult != 0 || sender.template != "TPL_CS" {
+	if sender.consult != 0 {
 		t.Fatalf("%+v", sender)
 	}
 }
@@ -243,7 +234,7 @@ func TestSubmit_AgentKakaoPublishesOutbound(t *testing.T) {
 	bus := &fakeBus{}
 	email := &fakeEmail{replySkip: true}
 	kakao := &fakeKakao{reply: gateway.KakaoReplyOut{
-		From: "sender-acme", To: "user-ada", SessionLive: true, Template: "TPL_CS",
+		From: "sender-acme", To: "user-ada", SessionLive: true,
 	}}
 	svc := &gateway.Service{Secret: secret, Bus: bus, Email: email, Kakao: kakao}
 	tok := gateway.Token{
@@ -266,6 +257,29 @@ func TestSubmit_AgentKakaoPublishesOutbound(t *testing.T) {
 	}
 	if task.From != "sender-acme" || task.To != "user-ada" || !task.SessionLive || task.Content != "확인했습니다" {
 		t.Fatalf("%+v", task)
+	}
+}
+
+func TestSubmit_AgentKakaoExpiredSkipsOutbound(t *testing.T) {
+	accountID, inboxID := mustV7(t), mustV7(t)
+	bus := &fakeBus{}
+	email := &fakeEmail{replySkip: true}
+	kakao := &fakeKakao{reply: gateway.KakaoReplyOut{
+		From: "sender-acme", To: "user-ada", SessionLive: false,
+	}}
+	svc := &gateway.Service{Secret: secret, Bus: bus, Email: email, Kakao: kakao}
+	tok := gateway.Token{
+		Kind: gateway.KindUser, AccountID: accountID, UserID: mustV7(t),
+		InboxIDs: []uuid.UUID{inboxID},
+	}
+	if _, err := svc.SubmitAgent(context.Background(), tok, accountID, mustV7(t), gateway.SubmitRequest{
+		Content: "확인했습니다", InboxID: inboxID, ContactID: mustV7(t), ContactInboxID: mustV7(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ev, _ := bus.counts()
+	if ev != 1 {
+		t.Fatalf("events=%d", ev)
 	}
 }
 

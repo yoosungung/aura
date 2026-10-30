@@ -161,8 +161,5 @@ func (s *Service) KakaoReply(ctx context.Context, in ListInput) (KakaoReplyOut, 
 		return KakaoReplyOut{}, false, ErrInvalid
 	}
 	live := lastContact != nil && time.Since(*lastContact) < KakaoSession
-	if !live && template == "" {
-		return KakaoReplyOut{}, false, ErrInvalid
-	}
 	return KakaoReplyOut{From: from, To: to, Template: template, Phone: phone, SessionLive: live}, false, nil
 }

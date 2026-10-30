@@ -150,7 +150,7 @@ func TestRPC_ResolveKakao(t *testing.T) {
 	}
 }
 
-func TestKakaoReply_SessionAndAlimtalk(t *testing.T) {
+func TestKakaoReply_SessionWindow(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)
 	webAccount, webInbox := seedInbox(t, admin)
@@ -170,17 +170,11 @@ func TestKakaoReply_SessionAndAlimtalk(t *testing.T) {
 	}
 
 	accountID, inboxID := seedKakaoInbox(t, admin, "sender-acme")
-	if _, err := admin.Exec(ctx, `UPDATE inboxes SET kakao_alimtalk_template = 'TPL_CS' WHERE id = $1`, inboxID); err != nil {
-		t.Fatal(err)
-	}
 	adminID = seedUser(t, admin, accountID, "kakao-boss@acme.test", "administrator", "s3cret")
 	created, err := svc.Create(ctx, core.CreateInput{
 		AccountID: accountID, InboxID: inboxID, SourceID: "user-ada", Name: "Ada", ReuseContact: true,
 	})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := admin.Exec(ctx, `UPDATE contacts SET phone_number = '01012345678' WHERE id = $1`, created.ContactID); err != nil {
 		t.Fatal(err)
 	}
 	msgID, err := uuid.NewV7()
@@ -199,7 +193,7 @@ func TestKakaoReply_SessionAndAlimtalk(t *testing.T) {
 	got, skip, err := svc.KakaoReply(ctx, core.ListInput{
 		ActorUserID: adminID, AccountID: accountID, ConversationID: created.ConversationID,
 	})
-	if err != nil || skip || !got.SessionLive || got.From != "sender-acme" || got.To != "user-ada" || got.Template != "TPL_CS" || got.Phone != "01012345678" {
+	if err != nil || skip || !got.SessionLive || got.From != "sender-acme" || got.To != "user-ada" {
 		t.Fatalf("%+v skip=%v err=%v", got, skip, err)
 	}
 
@@ -220,9 +214,6 @@ func TestRPC_KakaoReply(t *testing.T) {
 	admin, app := testutil.Postgres(t)
 	nc, js := testutil.NATSConn(t)
 	accountID, inboxID := seedKakaoInbox(t, admin, "sender-acme")
-	if _, err := admin.Exec(ctx, `UPDATE inboxes SET kakao_alimtalk_template = 'TPL_CS' WHERE id = $1`, inboxID); err != nil {
-		t.Fatal(err)
-	}
 	adminID := seedUser(t, admin, accountID, "kakao-boss@acme.test", "administrator", "s3cret")
 	go func() { _ = core.Serve(ctx, nc, js, appPool(t, app)) }()
 	time.Sleep(200 * time.Millisecond)
@@ -248,12 +239,11 @@ func TestRPC_KakaoReply(t *testing.T) {
 		From        string `json:"from"`
 		To          string `json:"to"`
 		SessionLive bool   `json:"session_live"`
-		Template    string `json:"template"`
 	}
 	if err := json.Unmarshal(reply.Data, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !out.OK || out.Skip || out.From != "sender-acme" || out.To != "user-ada" || out.SessionLive || out.Template != "TPL_CS" {
+	if !out.OK || out.Skip || out.From != "sender-acme" || out.To != "user-ada" || out.SessionLive {
 		t.Fatalf("%s", reply.Data)
 	}
 }

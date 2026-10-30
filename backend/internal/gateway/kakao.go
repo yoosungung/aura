@@ -31,7 +31,6 @@ type KakaoResolver interface {
 
 type KakaoSender interface {
 	SendConsult(ctx context.Context, senderKey, userKey, message string) error
-	SendAlimtalk(ctx context.Context, senderKey, userKey, phone, template, message string) error
 }
 
 type kakaoWebhook struct {
@@ -110,13 +109,10 @@ func (s *Service) DeliverKakaoOutbound(ctx context.Context, t OutboundTask) erro
 	if strings.TrimSpace(t.From) == "" || strings.TrimSpace(t.To) == "" || strings.TrimSpace(t.Content) == "" {
 		return ErrInvalid
 	}
-	if t.SessionLive {
-		return s.KakaoSender.SendConsult(ctx, t.From, t.To, t.Content)
+	if !t.SessionLive {
+		return nil
 	}
-	if t.Template == "" {
-		return ErrInvalid
-	}
-	return s.KakaoSender.SendAlimtalk(ctx, t.From, t.To, t.Phone, t.Template, t.Content)
+	return s.KakaoSender.SendConsult(ctx, t.From, t.To, t.Content)
 }
 
 type KakaoHub struct {
@@ -128,13 +124,6 @@ type KakaoHub struct {
 func (h KakaoHub) SendConsult(ctx context.Context, senderKey, userKey, message string) error {
 	return h.post(ctx, "/cstalk/plain", map[string]string{
 		"userKey": userKey, "senderKey": senderKey, "msgType": "TEXT", "message": message,
-	})
-}
-
-func (h KakaoHub) SendAlimtalk(ctx context.Context, senderKey, userKey, phone, template, message string) error {
-	return h.post(ctx, "/alimtalk", map[string]string{
-		"userKey": userKey, "senderKey": senderKey, "phone": phone,
-		"template_code": template, "message": message,
 	})
 }
 

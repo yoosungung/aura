@@ -16,7 +16,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 8. **Realtime은 유실을 허용한다.** typing·presence·큐 푸시는 NATS Core(`helpdesk.realtime.>`)다. 대화 불변 로그는 JetStream Limits 90일(`helpdesk.events.>`). 작업은 JetStream WorkQueue(`helpdesk.tasks.>`).
 9. **WorkQueue 컨슈머 필터는 겹치지 않는다.** `helpdesk.tasks.ai.>`, `helpdesk.tasks.outbound.>`, `helpdesk.tasks.ontology.>`, `helpdesk.tasks.webhooks.>`, `helpdesk.tasks.sla.>`, `helpdesk.tasks.snooze.>` 로 분리한다.
 10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다. `setUser`는 현재 컨택트에 identifier만 쓴다. 다른 컨택트와 겹치면 거절한다. 컨택트 병합은 `svc-core`의 `contact_merged`만 하고, 대화 스레드는 합치지 않는다. API·WS는 짧은 만료 HMAC 접근 토큰만 받는다. `users.pubsub_token` / `contact_inboxes.pubsub_token`은 시드이며 Bearer·쿼리 토큰으로 쓰지 않는다.
-11. **카카오 세션은 30일이다.** 상담톡은 고객 마지막 메시지 후 30일. 알림톡은 세션 없이 템플릿. WhatsApp 24시간 창은 `gateway-social` 전용이다.
+11. **카카오 세션은 30일이다.** 상담톡은 고객 마지막 메시지 후 30일, 세션이 있을 때만 발송한다. 알림톡(세션 없이 승인 템플릿)은 출시 후. WhatsApp 24시간 창은 `gateway-social` 전용이다.
 12. **이벤트 Envelope는 하위 호환으로만 진화한다.** `schema_version`은 필수다. 필드 삭제·의미 변경을 하지 않는다. 필수 필드를 추가할 때는 기본값을 정한다. `trace_id`(W3C Trace Context), `causation_id`(유발 이벤트 id, 최초 발행이면 생략), `hop_count`를 넣는다. `hop_count > 5`인 이벤트는 자동화가 드롭한다.
 13. **ingestion은 독성 이벤트 때문에 배치를 무한 NACK하지 않는다.** 플러시 순서는 `contacts` → `contact_inboxes` → `conversations` → `messages` → `attachments` → 상태/배정이다. 배치 트랜잭션이 실패하면 단건(또는 `SAVEPOINT`)으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`으로 보낸 뒤 ACK한다.
 14. **상담원 인증은 자체 세션이다.** 이메일+비밀번호. P3에 OIDC를 두지 않는다. 비밀번호는 Argon2id로만 저장한다. 세션 행은 `svc-core`가 PG에 커밋하고, `gateway-web`이 접근 토큰을 서명한다. 게이트웨이는 `users`를 읽지 않는다.
@@ -44,7 +44,7 @@ ingestion-worker  svc-core    svc-ai-agent
 | 컴포넌트 | 책임 | PG |
 |---|---|---|
 | `gateway-web` | 위젯·상담원 WebSocket, Client API, 인입 정규화, realtime 브리지 | 없음 |
-| `gateway-kakao` | 상담톡/알림톡 웹훅·아웃바운드 | 없음 |
+| `gateway-kakao` | 상담톡 웹훅·아웃바운드. 알림톡은 출시 후 | 없음 |
 | `gateway-email` | SMTP `:25` MIME 수신, In-Reply-To 스레딩, SMTP 발송 | 없음 |
 | `gateway-social` | WhatsApp/SMS. P7 이후 | 없음 |
 | `svc-ingestion-worker` | `helpdesk.events.>` Pull 배치(500건 또는 100ms). 계층 정렬·단건 폴백·DLQ | 메시지·첨부·온톨로지·도구감사·CSAT·적용 SLA. 컨택트·대화는 멱등 업서트 |
@@ -115,13 +115,13 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.inboxes.get` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inboxes.rotate_hmac` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.email_reply` | `actor_user_id`, `account_id`, `conversation_id`. 이메일 인박스면 `from`/`to`/`display_id`/`in_reply_to`, 아니면 `skip` | gateway-web | svc-core |
-| Core | `helpdesk.rpc.conversations.kakao_reply` | `actor_user_id`, `account_id`, `conversation_id`. 카카오 인박스면 `from`(sender_key)/`to`(userKey)/`session_live`/`template`/`phone`, 아니면 `skip` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.kakao_reply` | `actor_user_id`, `account_id`, `conversation_id`. 카카오 인박스면 `from`(sender_key)/`to`(userKey)/`session_live`, 아니면 `skip` | gateway-web | svc-core |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.csat_submitted` | `rating`, `feedback` | gateway-\* | ingestion |
 | WorkQueue | `helpdesk.tasks.ai.reasoning` | `conversation_id`, `trigger_message_id` | gateway-\*, svc-core | svc-ai-agent |
-| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live`, `template`, `phone` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
+| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
 | WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
 | WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `event` | automation, svc-core | svc-core 워커 |
 | WorkQueue | `helpdesk.tasks.sla.evaluate` | `conversation_id` | sla-routing 스케줄 | sla-routing |
@@ -663,7 +663,7 @@ CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_n
 
 `gateway-kakao` 인입은 HTTP `POST /cstalk/message`(환경 `AURA_KAKAO_ADDR`, 기본 `:8081`)다. 웹훅 JSON이 신뢰 경계다. `inboxes.kakao_sender_key`는 UNIQUE이고, 테넌트 GUC 없이 `inbox_by_kakao` SECURITY DEFINER로만 조회한다. `userKey`는 `contact_inboxes.source_id`, `msgKey`는 `messages.source_id`다. 같은 msgKey는 `message_created`를 재발행하지 않는다. 그 컨택트의 미해결 대화가 있으면 붙이고, 없으면 `conversations.create`(`reuse_contact=true`)가 성공한 뒤에만 발행한다. 응답은 `{"code":"A000","result":"Success"}`. PG는 쓰지 않는다.
 
-`gateway-kakao` 아웃바운드는 WorkQueue `helpdesk.tasks.outbound.kakao`다. 상담원 답장은 `gateway-web`이 `conversations.kakao_reply`로 채널을 확인하고, 카카오면 `message_created` 뒤에 태스크를 넣는다. 세션은 고객 마지막 인입 메시지 후 30일이다. 살아 있으면 허브 `POST {AURA_KAKAO_API_URL}/cstalk/plain`(`senderKey`/`userKey`/`msgType=TEXT`), 아니면 인박스 `kakao_alimtalk_template`로 `POST {AURA_KAKAO_API_URL}/alimtalk`. 인증은 `AURA_KAKAO_API_KEY`. PG는 쓰지 않는다.
+`gateway-kakao` 아웃바운드는 WorkQueue `helpdesk.tasks.outbound.kakao`다. 상담원 답장은 `gateway-web`이 `conversations.kakao_reply`로 채널을 확인하고, 카카오이고 세션이 살아 있으면 `message_created` 뒤에 태스크를 넣는다. 세션은 고객 마지막 인입 메시지 후 30일이다. 허브 `POST {AURA_KAKAO_API_URL}/cstalk/plain`(`senderKey`/`userKey`/`msgType=TEXT`), 인증은 `AURA_KAKAO_API_KEY`. 세션이 꺼져 있으면 티켓에는 남고 카카오로는 보내지 않는다. 알림톡은 출시 후. PG는 쓰지 않는다.
 
 첨부 `external_url` 은 오브젝트 스토리지(로컬 SeaweedFS 필러). 게이트웨이는 파일을 `{account_id}/{attachment_id}/` 경로에 올린 뒤 URL만 이벤트에 넣는다. `message_created` payload `attachments` 원소는 `{ id, file_type, external_url, file_size }`다. ingestion이 `attachments` 행을 멱등 insert한다.
 

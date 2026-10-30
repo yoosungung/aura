@@ -56,12 +56,12 @@
 ## P4 옴니채널
 
 - `gateway-email` 인입: SMTP `:25` + `emersion/go-smtp` / `go-message`. 웹훅 HMAC은 없고 MX DATA가 신뢰 경계. In-Reply-To / References → `messages.source_id`, 구분자 `##- Please type your reply above this line -##`, 제목 `[#REQ-{display_id}]`. 코어 생성 RPC(`reuse_contact`) 성공 뒤에만 JetStream `message_created`.
-- `gateway-kakao`: 상담톡 30일 세션, 세션 밖 알림톡 템플릿.
+- `gateway-kakao`: 상담톡 30일 세션. 세션이 살아 있을 때만 상담톡 발송.
 - `helpdesk.tasks.outbound.email` / `outbound.kakao`.
 - 256KB 초과 본문·MIME은 오브젝트 스토리지 Claim-Check (`content_ref`).
 - 고객 병합: `contact_merged` 이벤트, `contacts.merged_into_contact_id`. HMAC 통과 + 소스가 익명(identifier 없음)일 때만 티켓 `contact_id`를 기존 식별 컨택트로 옮긴다. 스레드는 합치지 않는다. `setUser` identify는 병합하지 않는다.
 
-성공: 메일 회신이 기존 티켓에 붙는다. 카카오 세션이 없으면 알림톡으로 나간다. `gateway-social`은 출시 후.
+성공: 메일 회신이 기존 티켓에 붙는다. 카카오 세션이 살아 있으면 상담톡으로 나간다. `gateway-social`은 출시 후.
 
 ## P5 운영 자동화
 
@@ -94,6 +94,7 @@
 
 ## 출시 후
 
+- 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
 - `gateway-social` (WhatsApp 24시간 창, SMS)
 - Skill/Team 라우팅 고도화
 - PG 읽기 복제본

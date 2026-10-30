@@ -184,7 +184,7 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 		if err != nil {
 			return SubmitResult{}, err
 		}
-		if !skip {
+		if !skip && out.SessionLive {
 			kakao = out
 			outbound = OutboundKakaoSubject
 		}
