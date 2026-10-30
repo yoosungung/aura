@@ -2,6 +2,7 @@ package routing
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -20,6 +21,7 @@ type Service struct {
 	DB       DB
 	Capacity Store
 	Assigner Assigner
+	Now      func() time.Time
 }
 
 func (s *Service) Route(ctx context.Context, accountID, inboxID, conversationID uuid.UUID, traceID string) error {

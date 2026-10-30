@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { emptyState, reduce, visibleInQueue } from "./store.js";
+import { conversationsFromAPI, emptyState, reduce, visibleInQueue } from "./store.js";
 
 function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
   return {
@@ -182,5 +182,12 @@ describe("reduce realtime", () => {
       },
     });
     assert.equal(s.messages.c1[0].attachments[0].external_url, "http://filer/receipt.png");
+  });
+});
+
+describe("conversationsFromAPI", () => {
+  it("maps sla_breached onto the queue card", () => {
+    const rows = conversationsFromAPI([{ id: "c1", last_content: "지연", sla_breached: true }]);
+    assert.equal(rows[0].slaBreached, true);
   });
 });

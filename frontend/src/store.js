@@ -37,6 +37,7 @@ export function conversationsFromAPI(rows) {
     lastContent: c.last_content,
     unread: 0,
     labels: c.labels || [],
+    slaBreached: !!c.sla_breached,
   }));
 }
 

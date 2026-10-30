@@ -243,6 +243,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                   onClick={() => dispatch({ type: "select", id: c.id })}
                 >
                   {c.lastContent}
+                  {c.slaBreached ? <Badge>SLA</Badge> : null}
                   {(c.labels || []).map((l) => (
                     <Badge key={l.id || l.name} variant="secondary">
                       {l.name}

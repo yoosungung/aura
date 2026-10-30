@@ -719,6 +719,7 @@ func (s *Service) handleConversationsList(msg *nats.Msg) {
 			"version":          c.Version,
 			"display_id":       c.DisplayID,
 			"last_content":     c.LastContent,
+			"sla_breached":     c.SLABreached,
 		}
 		if c.AssigneeID != uuid.Nil {
 			row["assignee_id"] = c.AssigneeID.String()

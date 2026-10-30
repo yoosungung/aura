@@ -378,6 +378,7 @@ test("workspace hydrates the queue from the conversation list", async () => {
                 last_content: "배송 문의",
                 status: "open",
                 version: 1,
+                sla_breached: true,
               },
             ],
           };
@@ -386,6 +387,7 @@ test("workspace hydrates the queue from the conversation list", async () => {
     />,
   );
   expect(await screen.findByRole("button", { name: /배송 문의/ })).toBeTruthy();
+  expect(screen.getByText("SLA")).toBeTruthy();
 });
 
 test("ticket view marks pending and keeps the card", async () => {

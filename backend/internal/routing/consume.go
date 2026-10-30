@@ -36,7 +36,7 @@ func (s *Service) Consume(ctx context.Context, js jetstream.JetStream) error {
 
 func (s *Service) handle(msg jetstream.Msg) {
 	env, err := ingest.Parse(msg.Data())
-	if err != nil || env.Type != "message_created" {
+	if err != nil {
 		_ = msg.Ack()
 		return
 	}
@@ -55,7 +55,24 @@ func (s *Service) handle(msg jetstream.Msg) {
 		_ = msg.Ack()
 		return
 	}
-	if err := s.Route(context.Background(), accountID, inboxID, conversationID, env.TraceID); err != nil {
+	ctx := context.Background()
+	switch env.Type {
+	case "message_created":
+		if err := s.OnMessage(ctx, accountID, conversationID, env.Payload.MessageType, env.Payload.Private); err != nil {
+			_ = msg.Nak()
+			return
+		}
+		if err := s.Route(ctx, accountID, inboxID, conversationID, env.TraceID); err != nil {
+			_ = msg.Nak()
+			return
+		}
+	case "status_changed":
+		// Evaluate below uses current PG status (pending pauses NRT).
+	default:
+		_ = msg.Ack()
+		return
+	}
+	if err := s.Evaluate(ctx, accountID, conversationID); err != nil {
 		_ = msg.Nak()
 		return
 	}
