@@ -27,7 +27,9 @@ func (s *Server) Handler() http.Handler {
 		files := http.FileServer(http.Dir(s.WidgetDir))
 		mux.Handle("GET /widget.html", files)
 		mux.Handle("GET /widget.js", files)
+		mux.Handle("GET /widget.min.js", files)
 		mux.Handle("GET /sdk.js", files)
+		mux.Handle("GET /aura-loader.min.js", files)
 		mux.Handle("GET /src/", files)
 	}
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)

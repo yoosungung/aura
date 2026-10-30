@@ -102,3 +102,27 @@ func TestHTTP_WidgetHTML(t *testing.T) {
 		t.Fatalf("status %d", res.StatusCode)
 	}
 }
+
+func TestHTTP_WidgetBundles(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"aura-loader.min.js", "widget.min.js"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv := httptest.NewServer((&gateway.Server{
+		Service:   &gateway.Service{Secret: secret},
+		WidgetDir: dir,
+	}).Handler())
+	t.Cleanup(srv.Close)
+	for _, path := range []string{"/aura-loader.min.js", "/widget.min.js"} {
+		res, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s status %d", path, res.StatusCode)
+		}
+		res.Body.Close()
+	}
+}

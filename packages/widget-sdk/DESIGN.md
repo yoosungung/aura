@@ -19,8 +19,18 @@
 ```sh
 cd packages/widget-sdk
 npm test
+npm run build
 ```
 
-iframe 엔트리는 `{helpdeskOrigin}/widget.html`(게이트웨이 `AURA_WIDGET_DIR`). 호스트는 `sdk.js`의 `run({ baseUrl, inboxId, token })`.
+iframe 엔트리는 `{helpdeskOrigin}/widget.html`(게이트웨이 `AURA_WIDGET_DIR`). `npm run build`가 호스트 IIFE `aura-loader.min.js`(5KB 미만, 런타임 의존성 없음)와 iframe `widget.min.js`를 만든다.
 
-호스트 예: `window.$aura = run({ baseUrl, inboxId, token })`. `token`은 Contact `pubsub_token` 시드. 호스트 버튼을 쓸 때는 `launcher: false`로 기본 런처를 숨기고 `$aura.toggle()`로 연다.
+호스트 예 (`</body>` 직전):
+
+```html
+<script src="{helpdeskOrigin}/aura-loader.min.js"></script>
+<script>
+  window.$aura = auraSDK.run({ baseUrl, inboxId, token });
+</script>
+```
+
+`token`은 Contact `pubsub_token` 시드. 호스트 버튼을 쓸 때는 `launcher: false`로 기본 런처를 숨기고 `$aura.toggle()`로 연다.
