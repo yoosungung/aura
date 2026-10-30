@@ -111,6 +111,50 @@ func (s *Service) Refresh(ctx context.Context, sessionToken string) (AuthResult,
 	}, nil
 }
 
+type ContactAuthInput struct {
+	InboxID     uuid.UUID
+	PubsubToken string
+}
+
+type ContactAuthResult struct {
+	AccountID      uuid.UUID
+	InboxID        uuid.UUID
+	ContactID      uuid.UUID
+	ContactInboxID uuid.UUID
+	ConversationID uuid.UUID
+	SourceID       string
+}
+
+func (s *Service) AuthContact(ctx context.Context, in ContactAuthInput) (ContactAuthResult, error) {
+	if in.InboxID == uuid.Nil || strings.TrimSpace(in.PubsubToken) == "" {
+		return ContactAuthResult{}, ErrUnauthorized
+	}
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return ContactAuthResult{}, err
+	}
+	defer tx.Rollback(ctx)
+	var out ContactAuthResult
+	var convID *uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT account_id, inbox_id, contact_id, contact_inbox_id, source_id, conversation_id
+		FROM auth_contact_seed($1, $2)`, in.InboxID, in.PubsubToken,
+	).Scan(&out.AccountID, &out.InboxID, &out.ContactID, &out.ContactInboxID, &out.SourceID, &convID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return ContactAuthResult{}, ErrUnauthorized
+		}
+		return ContactAuthResult{}, err
+	}
+	if convID != nil {
+		out.ConversationID = *convID
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ContactAuthResult{}, err
+	}
+	return out, nil
+}
+
 func (s *Service) Logout(ctx context.Context, sessionToken string) error {
 	digest := sessionDigest(sessionToken)
 	if digest == "" {

@@ -112,6 +112,37 @@ func TestRefreshAndLogout(t *testing.T) {
 	}
 }
 
+func TestAuthContact_ExchangesPubsubToken(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	svc := &core.Service{DB: app}
+	created, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "widget-1", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seed string
+	if err := admin.QueryRow(ctx, `SELECT pubsub_token FROM contact_inboxes WHERE id = $1`, created.ContactInboxID).Scan(&seed); err != nil {
+		t.Fatal(err)
+	}
+	out, err := svc.AuthContact(ctx, core.ContactAuthInput{InboxID: inboxID, PubsubToken: seed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.AccountID != accountID || out.InboxID != inboxID || out.ContactID != created.ContactID || out.ContactInboxID != created.ContactInboxID {
+		t.Fatalf("%+v", out)
+	}
+	if out.SourceID != "widget-1" || out.ConversationID != created.ConversationID {
+		t.Fatalf("%+v", out)
+	}
+	_, err = svc.AuthContact(ctx, core.ContactAuthInput{InboxID: inboxID, PubsubToken: "nope"})
+	if err != core.ErrUnauthorized {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestRPC_Login(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -11,8 +11,9 @@ import (
 )
 
 type Server struct {
-	Service *Service
-	NC      *nats.Conn
+	Service   *Service
+	NC        *nats.Conn
+	WidgetDir string
 }
 
 func (s *Server) Handler() http.Handler {
@@ -20,7 +21,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /auth/sign_in", s.handleSignIn)
 	mux.HandleFunc("POST /auth/refresh", s.handleRefresh)
 	mux.HandleFunc("DELETE /auth/sign_out", s.handleSignOut)
+	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/auth", s.handleContactAuth)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/identify", s.handleIdentify)
+	if s.WidgetDir != "" {
+		files := http.FileServer(http.Dir(s.WidgetDir))
+		mux.Handle("GET /widget.html", files)
+		mux.Handle("GET /widget.js", files)
+		mux.Handle("GET /sdk.js", files)
+		mux.Handle("GET /src/", files)
+	}
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/csat", s.handleContactCSAT)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations", s.handleConversationList)

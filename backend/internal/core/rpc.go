@@ -19,6 +19,7 @@ const (
 	SubjectAuthLogin          = "helpdesk.rpc.auth.login"
 	SubjectAuthRefresh        = "helpdesk.rpc.auth.refresh"
 	SubjectAuthLogout         = "helpdesk.rpc.auth.logout"
+	SubjectAuthContact        = "helpdesk.rpc.auth.contact"
 	SubjectInboxMemberAdd     = "helpdesk.rpc.inbox_members.add"
 	SubjectInboxMemberRemove  = "helpdesk.rpc.inbox_members.remove"
 	SubjectInboxMemberList    = "helpdesk.rpc.inbox_members.list"
@@ -90,6 +91,13 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subLogout.Unsubscribe()
+	subContactAuth, err := nc.QueueSubscribe(SubjectAuthContact, QueueGroup, func(msg *nats.Msg) {
+		s.handleContactAuth(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subContactAuth.Unsubscribe()
 	subAdd, err := nc.QueueSubscribe(SubjectInboxMemberAdd, QueueGroup, func(msg *nats.Msg) {
 		s.handleMemberMutate(msg, s.AddInboxMember)
 	})
@@ -556,6 +564,40 @@ func (s *Service) handleLogout(msg *nats.Msg) {
 	_ = msg.Respond(body)
 }
 
+func (s *Service) handleContactAuth(msg *nats.Msg) {
+	var req struct {
+		InboxID     string `json:"inbox_id"`
+		PubsubToken string `json:"pubsub_token"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	inboxID, err := uuid.Parse(req.InboxID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(ErrUnauthorized))
+		return
+	}
+	out, err := s.AuthContact(context.Background(), ContactAuthInput{InboxID: inboxID, PubsubToken: req.PubsubToken})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	row := map[string]any{
+		"ok":               true,
+		"account_id":       out.AccountID.String(),
+		"inbox_id":         out.InboxID.String(),
+		"contact_id":       out.ContactID.String(),
+		"contact_inbox_id": out.ContactInboxID.String(),
+		"source_id":        out.SourceID,
+	}
+	if out.ConversationID != uuid.Nil {
+		row["conversation_id"] = out.ConversationID.String()
+	}
+	body, _ := json.Marshal(row)
+	_ = msg.Respond(body)
+}
+
 type memberReq struct {
 	ActorUserID string `json:"actor_user_id"`
 	AccountID   string `json:"account_id"`
@@ -720,6 +762,7 @@ func (s *Service) handleConversationsList(msg *nats.Msg) {
 			"display_id":       c.DisplayID,
 			"last_content":     c.LastContent,
 			"sla_breached":     c.SLABreached,
+			"channel_type":     c.Channel,
 		}
 		if c.AssigneeID != uuid.Nil {
 			row["assignee_id"] = c.AssigneeID.String()

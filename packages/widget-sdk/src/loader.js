@@ -6,8 +6,7 @@ const HOST_ID = "aura-widget-host";
 
 export function createLoader(win, opts) {
   const helpdesk = parseHelpdeskOrigin(opts.baseUrl);
-  const existing = win.document.getElementById(FRAME_ID);
-  if (existing && win.$aura) {
+  if (win.$aura) {
     return win.$aura;
   }
 
@@ -39,26 +38,62 @@ export function createLoader(win, opts) {
   iframe.style.right = "20px";
   iframe.style.bottom = "88px";
   iframe.style.zIndex = "2147483000";
-  win.document.body.appendChild(iframe);
 
   const postToFrame = (event, payload) => {
-    iframe.contentWindow.postMessage(encode(event, payload), helpdesk);
+    iframe.contentWindow?.postMessage(encode(event, payload), helpdesk);
   };
+
+  let frameMounted = false;
+  function setFrameMounted(on) {
+    if (on && !frameMounted) {
+      win.document.body.appendChild(iframe);
+      frameMounted = true;
+    } else if (!on && frameMounted) {
+      if (typeof iframe.remove === "function") {
+        iframe.remove();
+      } else if (iframe.parentNode?.removeChild) {
+        iframe.parentNode.removeChild(iframe);
+      } else {
+        const kids = win.document.body.children;
+        const i = Array.prototype.indexOf.call(kids, iframe);
+        if (i >= 0 && kids.splice) {
+          kids.splice(i, 1);
+        }
+      }
+      frameMounted = false;
+    }
+  }
 
   function applyOpen(open, silent) {
     api.open = open;
     if (open) {
+      const mobile = (win.innerWidth || 1280) < 480;
+      setFrameMounted(true);
       iframe.style.display = "";
       iframe.style.pointerEvents = "auto";
-      iframe.style.width = "380px";
-      iframe.style.height = "640px";
-      iframe.style.borderRadius = "16px";
+      if (mobile) {
+        iframe.style.inset = "0";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "100vw";
+        iframe.style.height = "100dvh";
+        iframe.style.borderRadius = "0";
+      } else {
+        iframe.style.inset = "";
+        iframe.style.right = "20px";
+        iframe.style.bottom = "88px";
+        iframe.style.width = "380px";
+        iframe.style.height = "min(640px, calc(100dvh - 40px))";
+        iframe.style.borderRadius = "16px";
+      }
       launcher.style.display = "none";
     } else {
       iframe.style.display = "none";
       iframe.style.pointerEvents = "none";
+      iframe.style.inset = "";
       iframe.style.width = "0px";
       iframe.style.height = "0px";
+      setFrameMounted(false);
       launcher.style.display = "";
     }
     if (!silent) {

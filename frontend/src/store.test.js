@@ -223,4 +223,12 @@ describe("conversationsFromAPI", () => {
     const rows = conversationsFromAPI([{ id: "c1", last_content: "지연", sla_breached: true }]);
     assert.equal(rows[0].slaBreached, true);
   });
+
+  it("maps display_id and channel_type onto the queue card", () => {
+    const rows = conversationsFromAPI([
+      { id: "c1", last_content: "지연", display_id: 1042, channel_type: "web" },
+    ]);
+    assert.equal(rows[0].displayId, 1042);
+    assert.equal(rows[0].channel, "web");
+  });
 });

@@ -56,6 +56,15 @@ func TestUp_AuthSchema(t *testing.T) {
 	}
 }
 
+func TestUp_AuthContactSeed(t *testing.T) {
+	ctx := context.Background()
+	admin, _ := testutil.Postgres(t)
+	var proname string
+	if err := admin.QueryRow(ctx, `SELECT proname FROM pg_proc WHERE proname = 'auth_contact_seed'`).Scan(&proname); err != nil {
+		t.Fatalf("auth_contact_seed: %v", err)
+	}
+}
+
 func TestUp_KakaoSenderKey(t *testing.T) {
 	ctx := context.Background()
 	admin, _ := testutil.Postgres(t)

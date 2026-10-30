@@ -38,6 +38,8 @@ export function conversationsFromAPI(rows) {
     unread: 0,
     labels: c.labels || [],
     slaBreached: !!c.sla_breached,
+    displayId: c.display_id,
+    channel: c.channel_type || c.channel,
   }));
 }
 

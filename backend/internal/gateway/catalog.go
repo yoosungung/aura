@@ -31,6 +31,7 @@ type ConversationRow struct {
 	LastContent    string
 	Labels         []LabelOut
 	SLABreached    bool
+	Channel        string
 }
 
 type MessageRow struct {
@@ -80,6 +81,7 @@ func (s *Server) handleConversationList(w http.ResponseWriter, r *http.Request) 
 			"id": c.ID.String(), "inbox_id": c.InboxID.String(), "contact_id": c.ContactID.String(),
 			"contact_inbox_id": c.ContactInboxID.String(), "status": c.Status, "version": c.Version,
 			"display_id": c.DisplayID, "last_content": c.LastContent, "sla_breached": c.SLABreached,
+			"channel_type": c.Channel,
 		}
 		if c.AssigneeID != uuid.Nil {
 			row["assignee_id"] = c.AssigneeID.String()
@@ -258,6 +260,7 @@ func (r *natsRPC) ListConversations(ctx context.Context, actor, account uuid.UUI
 			DisplayID      int64  `json:"display_id"`
 			LastContent    string `json:"last_content"`
 			SLABreached    bool   `json:"sla_breached"`
+			Channel        string `json:"channel_type"`
 			Labels         []struct {
 				ID    string `json:"id"`
 				Name  string `json:"name"`
@@ -281,7 +284,7 @@ func (r *natsRPC) ListConversations(ctx context.Context, actor, account uuid.UUI
 			ID: parseUUID(c.ID), InboxID: parseUUID(c.InboxID), ContactID: parseUUID(c.ContactID),
 			ContactInboxID: parseUUID(c.ContactInboxID), AssigneeID: parseUUID(c.AssigneeID),
 			Status: c.Status, Version: c.Version, SnoozedUntil: c.SnoozedUntil,
-			DisplayID: c.DisplayID, LastContent: c.LastContent, SLABreached: c.SLABreached, Labels: labels,
+			DisplayID: c.DisplayID, LastContent: c.LastContent, SLABreached: c.SLABreached, Channel: c.Channel, Labels: labels,
 		})
 	}
 	return rows, nil

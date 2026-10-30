@@ -65,6 +65,19 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
 
   return (
     <form onSubmit={onSubmit} className="assign" aria-label="티켓 배정">
+      {members.length > 0 ? (
+        <Label>
+          담당자
+          <select aria-label="담당자" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+            <option value="">선택</option>
+            {members.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.name || m.email || m.user_id}
+              </option>
+            ))}
+          </select>
+        </Label>
+      ) : null}
       <Label>
         담당자 ID
         <Input

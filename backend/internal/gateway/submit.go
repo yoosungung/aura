@@ -89,6 +89,7 @@ type Service struct {
 	Macros      MacroStore
 	Catalog     Catalog
 	Identify    Identifier
+	ContactAuth ContactAuthenticator
 	Bus         Bus
 	Blobs       BlobStore
 	JS          jetstream.JetStream

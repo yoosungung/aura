@@ -11,7 +11,7 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    const value = until.trim();
+    const value = toRFC3339(until.trim());
     if (!value || !client.snoozeConversation) {
       return;
     }
@@ -49,7 +49,7 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
       </Button>
       <Label>
         스누즈 시각
-        <Input value={until} onChange={(e) => setUntil(e.target.value)} required />
+        <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} required />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
       <Button type="submit" size="sm" disabled={pending}>
@@ -57,4 +57,18 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
       </Button>
     </form>
   );
+}
+
+function toRFC3339(value) {
+  if (!value) {
+    return "";
+  }
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) {
+    return value;
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    return value;
+  }
+  return d.toISOString();
 }

@@ -321,6 +321,52 @@ func (r *natsRPC) EmailReply(ctx context.Context, actor, account, conversation u
 	return EmailReplyOut{From: out.From, To: out.To, InReplyTo: out.InReplyTo, DisplayID: out.DisplayID}, out.Skip, nil
 }
 
+func (r *natsRPC) AuthContact(ctx context.Context, inboxID uuid.UUID, pubsubToken string) (ContactAuthOut, error) {
+	body, err := json.Marshal(map[string]any{"inbox_id": inboxID.String(), "pubsub_token": pubsubToken})
+	if err != nil {
+		return ContactAuthOut{}, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectAuthContact, body)
+	if err != nil {
+		return ContactAuthOut{}, err
+	}
+	var out struct {
+		OK             bool   `json:"ok"`
+		Error          string `json:"error"`
+		AccountID      string `json:"account_id"`
+		InboxID        string `json:"inbox_id"`
+		ContactID      string `json:"contact_id"`
+		ContactInboxID string `json:"contact_inbox_id"`
+		ConversationID string `json:"conversation_id"`
+		SourceID       string `json:"source_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return ContactAuthOut{}, err
+	}
+	if !out.OK {
+		if out.Error == "" {
+			out.Error = "unauthorized"
+		}
+		return ContactAuthOut{}, fmt.Errorf("%s", out.Error)
+	}
+	accountID, err := uuid.Parse(out.AccountID)
+	if err != nil {
+		return ContactAuthOut{}, err
+	}
+	gotInbox, err := uuid.Parse(out.InboxID)
+	if err != nil {
+		return ContactAuthOut{}, err
+	}
+	return ContactAuthOut{
+		AccountID:      accountID,
+		InboxID:        gotInbox,
+		ContactID:      parseUUID(out.ContactID),
+		ContactInboxID: parseUUID(out.ContactInboxID),
+		ConversationID: parseUUID(out.ConversationID),
+		SourceID:       out.SourceID,
+	}, nil
+}
+
 func (r *natsRPC) Login(ctx context.Context, email, password string) (AuthOut, error) {
 	return r.authRPC(ctx, core.SubjectAuthLogin, map[string]any{"email": email, "password": password})
 }

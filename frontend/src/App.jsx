@@ -16,11 +16,17 @@ import { Textarea } from "./components/ui/textarea.jsx";
 import { bindAuth } from "./gateway.js";
 import { conversationsFromAPI, emptyState, messagesFromAPI, reduce, visibleInQueue } from "./store.js";
 
-export function App({ session: initialSession, client, initialState = emptyState }) {
+export function App({ session: initialSession, client, initialState = emptyState, viewportWidth }) {
   const [session, setSession] = useState(initialSession);
   const [canned, setCanned] = useState([]);
   const [view, setView] = useState("inbox");
   const [composeMode, setComposeMode] = useState("reply");
+  const [contextOpen, setContextOpen] = useState(false);
+  const [composerFocus, setComposerFocus] = useState("");
+  const [width, setWidth] = useState(() =>
+    viewportWidth != null ? viewportWidth : typeof window !== "undefined" ? window.innerWidth : 1280,
+  );
+  const layout = layoutFor(width);
   const [booting, setBooting] = useState(
     !initialSession.token && !initialSession.fixture && typeof client.refresh === "function",
   );
@@ -46,6 +52,18 @@ export function App({ session: initialSession, client, initialState = emptyState
       onSessionUpdate: applySession,
     });
   }, [client, session.token]);
+
+  useEffect(() => {
+    if (viewportWidth != null) {
+      setWidth(viewportWidth);
+      return undefined;
+    }
+    function onResize() {
+      setWidth(window.innerWidth);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [viewportWidth]);
 
   useEffect(() => {
     if (!booting) {
@@ -191,11 +209,11 @@ export function App({ session: initialSession, client, initialState = emptyState
       }
       if (e.key === "r" || e.key === "R") {
         setComposeMode("reply");
-        setTimeout(() => document.querySelector('[aria-label="답장"]')?.focus(), 0);
+        setComposerFocus("reply");
       }
       if (e.key === "n" || e.key === "N") {
         setComposeMode("note");
-        setTimeout(() => document.querySelector('[aria-label="메모"]')?.focus(), 0);
+        setComposerFocus("note");
       }
       if (e.key === "e" || e.key === "E") {
         document.querySelector('.resolve button:last-of-type')?.click();
@@ -204,6 +222,16 @@ export function App({ session: initialSession, client, initialState = emptyState
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [queue, state.selectedId, composeMode]);
+
+  useEffect(() => {
+    if (!composerFocus) {
+      return undefined;
+    }
+    const sel = composerFocus === "note" ? '[aria-label="메모"]' : '[aria-label="답장"]';
+    document.querySelector(sel)?.focus();
+    setComposerFocus("");
+    return undefined;
+  }, [composerFocus, composeMode]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -293,9 +321,12 @@ export function App({ session: initialSession, client, initialState = emptyState
 
   const admin = session.role === "administrator";
   const settings = view === "settings" && admin;
+  const showQueue = layout !== "mobile" || !selected;
+  const showThread = layout !== "mobile" || !!selected;
+  const showContext = layout === "desktop" || (layout === "laptop" && contextOpen && selected);
 
   return (
-    <div className="workspace">
+    <div className="workspace" data-layout={layout} data-pane={selected ? "thread" : "queue"}>
       <aside className="rail" aria-label="워크스페이스">
         <Button
           variant={view === "inbox" ? "secondary" : "ghost"}
@@ -326,6 +357,7 @@ export function App({ session: initialSession, client, initialState = emptyState
         </section>
       ) : (
         <>
+          {showQueue ? (
           <nav className="queue" aria-label="대기열">
             <h1>대기열</h1>
             {queue.length === 0 ? (
@@ -342,6 +374,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                     >
                       <span className="queue-card-meta">
                         {c.channel ? <Badge variant="outline">{c.channel}</Badge> : null}
+                        {c.displayId ? <span>#{c.displayId}</span> : null}
                         {c.slaBreached ? (
                           <Badge variant="destructive">SLA</Badge>
                         ) : null}
@@ -361,6 +394,8 @@ export function App({ session: initialSession, client, initialState = emptyState
               </ul>
             )}
           </nav>
+          ) : null}
+          {showThread ? (
           <section className="thread">
             {!selected ? (
               <p className="p-6 text-slate-500">대화를 선택하세요</p>
@@ -368,33 +403,63 @@ export function App({ session: initialSession, client, initialState = emptyState
               <>
                 <header className="thread-header">
                   <div className="thread-header-id">
+                    {layout === "mobile" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => dispatch({ type: "select", id: null })}
+                      >
+                        대기열로
+                      </Button>
+                    ) : null}
                     <span className="font-medium">{selected.lastContent}</span>
                     {selected.status ? (
                       <Badge variant="secondary">{selected.status}</Badge>
                     ) : null}
                   </div>
                   <div className="thread-header-actions">
-                    <AssignTicket
-                      key={selected.id}
-                      session={session}
-                      conversation={selected}
-                      client={client}
-                      onAssigned={(next) => dispatch({ type: "assigned", ...next })}
-                    />
-                    <SnoozeTicket
-                      key={`snooze-${selected.id}`}
-                      session={session}
-                      conversation={selected}
-                      client={client}
-                      onSnoozed={(next) => dispatch({ type: "snoozed", ...next })}
-                    />
-                    <TicketMacros
-                      key={`macros-${selected.id}`}
-                      session={session}
-                      conversation={selected}
-                      client={client}
-                      onRan={applyMacro}
-                    />
+                    {layout === "laptop" && selected ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-expanded={showContext}
+                        onClick={() => setContextOpen((open) => !open)}
+                      >
+                        고객 정보
+                      </Button>
+                    ) : null}
+                    <details className="header-menu assign-menu">
+                      <summary>담당자</summary>
+                      <AssignTicket
+                        key={selected.id}
+                        session={session}
+                        conversation={selected}
+                        client={client}
+                        onAssigned={(next) => dispatch({ type: "assigned", ...next })}
+                      />
+                    </details>
+                    <details className="header-menu snooze-menu">
+                      <summary>스누즈</summary>
+                      <SnoozeTicket
+                        key={`snooze-${selected.id}`}
+                        session={session}
+                        conversation={selected}
+                        client={client}
+                        onSnoozed={(next) => dispatch({ type: "snoozed", ...next })}
+                      />
+                    </details>
+                    <details className="header-menu macros-menu">
+                      <summary>매크로</summary>
+                      <TicketMacros
+                        key={`macros-${selected.id}`}
+                        session={session}
+                        conversation={selected}
+                        client={client}
+                        onRan={applyMacro}
+                      />
+                    </details>
                     <ResolveTicket
                       key={`resolve-${selected.id}`}
                       session={session}
@@ -524,7 +589,13 @@ export function App({ session: initialSession, client, initialState = emptyState
               </>
             )}
           </section>
-          <aside className="context-pane">
+          ) : null}
+          {showContext ? (
+          <aside
+            className="context-pane"
+            role={layout === "laptop" ? "dialog" : undefined}
+            aria-label={layout === "laptop" ? "고객 정보" : undefined}
+          >
             {selected ? (
               <>
                 <TicketLabels
@@ -542,10 +613,21 @@ export function App({ session: initialSession, client, initialState = emptyState
               </>
             ) : null}
           </aside>
+          ) : null}
         </>
       )}
     </div>
   );
+}
+
+function layoutFor(width) {
+  if (width >= 1280) {
+    return "desktop";
+  }
+  if (width >= 1024) {
+    return "laptop";
+  }
+  return "mobile";
 }
 
 function bubbleClass(m) {

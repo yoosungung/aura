@@ -18,6 +18,19 @@ type Authenticator interface {
 	Logout(ctx context.Context, sessionToken string) error
 }
 
+type ContactAuthenticator interface {
+	AuthContact(ctx context.Context, inboxID uuid.UUID, pubsubToken string) (ContactAuthOut, error)
+}
+
+type ContactAuthOut struct {
+	AccountID      uuid.UUID
+	InboxID        uuid.UUID
+	ContactID      uuid.UUID
+	ContactInboxID uuid.UUID
+	ConversationID uuid.UUID
+	SourceID       string
+}
+
 type AuthAccount struct {
 	AccountID uuid.UUID
 	Role      string
@@ -70,6 +83,53 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeAuth(w, r, out)
+}
+
+func (s *Server) handleContactAuth(w http.ResponseWriter, r *http.Request) {
+	if s.Service.ContactAuth == nil {
+		http.Error(w, "auth unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	inboxID, err := uuid.Parse(r.PathValue("inbox_id"))
+	if err != nil {
+		http.Error(w, "invalid inbox", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		PubsubToken string `json:"pubsub_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	out, err := s.Service.ContactAuth.AuthContact(r.Context(), inboxID, body.PubsubToken)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if out.InboxID != uuid.Nil && out.InboxID != inboxID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	tok, err := Sign(s.Service.Secret, Token{
+		Kind:           KindContact,
+		AccountID:      out.AccountID,
+		InboxID:        inboxID,
+		ContactID:      out.ContactID,
+		ContactInboxID: out.ContactInboxID,
+		ConversationID: out.ConversationID,
+		SourceID:       out.SourceID,
+		Exp:            time.Now().Add(AccessTTL).Unix(),
+	})
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"access_token": tok,
+		"expires_in":   int(AccessTTL.Seconds()),
+	})
 }
 
 func (s *Server) handleSignOut(w http.ResponseWriter, r *http.Request) {

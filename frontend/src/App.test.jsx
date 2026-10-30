@@ -4,9 +4,17 @@ import { afterEach, expect, test } from "vitest";
 import { App } from "./App.jsx";
 import { fixtureState } from "./store.js";
 
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1280 });
+}
+
 afterEach(() => cleanup());
 
 const session = { accountId: "acc", token: "tok", gatewayUrl: "" };
+
+async function openHeaderMenu(user, name) {
+  await user.click(screen.getByText(name, { selector: "summary" }));
+}
 
 test("login screen is a shadcn card", async () => {
   const { container } = render(
@@ -176,6 +184,7 @@ test("ticket view assigns to an inbox agent", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "담당자");
   await user.type(screen.getByLabelText("담당자 ID"), "user-1");
   await user.click(screen.getByRole("button", { name: "배정" }));
   expect(assigned[0].assigneeId).toBe("user-1");
@@ -262,7 +271,7 @@ test("ticket view keeps a note and a label on the same thread", async () => {
 test("ticket view snoozes and hides the card until then", async () => {
   const user = userEvent.setup();
   const snoozed = [];
-  const until = new Date(Date.now() + 3600_000).toISOString();
+  const until = "2026-10-30T18:00";
   render(
     <App
       session={session}
@@ -270,17 +279,18 @@ test("ticket view snoozes and hides the card until then", async () => {
         connect() {},
         async snoozeConversation(req) {
           snoozed.push(req);
-          return { status: "snoozed", version: 2, snoozed_until: until };
+          return { status: "snoozed", version: 2, snoozed_until: req.snoozedUntil };
         },
       }}
       initialState={fixtureState()}
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "스누즈");
   await user.type(screen.getByLabelText("스누즈 시각"), until);
   await user.click(screen.getByRole("button", { name: "스누즈" }));
   expect(snoozed[0].conversationId).toBe("c1");
-  expect(snoozed[0].snoozedUntil).toBe(until);
+  expect(snoozed[0].snoozedUntil).toBe(new Date(until).toISOString());
   expect(screen.queryByRole("button", { name: /결제 오류/ })).toBeNull();
   expect(screen.getByText("대기 중인 대화가 없습니다")).toBeTruthy();
 });
@@ -519,6 +529,7 @@ test("ticket view runs a macro", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "매크로");
   await user.click(screen.getByRole("button", { name: "실행" }));
   expect(ran[0].macroId).toBe("m1");
   expect(screen.getByRole("log").textContent).toContain("환불이 완료되었습니다.");
@@ -574,4 +585,220 @@ test("reply posts through the gateway client", async () => {
   await user.click(screen.getByRole("button", { name: "보내기" }));
   expect(sent[0].content).toBe("확인했습니다");
   expect(sent[0].conversation.id).toBe("c1");
+});
+
+test("desktop layout keeps queue thread and context visible", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={fixtureState()}
+      viewportWidth={1440}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+  expect(screen.getByRole("log")).toBeTruthy();
+  expect(screen.getByRole("region", { name: "티켓 라벨" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "대기열로" })).toBeNull();
+});
+
+test("thread header folds assign snooze and macros into disclosures", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listMacros() {
+          return { macros: [{ id: "m1", name: "환불 완료" }] };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  const header = document.querySelector(".thread-header");
+  const assign = header.querySelector("details.assign-menu");
+  const snooze = header.querySelector("details.snooze-menu");
+  const macros = header.querySelector("details.macros-menu");
+  expect(assign).toBeTruthy();
+  expect(snooze).toBeTruthy();
+  expect(macros).toBeTruthy();
+  expect(assign.open).toBe(false);
+  expect(snooze.open).toBe(false);
+  expect(macros.open).toBe(false);
+  expect(screen.getByRole("button", { name: "대기" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "해결" })).toBeTruthy();
+  await user.click(screen.getByText("담당자", { selector: "summary" }));
+  expect(assign.open).toBe(true);
+  expect(screen.getByLabelText("담당자 ID")).toBeTruthy();
+});
+
+test("laptop width puts context behind a drawer", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={fixtureState()}
+      viewportWidth={1100}
+    />,
+  );
+  expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.getByRole("log")).toBeTruthy();
+  expect(screen.queryByRole("dialog", { name: "고객 정보" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "고객 정보" }));
+  expect(screen.getByRole("dialog", { name: "고객 정보" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "티켓 라벨" })).toBeTruthy();
+});
+
+test("narrow width switches between queue and thread", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={fixtureState()}
+      viewportWidth={800}
+    />,
+  );
+  expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+  expect(screen.queryByRole("log")).toBeNull();
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.queryByRole("navigation", { name: "대기열" })).toBeNull();
+  expect(screen.getByRole("log")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "대기열로" }));
+  expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+  expect(screen.queryByRole("log")).toBeNull();
+});
+
+test("queue card shows channel ticket number and sla", () => {
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        ...fixtureState(),
+        conversations: [
+          {
+            ...fixtureState().conversations[0],
+            displayId: 1042,
+            channel: "web",
+            slaBreached: true,
+          },
+        ],
+      }}
+    />,
+  );
+  const card = screen.getByRole("button", { name: /결제 오류/ });
+  expect(card.textContent).toContain("web");
+  expect(card.textContent).toContain("#1042");
+  expect(card.textContent).toContain("SLA");
+});
+
+test("ticket view assigns from the inbox member select", async () => {
+  const user = userEvent.setup();
+  const assigned = [];
+  render(
+    <App
+      session={{ ...session, userId: "me" }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [{ user_id: "user-1", email: "ada@acme.test", name: "Ada" }] };
+        },
+        async assignConversation(req) {
+          assigned.push(req);
+          return { assignee_id: req.assigneeId, status: "open", version: 2 };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "담당자");
+  await user.selectOptions(await screen.findByLabelText("담당자"), "user-1");
+  await user.click(screen.getByRole("button", { name: "배정" }));
+  expect(assigned[0].assigneeId).toBe("user-1");
+});
+
+test("ticket view snooze input is datetime-local", async () => {
+  const user = userEvent.setup();
+  render(
+    <App session={session} client={{ connect() {} }} initialState={fixtureState()} />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "스누즈");
+  expect(screen.getByLabelText("스누즈 시각").getAttribute("type")).toBe("datetime-local");
+  expect(screen.getByRole("button", { name: "1시간 뒤" })).toBeTruthy();
+});
+
+test("keyboard j k r n and e drive the workspace", async () => {
+  const user = userEvent.setup();
+  const resolved = [];
+  const state = fixtureState();
+  state.conversations = [
+    state.conversations[0],
+    {
+      id: "c2",
+      inboxId: "i1",
+      contactId: "p2",
+      contactInboxId: "ci2",
+      lastContent: "배송 문의",
+      unread: 0,
+      version: 1,
+    },
+  ];
+  state.messages.c2 = [{ id: "m2", content: "배송 문의", senderType: "Contact" }];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async resolveConversation(req) {
+          resolved.push(req);
+          return { status: "resolved", version: 2 };
+        },
+      }}
+      initialState={state}
+    />,
+  );
+  await user.keyboard("j");
+  expect(screen.getByRole("log").textContent).toContain("결제 오류");
+  await user.keyboard("j");
+  expect(screen.getByRole("log").textContent).toContain("배송 문의");
+  await user.keyboard("k");
+  expect(screen.getByRole("log").textContent).toContain("결제 오류");
+  await user.keyboard("r");
+  expect(screen.getByLabelText("답장")).toBe(document.activeElement);
+  document.activeElement.blur();
+  await user.keyboard("n");
+  expect(await screen.findByLabelText("메모")).toBe(document.activeElement);
+  document.activeElement.blur();
+  await user.keyboard("e");
+  expect(resolved[0].conversationId).toBe("c1");
+});
+
+test("mod enter submits the composer", async () => {
+  const user = userEvent.setup();
+  const sent = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendReply(req) {
+          sent.push(req);
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("답장"), "확인했습니다");
+  await user.keyboard("{Meta>}{Enter}{/Meta}");
+  expect(sent[0].content).toBe("확인했습니다");
 });

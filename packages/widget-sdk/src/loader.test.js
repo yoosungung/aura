@@ -112,8 +112,35 @@ test("closed loader does not let the iframe intercept host clicks", () => {
   assert.equal(api.open, false);
   assert.equal(api.iframe.style.display, "none");
   assert.equal(api.iframe.style.pointerEvents, "none");
+  assert.equal(
+    win.document.body.children.some((el) => el.id === "aura-widget-frame"),
+    false,
+  );
+  const host = win.document.body.children.find((el) => el.id === "aura-widget-host");
+  assert.equal(host.shadow.host.style.width, "60px");
+  assert.equal(host.shadow.host.style.height, "60px");
   api.toggle();
   assert.equal(api.open, true);
   assert.notEqual(api.iframe.style.display, "none");
   assert.equal(api.iframe.style.pointerEvents, "auto");
+  assert.equal(api.iframe.style.width, "380px");
+  assert.equal(api.iframe.style.height, "min(640px, calc(100dvh - 40px))");
+  assert.equal(
+    win.document.body.children.some((el) => el.id === "aura-widget-frame"),
+    true,
+  );
+});
+
+test("open loader fills the mobile viewport", () => {
+  const win = fakeHost();
+  win.innerWidth = 390;
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  api.toggle();
+  assert.equal(api.iframe.style.width, "100vw");
+  assert.equal(api.iframe.style.height, "100dvh");
+  assert.equal(api.iframe.style.inset, "0");
 });

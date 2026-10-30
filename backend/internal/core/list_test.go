@@ -50,6 +50,9 @@ func TestListConversations_OnlyActorInboxes(t *testing.T) {
 	if len(list) != 1 || list[0].ID != mine.ConversationID {
 		t.Fatalf("%+v", list)
 	}
+	if list[0].Channel != "web" || list[0].DisplayID == 0 {
+		t.Fatalf("channel/display %+v", list[0])
+	}
 	if _, err := svc.CreateAccountLabel(ctx, core.LabelInput{
 		ActorUserID: adminID, AccountID: accountID, Name: "결제",
 	}); err != nil {

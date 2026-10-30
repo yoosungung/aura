@@ -21,6 +21,6 @@ cd packages/widget-sdk
 npm test
 ```
 
-iframe 엔트리는 `widget.html`. 호스트는 `sdk.js`의 `run({ baseUrl, inboxId, token })`.
+iframe 엔트리는 `{helpdeskOrigin}/widget.html`(게이트웨이 `AURA_WIDGET_DIR`). 호스트는 `sdk.js`의 `run({ baseUrl, inboxId, token })`.
 
 호스트 예: `window.$aura = run({ baseUrl, inboxId, token })`. `token`은 Contact `pubsub_token` 시드.
