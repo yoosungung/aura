@@ -136,7 +136,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 
 ## 4. 이벤트 JSON
 
-모든 `helpdesk.events.>` 페이로드는 이 envelope다. 언어별 모델은 [contracts/](contracts/) JSON Schema에서 생성한다. Go는 `backend/internal/contracts`다.
+모든 `helpdesk.events.>` 페이로드는 이 envelope다. 언어별 모델은 [contracts/](contracts/) JSON Schema에서 생성한다. Go는 `backend/internal/contracts`다. TypeScript는 출시 후 `frontend/`·`packages/widget-sdk`가 같은 스키마에서 envelope·payload만 생성한다(일정·범위는 [ROADMAP.md](ROADMAP.md) 출시 후). RPC 스키마는 브라우저가 쓰지 않는다.
 
 ```json
 {

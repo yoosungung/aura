@@ -113,7 +113,8 @@
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
 - Task Fair Queuing(테넌트 쿼터)
 - 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰. 티켓 딥링크.
-- `contracts/` JSON Schema → TypeScript 생성. 큐/메시지 가상 스크롤.
+- 큐/메시지 가상 스크롤.
+- `contracts/` JSON Schema → TypeScript (`frontend/`, `packages/widget-sdk`). 게이트웨이가 `helpdesk.realtime`에 넣는 WS 래퍼의 `message` 필드는 이미 `message_created` envelope이므로, 그 envelope·payload만 생성 타입으로 읽는다. NATS RPC(`conversations.create` 등)는 게이트웨이↔코어 전용이다. REST 응답·UI 상태·위젯 호스트 `postMessage`(`source: "aura-widget"`)는 이 스키마에 합치지 않는다. Go 생성은 지금처럼 `backend/internal/contracts`다.
 
 ## 미결정
 
