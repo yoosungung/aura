@@ -1,9 +1,11 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -12,10 +14,24 @@ import (
 	"github.com/yoosungung/aura/internal/core"
 )
 
+type KakaoReplyOut struct {
+	From        string
+	To          string
+	Template    string
+	Phone       string
+	SessionLive bool
+}
+
 type KakaoResolver interface {
 	ResolveSender(ctx context.Context, senderKey string) (accountID, inboxID uuid.UUID, err error)
 	ResolveKakao(ctx context.Context, accountID, inboxID uuid.UUID, msgKey, userKey string) (out CreateOut, found, duplicate bool, err error)
 	CreateKakao(ctx context.Context, accountID, inboxID uuid.UUID, userKey, name, traceID string) (CreateOut, error)
+	KakaoReply(ctx context.Context, actor, account, conversation uuid.UUID) (KakaoReplyOut, bool, error)
+}
+
+type KakaoSender interface {
+	SendConsult(ctx context.Context, senderKey, userKey, message string) error
+	SendAlimtalk(ctx context.Context, senderKey, userKey, phone, template, message string) error
 }
 
 type kakaoWebhook struct {
@@ -85,6 +101,73 @@ func kakaoContent(hook kakaoWebhook) string {
 		}
 	}
 	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+func (s *Service) DeliverKakaoOutbound(ctx context.Context, t OutboundTask) error {
+	if s.KakaoSender == nil {
+		return errors.New("kakao sender missing")
+	}
+	if strings.TrimSpace(t.From) == "" || strings.TrimSpace(t.To) == "" || strings.TrimSpace(t.Content) == "" {
+		return ErrInvalid
+	}
+	if t.SessionLive {
+		return s.KakaoSender.SendConsult(ctx, t.From, t.To, t.Content)
+	}
+	if t.Template == "" {
+		return ErrInvalid
+	}
+	return s.KakaoSender.SendAlimtalk(ctx, t.From, t.To, t.Phone, t.Template, t.Content)
+}
+
+type KakaoHub struct {
+	BaseURL string
+	Token   string
+	Client  *http.Client
+}
+
+func (h KakaoHub) SendConsult(ctx context.Context, senderKey, userKey, message string) error {
+	return h.post(ctx, "/cstalk/plain", map[string]string{
+		"userKey": userKey, "senderKey": senderKey, "msgType": "TEXT", "message": message,
+	})
+}
+
+func (h KakaoHub) SendAlimtalk(ctx context.Context, senderKey, userKey, phone, template, message string) error {
+	return h.post(ctx, "/alimtalk", map[string]string{
+		"userKey": userKey, "senderKey": senderKey, "phone": phone,
+		"template_code": template, "message": message,
+	})
+}
+
+func (h KakaoHub) post(ctx context.Context, path string, body map[string]string) error {
+	if h.BaseURL == "" {
+		return errors.New("kakao api url missing")
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(h.BaseURL, "/")+path, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if h.Token != "" {
+		req.Header.Set("Authorization", h.Token)
+	}
+	cli := h.Client
+	if cli == nil {
+		cli = http.DefaultClient
+	}
+	resp, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("kakao http %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (s *Server) KakaoHandler() http.Handler {

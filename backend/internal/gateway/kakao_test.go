@@ -8,11 +8,14 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/yoosungung/aura/internal/contracts"
 	"github.com/yoosungung/aura/internal/core"
 	"github.com/yoosungung/aura/internal/gateway"
+	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/testutil"
 )
 
 type fakeKakao struct {
@@ -27,6 +30,9 @@ type fakeKakao struct {
 	inboxErr  error
 	threadErr error
 	createErr error
+	reply     gateway.KakaoReplyOut
+	replySkip bool
+	replyErr  error
 }
 
 func (f *fakeKakao) ResolveSender(_ context.Context, _ string) (uuid.UUID, uuid.UUID, error) {
@@ -45,6 +51,12 @@ func (f *fakeKakao) ResolveKakao(_ context.Context, _, _ uuid.UUID, _, _ string)
 		return gateway.CreateOut{}, false, false, f.threadErr
 	}
 	return f.thread, f.found, f.dup, nil
+}
+
+func (f *fakeKakao) KakaoReply(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (gateway.KakaoReplyOut, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reply, f.replySkip, f.replyErr
 }
 
 func (f *fakeKakao) CreateKakao(_ context.Context, _, _ uuid.UUID, _, _, _ string) (gateway.CreateOut, error) {
@@ -175,4 +187,117 @@ func TestHTTP_CstalkMessage_A000(t *testing.T) {
 	if ev, _ := bus.counts(); ev != 1 {
 		t.Fatalf("events=%d", ev)
 	}
+}
+
+type fakeKakaoSender struct {
+	mu                             sync.Mutex
+	consult, alim                  int
+	from, to, phone, template, msg string
+}
+
+func (f *fakeKakaoSender) SendConsult(_ context.Context, senderKey, userKey, message string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.consult++
+	f.from, f.to, f.msg = senderKey, userKey, message
+	return nil
+}
+
+func (f *fakeKakaoSender) SendAlimtalk(_ context.Context, senderKey, userKey, phone, template, message string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.alim++
+	f.from, f.to, f.phone, f.template, f.msg = senderKey, userKey, phone, template, message
+	return nil
+}
+
+func TestDeliverKakao_ConsultWhenSessionLive(t *testing.T) {
+	sender := &fakeKakaoSender{}
+	svc := &gateway.Service{KakaoSender: sender}
+	if err := svc.DeliverKakaoOutbound(context.Background(), gateway.OutboundTask{
+		From: "sender-acme", To: "user-ada", Content: "확인했습니다", SessionLive: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if sender.consult != 1 || sender.alim != 0 || sender.msg != "확인했습니다" {
+		t.Fatalf("%+v", sender)
+	}
+}
+
+func TestDeliverKakao_AlimtalkWhenExpired(t *testing.T) {
+	sender := &fakeKakaoSender{}
+	svc := &gateway.Service{KakaoSender: sender}
+	if err := svc.DeliverKakaoOutbound(context.Background(), gateway.OutboundTask{
+		From: "sender-acme", To: "user-ada", Content: "확인했습니다",
+		SessionLive: false, Template: "TPL_CS", Phone: "01012345678",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if sender.alim != 1 || sender.consult != 0 || sender.template != "TPL_CS" {
+		t.Fatalf("%+v", sender)
+	}
+}
+
+func TestSubmit_AgentKakaoPublishesOutbound(t *testing.T) {
+	accountID, inboxID := mustV7(t), mustV7(t)
+	bus := &fakeBus{}
+	email := &fakeEmail{replySkip: true}
+	kakao := &fakeKakao{reply: gateway.KakaoReplyOut{
+		From: "sender-acme", To: "user-ada", SessionLive: true, Template: "TPL_CS",
+	}}
+	svc := &gateway.Service{Secret: secret, Bus: bus, Email: email, Kakao: kakao}
+	tok := gateway.Token{
+		Kind: gateway.KindUser, AccountID: accountID, UserID: mustV7(t),
+		InboxIDs: []uuid.UUID{inboxID},
+	}
+	if _, err := svc.SubmitAgent(context.Background(), tok, accountID, mustV7(t), gateway.SubmitRequest{
+		Content: "확인했습니다", InboxID: inboxID, ContactID: mustV7(t), ContactInboxID: mustV7(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	bus.mu.Lock()
+	defer bus.mu.Unlock()
+	if len(bus.events) != 2 || bus.events[1] != gateway.OutboundKakaoSubject {
+		t.Fatalf("events %v", bus.events)
+	}
+	var task gateway.OutboundTask
+	if err := json.Unmarshal(bus.payloads[1], &task); err != nil {
+		t.Fatal(err)
+	}
+	if task.From != "sender-acme" || task.To != "user-ada" || !task.SessionLive || task.Content != "확인했습니다" {
+		t.Fatalf("%+v", task)
+	}
+}
+
+func TestConsumeKakaoOutbound_SendsConsult(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, js := testutil.NATSConn(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	sender := &fakeKakaoSender{}
+	svc := &gateway.Service{JS: js, KakaoSender: sender}
+	go func() { _ = svc.ConsumeKakaoOutbound(ctx) }()
+	time.Sleep(200 * time.Millisecond)
+	task, err := json.Marshal(gateway.OutboundTask{
+		From: "sender-acme", To: "user-ada", Content: "확인했습니다", SessionLive: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := js.Publish(ctx, gateway.OutboundKakaoSubject, task); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		sender.mu.Lock()
+		n := sender.consult
+		sender.mu.Unlock()
+		if n == 1 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("no kakao send")
 }

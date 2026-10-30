@@ -36,14 +36,19 @@ func main() {
 	}
 
 	n := gateway.NewRPC(nc)
-	srv := &gateway.Server{
-		Service: &gateway.Service{
-			RPC:   n,
-			Kakao: n,
-			Bus:   gateway.NewBus(nc, js),
-		},
-		NC: nc,
+	svc := &gateway.Service{
+		RPC:         n,
+		Kakao:       n,
+		Bus:         gateway.NewBus(nc, js),
+		JS:          js,
+		KakaoSender: gateway.KakaoHub{BaseURL: os.Getenv("AURA_KAKAO_API_URL"), Token: os.Getenv("AURA_KAKAO_API_KEY")},
 	}
+	srv := &gateway.Server{Service: svc, NC: nc}
+	go func() {
+		if err := svc.ConsumeKakaoOutbound(ctx); err != nil && ctx.Err() == nil {
+			log.Print(err)
+		}
+	}()
 	httpSrv := &http.Server{Addr: addr, Handler: srv.KakaoHandler()}
 	go func() {
 		<-ctx.Done()

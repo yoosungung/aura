@@ -149,3 +149,111 @@ func TestRPC_ResolveKakao(t *testing.T) {
 		t.Fatalf("%s", reply.Data)
 	}
 }
+
+func TestKakaoReply_SessionAndAlimtalk(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	webAccount, webInbox := seedInbox(t, admin)
+	adminID := seedUser(t, admin, webAccount, "boss@acme.test", "administrator", "s3cret")
+	svc := &core.Service{DB: app}
+	web, err := svc.Create(ctx, core.CreateInput{
+		AccountID: webAccount, InboxID: webInbox, SourceID: "w1", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, skip, err := svc.KakaoReply(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: webAccount, ConversationID: web.ConversationID,
+	})
+	if err != nil || !skip {
+		t.Fatalf("web skip=%v err=%v", skip, err)
+	}
+
+	accountID, inboxID := seedKakaoInbox(t, admin, "sender-acme")
+	if _, err := admin.Exec(ctx, `UPDATE inboxes SET kakao_alimtalk_template = 'TPL_CS' WHERE id = $1`, inboxID); err != nil {
+		t.Fatal(err)
+	}
+	adminID = seedUser(t, admin, accountID, "kakao-boss@acme.test", "administrator", "s3cret")
+	created, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "user-ada", Name: "Ada", ReuseContact: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `UPDATE contacts SET phone_number = '01012345678' WHERE id = $1`, created.ContactID); err != nil {
+		t.Fatal(err)
+	}
+	msgID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, accountID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO messages (id, account_id, inbox_id, conversation_id, message_type, content, sender_type, sender_id, source_id)
+		VALUES ($1,$2,$3,$4,0,'hi','Contact',$5,'msg-1')`,
+		msgID, accountID, inboxID, created.ConversationID, created.ContactID); err != nil {
+		t.Fatal(err)
+	}
+	got, skip, err := svc.KakaoReply(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: accountID, ConversationID: created.ConversationID,
+	})
+	if err != nil || skip || !got.SessionLive || got.From != "sender-acme" || got.To != "user-ada" || got.Template != "TPL_CS" || got.Phone != "01012345678" {
+		t.Fatalf("%+v skip=%v err=%v", got, skip, err)
+	}
+
+	if _, err := admin.Exec(ctx, `UPDATE messages SET created_at = NOW() - INTERVAL '31 days' WHERE id = $1`, msgID); err != nil {
+		t.Fatal(err)
+	}
+	got, skip, err = svc.KakaoReply(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: accountID, ConversationID: created.ConversationID,
+	})
+	if err != nil || skip || got.SessionLive {
+		t.Fatalf("expired %+v skip=%v err=%v", got, skip, err)
+	}
+}
+
+func TestRPC_KakaoReply(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	admin, app := testutil.Postgres(t)
+	nc, js := testutil.NATSConn(t)
+	accountID, inboxID := seedKakaoInbox(t, admin, "sender-acme")
+	if _, err := admin.Exec(ctx, `UPDATE inboxes SET kakao_alimtalk_template = 'TPL_CS' WHERE id = $1`, inboxID); err != nil {
+		t.Fatal(err)
+	}
+	adminID := seedUser(t, admin, accountID, "kakao-boss@acme.test", "administrator", "s3cret")
+	go func() { _ = core.Serve(ctx, nc, js, appPool(t, app)) }()
+	time.Sleep(200 * time.Millisecond)
+
+	svc := &core.Service{DB: app}
+	created, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "user-ada", TraceID: "t", ReuseContact: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"actor_user_id": adminID.String(), "account_id": accountID.String(),
+		"conversation_id": created.ConversationID.String(),
+	})
+	reply, err := nc.Request(core.SubjectKakaoReply, body, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		OK          bool   `json:"ok"`
+		Skip        bool   `json:"skip"`
+		From        string `json:"from"`
+		To          string `json:"to"`
+		SessionLive bool   `json:"session_live"`
+		Template    string `json:"template"`
+	}
+	if err := json.Unmarshal(reply.Data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !out.OK || out.Skip || out.From != "sender-acme" || out.To != "user-ada" || out.SessionLive || out.Template != "TPL_CS" {
+		t.Fatalf("%s", reply.Data)
+	}
+}

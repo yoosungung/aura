@@ -46,6 +46,7 @@ const (
 	SubjectResolveThread      = "helpdesk.rpc.conversations.resolve_thread"
 	SubjectResolveKakao       = "helpdesk.rpc.conversations.resolve_kakao"
 	SubjectEmailReply         = "helpdesk.rpc.conversations.email_reply"
+	SubjectKakaoReply         = "helpdesk.rpc.conversations.kakao_reply"
 	QueueGroup                = "svc-core"
 )
 
@@ -219,6 +220,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subEmailReply.Unsubscribe()
+	subKakaoReply, err := nc.QueueSubscribe(SubjectKakaoReply, QueueGroup, s.handleKakaoReply)
+	if err != nil {
+		return err
+	}
+	defer subKakaoReply.Unsubscribe()
 	subLabelCatalogList, err := nc.QueueSubscribe(SubjectLabelCatalogList, QueueGroup, s.handleLabelCatalogList)
 	if err != nil {
 		return err
@@ -861,6 +867,45 @@ func (s *Service) handleEmailReply(msg *nats.Msg) {
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "skip": skip, "from": out.From, "to": out.To,
 		"in_reply_to": out.InReplyTo, "display_id": out.DisplayID,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleKakaoReply(msg *nats.Msg) {
+	var req struct {
+		ActorUserID    string `json:"actor_user_id"`
+		AccountID      string `json:"account_id"`
+		ConversationID string `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	convID, err := uuid.Parse(req.ConversationID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, skip, err := s.KakaoReply(context.Background(), ListInput{
+		ActorUserID: actor, AccountID: accountID, ConversationID: convID,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "skip": skip, "from": out.From, "to": out.To,
+		"session_live": out.SessionLive, "template": out.Template, "phone": out.Phone,
 	})
 	_ = msg.Respond(body)
 }

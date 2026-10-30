@@ -75,25 +75,26 @@ type EmailResolver interface {
 }
 
 type Service struct {
-	Secret   []byte
-	RPC      Creator
-	Email    EmailResolver
-	Auth     Authenticator
-	Members  Members
-	Inboxes  Inboxes
-	Assign   Assigner
-	Notes    Noter
-	Snooze   Snoozer
-	Labels   Labeler
-	Canned   CannedStore
-	Macros   MacroStore
-	Catalog  Catalog
-	Identify Identifier
-	Bus      Bus
-	Blobs    BlobStore
-	JS       jetstream.JetStream
-	Mailer   Mailer
-	Kakao    KakaoResolver
+	Secret      []byte
+	RPC         Creator
+	Email       EmailResolver
+	Auth        Authenticator
+	Members     Members
+	Inboxes     Inboxes
+	Assign      Assigner
+	Notes       Noter
+	Snooze      Snoozer
+	Labels      Labeler
+	Canned      CannedStore
+	Macros      MacroStore
+	Catalog     Catalog
+	Identify    Identifier
+	Bus         Bus
+	Blobs       BlobStore
+	JS          jetstream.JetStream
+	Mailer      Mailer
+	Kakao       KakaoResolver
+	KakaoSender KakaoSender
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {
@@ -165,6 +166,8 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 	}
 	meta := messageMeta{}
 	var reply EmailReplyOut
+	var kakao KakaoReplyOut
+	outbound := ""
 	if s.Email != nil {
 		out, skip, err := s.Email.EmailReply(ctx, tok.UserID, accountID, conversationID)
 		if err != nil {
@@ -173,23 +176,39 @@ func (s *Service) SubmitAgent(ctx context.Context, tok Token, accountID, convers
 		if !skip {
 			meta.SourceID = newTraceID() + "@aura.invalid"
 			reply = out
+			outbound = OutboundEmailSubject
+		}
+	}
+	if outbound == "" && s.Kakao != nil {
+		out, skip, err := s.Kakao.KakaoReply(ctx, tok.UserID, accountID, conversationID)
+		if err != nil {
+			return SubmitResult{}, err
+		}
+		if !skip {
+			kakao = out
+			outbound = OutboundKakaoSubject
 		}
 	}
 	msgID, _, err := s.publishMessage(ctx, accountID, req.InboxID, conversationID, req.ContactID, req.ContactInboxID, tok.UserID, req.Content, "User", MessageOutgoing, meta)
 	if err != nil {
 		return SubmitResult{}, err
 	}
-	if meta.SourceID != "" {
-		task, err := json.Marshal(OutboundTask{
+	if outbound != "" {
+		t := OutboundTask{
 			AccountID: accountID.String(), InboxID: req.InboxID.String(),
 			ConversationID: conversationID.String(), MessageID: msgID.String(),
-			From: reply.From, To: reply.To, Content: req.Content,
-			InReplyTo: reply.InReplyTo, SourceID: meta.SourceID, DisplayID: reply.DisplayID,
-		})
+			Content: req.Content,
+		}
+		if outbound == OutboundEmailSubject {
+			t.From, t.To, t.InReplyTo, t.SourceID, t.DisplayID = reply.From, reply.To, reply.InReplyTo, meta.SourceID, reply.DisplayID
+		} else {
+			t.From, t.To, t.SessionLive, t.Template, t.Phone = kakao.From, kakao.To, kakao.SessionLive, kakao.Template, kakao.Phone
+		}
+		task, err := json.Marshal(t)
 		if err != nil {
 			return SubmitResult{}, err
 		}
-		if err := s.Bus.PublishEvent(ctx, OutboundEmailSubject, task); err != nil {
+		if err := s.Bus.PublishEvent(ctx, outbound, task); err != nil {
 			return SubmitResult{}, err
 		}
 	}

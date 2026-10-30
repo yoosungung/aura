@@ -12,7 +12,10 @@ import (
 	"github.com/yoosungung/aura/internal/ingest"
 )
 
-const OutboundEmailSubject = "helpdesk.tasks.outbound.email"
+const (
+	OutboundEmailSubject = "helpdesk.tasks.outbound.email"
+	OutboundKakaoSubject = "helpdesk.tasks.outbound.kakao"
+)
 
 type Mailer interface {
 	Send(from string, to []string, raw []byte) error
@@ -48,6 +51,9 @@ type OutboundTask struct {
 	InReplyTo      string `json:"in_reply_to"`
 	SourceID       string `json:"source_id"`
 	DisplayID      int64  `json:"display_id"`
+	SessionLive    bool   `json:"session_live"`
+	Template       string `json:"template"`
+	Phone          string `json:"phone"`
 }
 
 func (s *Service) DeliverOutbound(ctx context.Context, t OutboundTask) error {
@@ -88,6 +94,49 @@ func (s *Service) ConsumeOutbound(ctx context.Context) error {
 	defer cc.Stop()
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+func (s *Service) ConsumeKakaoOutbound(ctx context.Context) error {
+	if s.JS == nil {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	cons, err := s.JS.CreateOrUpdateConsumer(ctx, ingest.TasksStream, jetstream.ConsumerConfig{
+		Durable:       ingest.OutboundKakaoConsumer,
+		FilterSubject: OutboundKakaoSubject,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxAckPending: 1000,
+	})
+	if err != nil {
+		return err
+	}
+	cc, err := cons.Consume(func(msg jetstream.Msg) {
+		s.handleKakaoOutbound(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer cc.Stop()
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *Service) handleKakaoOutbound(msg jetstream.Msg) {
+	var t OutboundTask
+	if err := json.Unmarshal(msg.Data(), &t); err != nil {
+		_ = msg.Ack()
+		return
+	}
+	if err := s.DeliverKakaoOutbound(context.Background(), t); err != nil {
+		if errors.Is(err, ErrInvalid) {
+			_ = msg.Ack()
+			return
+		}
+		_ = msg.Nak()
+		return
+	}
+	_ = msg.Ack()
 }
 
 func (s *Service) handleOutbound(msg jetstream.Msg) {

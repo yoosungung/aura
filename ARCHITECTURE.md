@@ -115,12 +115,13 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.inboxes.get` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inboxes.rotate_hmac` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.email_reply` | `actor_user_id`, `account_id`, `conversation_id`. 이메일 인박스면 `from`/`to`/`display_id`/`in_reply_to`, 아니면 `skip` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.kakao_reply` | `actor_user_id`, `account_id`, `conversation_id`. 카카오 인박스면 `from`(sender_key)/`to`(userKey)/`session_live`/`template`/`phone`, 아니면 `skip` | gateway-web | svc-core |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.message_created` | 아래 envelope | gateway-\*, svc-core | ingestion, sla-routing, automation, ai |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.csat_submitted` | `rating`, `feedback` | gateway-\* | ingestion |
 | WorkQueue | `helpdesk.tasks.ai.reasoning` | `conversation_id`, `trigger_message_id` | gateway-\*, svc-core | svc-ai-agent |
-| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
+| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live`, `template`, `phone` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
 | WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
 | WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `event` | automation, svc-core | svc-core 워커 |
 | WorkQueue | `helpdesk.tasks.sla.evaluate` | `conversation_id` | sla-routing 스케줄 | sla-routing |
@@ -411,6 +412,7 @@ CREATE TABLE inboxes (
     hmac_secret VARCHAR(255) NOT NULL,
     email_address VARCHAR(255),
     kakao_sender_key VARCHAR(255),
+    kakao_alimtalk_template VARCHAR(50),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -661,7 +663,7 @@ CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_n
 
 `gateway-kakao` 인입은 HTTP `POST /cstalk/message`(환경 `AURA_KAKAO_ADDR`, 기본 `:8081`)다. 웹훅 JSON이 신뢰 경계다. `inboxes.kakao_sender_key`는 UNIQUE이고, 테넌트 GUC 없이 `inbox_by_kakao` SECURITY DEFINER로만 조회한다. `userKey`는 `contact_inboxes.source_id`, `msgKey`는 `messages.source_id`다. 같은 msgKey는 `message_created`를 재발행하지 않는다. 그 컨택트의 미해결 대화가 있으면 붙이고, 없으면 `conversations.create`(`reuse_contact=true`)가 성공한 뒤에만 발행한다. 응답은 `{"code":"A000","result":"Success"}`. PG는 쓰지 않는다.
 
-카카오 아웃바운드: 상담톡 세션이 살아 있으면 상담톡, 아니면 알림톡 템플릿. 세션 연장은 고객 인입 메시지 기준 30일.
+`gateway-kakao` 아웃바운드는 WorkQueue `helpdesk.tasks.outbound.kakao`다. 상담원 답장은 `gateway-web`이 `conversations.kakao_reply`로 채널을 확인하고, 카카오면 `message_created` 뒤에 태스크를 넣는다. 세션은 고객 마지막 인입 메시지 후 30일이다. 살아 있으면 허브 `POST {AURA_KAKAO_API_URL}/cstalk/plain`(`senderKey`/`userKey`/`msgType=TEXT`), 아니면 인박스 `kakao_alimtalk_template`로 `POST {AURA_KAKAO_API_URL}/alimtalk`. 인증은 `AURA_KAKAO_API_KEY`. PG는 쓰지 않는다.
 
 첨부 `external_url` 은 오브젝트 스토리지(로컬 SeaweedFS 필러). 게이트웨이는 파일을 `{account_id}/{attachment_id}/` 경로에 올린 뒤 URL만 이벤트에 넣는다. `message_created` payload `attachments` 원소는 `{ id, file_type, external_url, file_size }`다. ingestion이 `attachments` 행을 멱등 insert한다.
 

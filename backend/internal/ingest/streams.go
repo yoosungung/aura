@@ -14,6 +14,7 @@ const (
 	ConsumerName          = "ingestion"
 	SnoozeWakeConsumer    = "svc-core-snooze"
 	OutboundEmailConsumer = "gateway-email-outbound"
+	OutboundKakaoConsumer = "gateway-kakao-outbound"
 	EventsFilter          = "helpdesk.events.*.*.*.message_created"
 	SnoozeWakeFilter      = "helpdesk.tasks.snooze.wake.*"
 	DLQSubject            = "helpdesk.dlq.ingestion"

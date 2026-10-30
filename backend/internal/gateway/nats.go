@@ -173,6 +173,37 @@ func (r *natsRPC) CreateKakao(ctx context.Context, accountID, inboxID uuid.UUID,
 	return r.create(ctx, accountID, inboxID, userKey, name, traceID, true)
 }
 
+func (r *natsRPC) KakaoReply(ctx context.Context, actor, account, conversation uuid.UUID) (KakaoReplyOut, bool, error) {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(),
+		"conversation_id": conversation.String(),
+	})
+	if err != nil {
+		return KakaoReplyOut{}, false, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectKakaoReply, body)
+	if err != nil {
+		return KakaoReplyOut{}, false, err
+	}
+	var out struct {
+		OK          bool   `json:"ok"`
+		Error       string `json:"error"`
+		Skip        bool   `json:"skip"`
+		From        string `json:"from"`
+		To          string `json:"to"`
+		Template    string `json:"template"`
+		Phone       string `json:"phone"`
+		SessionLive bool   `json:"session_live"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return KakaoReplyOut{}, false, err
+	}
+	if !out.OK {
+		return KakaoReplyOut{}, false, memberRPCErr(out.Error)
+	}
+	return KakaoReplyOut{From: out.From, To: out.To, Template: out.Template, Phone: out.Phone, SessionLive: out.SessionLive}, out.Skip, nil
+}
+
 func (r *natsRPC) ResolveInbox(ctx context.Context, email string) (uuid.UUID, uuid.UUID, error) {
 	body, err := json.Marshal(map[string]any{"email": email})
 	if err != nil {

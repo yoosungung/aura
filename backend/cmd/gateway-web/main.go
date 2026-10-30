@@ -47,6 +47,7 @@ func main() {
 			Secret:   secret,
 			RPC:      n,
 			Email:    n,
+			Kakao:    n,
 			Auth:     n,
 			Members:  n,
 			Inboxes:  n,
