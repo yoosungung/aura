@@ -45,6 +45,7 @@ export function App({ session: initialSession, client, initialState = emptyState
   );
   const [state, dispatch] = useReducer(reduce, initialState);
   const [draft, setDraft] = useState("");
+  const [cannedIndex, setCannedIndex] = useState(0);
   const logRef = useRef(null);
   const queue = state.conversations.filter((c) => visibleInQueue(c));
   const selected = queue.find((c) => c.id === state.selectedId);
@@ -367,6 +368,11 @@ export function App({ session: initialSession, client, initialState = emptyState
   const cannedHits = slashCode
     ? canned.filter((c) => (c.short_code || "").startsWith(slashCode))
     : [];
+  const activeCanned = cannedHits.length ? Math.min(cannedIndex, cannedHits.length - 1) : 0;
+
+  useEffect(() => {
+    setCannedIndex(0);
+  }, [slashCode]);
 
   function insertCanned(item) {
     const next = slash ? draft.slice(0, slash.index) + (slash.index > 0 ? " " : "") + item.content : item.content;
@@ -773,12 +779,17 @@ export function App({ session: initialSession, client, initialState = emptyState
                   ) : (
                     <form className="composer" onSubmit={onSubmit}>
                       {cannedHits.length > 0 ? (
-                        <ul role="listbox" aria-label="저장응답" className="canned-pop">
-                          {cannedHits.map((item) => (
-                            <li key={item.id || item.short_code}>
-                              <Button type="button" variant="ghost" onClick={() => insertCanned(item)}>
-                                /{item.short_code}
-                              </Button>
+                        <ul id="canned-list" role="listbox" aria-label="저장응답" className="canned-pop">
+                          {cannedHits.map((item, i) => (
+                            <li
+                              key={item.id || item.short_code}
+                              id={cannedOptionId(item)}
+                              role="option"
+                              aria-selected={i === activeCanned}
+                              className={`canned-opt${i === activeCanned ? " canned-opt-active" : ""}`}
+                              onClick={() => insertCanned(item)}
+                            >
+                              /{item.short_code}
                             </li>
                           ))}
                         </ul>
@@ -786,18 +797,42 @@ export function App({ session: initialSession, client, initialState = emptyState
                       <Textarea
                         aria-label="답장"
                         placeholder="/ 를 입력해 저장응답 삽입"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={cannedHits.length > 0}
+                        aria-controls={cannedHits.length ? "canned-list" : undefined}
+                        aria-activedescendant={
+                          cannedHits.length ? cannedOptionId(cannedHits[activeCanned]) : undefined
+                        }
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={(e) => {
+                          if (!cannedHits.length) {
+                            return;
+                          }
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setCannedIndex((i) => Math.min(cannedHits.length - 1, i + 1));
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setCannedIndex((i) => Math.max(0, i - 1));
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setDraft(draft.replace(/(^|\s)\/[^\s]*$/, "$1").trimEnd());
+                            return;
+                          }
                           if (
                             e.key === "Enter" &&
                             !e.shiftKey &&
                             !e.metaKey &&
-                            !e.ctrlKey &&
-                            cannedHits.length > 0
+                            !e.ctrlKey
                           ) {
                             e.preventDefault();
-                            insertCanned(cannedHits[0]);
+                            insertCanned(cannedHits[activeCanned]);
                           }
                         }}
                       />
@@ -928,6 +963,10 @@ function bubbleClass(m) {
     return `bubble bubble-in bg-slate-100 text-slate-900${sending}`;
   }
   return `bubble bubble-out${sending}`;
+}
+
+function cannedOptionId(item) {
+  return `canned-${item.id || item.short_code}`;
 }
 
 function formatFileSize(n) {

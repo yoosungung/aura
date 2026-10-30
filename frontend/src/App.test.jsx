@@ -708,6 +708,59 @@ test("composer inserts a canned response from slash", async () => {
   expect(screen.getByLabelText("답장").value).toBe("안녕하세요");
 });
 
+test("composer listbox arrows pick a canned response", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listCanned() {
+          return {
+            canned_responses: [
+              { id: "r1", short_code: "인사", content: "안녕하세요" },
+              { id: "r2", short_code: "인원", content: "인원 확인했습니다" },
+            ],
+          };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("답장"), "/인");
+  const reply = screen.getByLabelText("답장");
+  expect(reply.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByRole("option", { name: "/인사" }).getAttribute("aria-selected")).toBe("true");
+  await user.keyboard("{ArrowDown}");
+  expect(screen.getByRole("option", { name: "/인원" }).getAttribute("aria-selected")).toBe("true");
+  expect(reply.getAttribute("aria-activedescendant")).toBe("canned-r2");
+  await user.keyboard("{Enter}");
+  expect(reply.value).toBe("인원 확인했습니다");
+});
+
+test("escape dismisses the canned slash token", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listCanned() {
+          return { canned_responses: [{ id: "r1", short_code: "인사", content: "안녕하세요" }] };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("답장"), "/인사");
+  expect(screen.getByRole("listbox", { name: "저장응답" })).toBeTruthy();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("listbox", { name: "저장응답" })).toBeNull();
+  expect(screen.getByLabelText("답장").value).toBe("");
+});
+
 test("ticket view runs a macro", async () => {
   const user = userEvent.setup();
   const ran = [];
