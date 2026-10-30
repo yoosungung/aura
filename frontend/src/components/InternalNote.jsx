@@ -3,33 +3,22 @@ import { Button } from "./ui/button.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
 
-export function InternalNote({ session, conversation, client, onNoted }) {
+export function InternalNote({ onSend }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
     const content = draft.trim();
-    if (!content || !client.sendNote) {
+    if (!content || !onSend) {
       return;
     }
     setError("");
-    setPending(true);
+    setDraft("");
     try {
-      const data = await client.sendNote({
-        gatewayUrl: session.gatewayUrl,
-        accountId: session.accountId,
-        token: session.token,
-        conversationId: conversation.id,
-        content,
-      });
-      setDraft("");
-      onNoted?.(data);
+      await onSend(content);
     } catch {
       setError("메모를 남기지 못했습니다");
-    } finally {
-      setPending(false);
     }
   }
 
@@ -46,7 +35,7 @@ export function InternalNote({ session, conversation, client, onNoted }) {
         />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
-      <Button type="submit" variant="warning" disabled={pending}>
+      <Button type="submit" variant="warning">
         메모
       </Button>
     </form>

@@ -247,7 +247,7 @@ export function reduce(state, action) {
       ...state,
       messages: { ...state.messages, [convId]: [...existing, msg] },
       conversations: state.conversations.map((c) =>
-        c.id === convId
+        c.id === convId && !msg.private
           ? { ...c, lastContent: msg.content, lastActivityAt: msg.createdAt || c.lastActivityAt }
           : c,
       ),

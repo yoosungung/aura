@@ -355,11 +355,58 @@ export function App({ session: initialSession, client, initialState = emptyState
     await postReply(selected, content, localId);
   }
 
+  async function postNote(conversation, content, localId) {
+    try {
+      const data = await client.sendNote({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        conversationId: conversation.id,
+        content,
+      });
+      dispatch({
+        type: "sent",
+        conversationId: conversation.id,
+        id: localId,
+        messageId: data?.message_id,
+      });
+    } catch {
+      dispatch({ type: "sendFailed", conversationId: conversation.id, id: localId });
+    }
+  }
+
+  async function queueNote(content) {
+    if (!selected || !client.sendNote) {
+      return;
+    }
+    const localId = `pending-${Date.now()}`;
+    dispatch({
+      type: "send",
+      conversationId: selected.id,
+      message: {
+        id: localId,
+        content,
+        senderType: "User",
+        private: true,
+        status: "sending",
+        createdAt: new Date().toISOString(),
+      },
+    });
+    await postNote(selected, content, localId);
+  }
+
   async function retrySend(conversation, message) {
+    dispatch({ type: "retry", conversationId: conversation.id, id: message.id });
+    if (message.private) {
+      if (!client.sendNote) {
+        return;
+      }
+      await postNote(conversation, message.content, message.id);
+      return;
+    }
     if (!client.sendReply) {
       return;
     }
-    dispatch({ type: "retry", conversationId: conversation.id, id: message.id });
     await postReply(conversation, message.content, message.id);
   }
 
@@ -689,15 +736,17 @@ export function App({ session: initialSession, client, initialState = emptyState
                           재전송
                         </Button>
                       ) : null}
-                      {m.createdAt || (!m.private && m.senderType === "User") ? (
+                      {m.createdAt || m.senderType === "User" ? (
                         <span className="bubble-meta">
                           {formatClock(m.createdAt)}
-                          {!m.private && m.senderType === "User"
+                          {m.senderType === "User"
                             ? m.status === "sending"
                               ? " · 전송 중"
                               : m.status === "failed"
                                 ? " · 전송 실패"
-                                : " · 전송됨"
+                                : m.private
+                                  ? ""
+                                  : " · 전송됨"
                             : ""}
                         </span>
                       ) : null}
@@ -750,32 +799,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                     />
                   </div>
                   {composeMode === "note" ? (
-                    <InternalNote
-                      key={`note-${selected.id}`}
-                      session={session}
-                      conversation={selected}
-                      client={client}
-                      onNoted={(data) =>
-                        dispatch({
-                          type: "realtime",
-                          event: {
-                            event: "message.created",
-                            conversation_id: selected.id,
-                            inbox_id: selected.inboxId,
-                            message: {
-                              id: data.message_id,
-                              payload: {
-                                content: data.content,
-                                sender_type: "User",
-                                private: true,
-                                contact_id: selected.contactId,
-                                contact_inbox_id: selected.contactInboxId,
-                              },
-                            },
-                          },
-                        })
-                      }
-                    />
+                    <InternalNote key={`note-${selected.id}`} onSend={queueNote} />
                   ) : (
                     <form className="composer" onSubmit={onSubmit}>
                       {cannedHits.length > 0 ? (

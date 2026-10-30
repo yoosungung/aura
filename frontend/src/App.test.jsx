@@ -320,6 +320,37 @@ test("ticket view posts an internal note", async () => {
   expect(notes[0].content).toBe("환불 검토");
   expect(notes[0].conversationId).toBe("c1");
   expect(screen.getByRole("log").textContent).toContain("환불 검토");
+  expect(screen.getByRole("button", { name: /결제 오류/ }).textContent).not.toContain("환불 검토");
+});
+
+test("failed note shows a retry control", async () => {
+  const user = userEvent.setup();
+  const notes = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendNote(req) {
+          notes.push(req);
+          if (notes.length === 1) {
+            throw new Error("offline");
+          }
+          return { message_id: "n9", content: req.content, private: true };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "내부 메모" }));
+  await user.type(screen.getByLabelText("메모"), "환불 검토");
+  await user.click(screen.getByRole("button", { name: "메모" }));
+  expect(screen.getByRole("log").textContent).toContain("환불 검토");
+  expect(screen.getByRole("button", { name: "재전송" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "재전송" }));
+  expect(notes).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "재전송" })).toBeNull();
 });
 
 test("ticket view attaches a label by name", async () => {

@@ -326,4 +326,20 @@ describe("optimistic send", () => {
     assert.equal(s.messages.c1.filter((m) => m.content === "확인했습니다").length, 1);
     assert.equal(s.messages.c1.at(-1).id, "m9");
   });
+
+  it("does not put a private note on the queue card", () => {
+    const s = reduce(seeded, {
+      type: "send",
+      conversationId: "c1",
+      message: {
+        id: "pending-n",
+        content: "환불 검토",
+        senderType: "User",
+        private: true,
+        status: "sending",
+      },
+    });
+    assert.equal(s.messages.c1.at(-1).private, true);
+    assert.equal(s.conversations[0].lastContent, "결제 오류");
+  });
 });
