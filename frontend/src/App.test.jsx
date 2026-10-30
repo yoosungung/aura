@@ -83,6 +83,15 @@ test("selecting a queue card shows the thread", async () => {
   expect(screen.getByRole("log").textContent).toContain("결제 오류");
 });
 
+test("contact messages use a slate incoming bubble", async () => {
+  const user = userEvent.setup();
+  render(
+    <App session={session} client={{ connect() {} }} initialState={fixtureState()} />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(document.querySelector(".bubble-in").className).toMatch(/slate-100/);
+});
+
 test("administrator settings live behind the rail", async () => {
   const user = userEvent.setup();
   render(
@@ -126,6 +135,68 @@ test("administrator can add an inbox member", async () => {
   await user.click(screen.getByRole("button", { name: "추가" }));
   expect(added[0].userId).toBe("user-1");
   expect(added[0].inboxId).toBe("i1");
+});
+
+test("administrator picks an agent from other inbox members", async () => {
+  const user = userEvent.setup();
+  const added = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1", "i2"] }}
+      client={{
+        connect() {},
+        async listInboxMembers(req) {
+          if (req.inboxId === "i2") {
+            return { members: [{ user_id: "user-2", name: "Bee", email: "bee@acme.test" }] };
+          }
+          return { members: [] };
+        },
+        async addInboxMember(req) {
+          added.push(req);
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "상담원" }), "user-2");
+  expect(screen.getByLabelText("상담원 ID").value).toBe("user-2");
+  await user.click(screen.getByRole("button", { name: "추가" }));
+  expect(added[0].userId).toBe("user-2");
+  expect(added[0].inboxId).toBe("i1");
+});
+
+test("administrator picks inbox from a session select", async () => {
+  const user = userEvent.setup();
+  const added = [];
+  const seen = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1", "i2"] }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [] };
+        },
+        async addInboxMember(req) {
+          added.push(req);
+        },
+        async getInbox(req) {
+          seen.push(req.inboxId);
+          return { hmac_secret: "secret" };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "인박스" }), "i2");
+  expect(screen.getByLabelText("인박스 ID").value).toBe("i2");
+  await user.type(screen.getByLabelText("상담원 ID"), "user-1");
+  await user.click(screen.getByRole("button", { name: "추가" }));
+  expect(added[0].inboxId).toBe("i2");
+  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "인박스" }), "i2");
+  await user.click(screen.getByRole("button", { name: "보기" }));
+  expect(seen[0]).toBe("i2");
 });
 
 test("agent does not see inbox member admin", () => {
@@ -272,7 +343,9 @@ test("ticket view keeps a note and a label on the same thread", async () => {
 test("ticket view snoozes and hides the card until then", async () => {
   const user = userEvent.setup();
   const snoozed = [];
-  const until = "2026-10-30T18:00";
+  const wake = new Date(Date.now() + 3_600_000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const until = `${wake.getFullYear()}-${pad(wake.getMonth() + 1)}-${pad(wake.getDate())}T${pad(wake.getHours())}:${pad(wake.getMinutes())}`;
   render(
     <App
       session={session}
@@ -332,6 +405,7 @@ test("ticket view uploads an attachment", async () => {
   const attach = screen.getByRole("link", { name: /receipt.png/ });
   expect(attach.getAttribute("href")).toContain("http://127.0.0.1:8888/acc/a1/receipt.png");
   expect(attach.textContent).toContain("열기");
+  expect(attach.querySelector("img")?.getAttribute("src")).toContain("receipt.png");
 });
 
 test("ticket view keeps a note, a label, and an attachment on the same thread", async () => {
@@ -589,6 +663,63 @@ test("reply posts through the gateway client", async () => {
   await user.click(screen.getByRole("button", { name: "보내기" }));
   expect(sent[0].content).toBe("확인했습니다");
   expect(sent[0].conversation.id).toBe("c1");
+});
+
+test("failed reply shows a retry control", async () => {
+  const user = userEvent.setup();
+  const sent = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendReply(req) {
+          sent.push(req);
+          if (sent.length === 1) {
+            throw new Error("offline");
+          }
+          return { message_id: "m9" };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("답장"), "확인했습니다");
+  await user.click(screen.getByRole("button", { name: "보내기" }));
+  expect(screen.getByRole("log").textContent).toContain("확인했습니다");
+  expect(screen.getByRole("button", { name: "재전송" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "재전송" }));
+  expect(sent).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "재전송" })).toBeNull();
+});
+
+test("pending reply is shown at 70 percent opacity", async () => {
+  const user = userEvent.setup();
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async sendReply() {
+          await gate;
+          return { message_id: "m9" };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("답장"), "확인했습니다");
+  const pending = user.click(screen.getByRole("button", { name: "보내기" }));
+  expect(await screen.findByText(/전송 중/)).toBeTruthy();
+  expect(document.querySelector('[data-status="sending"]').className).toMatch(/opacity-70/);
+  release();
+  await pending;
 });
 
 test("desktop layout keeps queue thread and context visible", async () => {

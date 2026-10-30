@@ -5,6 +5,7 @@ import {
   conversationsFromAPI,
   emptyState,
   messagesFromAPI,
+  parseSession,
   reduce,
   visibleInQueue,
 } from "./store.js";
@@ -257,6 +258,15 @@ describe("conversationsFromAPI", () => {
   });
 });
 
+describe("parseSession", () => {
+  it("gives fixture mode an inbox select list", () => {
+    const s = parseSession("?fixture=1");
+    assert.equal(s.fixture, true);
+    assert.equal(s.role, "administrator");
+    assert.deepEqual(s.inboxIds, ["i1", "i2"]);
+  });
+});
+
 describe("channelLabel", () => {
   it("maps channel_type to the queue badge", () => {
     assert.equal(channelLabel("web"), "Web");
@@ -269,5 +279,51 @@ describe("messagesFromAPI", () => {
   it("maps created_at onto the timeline", () => {
     const rows = messagesFromAPI([{ id: "m1", content: "hi", sender_type: "Contact", created_at: "2026-10-30T05:20:00Z" }]);
     assert.equal(rows[0].createdAt, "2026-10-30T05:20:00Z");
+  });
+});
+
+describe("optimistic send", () => {
+  const seeded = {
+    conversations: [{ id: "c1", lastContent: "결제 오류", version: 1 }],
+    selectedId: "c1",
+    messages: { c1: [{ id: "m1", content: "결제 오류", senderType: "Contact" }] },
+  };
+
+  it("appends a sending bubble then marks it failed", () => {
+    let s = reduce(seeded, {
+      type: "send",
+      conversationId: "c1",
+      message: { id: "pending-1", content: "확인했습니다", senderType: "User", status: "sending" },
+    });
+    assert.equal(s.messages.c1.at(-1).status, "sending");
+    assert.equal(s.conversations[0].lastContent, "확인했습니다");
+    s = reduce(s, { type: "sendFailed", conversationId: "c1", id: "pending-1" });
+    assert.equal(s.messages.c1.at(-1).status, "failed");
+    s = reduce(s, { type: "retry", conversationId: "c1", id: "pending-1" });
+    assert.equal(s.messages.c1.at(-1).status, "sending");
+    s = reduce(s, { type: "sent", conversationId: "c1", id: "pending-1", messageId: "m9" });
+    assert.equal(s.messages.c1.at(-1).id, "m9");
+    assert.equal(s.messages.c1.at(-1).status, undefined);
+  });
+
+  it("replaces a pending bubble when the realtime message arrives", () => {
+    let s = reduce(seeded, {
+      type: "send",
+      conversationId: "c1",
+      message: { id: "pending-1", content: "확인했습니다", senderType: "User", status: "sending" },
+    });
+    s = reduce(s, {
+      type: "realtime",
+      event: {
+        event: "message.created",
+        conversation_id: "c1",
+        message: {
+          id: "m9",
+          payload: { content: "확인했습니다", sender_type: "User" },
+        },
+      },
+    });
+    assert.equal(s.messages.c1.filter((m) => m.content === "확인했습니다").length, 1);
+    assert.equal(s.messages.c1.at(-1).id, "m9");
   });
 });

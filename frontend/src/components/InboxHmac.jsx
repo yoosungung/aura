@@ -42,6 +42,18 @@ export function InboxHmac({ session, client }) {
   return (
     <section className="hmac" aria-label="HMAC 시크릿">
       <h2>HMAC 시크릿</h2>
+      {session.inboxIds?.length ? (
+        <Label>
+          인박스
+          <select aria-label="인박스" value={inboxId} onChange={(e) => setInboxId(e.target.value)}>
+            {session.inboxIds.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </Label>
+      ) : null}
       <Label>
         인박스 ID
         <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />

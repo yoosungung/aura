@@ -296,20 +296,54 @@ export function App({ session: initialSession, client, initialState = emptyState
     setSession({ ...session, token: "" });
   }
 
+  async function postReply(conversation, content, localId) {
+    try {
+      const data = await client.sendReply({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        conversation,
+        content,
+      });
+      dispatch({
+        type: "sent",
+        conversationId: conversation.id,
+        id: localId,
+        messageId: data?.message_id,
+      });
+    } catch {
+      dispatch({ type: "sendFailed", conversationId: conversation.id, id: localId });
+    }
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     const content = draft.trim();
     if (!content || !selected || !client.sendReply) {
       return;
     }
-    await client.sendReply({
-      gatewayUrl: session.gatewayUrl,
-      accountId: session.accountId,
-      token: session.token,
-      conversation: selected,
-      content,
+    const localId = `pending-${Date.now()}`;
+    dispatch({
+      type: "send",
+      conversationId: selected.id,
+      message: {
+        id: localId,
+        content,
+        senderType: "User",
+        status: "sending",
+        createdAt: new Date().toISOString(),
+      },
     });
     setDraft("");
+    await postReply(selected, content, localId);
+  }
+
+  async function retrySend(conversation, message) {
+    if (!client.sendReply) {
+      return;
+    }
+    dispatch({ type: "retry", conversationId: conversation.id, id: message.id });
+    await postReply(conversation, message.content, message.id);
   }
 
   const slash = draft.match(/(?:^|\s)(\/[^\s]*)$/);
@@ -596,27 +630,45 @@ export function App({ session: initialSession, client, initialState = emptyState
                       key={m.id}
                       data-sender={m.senderType}
                       data-private={m.private ? "true" : undefined}
+                      data-status={m.status}
                       className={bubbleClass(m)}
                     >
                       {m.private ? (
                         <span className="note-caption">🔒 내부 메모 (상담원에게만 보임)</span>
                       ) : null}
                       {m.content}
-                      {(m.attachments || []).map((a) => (
-                        <a
-                          key={a.id || a.external_url}
-                          className="attach-card"
-                          href={a.external_url}
-                        >
-                          {a.file_name || a.filename || fileName(a.external_url)}
-                          {a.file_size != null ? ` (${a.file_size} B)` : null}
-                          {" 열기"}
-                        </a>
-                      ))}
+                      {(m.attachments || []).map((a) => {
+                        const name = a.file_name || a.filename || fileName(a.external_url);
+                        return (
+                          <a
+                            key={a.id || a.external_url}
+                            className="attach-card"
+                            href={a.external_url}
+                          >
+                            {isImageAttachment(a) ? (
+                              <img className="attach-thumb" src={a.external_url} alt={name} />
+                            ) : null}
+                            {name}
+                            {a.file_size != null ? ` (${a.file_size} B)` : null}
+                            {" 열기"}
+                          </a>
+                        );
+                      })}
+                      {m.status === "failed" ? (
+                        <Button type="button" size="sm" variant="outline" onClick={() => retrySend(selected, m)}>
+                          재전송
+                        </Button>
+                      ) : null}
                       {m.createdAt || (!m.private && m.senderType === "User") ? (
                         <span className="bubble-meta">
                           {formatClock(m.createdAt)}
-                          {!m.private && m.senderType === "User" ? " · 전송됨" : ""}
+                          {!m.private && m.senderType === "User"
+                            ? m.status === "sending"
+                              ? " · 전송 중"
+                              : m.status === "failed"
+                                ? " · 전송 실패"
+                                : " · 전송됨"
+                            : ""}
                         </span>
                       ) : null}
                     </li>
@@ -816,13 +868,23 @@ function kakaoSessionLine(messages) {
 }
 
 function bubbleClass(m) {
+  const sending = m.status === "sending" ? " bubble-sending opacity-70" : "";
   if (m.private) {
-    return "bubble bubble-note";
+    return `bubble bubble-note${sending}`;
   }
   if (m.senderType === "Contact") {
-    return "bubble bubble-in";
+    return `bubble bubble-in bg-slate-100 text-slate-900${sending}`;
   }
-  return "bubble bubble-out";
+  return `bubble bubble-out${sending}`;
+}
+
+function isImageAttachment(a) {
+  const type = `${a.file_type || a.content_type || ""}`.toLowerCase();
+  if (type.startsWith("image")) {
+    return true;
+  }
+  const name = `${a.file_name || a.filename || a.external_url || ""}`.toLowerCase();
+  return /\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(name);
 }
 
 function fileName(url) {

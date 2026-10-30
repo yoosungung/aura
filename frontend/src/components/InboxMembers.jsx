@@ -7,30 +7,47 @@ export function InboxMembers({ session, client }) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
   const [userId, setUserId] = useState("");
   const [members, setMembers] = useState([]);
+  const [directory, setDirectory] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!inboxId || !client.listInboxMembers) {
+    if (!client.listInboxMembers) {
+      return undefined;
+    }
+    const ids = [...new Set([...(session.inboxIds || []), inboxId].filter(Boolean))];
+    if (ids.length === 0) {
       return undefined;
     }
     let cancelled = false;
-    client
-      .listInboxMembers({
-        gatewayUrl: session.gatewayUrl,
-        accountId: session.accountId,
-        token: session.token,
-        inboxId,
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setMembers(data?.members || []);
+    Promise.all(
+      ids.map((id) =>
+        client
+          .listInboxMembers({
+            gatewayUrl: session.gatewayUrl,
+            accountId: session.accountId,
+            token: session.token,
+            inboxId: id,
+          })
+          .then((data) => ({ id, members: data?.members || [] }))
+          .catch(() => ({ id, members: [] })),
+      ),
+    ).then((rows) => {
+      if (cancelled) {
+        return;
+      }
+      setMembers(rows.find((row) => row.id === inboxId)?.members || []);
+      const seen = new Set();
+      const next = [];
+      for (const row of rows) {
+        for (const m of row.members) {
+          if (m.user_id && !seen.has(m.user_id)) {
+            seen.add(m.user_id);
+            next.push(m);
+          }
         }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError("멤버를 불러오지 못했습니다");
-        }
-      });
+      }
+      setDirectory(next);
+    });
     return () => {
       cancelled = true;
     };
@@ -65,14 +82,42 @@ export function InboxMembers({ session, client }) {
     }
   }
 
+  const taken = new Set(members.map((m) => m.user_id));
+  const agentChoices = directory.filter((m) => !taken.has(m.user_id));
+
   return (
     <section className="members" aria-label="인박스 멤버">
       <h2>인박스 멤버</h2>
       <form onSubmit={onAdd} className="flex flex-col gap-2">
+        {session.inboxIds?.length ? (
+          <Label>
+            인박스
+            <select aria-label="인박스" value={inboxId} onChange={(e) => setInboxId(e.target.value)}>
+              {session.inboxIds.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </Label>
+        ) : null}
         <Label>
           인박스 ID
           <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
         </Label>
+        {agentChoices.length > 0 ? (
+          <Label>
+            상담원
+            <select aria-label="상담원" value={userId} onChange={(e) => setUserId(e.target.value)}>
+              <option value="">선택</option>
+              {agentChoices.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.name || m.email || m.user_id}
+                </option>
+              ))}
+            </select>
+          </Label>
+        ) : null}
         <Label>
           상담원 ID
           <Input value={userId} onChange={(e) => setUserId(e.target.value)} required />

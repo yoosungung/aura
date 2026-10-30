@@ -19,7 +19,23 @@ export function fixtureState() {
     ],
     selectedId: null,
     messages: {
-      c1: [{ id: "m1", content: "결제 오류", senderType: "Contact" }],
+      c1: [
+        {
+          id: "m1",
+          content: "결제 오류",
+          senderType: "Contact",
+          attachments: [
+            {
+              id: "a0",
+              file_type: "image",
+              file_name: "shot.png",
+              external_url:
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+              file_size: 70,
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -132,11 +148,15 @@ export function kakaoSessionLabel(iso, now = Date.now()) {
 
 export function parseSession(search, env = {}) {
   const p = new URLSearchParams(search);
+  const fixture = p.get("fixture") === "1";
   return {
-    accountId: p.get("account_id") || env.VITE_ACCOUNT_ID || "",
+    accountId: p.get("account_id") || env.VITE_ACCOUNT_ID || (fixture ? "acc" : ""),
     token: p.get("token") || env.VITE_TOKEN || "",
     gatewayUrl: p.get("gateway") || env.VITE_GATEWAY_URL || "",
-    fixture: p.get("fixture") === "1",
+    fixture,
+    ...(fixture
+      ? { role: "administrator", inboxIds: ["i1", "i2"], userId: "user-1", name: "Ada" }
+      : {}),
   };
 }
 
@@ -218,6 +238,32 @@ export function reduce(state, action) {
         status === "resolved" && state.selectedId === action.conversationId ? null : state.selectedId,
     };
   }
+  if (action.type === "send") {
+    const convId = action.conversationId;
+    const existing = state.messages[convId] || [];
+    const msg = action.message;
+    return {
+      ...state,
+      messages: { ...state.messages, [convId]: [...existing, msg] },
+      conversations: state.conversations.map((c) =>
+        c.id === convId
+          ? { ...c, lastContent: msg.content, lastActivityAt: msg.createdAt || c.lastActivityAt }
+          : c,
+      ),
+    };
+  }
+  if (action.type === "sent") {
+    return patchMessage(state, action.conversationId, action.id, {
+      id: action.messageId || action.id,
+      status: undefined,
+    });
+  }
+  if (action.type === "sendFailed") {
+    return patchMessage(state, action.conversationId, action.id, { status: "failed" });
+  }
+  if (action.type === "retry") {
+    return patchMessage(state, action.conversationId, action.id, { status: "sending" });
+  }
   if (action.type === "hydrate") {
     return {
       ...state,
@@ -285,12 +331,23 @@ function applyRealtime(state, event) {
     createdAt: payload.created_at || env.created_at,
     attachments: payload.attachments || [],
   };
+  const localIdx = existing.findIndex(
+    (m) =>
+      isLocalMessage(m) &&
+      m.content === content &&
+      Boolean(m.private) === isPrivate &&
+      (m.senderType || "User") === (payload.sender_type || "User"),
+  );
+  const thread =
+    localIdx >= 0
+      ? existing.map((m, i) => (i === localIdx ? { ...m, ...msg, status: undefined } : m))
+      : [...existing, msg];
   const selected = state.selectedId === convId;
   const prev = state.conversations.find((c) => c.id === convId);
   if (isPrivate) {
     return {
       ...state,
-      messages: { ...state.messages, [convId]: [...existing, msg] },
+      messages: { ...state.messages, [convId]: thread },
     };
   }
   const nextConv = {
@@ -306,7 +363,22 @@ function applyRealtime(state, event) {
   };
   return {
     ...state,
-    messages: { ...state.messages, [convId]: [...existing, msg] },
+    messages: { ...state.messages, [convId]: thread },
     conversations: [nextConv, ...state.conversations.filter((c) => c.id !== convId)],
+  };
+}
+
+function isLocalMessage(m) {
+  return typeof m?.id === "string" && m.id.startsWith("pending-");
+}
+
+function patchMessage(state, conversationId, id, patch) {
+  const existing = state.messages[conversationId] || [];
+  return {
+    ...state,
+    messages: {
+      ...state.messages,
+      [conversationId]: existing.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    },
   };
 }
