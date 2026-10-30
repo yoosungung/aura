@@ -75,6 +75,27 @@ func TestCreate_ConversationStartsUnassigned(t *testing.T) {
 	}
 }
 
+func TestTransition_UnassignedToPending(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	svc := &core.Service{DB: app}
+	created, err := svc.Create(ctx, core.CreateInput{AccountID: accountID, InboxID: inboxID, SourceID: "s", TraceID: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := svc.Transition(ctx, core.TransitionInput{
+		AccountID: accountID, ConversationID: created.ConversationID,
+		NewStatus: core.StatusPending, ExpectedVersion: 1, TraceID: "t",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Status != core.StatusPending || out.Version != 2 {
+		t.Fatalf("%+v", out)
+	}
+}
+
 func TestTransition_ForbiddenAndConflict(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)
@@ -86,7 +107,7 @@ func TestTransition_ForbiddenAndConflict(t *testing.T) {
 	}
 	_, err = svc.Transition(ctx, core.TransitionInput{
 		AccountID: accountID, ConversationID: created.ConversationID,
-		NewStatus: core.StatusPending, ExpectedVersion: 1, TraceID: "t",
+		NewStatus: core.StatusSnoozed, ExpectedVersion: 1, TraceID: "t",
 	})
 	if err != core.ErrForbidden {
 		t.Fatalf("got %v want forbidden", err)

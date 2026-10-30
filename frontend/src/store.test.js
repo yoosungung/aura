@@ -99,7 +99,20 @@ describe("reduce realtime", () => {
       true,
     );
     assert.equal(visibleInQueue({ status: "open" }, now), true);
+    assert.equal(visibleInQueue({ status: "pending" }, now), true);
     assert.equal(visibleInQueue({ status: "resolved" }, now), false);
+  });
+
+  it("keeps a pending ticket selected in the queue", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    s = reduce(s, { type: "select", id: "c1" });
+    s = reduce(s, { type: "resolved", conversationId: "c1", status: "pending", version: 2 });
+    assert.equal(s.conversations[0].status, "pending");
+    assert.equal(s.selectedId, "c1");
+    assert.equal(visibleInQueue(s.conversations[0]), true);
   });
 
   it("applies status_changed and drops resolved from the thread", () => {

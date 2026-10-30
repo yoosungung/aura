@@ -20,7 +20,7 @@ var (
 )
 
 var allowed = map[string][]string{
-	StatusUnassigned: {StatusOpen, StatusResolved},
+	StatusUnassigned: {StatusOpen, StatusPending, StatusResolved},
 	StatusOpen:       {StatusPending, StatusResolved, StatusUnassigned},
 	StatusPending:    {StatusOpen, StatusResolved},
 	StatusResolved:   {StatusOpen},

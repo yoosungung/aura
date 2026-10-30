@@ -189,7 +189,7 @@ export async function listMessages(req, fetchImpl = fetch) {
 }
 
 export async function resolveConversation(req, fetchImpl = fetch) {
-  const { gatewayUrl, accountId, token, conversationId, expectedVersion } = req;
+  const { gatewayUrl, accountId, token, conversationId, expectedVersion, newStatus } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/status`,
     {
@@ -198,7 +198,10 @@ export async function resolveConversation(req, fetchImpl = fetch) {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ new_status: "resolved", expected_version: expectedVersion }),
+      body: JSON.stringify({
+        new_status: newStatus || "resolved",
+        expected_version: expectedVersion,
+      }),
     },
   );
   if (!res.ok) {

@@ -128,12 +128,14 @@ export function reduce(state, action) {
     };
   }
   if (action.type === "resolved") {
+    const status = action.status || "resolved";
     return {
       ...state,
       conversations: state.conversations.map((c) =>
-        c.id === action.conversationId ? { ...c, status: "resolved", version: action.version } : c,
+        c.id === action.conversationId ? { ...c, status, version: action.version } : c,
       ),
-      selectedId: state.selectedId === action.conversationId ? null : state.selectedId,
+      selectedId:
+        status === "resolved" && state.selectedId === action.conversationId ? null : state.selectedId,
     };
   }
   if (action.type === "hydrate") {

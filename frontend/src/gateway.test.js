@@ -245,6 +245,22 @@ describe("gateway client", () => {
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/status");
     assert.deepEqual(JSON.parse(calls[0].opts.body), { new_status: "resolved", expected_version: 1 });
+    const pending = [];
+    await resolveConversation(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        conversationId: "c1",
+        expectedVersion: 1,
+        newStatus: "pending",
+      },
+      async (url, opts) => {
+        pending.push({ url, opts });
+        return { ok: true, json: async () => ({ status: "pending", version: 2 }) };
+      },
+    );
+    assert.deepEqual(JSON.parse(pending[0].opts.body), { new_status: "pending", expected_version: 1 });
   });
 
   it("posts a conversation attachment as multipart", async () => {

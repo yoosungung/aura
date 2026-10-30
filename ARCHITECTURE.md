@@ -190,7 +190,7 @@ nats stream add INGESTION_DLQ \
 
 | 상태 | 진입 | 부수 효과 | 다음 |
 |---|---|---|---|
-| `unassigned` | 고객 첫 인입, 담당자 없음 | 인박스 큐, 자동배정 큐, greeting | `open`, `snoozed`, `resolved` |
+| `unassigned` | 고객 첫 인입, 담당자 없음 | 인박스 큐, 자동배정 큐, greeting | `open`, `pending`, `snoozed`, `resolved` |
 | `open` | 배정 또는 수동 접수, reopen | FRT/NRT 타이머 | `pending`, `snoozed`, `resolved`, `unassigned` |
 | `pending` | 상담원이 고객 확인 요청 | NRT 일시정지 | `open`, `resolved` |
 | `snoozed` | `snoozed_until` 지정 | 큐 숨김. 시각 도래는 NATS 스케줄 → svc-core `WakeDue` FSM으로 `open`. 고객 메시지 시에도 `open` | `open`, `resolved` |

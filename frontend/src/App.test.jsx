@@ -357,6 +357,30 @@ test("workspace hydrates the queue from the conversation list", async () => {
   expect(await screen.findByRole("button", { name: /배송 문의/ })).toBeTruthy();
 });
 
+test("ticket view marks pending and keeps the card", async () => {
+  const user = userEvent.setup();
+  const moved = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async resolveConversation(req) {
+          moved.push(req);
+          return { status: req.newStatus, version: 2 };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "대기" }));
+  expect(moved[0].newStatus).toBe("pending");
+  expect(screen.getByRole("button", { name: /결제 오류/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "해결" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "대기" })).toBeNull();
+});
+
 test("ticket view resolves and hides the card", async () => {
   const user = userEvent.setup();
   const resolved = [];
