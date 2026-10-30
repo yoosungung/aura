@@ -47,9 +47,9 @@
 - `inbox_members`, 수동 배정, 내부 메모, snooze, 라벨, 매크로·저장응답.
 - 첨부: SeaweedFS + `attachments`.
 - Application API (대화·메시지·컨택트).
-- `setUser` HMAC.
+- `setUser` HMAC. administrator가 웹 인박스에서 시크릿 복사·즉시 회전.
 - WebSocket은 짧은 만료 서명 토큰. `pubsub_token`은 시드로만 유지한다.
-- 프론트 잔여 화면: 라벨 제거, 새로고침 후 대화 목록, 매크로·저장응답 UI, 티켓 `resolved` 버튼·해결 화면.
+- 프론트 잔여 화면: 라벨 제거, 새로고침 후 대화 목록(GET 기본은 `resolved` 제외), 매크로·저장응답 UI, 티켓 `resolved` 버튼·해결 화면.
 
 성공: 관리자가 상담원을 인박스에 넣고, 상담원이 메모·라벨·첨부로 티켓을 resolved 한다.
 
@@ -100,6 +100,7 @@
 - 멀티리전 첨부 버킷
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
 - Task Fair Queuing(테넌트 쿼터)
+- 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰.
 
 ## 미결정
 
@@ -119,7 +120,6 @@
 
 **결정됨 — 해결 화면 pending.** 스레드 해결 영역에 `pending` 버튼을 둔다. 큐에는 남고, `resolved`만 숨긴다. `unassigned`/`open`에서 `pending`으로 간다.
 
-**미결 — 에릭 결정 (P3).** 목록만 둔다. 구현하지 않는다.
+**결정됨 — 인박스 HMAC 시크릿.** administrator만 웹 인박스 설정에서 보고 복사한다. Agent·Client API·위젯에는 내려가지 않는다. 호스트 서버가 env에 넣고 `identifier_hash`만 페이지에 심는다. 회전은 `hmac_secret`을 즉시 덮어쓰고, 이전 키·`hmac_mandatory`는 두지 않는다. 이메일/카카오 인박스는 이 키를 쓰지 않는다.
 
-- 인박스 HMAC 시크릿을 누가 복사하고 어떻게 돌릴지
-- 새로고침할 때 대화 목록 필터를 어떻게 할지
+**결정됨 — 대화 목록 필터 (B안).** `GET /conversations`와 `conversations.list` 기본은 작업 큐다. `resolved`는 내려주지 않는다. 담당자·Mine/미배정 쿼리는 두지 않는다. 화면은 미래 `snoozed`를 숨긴다. Mine/미배정/전체 + 상태 탭과 URL 복원·라벨 폴더는 출시 후.
