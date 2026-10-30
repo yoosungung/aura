@@ -91,6 +91,43 @@ def test_new_id_is_uuid7():
     assert uuid.UUID(new_id()).version == 7
 
 
+def test_reason_passes_rag_articles():
+    seen = []
+
+    def complete(messages, _tools):
+        seen.append(messages)
+        return {"tool_calls": [{"function": {"name": "send_status", "arguments": {"content": "영업일 2일"}}}]}
+
+    bus = MemoryBus()
+    agent = Agent(bus, LLM(complete))
+    agent.read_rag = lambda *_: [{"title": "배송 안내", "body": "영업일 2일"}]
+    agent.handle_reason(task())
+    assert "배송 안내" in seen[0][1]["content"]
+
+
+def test_search_articles_sets_hnsw_and_filters_model():
+    class FakeConn:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, sql, args=None):
+            self.calls.append((sql, args))
+            return self
+
+        def fetchall(self):
+            return []
+
+    conn = FakeConn()
+    from aura_ai.ego import search_articles
+
+    search_articles(conn, [0.01] * 1536)
+    assert any("hnsw.ef_search = 40" in sql for sql, _ in conn.calls)
+    assert any("hnsw.iterative_scan = relaxed_order" in sql for sql, _ in conn.calls)
+    select = next(sql for sql, _ in conn.calls if "<=>" in sql)
+    assert "owner_type = 'article'" in select
+    assert "e.model" in select
+
+
 def test_reason_passes_ego_and_lookup_result():
     seen = []
 

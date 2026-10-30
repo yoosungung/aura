@@ -90,6 +90,46 @@ def read_article(conn, article_id: str) -> str:
     return str(row[0]) if row else ""
 
 
+def halfvec_literal(vector: list[float]) -> str:
+    return "[" + ",".join(f"{x:.7g}" for x in vector) + "]"
+
+
+def search_articles(
+    conn,
+    vector: list[float],
+    model: str = "text-embedding-3-small",
+    version: int = 1,
+) -> list[dict]:
+    conn.execute("SET LOCAL hnsw.ef_search = 40")
+    conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
+    rows = conn.execute(
+        """
+        SELECT a.id, a.title, left(a.body, 500), e.model, e.version
+        FROM embeddings e
+        JOIN articles a ON a.id = e.owner_id AND a.account_id = e.account_id
+        WHERE e.owner_type = 'article'
+          AND e.model = %s
+          AND e.version = %s
+          AND a.published
+        ORDER BY e.embedding <=> %s::halfvec
+        LIMIT 5
+        """,
+        (model, version, halfvec_literal(vector)),
+    ).fetchall()
+    out = []
+    for row in rows:
+        out.append(
+            {
+                "id": str(row[0]),
+                "title": row[1],
+                "body": row[2],
+                "model": row[3],
+                "version": row[4],
+            }
+        )
+    return out
+
+
 def bind_agent(agent, conn) -> None:
     def with_account(account_id: str, fn):
         with conn.transaction():
@@ -100,3 +140,4 @@ def bind_agent(agent, conn) -> None:
     agent.read_center = lambda account, contact: with_account(account, lambda: customer_node_id(conn, contact))
     agent.read_messages = lambda account, conv: with_account(account, lambda: read_messages(conn, conv))
     agent.read_article = lambda account, article: with_account(account, lambda: read_article(conn, article))
+    agent.read_rag = lambda account, vec: with_account(account, lambda: search_articles(conn, vec))

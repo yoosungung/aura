@@ -55,13 +55,15 @@ class Agent:
         self.read_center: Callable[[str, str], str | None] = lambda _account, _contact: None
         self.read_messages: Callable[[str, str], str] = lambda _account, _conv: ""
         self.read_article: Callable[[str, str], str] = lambda _account, _id: ""
+        self.read_rag: Callable[[str, list[float]], list[dict]] = lambda _account, _vec: []
 
     def handle_reason(self, task: dict) -> dict:
         if int(task.get("hop_count") or 0) > 5:
             return {"skipped": True, "reason": "hop"}
         prompt = task.get("content") or ""
         ego = self.read_ego(task.get("account_id", ""), task.get("contact_id", ""))
-        decision = self.llm.reason(prompt, ego)
+        articles = self.read_rag(task.get("account_id", ""), self.embed(prompt))
+        decision = self.llm.reason(prompt, ego, articles)
         for step in decision.get("steps") or []:
             name = step.get("tool_name") or ""
             if name and name != decision.get("tool_name"):

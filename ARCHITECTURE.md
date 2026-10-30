@@ -298,7 +298,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 }
 ```
 
-`owner_type`: `article` \| `ontology_node`. `embedding` 길이 1536, 저장은 `halfvec(1536)`. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다. HNSW는 cosine, `m=16`, `ef_construction=64`. article 부분 인덱스가 있다.
+`owner_type`: `article` \| `ontology_node`. `embedding` 길이 1536, 저장은 `halfvec(1536)`. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다. HNSW는 cosine, `m=16`, `ef_construction=64`. article 부분 인덱스가 있다. `svc-ai-agent` RAG는 현재 `model`/`version`만 `embedding <=> $q::halfvec` 로 찾고, 트랜잭션에서 `SET LOCAL hnsw.ef_search = 40`, `hnsw.iterative_scan = relaxed_order` 를 켠다. 위젯 검색은 ILIKE.
 
 아웃바운드 웹훅 본문은 envelope를 펼친 공개 형태다. 헤더 `X-Helpdesk-Signature: sha256=<hex>`, `X-Helpdesk-Timestamp`. 검증식은 `HMAC-SHA256(timestamp + "." + body, webhook_secret)`. 타임스탬프 오차 5분 초과는 거절.
 

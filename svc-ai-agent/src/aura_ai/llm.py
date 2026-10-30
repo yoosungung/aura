@@ -19,10 +19,16 @@ class LLM:
             return cls(complete=openai_complete)
         return cls()
 
-    def reason(self, prompt: str, ego: list[dict]) -> dict:
+    def reason(self, prompt: str, ego: list[dict], articles: list[dict] | None = None) -> dict:
         messages = [
             {"role": "system", "content": "Helpdesk AI. Low-risk tools auto-run. High-risk tools need approval."},
-            {"role": "user", "content": json.dumps({"message": prompt, "ego": ego}, ensure_ascii=False)},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"message": prompt, "ego": ego, "articles": articles or []},
+                    ensure_ascii=False,
+                ),
+            },
         ]
         seen: set[str] = set()
         steps: list[dict] = []
