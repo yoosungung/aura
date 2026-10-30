@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+:root {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --foreground: #0f172a;
+  --border: #e2e8f0;
+  --primary: #18181b;
+  --muted: #64748b;
+  --warning: #fffbeb;
+  --danger: #e11d48;
+}
+
 html {
   color-scheme: light;
 }
@@ -10,15 +21,15 @@ body,
   height: 100%;
   margin: 0;
   font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 .workspace {
   display: flex;
   height: 100dvh;
   overflow: hidden;
-  background: #f8fafc;
+  background: var(--background);
 }
 
 .rail {
@@ -26,10 +37,49 @@ body,
   width: 56px;
   flex-shrink: 0;
   flex-direction: column;
+  justify-content: space-between;
   gap: 8px;
-  border-right: 1px solid #e2e8f0;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
   padding: 12px 8px;
+}
+
+.rail-top,
+.rail-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.availability {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #94a3b8;
+}
+
+.availability[data-availability="online"] {
+  background: #10b981;
+}
+
+.availability[data-availability="busy"] {
+  background: #f59e0b;
+}
+
+.shortcuts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 12px;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 0.12);
 }
 
 .queue {
@@ -37,8 +87,8 @@ body,
   min-width: 180px;
   flex: 0 1 320px;
   overflow: auto;
-  border-right: 1px solid #e2e8f0;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
   padding: 12px;
 }
 
@@ -64,8 +114,12 @@ body,
 }
 
 .queue-card-current {
-  border-left: 3px solid #18181b;
+  border-left: 3px solid var(--primary);
   background: rgb(244 244 245 / 0.8);
+}
+
+.queue-card-sla {
+  border-left: 3px solid var(--danger);
 }
 
 .queue-card-meta,
@@ -81,7 +135,7 @@ body,
   overflow: hidden;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: #64748b;
+  color: var(--muted);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -116,8 +170,8 @@ body,
   justify-content: space-between;
   gap: 8px;
   overflow: visible;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   padding: 0 12px;
 }
 
@@ -162,9 +216,9 @@ body,
   right: 0;
   z-index: 30;
   min-width: 260px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--surface);
   padding: 8px;
   box-shadow: 0 10px 24px rgb(15 23 42 / 0.12);
 }
@@ -190,17 +244,24 @@ body,
 
 .bubble-in {
   margin-right: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 1rem 1rem 1rem 0.25rem;
-  background: #fff;
-  color: #0f172a;
+  background: var(--surface);
+  color: var(--foreground);
 }
 
 .bubble-out {
   margin-left: auto;
   border-radius: 1rem 0.25rem 1rem 1rem;
-  background: #18181b;
+  background: var(--primary);
   color: #fafafa;
+}
+
+.bubble-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .bubble-note {
@@ -224,7 +285,7 @@ body,
   margin-top: 8px;
   align-items: center;
   gap: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 6px 12px;
   font-size: 12px;
@@ -232,19 +293,25 @@ body,
 
 .composer-dock {
   position: relative;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
   padding: 12px;
 }
 
 .composer-note {
-  background: #fffbeb;
+  background: var(--warning);
 }
 
 .composer-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
   margin-bottom: 8px;
+}
+
+.composer-tabs .attach {
+  margin-left: auto;
 }
 
 .composer {
@@ -265,9 +332,9 @@ body,
   z-index: 10;
   margin: 0;
   list-style: none;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--surface);
   padding: 4px;
   box-shadow: 0 10px 24px rgb(15 23 42 / 0.12);
 }
@@ -280,8 +347,8 @@ body,
   flex-direction: column;
   gap: 16px;
   overflow: auto;
-  border-left: 1px solid #e2e8f0;
-  background: #fff;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
   padding: 12px;
 }
 
@@ -295,8 +362,14 @@ body,
 .settings-pane {
   flex: 1;
   overflow: auto;
-  background: #fff;
+  background: var(--surface);
   padding: 16px;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .assign,

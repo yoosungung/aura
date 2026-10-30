@@ -158,6 +158,7 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
   expect(screen.getByRole("region", { name: "HMAC 시크릿" })).toBeTruthy();
   expect(screen.queryByText("secret")).toBeNull();
   await user.click(screen.getByRole("button", { name: "보기" }));
@@ -328,7 +329,9 @@ test("ticket view uploads an attachment", async () => {
   expect(uploaded[0].conversation.id).toBe("c1");
   expect(uploaded[0].file.name).toBe("receipt.png");
   expect(screen.getByRole("log").textContent).toContain("receipt.png");
-  expect(screen.getByRole("log").textContent).toContain("http://127.0.0.1:8888/acc/a1/receipt.png");
+  expect(screen.getByRole("link", { name: /receipt.png/ }).getAttribute("href")).toContain(
+    "http://127.0.0.1:8888/acc/a1/receipt.png",
+  );
 });
 
 test("ticket view keeps a note, a label, and an attachment on the same thread", async () => {
@@ -559,6 +562,7 @@ test("administrator adds a catalog label", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "카탈로그" }));
   await user.type(screen.getByLabelText("카탈로그 라벨"), "결제");
   await user.click(screen.getByRole("button", { name: "라벨 추가" }));
   expect(created[0].name).toBe("결제");
@@ -734,6 +738,7 @@ test("ticket view snooze input is datetime-local", async () => {
   await openHeaderMenu(user, "스누즈");
   expect(screen.getByLabelText("스누즈 시각").getAttribute("type")).toBe("datetime-local");
   expect(screen.getByRole("button", { name: "1시간 뒤" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "내일 09:00" })).toBeTruthy();
 });
 
 test("keyboard j k r n and e drive the workspace", async () => {
@@ -801,4 +806,140 @@ test("mod enter submits the composer", async () => {
   await user.type(screen.getByLabelText("답장"), "확인했습니다");
   await user.keyboard("{Meta>}{Enter}{/Meta}");
   expect(sent[0].content).toBe("확인했습니다");
+});
+
+test("rail shows unread availability shortcuts and signs out", async () => {
+  const user = userEvent.setup();
+  const left = [];
+  render(
+    <App
+      session={{ ...session, availabilityStatus: "online" }}
+      client={{
+        connect() {},
+        async signOut(req) {
+          left.push(req);
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  expect(document.querySelector("[data-availability]").getAttribute("data-availability")).toBe("online");
+  expect(screen.getByRole("button", { name: "대기열" }).textContent).toContain("1");
+  await user.click(screen.getByRole("button", { name: "단축키" }));
+  expect(screen.getByRole("dialog", { name: "단축키" }).textContent).toMatch(/J|K|R|N|E/);
+  await user.click(screen.getByRole("button", { name: "로그아웃" }));
+  expect(left).toHaveLength(1);
+  expect(screen.getByRole("form", { name: "로그인" })).toBeTruthy();
+});
+
+test("queue card shows contact name relative time and sla tint", () => {
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        ...fixtureState(),
+        conversations: [
+          {
+            ...fixtureState().conversations[0],
+            displayId: 1042,
+            channel: "web",
+            contactName: "홍길동",
+            lastActivityAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+            slaBreached: true,
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: /대기열/ }).textContent).toMatch(/1/);
+  const card = screen.getByRole("button", { name: /결제 오류/ });
+  expect(card.textContent).toContain("홍길동");
+  expect(card.textContent).toMatch(/분 전|방금/);
+  expect(card.className).toMatch(/queue-card-sla/);
+});
+
+test("thread header uses ticket number and timeline stamps", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        conversations: [
+          {
+            ...fixtureState().conversations[0],
+            displayId: 1042,
+            status: "open",
+            channel: "email",
+            contactName: "홍길동",
+            contactEmail: "ada@acme.test",
+            appliedSlas: { frtDueAt: new Date(Date.now() + 18 * 60_000).toISOString() },
+          },
+        ],
+        selectedId: null,
+        messages: {
+          c1: [
+            {
+              id: "m1",
+              content: "결제 오류",
+              senderType: "Contact",
+              createdAt: "2026-10-30T05:20:00.000Z",
+            },
+            {
+              id: "m2",
+              content: "확인했습니다",
+              senderType: "User",
+              createdAt: "2026-10-30T05:22:00.000Z",
+            },
+            {
+              id: "m3",
+              content: "환불 검토",
+              senderType: "User",
+              private: true,
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(document.querySelector(".thread-header").textContent).toContain("#1042");
+  expect(screen.getByRole("log").textContent).toMatch(/전송됨/);
+  expect(screen.getByRole("log").textContent).toMatch(/내부 메모/);
+  expect(screen.getByRole("region", { name: "고객 프로필" }).textContent).toMatch(/홍길동/);
+  expect(screen.getByRole("region", { name: "채널 상태" }).textContent).toMatch(/#REQ-1042|FRT/);
+});
+
+test("note composer uses amber send and kakao session warning", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        ...fixtureState(),
+        conversations: [
+          {
+            ...fixtureState().conversations[0],
+            channel: "kakao",
+          },
+        ],
+        messages: {
+          c1: [
+            {
+              id: "m1",
+              content: "결제 오류",
+              senderType: "Contact",
+              createdAt: new Date(Date.now() - 28 * 86400_000).toISOString(),
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.getByRole("region", { name: "채널 상태" }).textContent).toMatch(/세션/);
+  await user.click(screen.getByRole("button", { name: "내부 메모" }));
+  expect(screen.getByRole("button", { name: "메모" }).className).toMatch(/amber/);
 });

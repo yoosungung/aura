@@ -40,7 +40,7 @@ export function InternalNote({ session, conversation, client, onNoted }) {
         <Textarea aria-label="메모" value={draft} onChange={(e) => setDraft(e.target.value)} required />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" variant="warning" disabled={pending}>
         메모
       </Button>
     </form>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { conversationsFromAPI, emptyState, reduce, visibleInQueue } from "./store.js";
+import { conversationsFromAPI, emptyState, messagesFromAPI, reduce, visibleInQueue } from "./store.js";
 
 function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
   return {
@@ -230,5 +230,28 @@ describe("conversationsFromAPI", () => {
     ]);
     assert.equal(rows[0].displayId, 1042);
     assert.equal(rows[0].channel, "web");
+  });
+
+  it("maps contact name last activity and sla dues", () => {
+    const rows = conversationsFromAPI([
+      {
+        id: "c1",
+        contact_name: "홍길동",
+        contact_email: "ada@acme.test",
+        last_activity_at: "2026-10-30T05:00:00Z",
+        applied_slas: { frt_due_at: "2026-10-30T06:00:00Z" },
+      },
+    ]);
+    assert.equal(rows[0].contactName, "홍길동");
+    assert.equal(rows[0].contactEmail, "ada@acme.test");
+    assert.equal(rows[0].lastActivityAt, "2026-10-30T05:00:00Z");
+    assert.equal(rows[0].appliedSlas.frtDueAt, "2026-10-30T06:00:00Z");
+  });
+});
+
+describe("messagesFromAPI", () => {
+  it("maps created_at onto the timeline", () => {
+    const rows = messagesFromAPI([{ id: "m1", content: "hi", sender_type: "Contact", created_at: "2026-10-30T05:20:00Z" }]);
+    assert.equal(rows[0].createdAt, "2026-10-30T05:20:00Z");
   });
 });

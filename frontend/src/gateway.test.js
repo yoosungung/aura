@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, getInbox, listCanned, listConversations, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -141,6 +141,25 @@ describe("gateway client", () => {
     assert.equal(calls[0].url, "http://gw/auth/sign_in");
     assert.equal(calls[0].opts.credentials, "include");
     assert.equal(data.access_token, "tok");
+  });
+
+  it("signs out by deleting the session cookie", async () => {
+    const calls = [];
+    await signOut({ gatewayUrl: "http://gw" }, async (url, opts) => {
+      calls.push({ url, opts });
+      return { ok: true };
+    });
+    assert.equal(calls[0].url, "http://gw/auth/sign_out");
+    assert.equal(calls[0].opts.method, "DELETE");
+    assert.equal(calls[0].opts.credentials, "include");
+  });
+
+  it("lists contacts for the queue profile", async () => {
+    const listed = await listContacts(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok" },
+      async () => ({ ok: true, json: async () => ({ contacts: [{ id: "p1", name: "홍길동" }] }) }),
+    );
+    assert.equal(listed.contacts[0].name, "홍길동");
   });
 
   it("puts inbox members as admin", async () => {

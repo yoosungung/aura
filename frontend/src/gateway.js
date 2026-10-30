@@ -128,6 +128,26 @@ export async function signIn({ gatewayUrl, email, password }, fetchImpl = fetch)
   return res.json();
 }
 
+export async function signOut({ gatewayUrl }, fetchImpl = fetch) {
+  const base = gatewayUrl || "";
+  await fetchImpl(`${base}/auth/sign_out`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+}
+
+export async function listContacts(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/contacts`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("list contacts failed");
+  }
+  return res.json();
+}
+
 export async function refreshSession({ gatewayUrl }, fetchImpl = fetch) {
   const base = gatewayUrl || "";
   try {
@@ -470,7 +490,9 @@ export const liveClient = {
   connect,
   sendReply,
   signIn,
+  signOut,
   refresh: refreshSession,
+  listContacts,
   addInboxMember,
   listInboxMembers,
   getInbox,

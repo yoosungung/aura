@@ -39,13 +39,23 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
   }
 
   function presetHours(hours) {
-    setUntil(new Date(Date.now() + hours * 3600_000).toISOString());
+    setUntil(toLocalInput(new Date(Date.now() + hours * 3600_000)));
+  }
+
+  function presetTomorrowNine() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    setUntil(toLocalInput(d));
   }
 
   return (
     <form onSubmit={onSubmit} className="snooze" aria-label="티켓 스누즈">
       <Button type="button" variant="outline" size="sm" onClick={() => presetHours(1)}>
         1시간 뒤
+      </Button>
+      <Button type="button" variant="outline" size="sm" onClick={presetTomorrowNine}>
+        내일 09:00
       </Button>
       <Label>
         스누즈 시각
@@ -57,6 +67,11 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
       </Button>
     </form>
   );
+}
+
+function toLocalInput(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function toRFC3339(value) {

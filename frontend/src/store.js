@@ -40,6 +40,16 @@ export function conversationsFromAPI(rows) {
     slaBreached: !!c.sla_breached,
     displayId: c.display_id,
     channel: c.channel_type || c.channel,
+    contactName: c.contact_name,
+    contactEmail: c.contact_email,
+    lastActivityAt: c.last_activity_at,
+    appliedSlas: c.applied_slas
+      ? {
+          frtDueAt: c.applied_slas.frt_due_at,
+          nrtDueAt: c.applied_slas.nrt_due_at,
+          rtDueAt: c.applied_slas.rt_due_at,
+        }
+      : undefined,
   }));
 }
 
@@ -49,8 +59,64 @@ export function messagesFromAPI(rows) {
     content: m.content,
     senderType: m.sender_type,
     private: m.private,
+    createdAt: m.created_at,
     attachments: m.attachments || [],
   }));
+}
+
+export function relativeTime(iso, now = Date.now()) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) {
+    return "";
+  }
+  const mins = Math.max(0, Math.round((now - t) / 60_000));
+  if (mins < 1) {
+    return "방금";
+  }
+  if (mins < 60) {
+    return `${mins}분 전`;
+  }
+  const hours = Math.round(mins / 60);
+  if (hours < 24) {
+    return `${hours}시간 전`;
+  }
+  return `${Math.round(hours / 24)}일 전`;
+}
+
+export function formatClock(iso) {
+  const d = new Date(iso || "");
+  if (Number.isNaN(d.getTime())) {
+    return "";
+  }
+  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+export function slaRemain(iso, now = Date.now()) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) {
+    return "";
+  }
+  const left = t - now;
+  if (left <= 0) {
+    return "위반";
+  }
+  const mins = Math.round(left / 60_000);
+  if (mins < 60) {
+    return `${mins}분 남음`;
+  }
+  return `${Math.round(mins / 60)}시간 남음`;
+}
+
+export function kakaoSessionLabel(iso, now = Date.now()) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) {
+    return "";
+  }
+  const left = t + 30 * 86_400_000 - now;
+  if (left <= 0) {
+    return "세션 만료";
+  }
+  return `세션 ${Math.max(1, Math.ceil(left / 86_400_000))}일 남음`;
 }
 
 export function parseSession(search, env = {}) {
@@ -148,6 +214,23 @@ export function reduce(state, action) {
       messages: action.messages ? { ...state.messages, ...action.messages } : state.messages,
     };
   }
+  if (action.type === "contacts") {
+    const book = action.contacts || {};
+    return {
+      ...state,
+      conversations: state.conversations.map((c) => {
+        const p = book[c.contactId];
+        if (!p) {
+          return c;
+        }
+        return {
+          ...c,
+          contactName: c.contactName || p.name,
+          contactEmail: c.contactEmail || p.email,
+        };
+      }),
+    };
+  }
   if (action.type === "realtime") {
     return applyRealtime(state, action.event);
   }
@@ -188,6 +271,7 @@ function applyRealtime(state, event) {
     content,
     senderType: payload.sender_type,
     private: isPrivate,
+    createdAt: payload.created_at || env.created_at,
     attachments: payload.attachments || [],
   };
   const selected = state.selectedId === convId;
