@@ -159,6 +159,39 @@ describe("reduce realtime", () => {
     assert.deepEqual(s.conversations[0].labels, [{ id: "l1", name: "환불" }]);
   });
 
+  it("keeps ticket metadata when a later public message arrives", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: created({ id: "m1", conv: "c1", content: "결제 오류" }),
+    });
+    s = {
+      ...s,
+      conversations: s.conversations.map((c) =>
+        c.id === "c1"
+          ? {
+              ...c,
+              status: "open",
+              version: 3,
+              assigneeId: "user-1",
+              snoozedUntil: "2026-10-30T09:00:00Z",
+              slaBreached: true,
+            }
+          : c,
+      ),
+    };
+    s = reduce(s, {
+      type: "realtime",
+      event: created({ id: "m2", conv: "c1", content: "확인 부탁" }),
+    });
+    const card = s.conversations[0];
+    assert.equal(card.lastContent, "확인 부탁");
+    assert.equal(card.status, "open");
+    assert.equal(card.version, 3);
+    assert.equal(card.assigneeId, "user-1");
+    assert.equal(card.snoozedUntil, "2026-10-30T09:00:00Z");
+    assert.equal(card.slaBreached, true);
+  });
+
   it("keeps attachment urls on the thread message", () => {
     const s = reduce(emptyState, {
       type: "realtime",

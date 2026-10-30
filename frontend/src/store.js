@@ -197,13 +197,14 @@ function applyRealtime(state, event) {
     };
   }
   const nextConv = {
+    ...prev,
     id: convId,
-    inboxId: event.inbox_id,
-    contactId: payload.contact_id,
-    contactInboxId: payload.contact_inbox_id,
+    inboxId: event.inbox_id || prev?.inboxId,
+    contactId: payload.contact_id || prev?.contactId,
+    contactInboxId: payload.contact_inbox_id || prev?.contactInboxId,
     lastContent: content,
     unread: selected ? 0 : (prev?.unread ?? 0) + 1,
-    labels: prev?.labels,
+    labels: prev?.labels || [],
   };
   return {
     ...state,

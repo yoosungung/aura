@@ -29,6 +29,69 @@ describe("gateway client", () => {
     }
   });
 
+  it("retries once after a single-flight refresh on 401", async () => {
+    const calls = [];
+    let refreshes = 0;
+    const sessions = [];
+    const conv = { id: "c1", inboxId: "i1", contactId: "p1", contactInboxId: "ci1" };
+    const refresh = async () => {
+      refreshes += 1;
+      await new Promise((r) => setTimeout(r, 15));
+      return { access_token: "new" };
+    };
+    const fetchImpl = async (_url, opts) => {
+      calls.push(opts);
+      if (opts.headers.Authorization === "Bearer old") {
+        return { status: 401, ok: false };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    const req = {
+      gatewayUrl: "http://gw",
+      accountId: "acc",
+      token: "old",
+      conversation: conv,
+      refresh,
+      onSessionUpdate: (next) => sessions.push(next),
+    };
+    await Promise.all([
+      sendReply({ ...req, content: "하나" }, fetchImpl),
+      sendReply({ ...req, content: "둘" }, fetchImpl),
+    ]);
+    assert.equal(refreshes, 1);
+    assert.equal(sessions[0].token, "new");
+    assert.equal(calls.filter((c) => c.headers.Authorization === "Bearer new").length, 2);
+  });
+
+  it("notifies the session when websocket refresh rotates the token", async () => {
+    const socks = [];
+    const sessions = [];
+    const prev = globalThis.WebSocket;
+    globalThis.WebSocket = class {
+      constructor(url) {
+        this.url = url;
+        socks.push(this);
+      }
+      close() {}
+    };
+    try {
+      const stop = connect(
+        { token: "t1", gatewayUrl: "http://gw" },
+        () => {},
+        {
+          refresh: async () => ({ access_token: "t2" }),
+          onSessionUpdate: (next) => sessions.push(next),
+        },
+      );
+      socks[0].onclose();
+      await new Promise((r) => setTimeout(r, 0));
+      assert.equal(sessions[0].token, "t2");
+      stop();
+    } finally {
+      globalThis.WebSocket = prev;
+    }
+  });
+
   it("builds a ws url from the http origin", () => {
     assert.equal(
       wsUrl("http://127.0.0.1:8080", "tok"),

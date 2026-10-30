@@ -3,6 +3,43 @@ export function wsUrl(gatewayUrl, token) {
   return `${http.replace(/^http/, "ws")}/ws?token=${encodeURIComponent(token)}`;
 }
 
+let refreshInFlight = null;
+
+export async function requestWithAuth(req, url, init = {}, fetchImpl = fetch) {
+  const headers = { ...(init.headers || {}) };
+  if (req?.token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${req.token}`;
+  }
+  const res = await fetchImpl(url, { ...init, headers });
+  const refresh = req?.refresh || authHooks.refresh;
+  const onSessionUpdate = req?.onSessionUpdate || authHooks.onSessionUpdate;
+  if (res.status !== 401 || typeof refresh !== "function") {
+    return res;
+  }
+  if (!refreshInFlight) {
+    refreshInFlight = Promise.resolve(refresh({ gatewayUrl: req.gatewayUrl })).finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  const data = await refreshInFlight;
+  const next = data?.access_token;
+  if (!next) {
+    return res;
+  }
+  onSessionUpdate?.({ token: next, access_token: next, user: data.user });
+  return fetchImpl(url, { ...init, headers: { ...headers, Authorization: `Bearer ${next}` } });
+}
+
+function authed(req, fetchImpl) {
+  return (url, init) => requestWithAuth(req, url, init || {}, fetchImpl);
+}
+
+let authHooks = {};
+
+export function bindAuth(hooks) {
+  authHooks = hooks || {};
+}
+
 export function connect(session, onEvent, deps = {}) {
   if (!session.token || typeof WebSocket === "undefined") {
     return () => {};
@@ -39,6 +76,7 @@ export function connect(session, onEvent, deps = {}) {
           if (closed || !next || next === token) {
             return;
           }
+          deps.onSessionUpdate?.({ token: next, access_token: next, user: data.user });
           open(next);
         })
         .catch(() => {});
@@ -52,6 +90,7 @@ export function connect(session, onEvent, deps = {}) {
 }
 
 export async function sendReply(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversation, content } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversation.id}/messages`,
@@ -107,6 +146,7 @@ export async function refreshSession({ gatewayUrl }, fetchImpl = fetch) {
 }
 
 export async function addInboxMember(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId, userId } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/members/${userId}`,
@@ -121,6 +161,7 @@ export async function addInboxMember(req, fetchImpl = fetch) {
 }
 
 export async function listInboxMembers(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/members`,
@@ -133,6 +174,7 @@ export async function listInboxMembers(req, fetchImpl = fetch) {
 }
 
 export async function assignConversation(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, assigneeId, expectedVersion } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/assignee`,
@@ -155,6 +197,7 @@ export async function assignConversation(req, fetchImpl = fetch) {
 }
 
 export async function removeConversationLabel(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, labelId } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/labels/${labelId}`,
@@ -166,6 +209,7 @@ export async function removeConversationLabel(req, fetchImpl = fetch) {
 }
 
 export async function listConversations(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/conversations`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -177,6 +221,7 @@ export async function listConversations(req, fetchImpl = fetch) {
 }
 
 export async function listMessages(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/messages`,
@@ -189,6 +234,7 @@ export async function listMessages(req, fetchImpl = fetch) {
 }
 
 export async function resolveConversation(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, expectedVersion, newStatus } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/status`,
@@ -211,6 +257,7 @@ export async function resolveConversation(req, fetchImpl = fetch) {
 }
 
 export async function addConversationLabel(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, name } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/labels`,
@@ -230,6 +277,7 @@ export async function addConversationLabel(req, fetchImpl = fetch) {
 }
 
 export async function snoozeConversation(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, snoozedUntil, expectedVersion } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/snooze`,
@@ -252,6 +300,7 @@ export async function snoozeConversation(req, fetchImpl = fetch) {
 }
 
 export async function uploadAttachment(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversation, file } = req;
   const body = new FormData();
   body.append("file", file);
@@ -273,6 +322,7 @@ export async function uploadAttachment(req, fetchImpl = fetch) {
 }
 
 export async function getInbox(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -284,6 +334,7 @@ export async function getInbox(req, fetchImpl = fetch) {
 }
 
 export async function rotateHmac(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/hmac/rotate`, {
     method: "POST",
@@ -296,6 +347,7 @@ export async function rotateHmac(req, fetchImpl = fetch) {
 }
 
 export async function listAccountLabels(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -307,6 +359,7 @@ export async function listAccountLabels(req, fetchImpl = fetch) {
 }
 
 export async function createAccountLabel(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
     method: "POST",
@@ -323,6 +376,7 @@ export async function createAccountLabel(req, fetchImpl = fetch) {
 }
 
 export async function listCanned(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -334,6 +388,7 @@ export async function listCanned(req, fetchImpl = fetch) {
 }
 
 export async function createCanned(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, shortCode, content } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses`, {
     method: "POST",
@@ -350,6 +405,7 @@ export async function createCanned(req, fetchImpl = fetch) {
 }
 
 export async function listMacros(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -361,6 +417,7 @@ export async function listMacros(req, fetchImpl = fetch) {
 }
 
 export async function createMacro(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name, visibility, actions } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros`, {
     method: "POST",
@@ -377,6 +434,7 @@ export async function createMacro(req, fetchImpl = fetch) {
 }
 
 export async function executeMacro(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, macroId } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/macros/${macroId}/execute`,
@@ -389,6 +447,7 @@ export async function executeMacro(req, fetchImpl = fetch) {
 }
 
 export async function sendNote(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, content } = req;
   const res = await fetchImpl(
     `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/notes`,
