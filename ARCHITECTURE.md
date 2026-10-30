@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이스 형태**다. 기획 원본은 [docs/설계서.md](docs/설계서.md)(NATS 백본·온톨로지·AI), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)(티켓 FSM·옴니채널·SLA·CSAT·위젯·API), [docs/아키텍처_개선.md](docs/아키텍처_개선.md)(장기 운영 점검)다. 일정은 [ROADMAP.md](ROADMAP.md). 컴포넌트 내부 설계는 해당 폴더의 `DESIGN.md`.
+Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이스 형태**다. 기획 원본은 [docs/설계서.md](docs/설계서.md)(NATS 백본·온톨로지·AI), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)(티켓 FSM·옴니채널·SLA·CSAT·위젯·API), [docs/아키텍처_개선.md](docs/아키텍처_개선.md)(장기 운영 점검), [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md)(상담원 셸·위젯 공간), [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md)(프론트·위젯 결함)다. 일정은 [ROADMAP.md](ROADMAP.md). 컴포넌트 내부 설계는 해당 폴더의 `DESIGN.md`.
 
 §1은 규칙(왜). §2 이후는 형태(어떻게). 규칙이 바뀌면 §1을 먼저 고친다.
 
@@ -52,8 +52,8 @@ ingestion-worker  svc-core    svc-ai-agent
 | `svc-sla-routing` | 라운드로빈·capacity, FRT/NRT/RT 감시. `C_current`는 JetStream KV 원자 증감(P5), PG는 대사 | 읽기. 전이는 이벤트 |
 | `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. P5 액션은 `add_label`/`change_priority`. 웹훅은 P6 | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 이벤트 |
 | `svc-ai-agent` | Ego-Graph 읽기, ReAct/Tool, 온톨로지 추출 요청 | Ego-Graph 읽기만 |
-| `frontend` | 상담원 3-Pane SPA | 없음 |
-| `packages/widget-sdk` | iframe 로더 + postMessage | 없음 |
+| `frontend` | 상담원 Rail + 3-Pane SPA | 없음 |
+| `packages/widget-sdk` | 호스트 런처(Shadow DOM) + 교차출처 iframe + postMessage | 없음 |
 
 동기 조회(대화 목록, Ego-Graph, FSM 허용 전이)와 컨택트·대화 생성은 NATS Request-Reply 또는 `svc-core` HTTP다. 게이트웨이끼리, AI가 게이트웨이를 HTTP로 부르지 않는다.
 
@@ -289,7 +289,7 @@ Realtime 접근 토큰: User는 배속 인박스의 `helpdesk.realtime.<account_
 
 ## 7. 위젯 보안
 
-호스트는 로더 스크립트만 넣고 본체는 iframe이다.
+호스트는 로더 스크립트만 넣고 본체는 iframe이다. 닫힘 상태에서 iframe이 호스트 클릭을 가로채지 않는다. 런처(배지 포함)는 호스트 Shadow DOM이고, 채팅 iframe은 열림일 때만 표시한다.
 
 - `postMessage` 수신부는 `event.origin` 이 등록된 헬프데스크 origin(또는 허용 호스트)이 아니면 return. origin 미검증 금지.
 - `window.$aura.setUser(identifier, { name, email, identifier_hash })` 의 `identifier_hash` 는 서버 HMAC-SHA256(`identifier`, inbox HMAC secret) **소문자 hex**. 불일치면 식별자 바인딩 거부. identify는 현재 컨택트에 identifier만 쓴다. 이미 식별된 컨택트와 겹치면 거절한다. 익명 컨택트는 HMAC 통과 뒤 `contact_merged`로 티켓 `contact_id`만 옮기고 스레드는 그대로 둔다. `hmac_secret`은 웹 인박스 administrator GET/rotate만 반환한다. 호스트 서버가 env에 복사하고 페이지에는 해시만 심는다. 회전은 컬럼을 즉시 덮어쓴다. 위젯·Client API·Agent·이메일/카카오 인박스는 시크릿을 받지 않는다.

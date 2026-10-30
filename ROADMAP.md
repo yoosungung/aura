@@ -1,15 +1,15 @@
 # ROADMAP.md
 
-수행 순서와 성공 기준만 적는다. 계약·스키마·이벤트는 [ARCHITECTURE.md](ARCHITECTURE.md). 기획 원본은 [docs/설계서.md](docs/설계서.md), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md), [docs/아키텍처_개선.md](docs/아키텍처_개선.md).
+수행 순서와 성공 기준만 적는다. 계약·스키마·이벤트는 [ARCHITECTURE.md](ARCHITECTURE.md). 기획 원본은 [docs/설계서.md](docs/설계서.md), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md), [docs/아키텍처_개선.md](docs/아키텍처_개선.md), [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md), [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md).
 
 스택: Go 코어 + Python `svc-ai-agent`, 프론트 React + Vite. 개발은 TDD (스켈레톤 → 테스트 → 구현). 빈 컴포넌트 stub·빈 `deploy/`·빈 CI 워크플로는 만들지 않는다. 코드가 처음 들어가는 폴더에만 `DESIGN.md`와 `## Commands`를 추가한다.
 
-출시 선은 **P7**. 한 테넌트가 웹·이메일·카카오로 상담하고, SLA/CSAT/리포트/웹훅이 돌며, AI Ego-Graph 초안·승인 카드가 동작하는 상태다.
+출시 선은 **P7**. 한 테넌트가 웹·이메일·카카오로 상담하고, SLA/CSAT/리포트/웹훅이 돌며, AI Ego-Graph 초안·승인 카드가 동작하는 상태다. **P5 다음·P6 전에 P5.5 상담 워크스페이스**로 셸을 고정한다. P7 Living Profile·승인 카드는 그 레이아웃을 바꾸지 않고 칸만 채운다. 시각 명세는 [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md), 현황 결함은 [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md).
 
 ## P0 문서 — 완료 조건
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) §1 계약과 §2 이후 형태가 있다.
-- 이 파일에 P0~P7과 미결정이 있다.
+- 이 파일에 P0~P7·P5.5와 미결정이 있다.
 - [README.md](README.md)는 소개와 문서 링크만 한다.
 
 성공: 제품 범위가 코드가 아닌 문서에만 있다.
@@ -72,19 +72,30 @@
 
 성공: 미배정 티켓이 자동 할당되고, FRT breach가 큐에 보인다. Pending은 NRT를 멈춘다. 동시에 들어온 티켓이 한 상담원 용량을 넘기지 않는다.
 
+## P5.5 상담 워크스페이스
+
+목표: 상담원이 하루 수백 건을 키보드로 처리하는 대화 중심 셸과, 호스트 클릭을 가리지 않는 위젯을 P7 전에 고정한다. API·FSM은 바꾸지 않는다. TDD: [`frontend/src/App.test.jsx`](frontend/src/App.test.jsx)와 [레이아웃 설계안 §6](docs/UI_UX_레이아웃_설계안.md) ARIA 계약을 깨지 않고, 아래 항목별로 테스트 → 구현.
+
+1. **실시간·인증 정합.** `store.js` `message.created`가 기존 대화의 `status`/`version`/`assigneeId`/`snoozedUntil`/`labels`/`slaBreached`를 유지한다. HTTP 401은 single-flight `POST /auth/refresh` 후 재시도하고, `session.token`과 WS 재연결 토큰을 같은 콜백으로 맞춘다.
+2. **4-Zone 셸.** `Rail(56px)` + `Queue(320px)` + `Thread(flex-1, min 480px)` + `Context(300px)`. `>=1280px` 4영역, `1024–1279px` 컨텍스트는 드로어, `<1024px`는 큐/스레드 전환. 관리자 폼(인박스 멤버·HMAC·카탈로그)은 레일의 설정 뷰로 분리한다. 대기열 필터 탭(전체/내 담당/미배정)과 URL 복원은 출시 후 결정을 유지한다.
+3. **스레드 밀도.** 헤더 `52px`에 배정(멤버 Select + 나에게 배정)·스누즈(프리셋 + `datetime-local`)·매크로 실행·대기/해결. 라벨·채널·SLA 잔여는 우측 컨텍스트. 타임라인은 고객/상담원/내부메모 버블. 하단 통합 컴포저(답장↔메모 탭, 첨부, `/` 저장응답 팝오버). 큐 카드는 3행(채널·번호·SLA / lastContent / 라벨·unread). 레거시 `#ddd` CSS를 시맨틱 토큰으로 교체한다. 단축키: `J`/`K` 큐 이동, `R` 답장, `N` 메모, `⌘/Ctrl+Enter` 전송, `E` 해결.
+4. **위젯.** 호스트 Shadow DOM 런처(`60×60`) + 열릴 때만 교차출처 iframe(`380×640`, 모바일 `100vw×100dvh`). `init` 시드 `pubsub_token`은 `POST /public/api/v1/inboxes/{id}/auth`로 짧은 접근 토큰과 교환하고 만료 시 재교환. `send`마다 WS를 만들지 않는다. `{helpdeskOrigin}/widget.html` 엔트리와 로더 번들. P5 `input_csat` 카드 슬롯.
+
+성공: 관리자 설정이 대기열을 가리지 않고, 대화 선택 시 타임라인+컴포저가 중앙 높이의 대부분이다. 실시간 메시지 직후 배정/해결 CAS가 통과한다. 로그인 15분 뒤 HTTP가 갱신된다. 닫힌 위젯은 런처 밖 호스트 클릭을 막지 않고, 메시지를 여러 번 보내도 WS·수신은 한 겹이다. TypeScript 코드젠·가상 스크롤·티켓 URL 딥링크는 이 마일스톤에 넣지 않는다.
+
 ## P6 플랫폼
 
 - Client API 정식화, Platform API (테넌트 프로비저닝).
 - HMAC 아웃바운드 웹훅 + 재시도 큐 (`helpdesk.tasks.webhooks.deliver`).
-- 리포트: 대화 / 상담원 / 인박스 / CSAT%(4–5점 비율) / SLA hit rate.
-- Help Center `articles` + 위젯 검색.
+- 리포트: 대화 / 상담원 / 인박스 / CSAT%(4–5점 비율) / SLA hit rate. P5.5 설정 뷰 위에 올린다.
+- Help Center `articles` + 위젯 검색. P5.5 `widget.html` 위에 올린다.
 
 성공: 외부 CRM이 `message_created` 웹훅을 검증해 받고, 관리자가 CSAT%와 SLA hit rate를 본다.
 
 ## P7 AI-Native 출시
 
 - `svc-ai-agent`: Ego-Graph 1~2홉 읽기, ReAct/Tool, 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 시 ontology extract.
-- 3-Pane 우측 Living Profile.
+- P5.5 컨텍스트 패널에 Living Profile, 스레드에 도구 승인 카드. 셸·브레이크포인트는 바꾸지 않는다.
 - 채널별 rate limit·서킷브레이커.
 - 임베딩을 본 테이블에서 분리(`model`/`version` 메타, HNSW). `ontology_edges` 시간 유효성(`valid_from`/`valid_until`).
 - JetStream → 오브젝트 스토리지 Cold Event 아카이브. 고객 파기 시 subject purge API.
@@ -101,7 +112,8 @@
 - 멀티리전 첨부 버킷
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
 - Task Fair Queuing(테넌트 쿼터)
-- 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰.
+- 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰. 티켓 딥링크.
+- `contracts/` JSON Schema → TypeScript 생성. 큐/메시지 가상 스크롤.
 
 ## 미결정
 
