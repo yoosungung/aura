@@ -203,6 +203,17 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 
 **`assigned` payload:** `assignee_id` (nullable = 미배정).
 
+**`csat_submitted` payload**
+
+```json
+{
+  "rating": 5,
+  "feedback": "좋았어요"
+}
+```
+
+`rating`은 1–5. 대화당 한 행(`uq_csat_conversation`). 재제출은 rating/feedback을 덮어쓴다.
+
 아웃바운드 웹훅 본문은 envelope를 펼친 공개 형태다. 헤더 `X-Helpdesk-Signature: sha256=<hex>`, `X-Helpdesk-Timestamp`. 검증식은 `HMAC-SHA256(timestamp + "." + body, webhook_secret)`. 타임스탬프 오차 5분 초과는 거절.
 
 ## 5. 대화 FSM
@@ -264,6 +275,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `PUT /api/v1/accounts/{account_id}/conversations/{id}/status`
 - `GET /api/v1/accounts/{account_id}/contacts`
 - `POST /public/api/v1/inboxes/{inbox_id}/contacts/{contact_id}/conversations/{id}/messages`
+- `POST /public/api/v1/inboxes/{inbox_id}/csat` (`rating` 1–5, `feedback` optional. Contact 토큰, 자기 대화)
 - `POST /platform/api/v1/accounts`
 
 | 권한 | Super Admin | Administrator | Agent | Collaborator |
@@ -604,7 +616,8 @@ CREATE TABLE csat_survey_responses (
     rating INT NOT NULL,
     feedback TEXT,
     review_note TEXT,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_csat_conversation UNIQUE (conversation_id)
 );
 
 CREATE TABLE webhooks (

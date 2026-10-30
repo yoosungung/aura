@@ -91,8 +91,13 @@ export function createFrame(win, deps = {}) {
       if (payload.message?.payload?.private) {
         return;
       }
-      const content = payload.message?.payload?.content;
-      if (content) append(content, payload.message?.payload?.sender_type);
+      const msg = payload.message?.payload || {};
+      if (msg.content_type === "input_csat") {
+        appendCSAT(msg.content, payload.conversation_id);
+        return;
+      }
+      const content = msg.content;
+      if (content) append(content, msg.sender_type);
     };
   }
 
@@ -107,6 +112,40 @@ export function createFrame(win, deps = {}) {
     item.textContent = content;
     item.dataset.sender = senderType ?? "";
     list.appendChild(item);
+  }
+
+  function appendCSAT(content) {
+    const list = win.document.getElementById("messages");
+    if (!list || typeof list.appendChild !== "function" || !win.document.createElement) {
+      return;
+    }
+    const item = win.document.createElement("li");
+    item.dataset.csat = "true";
+    item.appendChild(win.document.createTextNode(content || ""));
+    for (let n = 1; n <= 5; n += 1) {
+      const btn = win.document.createElement("button");
+      btn.type = "button";
+      btn.textContent = String(n);
+      btn.addEventListener("click", () => {
+        rate(n);
+      });
+      item.appendChild(btn);
+    }
+    list.appendChild(item);
+  }
+
+  async function rate(rating) {
+    if (!token || !inboxId) {
+      return;
+    }
+    await fetchImpl(`${apiBase}/public/api/v1/inboxes/${inboxId}/csat`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ rating }),
+    });
   }
 
   async function send(content) {

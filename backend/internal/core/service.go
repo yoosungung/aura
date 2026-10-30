@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -20,6 +21,7 @@ type DB interface {
 type Service struct {
 	DB DB
 	JS jetstream.JetStream
+	NC *nats.Conn
 }
 
 type CreateInput struct {
@@ -184,10 +186,10 @@ func (s *Service) Transition(ctx context.Context, in TransitionInput) (Transitio
 
 	var status string
 	var version int
-	var inboxID uuid.UUID
+	var inboxID, contactID, contactInboxID uuid.UUID
 	err = tx.QueryRow(ctx, `
-		SELECT status, version, inbox_id FROM conversations WHERE id = $1`, in.ConversationID,
-	).Scan(&status, &version, &inboxID)
+		SELECT status, version, inbox_id, contact_id, contact_inbox_id FROM conversations WHERE id = $1`, in.ConversationID,
+	).Scan(&status, &version, &inboxID, &contactID, &contactInboxID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return TransitionResult{}, ErrNotFound
@@ -208,9 +210,10 @@ func (s *Service) Transition(ctx context.Context, in TransitionInput) (Transitio
 
 	tag, err := tx.Exec(ctx, `
 		UPDATE conversations
-		SET status = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP
+		SET status = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP,
+			resolved_at = CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE resolved_at END
 		WHERE id = $2 AND version = $3`,
-		in.NewStatus, in.ConversationID, in.ExpectedVersion)
+		in.NewStatus, in.ConversationID, in.ExpectedVersion, in.NewStatus == StatusResolved)
 	if err != nil {
 		return TransitionResult{}, err
 	}
@@ -254,10 +257,22 @@ func (s *Service) Transition(ctx context.Context, in TransitionInput) (Transitio
 		eventID, in.AccountID, subject, string(env)); err != nil {
 		return TransitionResult{}, err
 	}
+	var csatID uuid.UUID
+	var csatSubject string
+	var csatEnv []byte
+	if in.NewStatus == StatusResolved {
+		csatID, csatSubject, csatEnv, err = s.enqueueCSAT(ctx, tx, in, inboxID, contactID, contactInboxID)
+		if err != nil {
+			return TransitionResult{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return TransitionResult{}, err
 	}
 	s.publishOutbox(ctx, in.AccountID, eventID, subject, env)
+	if csatID != uuid.Nil {
+		s.publishOutbox(ctx, in.AccountID, csatID, csatSubject, csatEnv)
+	}
 	return TransitionResult{Status: in.NewStatus, Version: in.ExpectedVersion + 1}, nil
 }
 
@@ -276,6 +291,7 @@ func (s *Service) publishOutbox(ctx context.Context, accountID, eventID uuid.UUI
 	_, _ = tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, accountID.String())
 	_, _ = tx.Exec(ctx, `UPDATE event_outbox SET published_at = CURRENT_TIMESTAMP WHERE id = $1`, eventID)
 	_ = tx.Commit(ctx)
+	s.publishCSATRealtime(env)
 }
 
 func isUniqueViolation(err error) bool {

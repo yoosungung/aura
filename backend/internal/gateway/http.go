@@ -22,6 +22,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /auth/sign_out", s.handleSignOut)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/identify", s.handleIdentify)
 	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/messages", s.handleContactMessage)
+	mux.HandleFunc("POST /public/api/v1/inboxes/{inbox_id}/csat", s.handleContactCSAT)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations", s.handleConversationList)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages", s.handleMessageList)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/conversations/{conversation_id}/status", s.handleStatus)
@@ -82,6 +83,33 @@ func (s *Server) handleContactMessage(w http.ResponseWriter, r *http.Request) {
 		ContactInboxID: parseUUID(body.ContactInboxID),
 	})
 	s.writeSubmit(w, out, err)
+}
+
+func (s *Server) handleContactCSAT(w http.ResponseWriter, r *http.Request) {
+	tok, err := s.bearer(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	inboxID, err := uuid.Parse(r.PathValue("inbox_id"))
+	if err != nil {
+		http.Error(w, "invalid inbox", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Rating   int    `json:"rating"`
+		Feedback string `json:"feedback"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if err := s.Service.SubmitCSAT(r.Context(), tok, inboxID, body.Rating, body.Feedback); err != nil {
+		s.writeSubmit(w, SubmitResult{}, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) handleAgentMessage(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,7 @@ const (
 	SLARoutingConsumer    = "sla-routing"
 	AutomationConsumer    = "svc-automation"
 	EventsFilter          = "helpdesk.events.*.*.*.message_created"
+	CsatSubmittedFilter   = "helpdesk.events.*.*.*.csat_submitted"
 	SnoozeWakeFilter      = "helpdesk.tasks.snooze.wake.*"
 	DLQSubject            = "helpdesk.dlq.ingestion"
 )
@@ -71,10 +72,10 @@ func EnsureStreams(ctx context.Context, js jetstream.JetStream) (jetstream.Consu
 		return nil, err
 	}
 	return js.CreateOrUpdateConsumer(ctx, ConversationsStream, jetstream.ConsumerConfig{
-		Durable:       ConsumerName,
-		FilterSubject: EventsFilter,
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		AckWait:       30 * time.Second,
-		MaxAckPending: 1000,
+		Durable:        ConsumerName,
+		FilterSubjects: []string{EventsFilter, CsatSubmittedFilter},
+		AckPolicy:      jetstream.AckExplicitPolicy,
+		AckWait:        30 * time.Second,
+		MaxAckPending:  1000,
 	})
 }

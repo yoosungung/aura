@@ -54,7 +54,7 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
 		return err
 	}
-	s := &Service{DB: db, JS: js}
+	s := &Service{DB: db, JS: js, NC: nc}
 	subCreate, err := nc.QueueSubscribe(SubjectCreate, QueueGroup, func(msg *nats.Msg) {
 		s.handleCreate(msg)
 	})

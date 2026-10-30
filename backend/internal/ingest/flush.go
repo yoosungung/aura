@@ -111,14 +111,55 @@ func applyAll(ctx context.Context, tx pgx.Tx, items []Ackable) error {
 		return err
 	}
 	for _, it := range items {
-		if err := insertMessage(ctx, tx, it.Data); err != nil {
+		env, err := Parse(it.Data)
+		if err != nil {
 			return err
 		}
-		if err := insertAttachments(ctx, tx, it.Data); err != nil {
-			return err
+		switch env.Type {
+		case "message_created":
+			if err := insertMessage(ctx, tx, it.Data); err != nil {
+				return err
+			}
+			if err := insertAttachments(ctx, tx, it.Data); err != nil {
+				return err
+			}
+		case "csat_submitted":
+			if err := insertCSAT(ctx, tx, it.Data); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func insertCSAT(ctx context.Context, tx pgx.Tx, raw []byte) error {
+	env, err := Parse(raw)
+	if err != nil {
+		return err
+	}
+	var wrap struct {
+		Payload struct {
+			Rating   int    `json:"rating"`
+			Feedback string `json:"feedback"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &wrap); err != nil {
+		return err
+	}
+	if wrap.Payload.Rating < 1 || wrap.Payload.Rating > 5 {
+		return fmt.Errorf("invalid csat rating")
+	}
+	var feedback any
+	if wrap.Payload.Feedback != "" {
+		feedback = wrap.Payload.Feedback
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO csat_survey_responses (id, account_id, conversation_id, assigned_agent_id, rating, feedback)
+		SELECT $1::uuid, $2::uuid, c.id, c.assignee_id, $3, $4
+		FROM conversations c WHERE c.id = $5::uuid
+		ON CONFLICT (conversation_id) DO UPDATE SET rating = EXCLUDED.rating, feedback = EXCLUDED.feedback`,
+		env.ID, env.AccountID, wrap.Payload.Rating, feedback, env.ConversationID)
+	return err
 }
 
 func insertMessage(ctx context.Context, tx pgx.Tx, raw []byte) error {

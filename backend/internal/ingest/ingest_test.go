@@ -118,7 +118,7 @@ func TestFlush_AttachmentRowFromPayload(t *testing.T) {
 	payload["attachments"] = []any{map[string]any{
 		"id": attID.String(), "file_type": "image",
 		"external_url": "http://127.0.0.1:8888/" + fxt.Account.String() + "/" + attID.String() + "/receipt.png",
-		"file_size": 7,
+		"file_size":    7,
 	}}
 	raw, err := json.Marshal(env)
 	if err != nil {
@@ -239,4 +239,51 @@ func TestDrainOnce_PublishTwiceOneRow(t *testing.T) {
 	if n := countMessages(t, admin); n != 1 {
 		t.Fatalf("messages=%d want 1", n)
 	}
+}
+
+func TestFlush_CsatSubmittedUpserts(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	js := testutil.NATS(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	fxt := seed(t, admin)
+	ack := func(context.Context) error { return nil }
+	flusher := &ingest.Flusher{DB: app, JS: js}
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: csatEvent(t, fxt, mustV7(t), 5, "좋았어요"), Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: csatEvent(t, fxt, mustV7(t), 4, ""), Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	var n, rating int
+	var feedback *string
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*) OVER (), rating, feedback FROM csat_survey_responses WHERE conversation_id = $1`,
+		fxt.Conversation).Scan(&n, &rating, &feedback); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 || rating != 4 {
+		t.Fatalf("n=%d rating=%d", n, rating)
+	}
+	if feedback != nil {
+		t.Fatalf("feedback %+v", feedback)
+	}
+}
+
+func csatEvent(t *testing.T, f fixture, id uuid.UUID, rating int, feedback string) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"id": id.String(), "schema_version": 1, "type": "csat_submitted",
+		"occurred_at": time.Now().UTC().Format(time.RFC3339),
+		"account_id":  f.Account.String(), "inbox_id": f.Inbox.String(),
+		"conversation_id": f.Conversation.String(),
+		"trace_id":        "4bf92f3577b34da6a3ce929d0e0e4736", "hop_count": 0,
+		"payload": map[string]any{"rating": rating, "feedback": feedback},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
 }

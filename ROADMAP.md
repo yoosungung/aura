@@ -70,7 +70,7 @@
 - SLA FRT/NRT/RT, `applied_slas`, breach 시 큐 플래그.
 - resolved 시 CSAT (`content_type=input_csat`).
 
-성공: 미배정 티켓이 자동 할당되고, FRT breach가 큐에 보인다. Pending은 NRT를 멈춘다. 동시에 들어온 티켓이 한 상담원 용량을 넘기지 않는다.
+성공: 미배정 티켓이 자동 할당되고, FRT breach가 큐에 보인다. Pending은 NRT를 멈춘다. 동시에 들어온 티켓이 한 상담원 용량을 넘기지 않는다. resolved 뒤 위젯에 CSAT가 뜬다. **완료.**
 
 ## P5.5 상담 워크스페이스
 
