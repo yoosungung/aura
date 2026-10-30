@@ -78,7 +78,7 @@ nats stream add INGESTION_DLQ \
 
 `helpdesk.realtime.>` 와 `helpdesk.rpc.>` 는 스트림에 넣지 않는다. RPC는 NATS Core Request-Reply다.
 
-`event-archive` durable은 Limits 스트림 `helpdesk.events.>`를 읽어 오브젝트 스토리지 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}/{event_id}.json`에 적재한다. JetStream은 90일 Hot, 아카이브는 영구. 고객 파기 `contacts.purge`는 PG의 이름·이메일·전화·identifier·메시지 본문·인박스 source_id를 익명화하고, 그 컨택트 대화 subject를 JetStream에서 purge하며 `archive/{account_id}/{conversation_id}/` prefix의 아카이브 객체를 지운다.
+`event-archive` durable은 Limits 스트림 `helpdesk.events.>`를 읽어 오브젝트 스토리지 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}.jsonl`에 NDJSON으로 append한다. JetStream은 90일 Hot, 아카이브는 영구. 고객 파기 `contacts.purge`는 PG의 이름·이메일·전화·identifier·메시지 본문·인박스 source_id·CSAT 피드백·도구 입출력 JSON을 익명화하고, 그 컨택트 대화 subject를 JetStream에서 purge하며 `archive/{account_id}/{conversation_id}/` prefix의 아카이브 객체를 지운다.
 
 채널 아웃바운드(`email`/`kakao`/`web`)는 프로세스 내 token-bucket(기본 20/s, burst 40)과 연속 5회 실패 시 open되는 서킷브레이커(30s)를 거친다. open이면 NAK하지 않고 드롭하지 않으며, half-open 한 건만 통과한다.
 
@@ -129,7 +129,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.contacts.messages` | `account_id`, `inbox_id`, `contact_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.ontology.ego` | `actor_user_id`, `account_id`, `contact_id`. 유효 엣지 1~2홉 `LIMIT 50` | gateway-web, svc-ai-agent | svc-core |
 | Core | `helpdesk.rpc.tools.approve` | `actor_user_id`, `account_id`, `conversation_id`, `execution_id` | gateway-web | svc-core |
-| Core | `helpdesk.rpc.contacts.purge` | `actor_user_id`, `account_id`, `contact_id`. administrator. JetStream subject + archive prefix 삭제 | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.purge` | `actor_user_id`, `account_id`, `contact_id`. administrator. PG PII(식별자·본문·CSAT·도구 JSON) 익명화, JetStream subject + archive prefix 삭제 | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.add` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.remove` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
@@ -373,7 +373,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `GET`/`POST /api/v1/accounts/{account_id}/articles`
 - `GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego` (Living Profile 1~2홉)
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/tools/{execution_id}/approve`
-- `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. PG 식별자·본문 익명화, JetStream subject, Cold Archive prefix)
+- `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. PG 식별자·본문·CSAT·도구 JSON 익명화, JetStream subject, Cold Archive JSONL prefix)
 
 Platform API는 `Authorization: Bearer` 가 환경 `AURA_PLATFORM_TOKEN` 과 같아야 한다. 토큰이 비면 거절한다.
 

@@ -2,20 +2,25 @@ package archive
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/ingest"
 )
 
+var ErrNotFound = errors.New("not found")
+
 type Store interface {
-	Put(ctx context.Context, key string, body []byte) error
+	Append(ctx context.Context, key string, line []byte) error
 }
 
 type Worker struct {
 	JS    jetstream.JetStream
 	Store Store
+	mu    sync.Mutex
 }
 
 func (w *Worker) Consume(ctx context.Context) error {
@@ -57,8 +62,10 @@ func (w *Worker) Archive(ctx context.Context, raw []byte) error {
 		}
 	}
 	day := occurred.UTC().Format("2006-01-02")
-	key := fmt.Sprintf("archive/%s/%s/%s/%s.json", env.AccountID, env.ConversationID, day, env.ID)
-	return w.Store.Put(ctx, key, raw)
+	key := fmt.Sprintf("archive/%s/%s/%s.jsonl", env.AccountID, env.ConversationID, day)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.Store.Append(ctx, key, raw)
 }
 
 func (w *Worker) handle(msg jetstream.Msg) {
@@ -73,21 +80,43 @@ type MemoryStore struct {
 	Items map[string][]byte
 }
 
-func (m *MemoryStore) Put(_ context.Context, key string, body []byte) error {
+func (m *MemoryStore) Append(_ context.Context, key string, line []byte) error {
 	if m.Items == nil {
 		m.Items = map[string][]byte{}
 	}
-	m.Items[key] = append([]byte(nil), body...)
+	m.Items[key] = append(m.Items[key], withNewline(line)...)
 	return nil
 }
 
 type FilerStore struct {
+	GetFn func(ctx context.Context, key string) ([]byte, error)
 	PutFn func(ctx context.Context, key string, body []byte) error
 }
 
-func (f FilerStore) Put(ctx context.Context, key string, body []byte) error {
+func (f FilerStore) Append(ctx context.Context, key string, line []byte) error {
 	if f.PutFn == nil {
 		return fmt.Errorf("filer missing")
 	}
-	return f.PutFn(ctx, key, body)
+	var existing []byte
+	if f.GetFn != nil {
+		got, err := f.GetFn(ctx, key)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if err == nil {
+			existing = got
+		}
+	}
+	return f.PutFn(ctx, key, append(existing, withNewline(line)...))
+}
+
+func withNewline(line []byte) []byte {
+	if len(line) == 0 {
+		return nil
+	}
+	out := append([]byte(nil), line...)
+	if out[len(out)-1] != '\n' {
+		out = append(out, '\n')
+	}
+	return out
 }

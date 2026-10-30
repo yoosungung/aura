@@ -71,6 +71,16 @@ func (s *Service) PurgeContact(ctx context.Context, in PurgeInput) error {
 			WHERE entity_type = 'Customer' AND external_ref_id = $1`, in.ContactID.String()); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE csat_survey_responses SET feedback = '', review_note = ''
+			WHERE conversation_id IN (SELECT id FROM conversations WHERE contact_id = $1)`, in.ContactID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE agent_tool_executions SET input_args = '{}'::jsonb, output_result = '{}'::jsonb
+			WHERE conversation_id IN (SELECT id FROM conversations WHERE contact_id = $1)`, in.ContactID); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {

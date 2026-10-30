@@ -88,6 +88,17 @@ func TestPurgeContact_AdminOnly(t *testing.T) {
 		mustV7(t), accountID, inboxID, created.ConversationID, created.ContactID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO csat_survey_responses (account_id, conversation_id, rating, feedback, review_note)
+		VALUES ($1,$2,5,'계좌번호 알려드림','내부 메모')`, accountID, created.ConversationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO agent_tool_executions (id, account_id, conversation_id, tool_name, input_args, output_result, is_success)
+		VALUES ($1,$2,$3,'refund','{"email":"ada@acme.test"}'::jsonb,'{"phone":"010"}'::jsonb,true)`,
+		mustV7(t), accountID, created.ConversationID); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.PurgeContact(ctx, core.PurgeInput{ActorUserID: adminID, AccountID: accountID, ContactID: created.ContactID}); err != nil {
 		t.Fatal(err)
 	}
@@ -115,5 +126,24 @@ func TestPurgeContact_AdminOnly(t *testing.T) {
 	}
 	if source != "purged:"+created.ContactInboxID.String() {
 		t.Fatalf("source_id=%s", source)
+	}
+	var feedback, note, args, result string
+	if err := admin.QueryRow(ctx, `
+		SELECT COALESCE(feedback,''), COALESCE(review_note,'')
+		FROM csat_survey_responses WHERE conversation_id=$1`, created.ConversationID).
+		Scan(&feedback, &note); err != nil {
+		t.Fatal(err)
+	}
+	if feedback != "" || note != "" {
+		t.Fatalf("csat feedback=%q note=%q", feedback, note)
+	}
+	if err := admin.QueryRow(ctx, `
+		SELECT input_args::text, output_result::text
+		FROM agent_tool_executions WHERE conversation_id=$1`, created.ConversationID).
+		Scan(&args, &result); err != nil {
+		t.Fatal(err)
+	}
+	if args != "{}" || result != "{}" {
+		t.Fatalf("tool args=%s result=%s", args, result)
 	}
 }
