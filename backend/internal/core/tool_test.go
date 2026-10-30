@@ -77,10 +77,43 @@ func TestPurgeContact_AdminOnly(t *testing.T) {
 	if err := svc.PurgeContact(ctx, core.PurgeInput{ActorUserID: agentID, AccountID: accountID, ContactID: created.ContactID}); err != core.ErrDenied {
 		t.Fatalf("agent %v", err)
 	}
+	if _, err := admin.Exec(ctx, `
+		UPDATE contacts SET email='ada@acme.test', phone_number='010-0000-0000', identifier='ada'
+		WHERE id=$1`, created.ContactID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO messages (id, account_id, inbox_id, conversation_id, message_type, content, sender_type, sender_id)
+		VALUES ($1,$2,$3,$4,0,'환불 계좌는 주민번호','Contact',$5)`,
+		mustV7(t), accountID, inboxID, created.ConversationID, created.ContactID); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.PurgeContact(ctx, core.PurgeInput{ActorUserID: adminID, AccountID: accountID, ContactID: created.ContactID}); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.prefixes) != 1 || store.prefixes[0] != accountID.String()+"/"+created.ConversationID.String()+"/" {
 		t.Fatalf("archive prefixes %v", store.prefixes)
+	}
+	var name, email, phone, ident, body, source string
+	if err := admin.QueryRow(ctx, `
+		SELECT COALESCE(name,''), COALESCE(email,''), COALESCE(phone_number,''), COALESCE(identifier,'')
+		FROM contacts WHERE id=$1`, created.ContactID).
+		Scan(&name, &email, &phone, &ident); err != nil {
+		t.Fatal(err)
+	}
+	if name != "" || email != "" || phone != "" || ident != "" {
+		t.Fatalf("pii name=%q email=%q phone=%q ident=%q", name, email, phone, ident)
+	}
+	if err := admin.QueryRow(ctx, `SELECT content FROM messages WHERE conversation_id=$1`, created.ConversationID).Scan(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body != "" {
+		t.Fatalf("content=%q", body)
+	}
+	if err := admin.QueryRow(ctx, `SELECT source_id FROM contact_inboxes WHERE id=$1`, created.ContactInboxID).Scan(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source != "purged:"+created.ContactInboxID.String() {
+		t.Fatalf("source_id=%s", source)
 	}
 }

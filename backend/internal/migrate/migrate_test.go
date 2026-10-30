@@ -2,6 +2,7 @@ package migrate_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/yoosungung/aura/internal/migrate"
@@ -119,6 +120,27 @@ func TestUp_EmbeddingsSeparatedAndTemporalEdges(t *testing.T) {
 	if err := admin.QueryRow(ctx, `
 		SELECT indexname FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw'`).Scan(&col); err != nil {
 		t.Fatalf("hnsw: %v", err)
+	}
+	var typ, def string
+	if err := admin.QueryRow(ctx, `
+		SELECT format_type(atttypid, atttypmod) FROM pg_attribute
+		WHERE attrelid = 'embeddings'::regclass AND attname = 'embedding' AND NOT attisdropped`).Scan(&typ); err != nil {
+		t.Fatalf("embedding type: %v", err)
+	}
+	if typ != "halfvec(1536)" {
+		t.Fatalf("embedding type=%s", typ)
+	}
+	if err := admin.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw'`).Scan(&def); err != nil {
+		t.Fatalf("hnsw def: %v", err)
+	}
+	if !strings.Contains(def, "halfvec_cosine_ops") || !strings.Contains(def, "m='16'") {
+		t.Fatalf("hnsw def=%s", def)
+	}
+	if err := admin.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw_article'`).Scan(&def); err != nil {
+		t.Fatalf("article hnsw: %v", err)
+	}
+	if !strings.Contains(def, "owner_type") {
+		t.Fatalf("article hnsw def=%s", def)
 	}
 	var forced bool
 	if err := admin.QueryRow(ctx, `SELECT relforcerowsecurity FROM pg_class WHERE relname = 'embeddings'`).Scan(&forced); err != nil {

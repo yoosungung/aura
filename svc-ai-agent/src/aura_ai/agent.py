@@ -57,6 +57,8 @@ class Agent:
         self.read_article: Callable[[str, str], str] = lambda _account, _id: ""
 
     def handle_reason(self, task: dict) -> dict:
+        if int(task.get("hop_count") or 0) > 5:
+            return {"skipped": True, "reason": "hop"}
         prompt = task.get("content") or ""
         ego = self.read_ego(task.get("account_id", ""), task.get("contact_id", ""))
         decision = self.llm.reason(prompt, ego)
@@ -110,7 +112,7 @@ class Agent:
                     "source_conversation_id": conv,
                 }
             )
-        env = self._envelope(account, inbox, conv, "ontology_extracted", {"nodes": nodes, "edges": edges})
+        env = self._envelope(account, inbox, conv, "ontology_extracted", {"nodes": nodes, "edges": edges}, task=task)
         self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.ontology_extracted", env)
         return env
 
@@ -133,6 +135,7 @@ class Agent:
                 "version": 1,
                 "embedding": vector,
             },
+            task=task,
         )
         self.bus.publish(f"helpdesk.events.{account}.{nil_id}.{nil_id}.embedding_upsert", env)
         return env
@@ -203,6 +206,7 @@ class Agent:
                 "approved_by": approved_by,
             },
             event_id=execution_id,
+            task=task,
         )
         account, inbox, conv = task.get("account_id"), task.get("inbox_id"), task.get("conversation_id")
         self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.tool_execution", env)
@@ -225,6 +229,7 @@ class Agent:
                 "contact_inbox_id": task.get("contact_inbox_id"),
                 "attachments": [],
             },
+            task=task,
         )
         account, inbox, conv = task.get("account_id"), task.get("inbox_id"), task.get("conversation_id")
         self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.message_created", env)
@@ -234,8 +239,19 @@ class Agent:
         )
         return env
 
-    def _envelope(self, account: str, inbox: str, conv: str, typ: str, payload: dict[str, Any], event_id: str | None = None) -> dict:
-        return {
+    def _envelope(
+        self,
+        account: str,
+        inbox: str,
+        conv: str,
+        typ: str,
+        payload: dict[str, Any],
+        event_id: str | None = None,
+        task: dict | None = None,
+    ) -> dict:
+        src = task or {}
+        hop = int(src.get("hop_count") or 0) + 1
+        env = {
             "id": event_id or new_id(),
             "schema_version": 1,
             "type": typ,
@@ -243,7 +259,10 @@ class Agent:
             "account_id": account,
             "inbox_id": inbox,
             "conversation_id": conv,
-            "trace_id": new_id().replace("-", ""),
-            "hop_count": 0,
+            "trace_id": src.get("trace_id") or new_id().replace("-", ""),
+            "hop_count": hop,
             "payload": payload,
         }
+        if src.get("trigger_message_id"):
+            env["causation_id"] = src["trigger_message_id"]
+        return env

@@ -17,7 +17,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 9. **WorkQueue 컨슈머 필터는 겹치지 않는다.** `helpdesk.tasks.ai.>`, `helpdesk.tasks.outbound.>`, `helpdesk.tasks.ontology.>`, `helpdesk.tasks.webhooks.>`, `helpdesk.tasks.sla.>`, `helpdesk.tasks.snooze.>` 로 분리한다.
 10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다. `setUser` identify는 현재 컨택트에 identifier만 쓴다. 이미 식별된 컨택트와 identifier가 겹치면 거절한다. 익명 컨택트(identifier 없음)는 HMAC 통과 뒤 `contact_merged`로 티켓 `contact_id`만 기존 식별 컨택트로 옮긴다. 대화 스레드는 합치지 않는다. API·WS는 짧은 만료 HMAC 접근 토큰만 받는다. `users.pubsub_token` / `contact_inboxes.pubsub_token`은 시드이며 Bearer·쿼리 토큰으로 쓰지 않는다.
 11. **카카오 세션은 30일이다.** 상담톡은 고객 마지막 메시지 후 30일, 세션이 있을 때만 발송한다. 알림톡(세션 없이 승인 템플릿)은 출시 후. WhatsApp 24시간 창은 `gateway-social` 전용이다.
-12. **이벤트 Envelope는 하위 호환으로만 진화한다.** `schema_version`은 필수다. 필드 삭제·의미 변경을 하지 않는다. 필수 필드를 추가할 때는 기본값을 정한다. `trace_id`(W3C Trace Context), `causation_id`(유발 이벤트 id, 최초 발행이면 생략), `hop_count`를 넣는다. `hop_count > 5`인 이벤트는 자동화가 드롭한다.
+12. **이벤트 Envelope는 하위 호환으로만 진화한다.** `schema_version`은 필수다. 필드 삭제·의미 변경을 하지 않는다. 필수 필드를 추가할 때는 기본값을 정한다. `trace_id`(W3C Trace Context), `causation_id`(유발 이벤트 id, 최초 발행이면 생략), `hop_count`를 넣는다. `hop_count > 5`인 이벤트는 자동화와 `svc-ai-agent`가 드롭한다. AI가 내는 이벤트는 태스크 `hop_count+1`과 `causation_id=trigger_message_id`다.
 13. **ingestion은 독성 이벤트 때문에 배치를 무한 NACK하지 않는다.** 플러시 순서는 `contacts` → `contact_inboxes` → `conversations` → `messages` → `attachments` → 상태/배정이다. 배치 트랜잭션이 실패하면 단건(또는 `SAVEPOINT`)으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`으로 보낸 뒤 ACK한다.
 14. **상담원 인증은 자체 세션이다.** 이메일+비밀번호. P3에 OIDC를 두지 않는다. 비밀번호는 Argon2id로만 저장한다. 세션 행은 `svc-core`가 PG에 커밋하고, `gateway-web`이 접근 토큰을 서명한다. 게이트웨이는 `users`를 읽지 않는다.
 15. **인박스 HMAC 시크릿은 administrator만 본다.** 호스트 서버가 identifier를 서명하고, 위젯·Client API·상담원에게 시크릿을 주지 않는다. 회전은 `inboxes.hmac_secret`을 즉시 덮어쓰며 이전 키를 남기지 않는다.
@@ -78,7 +78,7 @@ nats stream add INGESTION_DLQ \
 
 `helpdesk.realtime.>` 와 `helpdesk.rpc.>` 는 스트림에 넣지 않는다. RPC는 NATS Core Request-Reply다.
 
-`event-archive` durable은 Limits 스트림 `helpdesk.events.>`를 읽어 오브젝트 스토리지 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}/{event_id}.json`에 적재한다. JetStream은 90일 Hot, 아카이브는 영구. 고객 파기 `contacts.purge`는 그 컨택트 대화 subject를 JetStream에서 purge하고 `archive/{account_id}/{conversation_id}/` prefix의 아카이브 객체를 지운다.
+`event-archive` durable은 Limits 스트림 `helpdesk.events.>`를 읽어 오브젝트 스토리지 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}/{event_id}.json`에 적재한다. JetStream은 90일 Hot, 아카이브는 영구. 고객 파기 `contacts.purge`는 PG의 이름·이메일·전화·identifier·메시지 본문·인박스 source_id를 익명화하고, 그 컨택트 대화 subject를 JetStream에서 purge하며 `archive/{account_id}/{conversation_id}/` prefix의 아카이브 객체를 지운다.
 
 채널 아웃바운드(`email`/`kakao`/`web`)는 프로세스 내 token-bucket(기본 20/s, burst 40)과 연속 5회 실패 시 open되는 서킷브레이커(30s)를 거친다. open이면 NAK하지 않고 드롭하지 않으며, half-open 한 건만 통과한다.
 
@@ -298,7 +298,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 }
 ```
 
-`owner_type`: `article` \| `ontology_node`. `embedding` 길이 1536. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다.
+`owner_type`: `article` \| `ontology_node`. `embedding` 길이 1536, 저장은 `halfvec(1536)`. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다. HNSW는 cosine, `m=16`, `ef_construction=64`. article 부분 인덱스가 있다.
 
 아웃바운드 웹훅 본문은 envelope를 펼친 공개 형태다. 헤더 `X-Helpdesk-Signature: sha256=<hex>`, `X-Helpdesk-Timestamp`. 검증식은 `HMAC-SHA256(timestamp + "." + body, webhook_secret)`. 타임스탬프 오차 5분 초과는 거절.
 
@@ -373,7 +373,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `GET`/`POST /api/v1/accounts/{account_id}/articles`
 - `GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego` (Living Profile 1~2홉)
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/tools/{execution_id}/approve`
-- `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. JetStream subject + Cold Archive prefix)
+- `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. PG 식별자·본문 익명화, JetStream subject, Cold Archive prefix)
 
 Platform API는 `Authorization: Bearer` 가 환경 `AURA_PLATFORM_TOKEN` 과 같아야 한다. 토큰이 비면 거절한다.
 
@@ -779,7 +779,7 @@ CREATE TABLE embeddings (
     owner_id UUID NOT NULL,
     model VARCHAR(100) NOT NULL,
     version INT NOT NULL DEFAULT 1,
-    embedding vector(1536) NOT NULL,
+    embedding halfvec(1536) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT uq_embedding_owner_model UNIQUE (account_id, owner_type, owner_id, model, version)
 );
@@ -803,7 +803,9 @@ CREATE INDEX idx_messages_conv_created ON messages(account_id, conversation_id, 
 CREATE INDEX idx_contact_inboxes_lookup ON contact_inboxes(account_id, inbox_id, source_id);
 CREATE INDEX idx_ontology_nodes_ref ON ontology_nodes(account_id, entity_type, external_ref_id);
 CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_node_id, relation_type);
-CREATE INDEX idx_embeddings_hnsw ON embeddings USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_embeddings_hnsw ON embeddings USING hnsw (embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_embeddings_hnsw_article ON embeddings USING hnsw (embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
+    WHERE owner_type = 'article';
 ```
 
 `channel_type`: `web` \| `kakao` \| `email` \| `social`. `availability_status`: `online` \| `offline` \| `busy`. `priority`: `low` \| `medium` \| `high` \| `urgent`. `messages.status`: `sent` \| `delivered` \| `read` \| `failed`. `conversations.display_id` 는 이메일 제목 `[#REQ-{display_id}]` 토큰이다. 채번은 `account_sequences`에서 `INSERT ... ON CONFLICT (account_id) DO UPDATE SET last_conversation_display_id = account_sequences.last_conversation_display_id + 1 RETURNING last_conversation_display_id` 로만 한다. `MAX(display_id)+1` 금지.

@@ -63,4 +63,4 @@ kubectl create secret generic aura-secrets -n aura \
 kubectl apply -k deploy/k8s/base
 ```
 
-고객 파기: administrator `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` 가 그 컨택트 대화 JetStream subject와 `archive/{account_id}/{conversation_id}/` prefix를 지운다.
+고객 파기: administrator `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` 가 PG 식별자·본문을 익명화하고 그 컨택트 대화 JetStream subject와 `archive/{account_id}/{conversation_id}/` prefix를 지운다.

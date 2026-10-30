@@ -21,6 +21,23 @@ def task(**extra):
     return base
 
 
+def test_reason_increments_hop_and_sets_causation():
+    bus = MemoryBus()
+    agent = Agent(bus)
+    env = agent.handle_reason(task(hop_count=0, trigger_message_id="m1", trace_id="abc"))
+    assert env["hop_count"] == 1
+    assert env["causation_id"] == "m1"
+    assert env["trace_id"] == "abc"
+
+
+def test_reason_drops_when_hop_exceeds_five():
+    bus = MemoryBus()
+    agent = Agent(bus)
+    env = agent.handle_reason(task(hop_count=6))
+    assert env["skipped"] is True
+    assert bus.events == []
+
+
 def test_low_risk_sends_outbound_message():
     bus = MemoryBus()
     agent = Agent(bus)

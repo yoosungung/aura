@@ -152,8 +152,8 @@ func insertOntology(ctx context.Context, tx pgx.Tx, raw []byte) error {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO ontology_edges (
 				id, account_id, source_node_id, target_node_id, relation_type, weight,
-				valid_from, valid_until, confidence, source_conversation_id
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+				valid_from, valid_until, confidence, last_observed_at, source_conversation_id
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP,$10)
 			ON CONFLICT (id) DO NOTHING`,
 			id, env.AccountID, src, dst, e.RelationType, e.Weight, validFrom, until, e.Confidence, srcConv); err != nil {
 			return err
@@ -196,7 +196,7 @@ func insertEmbedding(ctx context.Context, tx pgx.Tx, raw []byte) error {
 	vec := "[" + strings.Join(parts, ",") + "]"
 	_, err = tx.Exec(ctx, `
 		INSERT INTO embeddings (id, account_id, owner_type, owner_id, model, version, embedding)
-		VALUES ($1,$2,$3,$4,$5,$6,$7::vector)
+		VALUES ($1,$2,$3,$4,$5,$6,$7::halfvec)
 		ON CONFLICT (account_id, owner_type, owner_id, model, version)
 		DO UPDATE SET embedding = EXCLUDED.embedding`,
 		env.ID, env.AccountID, wrap.Payload.OwnerType, ownerID, wrap.Payload.Model, wrap.Payload.Version, vec)

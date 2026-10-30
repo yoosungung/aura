@@ -11,6 +11,7 @@ Python AI 워커. 컴포넌트 간 계약은 [ARCHITECTURE.md](../ARCHITECTURE.m
 - resolved extract는 대화 메시지를 읽어 노드/엣지 JSON을 만들고 `ontology_extracted`를 발행한다. Customer 노드는 `external_ref_id=contacts.id`로 upsert.
 - article embed는 본문 임베딩을 만들어 `embedding_upsert`를 발행한다. 차원이 1536이 아니면 드롭.
 - 채널별 token-bucket + 서킷브레이커는 아웃바운드 발행 직전에 적용한다.
+- Envelope `hop_count`는 태스크 값 + 1, `causation_id`는 `trigger_message_id`, `trace_id`는 태스크 값을 따른다. `hop_count > 5`면 추론을 건너뛴다.
 
 ## Commands
 

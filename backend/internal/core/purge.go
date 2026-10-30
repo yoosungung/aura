@@ -46,7 +46,32 @@ func (s *Service) PurgeContact(ctx context.Context, in PurgeInput) error {
 			}
 			convs = append(convs, c)
 		}
-		return rows.Err()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE contacts SET
+				name = NULL, email = NULL, phone_number = NULL, identifier = NULL,
+				custom_attributes = '{}'::jsonb, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1`, in.ContactID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE contact_inboxes SET source_id = 'purged:' || id::text
+			WHERE contact_id = $1`, in.ContactID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE messages SET content = '', updated_at = CURRENT_TIMESTAMP
+			WHERE conversation_id IN (SELECT id FROM conversations WHERE contact_id = $1)`, in.ContactID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE ontology_nodes SET name = 'purged', properties = '{}'::jsonb, updated_at = CURRENT_TIMESTAMP
+			WHERE entity_type = 'Customer' AND external_ref_id = $1`, in.ContactID.String()); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return err

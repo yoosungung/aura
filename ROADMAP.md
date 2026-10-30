@@ -98,8 +98,8 @@
 - `svc-ai-agent`: Ego-Graph 1~2홉 읽기, ReAct/Tool, 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 시 ontology extract.
 - P5.5 컨텍스트 패널에 Living Profile, 스레드에 도구 승인 카드. 셸·브레이크포인트는 바꾸지 않는다.
 - 채널별 rate limit·서킷브레이커.
-- 임베딩을 본 테이블에서 분리(`model`/`version` 메타, HNSW). `ontology_edges` 시간 유효성(`valid_from`/`valid_until`).
-- JetStream → 오브젝트 스토리지 Cold Event 아카이브. 고객 파기 시 subject purge API.
+- 임베딩을 본 테이블에서 분리(`model`/`version` 메타, `halfvec(1536)`, HNSW `m=16`/`ef_construction=64`, article 부분 인덱스). `ontology_edges` 시간 유효성(`valid_from`/`valid_until`).
+- JetStream → 오브젝트 스토리지 Cold Event 아카이브. 고객 파기 시 PG 익명화 + subject purge API. AI 이벤트는 `hop_count+1`·`causation_id`로 자동화 루프를 끊는다.
 - `deploy/k8s/base/`, `deploy/SETUP.md`, `.github/workflows/ci.yml` — 이 시점에 실제 배포·PR이 생길 때 추가.
 
 성공: 웹+메일+카카오로 **파일럿 테넌트 1곳**이 돌아간다. 이 마일스톤이 제품 출시 선. **완료.**

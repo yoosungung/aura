@@ -307,7 +307,7 @@ func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conver
 			"account_id": accountID.String(), "inbox_id": inboxID.String(),
 			"conversation_id": conversationID.String(), "contact_id": contactID.String(),
 			"contact_inbox_id": contactInboxID.String(), "trigger_message_id": msgID.String(),
-			"content": content, "channel_type": channel,
+			"content": content, "channel_type": channel, "hop_count": 0, "trace_id": traceID,
 		})
 		if err != nil {
 			return uuid.Nil, nil, err
