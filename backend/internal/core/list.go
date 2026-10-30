@@ -158,7 +158,7 @@ func (s *Service) ListContacts(ctx context.Context, in ListInput) ([]ContactRow,
 			SELECT DISTINCT c.id, COALESCE(c.name, ''), COALESCE(c.email, ''), COALESCE(c.identifier, '')
 			FROM contacts c
 			JOIN contact_inboxes ci ON ci.contact_id = c.id
-			WHERE c.account_id = $1 AND ci.inbox_id = ANY($2)
+			WHERE c.account_id = $1 AND ci.inbox_id = ANY($2) AND c.merged_into_contact_id IS NULL
 			ORDER BY c.id`,
 			in.AccountID, inboxIDs)
 		if err != nil {

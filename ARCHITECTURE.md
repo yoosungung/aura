@@ -15,7 +15,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 7. **발행자가 UUIDv7로 ID를 만든다.** 이벤트 도메인 PK는 RFC 9562 UUIDv7이고, 게이트웨이와 `svc-core`가 생성한다. `SERIAL` PK에 `ON CONFLICT (id)` 로 멱등을 만들지 않는다. 재전송은 `ON CONFLICT (id) DO NOTHING` 또는 도메인 UNIQUE(`source_id`)로 막는다. PostgreSQL은 16+를 유지하므로 DB `DEFAULT`는 `gen_random_uuid()`를 쓸 수 있으나, 이벤트 도메인 행은 `DEFAULT`에 의존하지 않는다.
 8. **Realtime은 유실을 허용한다.** typing·presence·큐 푸시는 NATS Core(`helpdesk.realtime.>`)다. 대화 불변 로그는 JetStream Limits 90일(`helpdesk.events.>`). 작업은 JetStream WorkQueue(`helpdesk.tasks.>`).
 9. **WorkQueue 컨슈머 필터는 겹치지 않는다.** `helpdesk.tasks.ai.>`, `helpdesk.tasks.outbound.>`, `helpdesk.tasks.ontology.>`, `helpdesk.tasks.webhooks.>`, `helpdesk.tasks.sla.>`, `helpdesk.tasks.snooze.>` 로 분리한다.
-10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다. `setUser`는 현재 컨택트에 identifier만 쓴다. 다른 컨택트와 겹치면 거절한다. 컨택트 병합은 `svc-core`의 `contact_merged`만 하고, 대화 스레드는 합치지 않는다. API·WS는 짧은 만료 HMAC 접근 토큰만 받는다. `users.pubsub_token` / `contact_inboxes.pubsub_token`은 시드이며 Bearer·쿼리 토큰으로 쓰지 않는다.
+10. **상담원과 고객의 realtime 구독은 토큰으로 가른다.** User 토큰은 배속 인박스 범위, Contact 토큰은 자기 대화만. 위젯 `postMessage`는 등록 origin만 받고, `setUser`는 서버 HMAC을 검증한다. `setUser` identify는 현재 컨택트에 identifier만 쓴다. 이미 식별된 컨택트와 identifier가 겹치면 거절한다. 익명 컨택트(identifier 없음)는 HMAC 통과 뒤 `contact_merged`로 티켓 `contact_id`만 기존 식별 컨택트로 옮긴다. 대화 스레드는 합치지 않는다. API·WS는 짧은 만료 HMAC 접근 토큰만 받는다. `users.pubsub_token` / `contact_inboxes.pubsub_token`은 시드이며 Bearer·쿼리 토큰으로 쓰지 않는다.
 11. **카카오 세션은 30일이다.** 상담톡은 고객 마지막 메시지 후 30일, 세션이 있을 때만 발송한다. 알림톡(세션 없이 승인 템플릿)은 출시 후. WhatsApp 24시간 창은 `gateway-social` 전용이다.
 12. **이벤트 Envelope는 하위 호환으로만 진화한다.** `schema_version`은 필수다. 필드 삭제·의미 변경을 하지 않는다. 필수 필드를 추가할 때는 기본값을 정한다. `trace_id`(W3C Trace Context), `causation_id`(유발 이벤트 id, 최초 발행이면 생략), `hop_count`를 넣는다. `hop_count > 5`인 이벤트는 자동화가 드롭한다.
 13. **ingestion은 독성 이벤트 때문에 배치를 무한 NACK하지 않는다.** 플러시 순서는 `contacts` → `contact_inboxes` → `conversations` → `messages` → `attachments` → 상태/배정이다. 배치 트랜잭션이 실패하면 단건(또는 `SAVEPOINT`)으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`으로 보낸 뒤 ACK한다.
@@ -104,7 +104,7 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids`. 기본 `status <> 'resolved'` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.messages` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
-| Core | `helpdesk.rpc.contacts.identify` | `inbox_id`, `contact_id`, `identifier`, `identifier_hash` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.identify` | `inbox_id`, `contact_id`, `identifier`, `identifier_hash`. 익명+기존 identifier면 `contact_merged` 후 대상 `contact_id`. 식별된 충돌은 거절 | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.login` | `email`, `password` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
@@ -120,6 +120,7 @@ nats stream add INGESTION_DLQ \
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.status_changed` | `old_status`, `new_status`, `expected_version` | svc-core | ingestion, sla-routing, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.csat_submitted` | `rating`, `feedback` | gateway-\* | ingestion |
+| Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.contact_merged` | `source_contact_id`, `target_contact_id` | svc-core | automation |
 | WorkQueue | `helpdesk.tasks.ai.reasoning` | `conversation_id`, `trigger_message_id` | gateway-\*, svc-core | svc-ai-agent |
 | WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
 | WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
@@ -186,6 +187,17 @@ nats stream add INGESTION_DLQ \
 ```
 
 `expected_version`은 전이 직전 `conversations.version`이다. 커밋이 성공하면 `version`은 `expected_version + 1`이 된다.
+
+**`contact_merged` payload**
+
+```json
+{
+  "source_contact_id": "0192d4ef-0000-7000-8000-dddddddddddd",
+  "target_contact_id": "0192d4ef-0000-7000-8000-eeeeeeeeeeee"
+}
+```
+
+HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는 그대로다. 소스는 `merged_into_contact_id`만 찍고 삭제하지 않는다.
 
 **`assigned` payload:** `assignee_id` (nullable = 미배정).
 
@@ -278,7 +290,7 @@ Realtime 접근 토큰: User는 배속 인박스의 `helpdesk.realtime.<account_
 호스트는 로더 스크립트만 넣고 본체는 iframe이다.
 
 - `postMessage` 수신부는 `event.origin` 이 등록된 헬프데스크 origin(또는 허용 호스트)이 아니면 return. origin 미검증 금지.
-- `window.$aura.setUser(identifier, { name, email, identifier_hash })` 의 `identifier_hash` 는 서버 HMAC-SHA256(`identifier`, inbox HMAC secret) **소문자 hex**. 불일치면 식별자 바인딩 거부. 현재 컨택트에만 쓰고, 다른 컨택트 identifier와 겹치면 거절한다. 대화는 옮기지 않는다. 익명 컨택트(identifier 없음)를 기존 식별 컨택트로 이관하는 것은 `contact_merged`다. HMAC이 통과한 뒤에만 티켓의 `contact_id`를 옮기고, 스레드는 그대로 둔다. `hmac_secret`은 웹 인박스 administrator GET/rotate만 반환한다. 호스트 서버가 env에 복사하고 페이지에는 해시만 심는다. 회전은 컬럼을 즉시 덮어쓴다. 위젯·Client API·Agent·이메일/카카오 인박스는 시크릿을 받지 않는다.
+- `window.$aura.setUser(identifier, { name, email, identifier_hash })` 의 `identifier_hash` 는 서버 HMAC-SHA256(`identifier`, inbox HMAC secret) **소문자 hex**. 불일치면 식별자 바인딩 거부. identify는 현재 컨택트에 identifier만 쓴다. 이미 식별된 컨택트와 겹치면 거절한다. 익명 컨택트는 HMAC 통과 뒤 `contact_merged`로 티켓 `contact_id`만 옮기고 스레드는 그대로 둔다. `hmac_secret`은 웹 인박스 administrator GET/rotate만 반환한다. 호스트 서버가 env에 복사하고 페이지에는 해시만 심는다. 회전은 컬럼을 즉시 덮어쓴다. 위젯·Client API·Agent·이메일/카카오 인박스는 시크릿을 받지 않는다.
 - 고객 WS는 Contact 토큰만 사용한다.
 
 ## 8. Ego-Graph 읽기
@@ -433,6 +445,7 @@ CREATE TABLE contacts (
     email VARCHAR(255),
     phone_number VARCHAR(50),
     identifier VARCHAR(255),
+    merged_into_contact_id UUID REFERENCES contacts(id),
     custom_attributes JSONB DEFAULT '{}'::jsonb NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,

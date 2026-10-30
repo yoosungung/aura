@@ -61,7 +61,7 @@
 - 256KB 초과 본문·MIME은 오브젝트 스토리지 Claim-Check (`content_ref`).
 - 고객 병합: `contact_merged` 이벤트, `contacts.merged_into_contact_id`. HMAC 통과 + 소스가 익명(identifier 없음)일 때만 티켓 `contact_id`를 기존 식별 컨택트로 옮긴다. 스레드는 합치지 않는다. `setUser` identify는 병합하지 않는다.
 
-성공: 메일 회신이 기존 티켓에 붙는다. 카카오 세션이 살아 있으면 상담톡으로 나간다. `gateway-social`은 출시 후.
+성공: 메일 회신이 기존 티켓에 붙는다. 카카오 세션이 살아 있으면 상담톡으로 나간다. 익명 웹 세션이 HMAC 통과하면 기존 식별 컨택트 티켓으로 붙고 스레드는 그대로다. `gateway-social`은 출시 후. **완료.**
 
 ## P5 운영 자동화
 
