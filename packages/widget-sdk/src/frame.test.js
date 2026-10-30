@@ -157,35 +157,54 @@ test("setUser with identifier_hash posts identify", async () => {
   assert.equal(frame.identifier(), "user-1");
 });
 
+function messageLog() {
+  const items = [];
+  const buttons = [];
+  return {
+    items,
+    buttons,
+    document: {
+      createElement(tag) {
+        const el = {
+          tagName: tag,
+          textContent: "",
+          dataset: {},
+          type: "",
+          className: "",
+          attrs: {},
+          children: [],
+          addEventListener(type, fn) {
+            if (type === "click") buttons.push(fn);
+          },
+          setAttribute(name, value) {
+            this.attrs[name] = value;
+          },
+          appendChild(child) {
+            this.children.push(child);
+          },
+        };
+        return el;
+      },
+      createTextNode(text) {
+        return { textContent: text };
+      },
+      getElementById() {
+        return {
+          appendChild(child) {
+            items.push(child);
+          },
+        };
+      },
+    },
+  };
+}
+
 test("frame rates CSAT over public API", async () => {
   const win = fakeFrame();
   const calls = [];
-  const buttons = [];
+  const log = messageLog();
   let sock;
-  win.document = {
-    createElement(tag) {
-      const el = {
-        tagName: tag,
-        textContent: "",
-        dataset: {},
-        type: "",
-        children: [],
-        addEventListener(type, fn) {
-          if (type === "click") buttons.push(fn);
-        },
-        appendChild(child) {
-          this.children.push(child);
-        },
-      };
-      return el;
-    },
-    createTextNode(text) {
-      return { textContent: text };
-    },
-    getElementById() {
-      return { appendChild() {} };
-    },
-  };
+  win.document = log.document;
   const frame = createFrame(win, {
     async fetch(url, opts) {
       calls.push({ url, opts });
@@ -210,11 +229,49 @@ test("frame rates CSAT over public API", async () => {
       message: { payload: { content_type: "input_csat", content: "상담은 어떠셨나요?" } },
     }),
   });
-  assert.equal(buttons.length, 5);
-  await buttons[4]();
+  assert.equal(log.buttons.length, 5);
+  const card = log.items.find((el) => el.dataset.csat === "true");
+  assert.equal(card.className, "csat");
+  assert.equal(card.attrs["aria-label"], "상담 만족도를 평가해 주세요");
+  await log.buttons[4]();
   const csat = calls.find((c) => String(c.url).endsWith("/csat"));
   assert.equal(csat.url, "https://help.example/public/api/v1/inboxes/inbox-1/csat");
   assert.equal(JSON.parse(csat.opts.body).rating, 5);
+});
+
+test("frame marks agent and customer bubbles for the widget timeline", async () => {
+  const win = fakeFrame();
+  const log = messageLog();
+  let sock;
+  win.document = log.document;
+  const frame = createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        return { ok: true, json: async () => ({ access_token: "access" }) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor() {
+        sock = this;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("결제 문의드립니다.");
+  sock.onmessage({
+    data: JSON.stringify({
+      type: "event",
+      event: "message.created",
+      conversation_id: "c1",
+      message: { payload: { content: "안녕하세요! 무엇을 도와드릴까요", sender_type: "User" } },
+    }),
+  });
+  assert.equal(log.items[0].dataset.sender, "Contact");
+  assert.equal(log.items[1].dataset.sender, "User");
 });
 
 test("setUser without identifier_hash does not bind identity", async () => {

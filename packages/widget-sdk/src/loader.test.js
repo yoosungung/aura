@@ -24,6 +24,8 @@ function fakeHost(origin = "https://shop.example") {
         sent: [],
         children: [],
         textContent: "",
+        dataset: {},
+        hidden: false,
         contentWindow: {
           postMessage(data, target) {
             el.sent.push({ data, target });
@@ -31,6 +33,10 @@ function fakeHost(origin = "https://shop.example") {
         },
         appendChild(child) {
           this.children.push(child);
+        },
+        setAttribute(name, value) {
+          this.attrs = this.attrs || {};
+          this.attrs[name] = value;
         },
         attachShadow() {
           this.shadow = {
@@ -117,18 +123,46 @@ test("closed loader does not let the iframe intercept host clicks", () => {
     false,
   );
   const host = win.document.body.children.find((el) => el.id === "aura-widget-host");
-  assert.equal(host.shadow.host.style.width, "60px");
-  assert.equal(host.shadow.host.style.height, "60px");
+  const launcher = host.shadow.host;
+  assert.equal(launcher.style.width, "60px");
+  assert.equal(launcher.style.height, "60px");
+  assert.equal(launcher.style.borderRadius, "9999px");
+  assert.equal(host.style.bottom, "20px");
+  assert.equal(host.style.right, "20px");
+  assert.equal(host.style.zIndex, "2147483000");
   api.toggle();
   assert.equal(api.open, true);
   assert.notEqual(api.iframe.style.display, "none");
   assert.equal(api.iframe.style.pointerEvents, "auto");
   assert.equal(api.iframe.style.width, "380px");
   assert.equal(api.iframe.style.height, "min(640px, calc(100dvh - 40px))");
+  assert.equal(api.iframe.style.bottom, "20px");
+  assert.equal(api.iframe.style.right, "20px");
+  assert.equal(api.iframe.style.borderRadius, "16px");
+  assert.equal(api.iframe.style.boxShadow, "0 20px 50px rgba(0,0,0,0.16)");
   assert.equal(
     win.document.body.children.some((el) => el.id === "aura-widget-frame"),
     true,
   );
+});
+
+test("loader paints unread count on the launcher badge", () => {
+  const win = fakeHost();
+  createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  const host = win.document.body.children.find((el) => el.id === "aura-widget-host");
+  const badge = host.shadow.host.children.find((el) => el.dataset?.badge === "unread");
+  assert.ok(badge);
+  assert.equal(badge.hidden, true);
+  win.deliver({
+    origin: "https://help.example",
+    data: encode("unread", { count: 3 }),
+  });
+  assert.equal(badge.hidden, false);
+  assert.equal(badge.textContent, "3");
 });
 
 test("open loader fills the mobile viewport", () => {

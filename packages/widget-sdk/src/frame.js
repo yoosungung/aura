@@ -27,6 +27,7 @@ export function createFrame(win, deps = {}) {
   let socket;
   let lastWsToken = "";
   let exchanging;
+  let unread = 0;
 
   const apiBase = win.location.origin;
 
@@ -150,7 +151,13 @@ export function createFrame(win, deps = {}) {
         return;
       }
       const content = msg.content;
-      if (content) append(content, msg.sender_type);
+      if (content) {
+        append(content, msg.sender_type);
+        if (msg.sender_type === "User") {
+          unread += 1;
+          win.parent.postMessage(encode("unread", { count: unread }), parentOrigin);
+        }
+      }
     };
   }
 
@@ -174,16 +181,23 @@ export function createFrame(win, deps = {}) {
     }
     const item = win.document.createElement("li");
     item.dataset.csat = "true";
-    item.appendChild(win.document.createTextNode(content || ""));
+    item.className = "csat";
+    item.setAttribute("aria-label", "상담 만족도를 평가해 주세요");
+    const title = win.document.createElement("p");
+    title.textContent = content || "상담 만족도를 평가해 주세요";
+    item.appendChild(title);
+    const row = win.document.createElement("div");
     for (let n = 1; n <= 5; n += 1) {
       const btn = win.document.createElement("button");
       btn.type = "button";
       btn.textContent = String(n);
+      btn.setAttribute("aria-label", `${n}점`);
       btn.addEventListener("click", () => {
         rate(n);
       });
-      item.appendChild(btn);
+      row.appendChild(btn);
     }
+    item.appendChild(row);
     list.appendChild(item);
   }
 

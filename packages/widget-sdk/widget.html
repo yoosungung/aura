@@ -3,21 +3,129 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aura</title>
 <style>
-  html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; background: #f8fafc; color: #0f172a; }
-  header { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
-  header button { border: 0; background: transparent; font-size: 16px; cursor: pointer; }
-  #messages { flex: 1; margin: 0; padding: 16px; overflow: auto; list-style: none; }
-  #messages li { max-width: 80%; margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; }
-  #messages li[data-sender="User"] { margin-left: auto; background: #18181b; color: #fafafa; }
-  #composer { display: flex; gap: 8px; padding: 12px; background: #fff; border-top: 1px solid #e2e8f0; }
-  #composer input { flex: 1; height: 36px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; }
+  :root {
+    --background: #f8fafc;
+    --surface: #ffffff;
+    --foreground: #0f172a;
+    --border: #e2e8f0;
+    --primary: #18181b;
+    --muted: #64748b;
+    --danger: #e11d48;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    display: flex;
+    flex-direction: column;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  }
+  header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand strong { font-size: 14px; font-weight: 600; }
+  .brand p { margin: 0; font-size: 11px; font-weight: 500; color: var(--muted); }
+  header button { border: 0; background: transparent; font-size: 16px; cursor: pointer; color: var(--foreground); }
+  #messages {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 16px;
+    overflow: auto;
+    list-style: none;
+  }
+  #messages li {
+    width: fit-content;
+    max-width: 80%;
+    margin: 8px 0;
+    padding: 10px 14px;
+    border-radius: 16px 16px 16px 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #messages li[data-sender="User"] { margin-right: auto; }
+  #messages li[data-sender="Contact"] {
+    margin-left: auto;
+    background: var(--primary);
+    color: #fafafa;
+    border-color: var(--primary);
+    border-radius: 16px 16px 4px 16px;
+  }
+  #messages li.csat,
+  #messages li[data-csat="true"] {
+    width: 100%;
+    max-width: 100%;
+    margin: 12px 0;
+    padding: 12px;
+    background: var(--surface);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  #messages li.csat p,
+  #messages li[data-csat="true"] p { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+  #messages li.csat button,
+  #messages li[data-csat="true"] button {
+    width: 36px;
+    height: 36px;
+    margin-right: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  #composer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    height: 60px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  #composer input {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 10px;
+    font: inherit;
+  }
+  #composer button {
+    flex-shrink: 0;
+    height: 40px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+  }
 </style>
 <header>
-  <strong>Aura 고객센터</strong>
+  <div class="brand">
+    <strong>Aura 고객센터</strong>
+    <p>보통 5분 내 응답합니다</p>
+  </div>
   <button type="button" id="close" aria-label="닫기">✕</button>
 </header>
-<ol id="messages"></ol>
+<ol id="messages" role="log"></ol>
 <form id="composer">
   <input name="content" autocomplete="off" aria-label="메시지를 입력하세요" placeholder="메시지를 입력하세요" />
   <button type="submit">전송</button>

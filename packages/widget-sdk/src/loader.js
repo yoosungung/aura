@@ -26,6 +26,26 @@ export function createLoader(win, opts) {
   launcher.style.borderRadius = "9999px";
   launcher.style.border = "0";
   launcher.style.cursor = "pointer";
+  launcher.style.position = "relative";
+  launcher.style.background = "#18181b";
+  launcher.style.color = "#fff";
+  launcher.style.fontSize = "22px";
+  const badge = win.document.createElement("span");
+  badge.hidden = true;
+  badge.dataset.badge = "unread";
+  badge.setAttribute?.("aria-label", "읽지 않은 메시지");
+  badge.style.position = "absolute";
+  badge.style.top = "-4px";
+  badge.style.right = "-4px";
+  badge.style.minWidth = "20px";
+  badge.style.height = "20px";
+  badge.style.padding = "0 5px";
+  badge.style.borderRadius = "9999px";
+  badge.style.background = "#e11d48";
+  badge.style.color = "#fff";
+  badge.style.fontSize = "11px";
+  badge.style.lineHeight = "20px";
+  launcher.appendChild(badge);
   shadow.appendChild(launcher);
   win.document.body.appendChild(host);
 
@@ -36,8 +56,9 @@ export function createLoader(win, opts) {
   iframe.style.border = "0";
   iframe.style.position = "fixed";
   iframe.style.right = "20px";
-  iframe.style.bottom = "88px";
+  iframe.style.bottom = "20px";
   iframe.style.zIndex = "2147483000";
+  iframe.style.overflow = "hidden";
 
   const postToFrame = (event, payload) => {
     iframe.contentWindow?.postMessage(encode(event, payload), helpdesk);
@@ -78,15 +99,18 @@ export function createLoader(win, opts) {
         iframe.style.width = "100vw";
         iframe.style.height = "100dvh";
         iframe.style.borderRadius = "0";
+        iframe.style.boxShadow = "none";
       } else {
         iframe.style.inset = "";
         iframe.style.right = "20px";
-        iframe.style.bottom = "88px";
+        iframe.style.bottom = "20px";
         iframe.style.width = "380px";
         iframe.style.height = "min(640px, calc(100dvh - 40px))";
         iframe.style.borderRadius = "16px";
+        iframe.style.boxShadow = "0 20px 50px rgba(0,0,0,0.16)";
       }
       launcher.style.display = "none";
+      badge.hidden = true;
     } else {
       iframe.style.display = "none";
       iframe.style.pointerEvents = "none";
@@ -133,9 +157,10 @@ export function createLoader(win, opts) {
       if (msg.payload.height) iframe.style.height = `${msg.payload.height}px`;
       if (msg.payload.width) iframe.style.width = `${msg.payload.width}px`;
     }
-    if (msg.event === "unread" && launcher) {
+    if (msg.event === "unread" && badge) {
       const n = Number(msg.payload?.count) || 0;
-      launcher.textContent = n > 0 ? `💬 ${n}` : "💬";
+      badge.hidden = n <= 0;
+      badge.textContent = n > 99 ? "99+" : String(n);
     }
   });
 
