@@ -34,3 +34,5 @@ go run ./cmd/gateway-email
 ```
 
 환경변수: `AURA_MIGRATE_DSN` (슈퍼유저), `AURA_DSN` (`aura_app`), `AURA_NATS_URL`, `AURA_TOKEN_SECRET` (`gateway-web`), `AURA_HTTP_ADDR` (기본 `:8080`), `AURA_SMTP_ADDR` (기본 `:25`), `AURA_FILER_URL`(기본 `http://127.0.0.1:8888`), `AURA_FILER_PUBLIC_URL`(이벤트 URL, 비면 `AURA_FILER_URL`).
+
+`gateway-email` SMTP 문서상 기본 포트는 `25`다. 에릭은 `:2050`에서 실행한다. 포트는 `AURA_SMTP_ADDR`로 바꾼다.
