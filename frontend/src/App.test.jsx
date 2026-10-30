@@ -738,7 +738,11 @@ test("ticket view snooze input is datetime-local", async () => {
   await openHeaderMenu(user, "스누즈");
   expect(screen.getByLabelText("스누즈 시각").getAttribute("type")).toBe("datetime-local");
   expect(screen.getByRole("button", { name: "1시간 뒤" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "오늘 오후 6시" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "내일 09:00" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "다음 주 월요일" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "오늘 오후 6시" }));
+  expect(screen.getByLabelText("스누즈 시각").value).toMatch(/T18:00$/);
 });
 
 test("keyboard j k r n and e drive the workspace", async () => {
@@ -785,6 +789,26 @@ test("keyboard j k r n and e drive the workspace", async () => {
   document.activeElement.blur();
   await user.keyboard("e");
   expect(resolved[0].conversationId).toBe("c1");
+});
+
+test("mod k opens the macro menu", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listMacros() {
+          return { macros: [{ id: "m1", name: "환불 완료" }] };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.keyboard("{Meta>}k{/Meta}");
+  expect(document.querySelector("details.macros-menu")?.open).toBe(true);
+  expect(await screen.findByRole("button", { name: "실행" })).toBeTruthy();
 });
 
 test("mod enter submits the composer", async () => {

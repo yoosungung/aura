@@ -227,6 +227,14 @@ export function App({ session: initialSession, client, initialState = emptyState
         e.target.tagName === "INPUT" ||
         e.target.tagName === "TEXTAREA" ||
         e.target.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        const menu = document.querySelector("details.macros-menu");
+        if (menu) {
+          menu.open = true;
+        }
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         const form = document.querySelector(composeMode === "note" ? "form.note" : "form.composer");
@@ -425,7 +433,7 @@ export function App({ session: initialSession, client, initialState = emptyState
       </aside>
       {helpOpen ? (
         <div className="shortcuts" role="dialog" aria-label="단축키">
-          <p>J 다음 · K 이전 · R 답장 · N 메모 · E 해결 · ⌘Enter 전송</p>
+          <p>J 다음 · K 이전 · R 답장 · N 메모 · E 해결 · ⌘Enter 전송 · ⌘K 매크로</p>
           <Button size="sm" onClick={() => setHelpOpen(false)}>
             닫기
           </Button>

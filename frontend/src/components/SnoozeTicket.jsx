@@ -42,9 +42,26 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
     setUntil(toLocalInput(new Date(Date.now() + hours * 3600_000)));
   }
 
+  function presetTodaySix() {
+    const d = new Date();
+    d.setHours(18, 0, 0, 0);
+    if (d.getTime() <= Date.now()) {
+      d.setDate(d.getDate() + 1);
+    }
+    setUntil(toLocalInput(d));
+  }
+
   function presetTomorrowNine() {
     const d = new Date();
     d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    setUntil(toLocalInput(d));
+  }
+
+  function presetNextMonday() {
+    const d = new Date();
+    const add = (8 - d.getDay()) % 7 || 7;
+    d.setDate(d.getDate() + add);
     d.setHours(9, 0, 0, 0);
     setUntil(toLocalInput(d));
   }
@@ -54,8 +71,14 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
       <Button type="button" variant="outline" size="sm" onClick={() => presetHours(1)}>
         1시간 뒤
       </Button>
+      <Button type="button" variant="outline" size="sm" onClick={presetTodaySix}>
+        오늘 오후 6시
+      </Button>
       <Button type="button" variant="outline" size="sm" onClick={presetTomorrowNine}>
         내일 09:00
+      </Button>
+      <Button type="button" variant="outline" size="sm" onClick={presetNextMonday}>
+        다음 주 월요일
       </Button>
       <Label>
         스누즈 시각
