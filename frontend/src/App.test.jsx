@@ -240,6 +240,14 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
   await user.click(screen.getByRole("button", { name: "재발급" }));
   expect(rotated[0].inboxId).toBe("i1");
   expect(screen.getByText("newsecret")).toBeTruthy();
+  const copied = [];
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async (text) => copied.push(text) },
+  });
+  await user.click(screen.getByRole("button", { name: "복사" }));
+  expect(copied[0]).toBe("newsecret");
+  expect(screen.getByText("복사됨")).toBeTruthy();
 });
 
 test("ticket view assigns to an inbox agent", async () => {
@@ -423,7 +431,6 @@ test("ticket view uploads an attachment", async () => {
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   await user.upload(screen.getByLabelText("첨부 파일"), file);
-  await user.click(screen.getByRole("button", { name: "첨부" }));
   expect(uploaded[0].conversation.id).toBe("c1");
   expect(uploaded[0].file.name).toBe("receipt.png");
   expect(screen.getByRole("log").textContent).toContain("receipt.png");
@@ -638,6 +645,7 @@ test("composer inserts a canned response from slash", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  expect(screen.getByLabelText("답장").getAttribute("placeholder")).toMatch(/저장응답/);
   await user.type(screen.getByLabelText("답장"), "/인사");
   await user.click(screen.getByRole("button", { name: "/인사" }));
   expect(screen.getByLabelText("답장").value).toBe("안녕하세요");
@@ -952,8 +960,19 @@ test("ticket view assigns from the inbox member select", async () => {
   await openHeaderMenu(user, "담당자");
   await user.selectOptions(await screen.findByLabelText("담당자"), "user-1");
   expect(screen.getByLabelText("담당자 ID").closest("label").className).toMatch(/field-fallback/);
-  await user.click(screen.getByRole("button", { name: "배정" }));
   expect(assigned[0].assigneeId).toBe("user-1");
+});
+
+test("escape closes an open thread header menu", async () => {
+  const user = userEvent.setup();
+  render(
+    <App session={session} client={{ connect() {} }} initialState={fixtureState()} />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await openHeaderMenu(user, "담당자");
+  expect(document.querySelector("details.assign-menu")?.open).toBe(true);
+  await user.keyboard("{Escape}");
+  expect(document.querySelector("details.assign-menu")?.open).toBe(false);
 });
 
 test("snooze preset submits immediately", async () => {

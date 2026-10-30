@@ -7,9 +7,7 @@ export function TicketAttachments({ session, conversation, client, onAttached })
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    const picked = file || e.currentTarget.querySelector('input[type="file"]')?.files?.[0];
+  async function uploadPicked(picked, form) {
     if (!picked || !client.uploadAttachment) {
       return;
     }
@@ -25,7 +23,7 @@ export function TicketAttachments({ session, conversation, client, onAttached })
       });
       setFile(null);
       onAttached?.({ ...data, filename: picked.name });
-      e.target.reset?.();
+      form?.reset?.();
     } catch {
       setError("첨부를 올리지 못했습니다");
     } finally {
@@ -33,14 +31,28 @@ export function TicketAttachments({ session, conversation, client, onAttached })
     }
   }
 
+  async function onSubmit(e) {
+    e.preventDefault();
+    const picked = file || e.currentTarget.querySelector('input[type="file"]')?.files?.[0];
+    await uploadPicked(picked, e.currentTarget);
+  }
+
   return (
     <form onSubmit={onSubmit} className="attach" aria-label="파일 첨부">
       <Label className="attach-clip">
-        첨부 파일
-        <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <span className="field-fallback">첨부 파일</span>
+        <input
+          type="file"
+          aria-label="첨부 파일"
+          onChange={(e) => {
+            const picked = e.target.files?.[0] || null;
+            setFile(picked);
+            uploadPicked(picked, e.target.form);
+          }}
+        />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" className="field-fallback" disabled={pending}>
         첨부
       </Button>
     </form>

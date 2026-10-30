@@ -7,6 +7,7 @@ export function InboxHmac({ session, client }) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
   const [secret, setSecret] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
 
   async function load(fn) {
@@ -34,7 +35,9 @@ export function InboxHmac({ session, client }) {
     }
     try {
       await navigator.clipboard.writeText(secret);
+      setCopied(true);
     } catch {
+      setCopied(false);
       setError("복사하지 못했습니다");
     }
   }
@@ -70,6 +73,7 @@ export function InboxHmac({ session, client }) {
           재발급
         </Button>
       </div>
+      {copied ? <p>복사됨</p> : null}
       {error ? <p role="alert">{error}</p> : null}
     </section>
   );

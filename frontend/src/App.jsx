@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { AssignTicket } from "./components/AssignTicket.jsx";
 import { CatalogSettings } from "./components/CatalogSettings.jsx";
 import { InboxHmac } from "./components/InboxHmac.jsx";
@@ -45,6 +45,7 @@ export function App({ session: initialSession, client, initialState = emptyState
   );
   const [state, dispatch] = useReducer(reduce, initialState);
   const [draft, setDraft] = useState("");
+  const logRef = useRef(null);
   const queue = state.conversations.filter((c) => visibleInQueue(c));
   const selected = queue.find((c) => c.id === state.selectedId);
   const unreadTotal = queue.reduce((n, c) => n + (c.unread || 0), 0);
@@ -227,6 +228,13 @@ export function App({ session: initialSession, client, initialState = emptyState
         e.target.tagName === "INPUT" ||
         e.target.tagName === "TEXTAREA" ||
         e.target.isContentEditable;
+      if (e.key === "Escape") {
+        for (const el of document.querySelectorAll("details.header-menu")) {
+          el.open = false;
+        }
+        setHelpOpen(false);
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
         const menu = document.querySelector("details.macros-menu");
@@ -286,6 +294,13 @@ export function App({ session: initialSession, client, initialState = emptyState
     setComposerFocus("");
     return undefined;
   }, [composerFocus, composeMode]);
+
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [state.selectedId, state.messages]);
 
   async function onSignOut() {
     try {
@@ -628,7 +643,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                     />
                   </div>
                 </header>
-                <ol className="log" role="log">
+                <ol className="log" role="log" ref={logRef}>
                   {(state.messages[selected.id] || []).map((m) => (
                     <li
                       key={m.id}
@@ -769,6 +784,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                       ) : null}
                       <Textarea
                         aria-label="답장"
+                        placeholder="/ 를 입력해 저장응답 삽입"
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                       />

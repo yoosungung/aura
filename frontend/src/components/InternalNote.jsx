@@ -37,7 +37,13 @@ export function InternalNote({ session, conversation, client, onNoted }) {
     <form onSubmit={onSubmit} className="note" aria-label="내부 메모">
       <Label>
         메모
-        <Textarea aria-label="메모" value={draft} onChange={(e) => setDraft(e.target.value)} required />
+        <Textarea
+          aria-label="메모"
+          placeholder="내부 메모 (고객에게 보이지 않음)"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          required
+        />
       </Label>
       {error ? <p role="alert">{error}</p> : null}
       <Button type="submit" variant="warning" disabled={pending}>

@@ -71,7 +71,17 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
       {members.length > 0 ? (
         <Label>
           담당자
-          <select aria-label="담당자" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+          <select
+            aria-label="담당자"
+            value={assigneeId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setAssigneeId(id);
+              if (id) {
+                assignTo(id);
+              }
+            }}
+          >
             <option value="">선택</option>
             {members.map((m) => (
               <option key={m.user_id} value={m.user_id}>
