@@ -908,10 +908,32 @@ test("thread header uses ticket number and timeline stamps", async () => {
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   expect(document.querySelector(".thread-header").textContent).toContain("#1042");
   expect(document.querySelector(".thread-header").textContent).toContain("결제 오류");
+  expect(document.querySelector(".thread-header").textContent).toContain("Email");
   expect(screen.getByRole("log").textContent).toMatch(/전송됨/);
   expect(screen.getByRole("log").textContent).toMatch(/내부 메모 \(상담원에게만 보임\)/);
   expect(screen.getByRole("region", { name: "고객 프로필" }).textContent).toMatch(/홍길동/);
   expect(screen.getByRole("region", { name: "채널 상태" }).textContent).toMatch(/#REQ-1042|FRT/);
+});
+
+test("thread header uses slate for snoozed and emerald for open", () => {
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        ...fixtureState(),
+        selectedId: "c1",
+        conversations: [
+          {
+            ...fixtureState().conversations[0],
+            status: "snoozed",
+            snoozedUntil: new Date(Date.now() - 60_000).toISOString(),
+          },
+        ],
+      }}
+    />,
+  );
+  expect(document.querySelector(".thread-header [data-slot='badge']").className).toMatch(/slate/);
 });
 
 test("note composer uses amber send and kakao session warning", async () => {

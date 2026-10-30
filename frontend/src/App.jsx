@@ -526,6 +526,9 @@ export function App({ session: initialSession, client, initialState = emptyState
                     {selected.lastContent ? (
                       <span className="thread-header-preview">{selected.lastContent}</span>
                     ) : null}
+                    {selected.channel ? (
+                      <Badge variant="outline">{channelLabel(selected.channel)}</Badge>
+                    ) : null}
                     {selected.status ? statusBadge(selected.status) : null}
                   </div>
                   <div className="thread-header-actions">
@@ -782,8 +785,11 @@ function statusBadge(status) {
   if (status === "open" || status === "unassigned") {
     return <Badge className="bg-emerald-50 text-emerald-700">{status}</Badge>;
   }
-  if (status === "pending" || status === "snoozed") {
+  if (status === "pending") {
     return <Badge className="bg-amber-50 text-amber-700">{status}</Badge>;
+  }
+  if (status === "snoozed") {
+    return <Badge className="bg-slate-100 text-slate-600">{status}</Badge>;
   }
   return <Badge variant="secondary">{status}</Badge>;
 }
