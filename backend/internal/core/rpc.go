@@ -40,6 +40,8 @@ const (
 	SubjectContactsList       = "helpdesk.rpc.contacts.list"
 	SubjectContactIdentify    = "helpdesk.rpc.contacts.identify"
 	SubjectInboxResolveEmail  = "helpdesk.rpc.inboxes.resolve_email"
+	SubjectInboxGet           = "helpdesk.rpc.inboxes.get"
+	SubjectInboxRotateHMAC    = "helpdesk.rpc.inboxes.rotate_hmac"
 	SubjectResolveThread      = "helpdesk.rpc.conversations.resolve_thread"
 	QueueGroup                = "svc-core"
 )
@@ -182,6 +184,16 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subResolveEmail.Unsubscribe()
+	subInboxGet, err := nc.QueueSubscribe(SubjectInboxGet, QueueGroup, s.handleInboxGet)
+	if err != nil {
+		return err
+	}
+	defer subInboxGet.Unsubscribe()
+	subInboxRotate, err := nc.QueueSubscribe(SubjectInboxRotateHMAC, QueueGroup, s.handleInboxRotateHMAC)
+	if err != nil {
+		return err
+	}
+	defer subInboxRotate.Unsubscribe()
 	subResolveThread, err := nc.QueueSubscribe(SubjectResolveThread, QueueGroup, func(msg *nats.Msg) {
 		s.handleResolveThread(msg)
 	})
@@ -566,6 +578,32 @@ func (s *Service) handleMemberMutate(msg *nats.Msg, fn func(context.Context, Mem
 		return
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleInboxGet(msg *nats.Msg) {
+	s.respondInboxHMAC(msg, s.GetInbox)
+}
+
+func (s *Service) handleInboxRotateHMAC(msg *nats.Msg) {
+	s.respondInboxHMAC(msg, s.RotateHMAC)
+}
+
+func (s *Service) respondInboxHMAC(msg *nats.Msg, fn func(context.Context, MemberInput) (InboxHMAC, error)) {
+	in, err := parseMemberInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	got, err := fn(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "id": got.ID.String(), "name": got.Name,
+		"channel_type": got.ChannelType, "hmac_secret": got.HMACSecret,
+	})
 	_ = msg.Respond(body)
 }
 

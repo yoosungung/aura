@@ -69,7 +69,7 @@ func (s *Service) ListConversations(ctx context.Context, in ListInput) ([]Conver
 					FROM conversation_labels cl JOIN labels l ON l.id = cl.label_id
 					WHERE cl.conversation_id = c.id), '[]'::json)
 			FROM conversations c
-			WHERE c.account_id = $1 AND c.inbox_id = ANY($2)
+			WHERE c.account_id = $1 AND c.inbox_id = ANY($2) AND c.status <> 'resolved'
 			ORDER BY c.updated_at DESC`,
 			in.AccountID, inboxIDs)
 		if err != nil {

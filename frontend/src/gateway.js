@@ -272,6 +272,29 @@ export async function uploadAttachment(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function getInbox(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, inboxId } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("inbox get failed");
+  }
+  return res.json();
+}
+
+export async function rotateHmac(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, inboxId } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/hmac/rotate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("hmac rotate failed");
+  }
+  return res.json();
+}
+
 export async function listAccountLabels(req, fetchImpl = fetch) {
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
@@ -391,6 +414,8 @@ export const liveClient = {
   refresh: refreshSession,
   addInboxMember,
   listInboxMembers,
+  getInbox,
+  rotateHmac,
   assignConversation,
   sendNote,
   snoozeConversation,

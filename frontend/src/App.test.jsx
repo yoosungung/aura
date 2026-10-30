@@ -104,6 +104,37 @@ test("agent does not see inbox member admin", () => {
     <App session={{ ...session, role: "agent" }} client={{ connect() {} }} />,
   );
   expect(screen.queryByRole("region", { name: "인박스 멤버" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "HMAC 시크릿" })).toBeNull();
+});
+
+test("administrator reveals and rotates inbox hmac secret", async () => {
+  const user = userEvent.setup();
+  const rotated = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [] };
+        },
+        async getInbox() {
+          return { hmac_secret: "secret" };
+        },
+        async rotateHmac(req) {
+          rotated.push(req);
+          return { hmac_secret: "newsecret" };
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole("region", { name: "HMAC 시크릿" })).toBeTruthy();
+  expect(screen.queryByText("secret")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "보기" }));
+  expect(screen.getByText("secret")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "재발급" }));
+  expect(rotated[0].inboxId).toBe("i1");
+  expect(screen.getByText("newsecret")).toBeTruthy();
 });
 
 test("ticket view assigns to an inbox agent", async () => {

@@ -71,6 +71,42 @@ func TestListConversations_OnlyActorInboxes(t *testing.T) {
 	}
 }
 
+func TestListConversations_ExcludesResolved(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	svc := &core.Service{DB: app}
+	open, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "w-open", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "w-done", Name: "Bob",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Transition(ctx, core.TransitionInput{
+		AccountID: accountID, ConversationID: done.ConversationID,
+		NewStatus: core.StatusResolved, ExpectedVersion: 1,
+		ActorType: "User", ActorID: &adminID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListConversations(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: accountID, InboxIDs: []uuid.UUID{inboxID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != open.ConversationID || list[0].Status == core.StatusResolved {
+		t.Fatalf("%+v", list)
+	}
+}
+
 func TestListMessagesAndContacts(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)

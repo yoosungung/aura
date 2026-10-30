@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, listCanned, listConversations, removeConversationLabel, resolveConversation, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, getInbox, listCanned, listConversations, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -97,6 +97,25 @@ describe("gateway client", () => {
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/members/u1");
     assert.equal(calls[0].opts.method, "PUT");
+  });
+
+  it("gets and rotates inbox hmac secret", async () => {
+    const got = await getInbox(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", inboxId: "i1" },
+      async (url) => ({ ok: true, json: async () => ({ hmac_secret: "secret" }) }),
+    );
+    assert.equal(got.hmac_secret, "secret");
+    const calls = [];
+    const rotated = await rotateHmac(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", inboxId: "i1" },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ hmac_secret: "newsecret" }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/hmac/rotate");
+    assert.equal(calls[0].opts.method, "POST");
+    assert.equal(rotated.hmac_secret, "newsecret");
   });
 
   it("puts conversation assignee", async () => {

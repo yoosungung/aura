@@ -71,6 +71,7 @@ type Service struct {
 	Email    EmailResolver
 	Auth     Authenticator
 	Members  Members
+	Inboxes  Inboxes
 	Assign   Assigner
 	Notes    Noter
 	Snooze   Snoozer

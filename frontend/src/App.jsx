@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from "react";
 import { AssignTicket } from "./components/AssignTicket.jsx";
 import { CatalogSettings } from "./components/CatalogSettings.jsx";
+import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
@@ -227,6 +228,7 @@ export function App({ session: initialSession, client, initialState = emptyState
       <nav className="queue" aria-label="대기열">
         <h1>대기열</h1>
         {session.role === "administrator" ? <InboxMembers session={session} client={client} /> : null}
+        {session.role === "administrator" ? <InboxHmac session={session} client={client} /> : null}
         {session.role === "administrator" ? <CatalogSettings session={session} client={client} /> : null}
         {queue.length === 0 ? (
           <p>대기 중인 대화가 없습니다</p>

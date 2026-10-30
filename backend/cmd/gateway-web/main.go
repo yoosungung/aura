@@ -48,6 +48,7 @@ func main() {
 			RPC:      n,
 			Auth:     n,
 			Members:  n,
+			Inboxes:  n,
 			Assign:   n,
 			Notes:    n,
 			Snooze:   n,
