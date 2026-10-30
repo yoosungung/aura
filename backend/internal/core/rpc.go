@@ -40,9 +40,11 @@ const (
 	SubjectContactsList       = "helpdesk.rpc.contacts.list"
 	SubjectContactIdentify    = "helpdesk.rpc.contacts.identify"
 	SubjectInboxResolveEmail  = "helpdesk.rpc.inboxes.resolve_email"
+	SubjectInboxResolveKakao  = "helpdesk.rpc.inboxes.resolve_kakao"
 	SubjectInboxGet           = "helpdesk.rpc.inboxes.get"
 	SubjectInboxRotateHMAC    = "helpdesk.rpc.inboxes.rotate_hmac"
 	SubjectResolveThread      = "helpdesk.rpc.conversations.resolve_thread"
+	SubjectResolveKakao       = "helpdesk.rpc.conversations.resolve_kakao"
 	SubjectEmailReply         = "helpdesk.rpc.conversations.email_reply"
 	QueueGroup                = "svc-core"
 )
@@ -185,6 +187,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subResolveEmail.Unsubscribe()
+	subResolveKakaoInbox, err := nc.QueueSubscribe(SubjectInboxResolveKakao, QueueGroup, s.handleResolveKakaoInbox)
+	if err != nil {
+		return err
+	}
+	defer subResolveKakaoInbox.Unsubscribe()
 	subInboxGet, err := nc.QueueSubscribe(SubjectInboxGet, QueueGroup, s.handleInboxGet)
 	if err != nil {
 		return err
@@ -202,6 +209,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subResolveThread.Unsubscribe()
+	subResolveKakao, err := nc.QueueSubscribe(SubjectResolveKakao, QueueGroup, s.handleResolveKakao)
+	if err != nil {
+		return err
+	}
+	defer subResolveKakao.Unsubscribe()
 	subEmailReply, err := nc.QueueSubscribe(SubjectEmailReply, QueueGroup, s.handleEmailReply)
 	if err != nil {
 		return err
@@ -849,6 +861,67 @@ func (s *Service) handleEmailReply(msg *nats.Msg) {
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "skip": skip, "from": out.From, "to": out.To,
 		"in_reply_to": out.InReplyTo, "display_id": out.DisplayID,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleResolveKakaoInbox(msg *nats.Msg) {
+	var req struct {
+		SenderKey string `json:"sender_key"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, inboxID, err := s.ResolveKakaoInbox(context.Background(), req.SenderKey)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "account_id": accountID.String(), "inbox_id": inboxID.String(),
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleResolveKakao(msg *nats.Msg) {
+	var req struct {
+		AccountID string `json:"account_id"`
+		InboxID   string `json:"inbox_id"`
+		SourceID  string `json:"source_id"`
+		UserKey   string `json:"user_key"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	inboxID, err := uuid.Parse(req.InboxID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, found, dup, err := s.ResolveKakao(context.Background(), KakaoInput{
+		AccountID: accountID, InboxID: inboxID, MsgKey: req.SourceID, UserKey: req.UserKey,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok":               true,
+		"found":            found,
+		"duplicate":        dup,
+		"contact_id":       out.ContactID.String(),
+		"contact_inbox_id": out.ContactInboxID.String(),
+		"conversation_id":  out.ConversationID.String(),
+		"display_id":       out.DisplayID,
+		"status":           out.Status,
+		"version":          out.Version,
 	})
 	_ = msg.Respond(body)
 }

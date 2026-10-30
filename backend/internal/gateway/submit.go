@@ -93,6 +93,7 @@ type Service struct {
 	Blobs    BlobStore
 	JS       jetstream.JetStream
 	Mailer   Mailer
+	Kakao    KakaoResolver
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {

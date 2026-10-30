@@ -56,6 +56,21 @@ func TestUp_AuthSchema(t *testing.T) {
 	}
 }
 
+func TestUp_KakaoSenderKey(t *testing.T) {
+	ctx := context.Background()
+	admin, _ := testutil.Postgres(t)
+	var col string
+	if err := admin.QueryRow(ctx, `
+		SELECT column_name FROM information_schema.columns
+		WHERE table_name = 'inboxes' AND column_name = 'kakao_sender_key'`).Scan(&col); err != nil {
+		t.Fatalf("kakao_sender_key: %v", err)
+	}
+	var proname string
+	if err := admin.QueryRow(ctx, `SELECT proname FROM pg_proc WHERE proname = 'inbox_by_kakao'`).Scan(&proname); err != nil {
+		t.Fatalf("inbox_by_kakao: %v", err)
+	}
+}
+
 func TestUp_AppCannotBypassRLS(t *testing.T) {
 	ctx := context.Background()
 	_, app := testutil.Postgres(t)

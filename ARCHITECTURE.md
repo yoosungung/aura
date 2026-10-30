@@ -84,7 +84,9 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.realtime.<account_id>.<conversation_id>.updated` | `event` (`conversation.created` 등) | ingestion 적재 후 또는 gateway | gateway-web, 위젯 |
 | Core | `helpdesk.rpc.conversations.create` | `account_id`, `inbox_id`, `source_id`, `reuse_contact`(optional) | gateway-\* | svc-core |
 | Core | `helpdesk.rpc.inboxes.resolve_email` | `email` | gateway-email | svc-core |
+| Core | `helpdesk.rpc.inboxes.resolve_kakao` | `sender_key` | gateway-kakao | svc-core |
 | Core | `helpdesk.rpc.conversations.resolve_thread` | `account_id`, `inbox_id`, `source_id`, `reply_ids`, `display_id` | gateway-email | svc-core |
+| Core | `helpdesk.rpc.conversations.resolve_kakao` | `account_id`, `inbox_id`, `source_id`(msgKey), `user_key`. 같은 msgKey면 duplicate, 미해결 티켓이면 found | gateway-kakao | svc-core |
 | Core | `helpdesk.rpc.conversations.transition` | `conversation_id`, `new_status`, `expected_version` | gateway-\* | svc-core |
 | Core | `helpdesk.rpc.conversations.assign` | `actor_user_id`, `conversation_id`, `assignee_id`, `expected_version` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.note` | `actor_user_id`, `conversation_id`, `content` | gateway-web | svc-core |
@@ -408,6 +410,7 @@ CREATE TABLE inboxes (
     business_hours JSONB DEFAULT '{}'::jsonb NOT NULL,
     hmac_secret VARCHAR(255) NOT NULL,
     email_address VARCHAR(255),
+    kakao_sender_key VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -655,6 +658,8 @@ CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_n
 `gateway-email` 아웃바운드는 WorkQueue `helpdesk.tasks.outbound.email`이다. 상담원 답장은 `gateway-web`이 `conversations.email_reply`로 인박스 채널을 확인하고, 이메일이면 `message_created`(`payload.source_id`=Message-ID) 뒤에 태스크를 넣는다. 게이트웨이는 From=인박스 `email_address`, To=`contact_inboxes.source_id`, 제목 `[#REQ-{display_id}]`, `In-Reply-To`/`References`, 본문 구분자 `##- Please type your reply above this line -##` 로 MIME을 만들어 `AURA_SMTP_RELAY`(기본 `127.0.0.1:2525`)로 보낸다. PG는 쓰지 않는다.
 
 `gateway-email` 인입은 SMTP `:25`(환경 `AURA_SMTP_ADDR`)다. MX·포워딩이 DATA에 넣는 MIME이 신뢰 경계이며, 웹훅 HMAC 서명은 없다. `inboxes.email_address`는 소문자 UNIQUE이고, 테넌트 GUC 없이 `inbox_by_email` SECURITY DEFINER로만 조회한다. Session.Data가 `emersion/go-message`로 파싱·스레딩한다. 본문이 NATS 256KB를 넘기면 SeaweedFS에 raw MIME을 두고 payload `content_ref`만 넣는다. PG는 쓰지 않는다. 같은 Message-ID는 `message_created`를 재발행하지 않는다. 스레드가 없으면 `conversations.create`(`reuse_contact=true`, `contact_inboxes.source_id`=From)가 성공한 뒤에만 `message_created`(`payload.source_id`=Message-ID)를 JetStream에 발행한다.
+
+`gateway-kakao` 인입은 HTTP `POST /cstalk/message`(환경 `AURA_KAKAO_ADDR`, 기본 `:8081`)다. 웹훅 JSON이 신뢰 경계다. `inboxes.kakao_sender_key`는 UNIQUE이고, 테넌트 GUC 없이 `inbox_by_kakao` SECURITY DEFINER로만 조회한다. `userKey`는 `contact_inboxes.source_id`, `msgKey`는 `messages.source_id`다. 같은 msgKey는 `message_created`를 재발행하지 않는다. 그 컨택트의 미해결 대화가 있으면 붙이고, 없으면 `conversations.create`(`reuse_contact=true`)가 성공한 뒤에만 발행한다. 응답은 `{"code":"A000","result":"Success"}`. PG는 쓰지 않는다.
 
 카카오 아웃바운드: 상담톡 세션이 살아 있으면 상담톡, 아니면 알림톡 템플릿. 세션 연장은 고객 인입 메시지 기준 30일.
 
