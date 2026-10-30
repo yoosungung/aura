@@ -35,7 +35,7 @@ export function TicketAttachments({ session, conversation, client, onAttached })
 
   return (
     <form onSubmit={onSubmit} className="attach" aria-label="파일 첨부">
-      <Label>
+      <Label className="attach-clip">
         첨부 파일
         <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
       </Label>

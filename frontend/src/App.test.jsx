@@ -160,6 +160,7 @@ test("administrator picks an agent from other inbox members", async () => {
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "상담원" }), "user-2");
   expect(screen.getByLabelText("상담원 ID").value).toBe("user-2");
+  expect(screen.getByLabelText("상담원 ID").closest("label").className).toMatch(/field-fallback/);
   await user.click(screen.getByRole("button", { name: "추가" }));
   expect(added[0].userId).toBe("user-2");
   expect(added[0].inboxId).toBe("i1");
@@ -190,6 +191,7 @@ test("administrator picks inbox from a session select", async () => {
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "인박스" }), "i2");
   expect(screen.getByLabelText("인박스 ID").value).toBe("i2");
+  expect(screen.getByLabelText("인박스 ID").closest("label").className).toMatch(/field-fallback/);
   await user.type(screen.getByLabelText("상담원 ID"), "user-1");
   await user.click(screen.getByRole("button", { name: "추가" }));
   expect(added[0].inboxId).toBe("i2");
@@ -406,6 +408,7 @@ test("ticket view uploads an attachment", async () => {
   expect(attach.getAttribute("href")).toContain("http://127.0.0.1:8888/acc/a1/receipt.png");
   expect(attach.textContent).toContain("열기");
   expect(attach.querySelector("img")?.getAttribute("src")).toContain("receipt.png");
+  expect(document.querySelector(".attach-clip")).toBeTruthy();
 });
 
 test("ticket view keeps a note, a label, and an attachment on the same thread", async () => {
@@ -856,6 +859,7 @@ test("ticket view assigns from the inbox member select", async () => {
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   await openHeaderMenu(user, "담당자");
   await user.selectOptions(await screen.findByLabelText("담당자"), "user-1");
+  expect(screen.getByLabelText("담당자 ID").closest("label").className).toMatch(/field-fallback/);
   await user.click(screen.getByRole("button", { name: "배정" }));
   expect(assigned[0].assigneeId).toBe("user-1");
 });
@@ -1062,6 +1066,7 @@ test("thread header uses ticket number and timeline stamps", async () => {
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   expect(document.querySelector(".thread-header").textContent).toContain("#1042");
+  expect(document.querySelector(".thread-header").textContent).toContain("홍길동");
   expect(document.querySelector(".thread-header").textContent).toContain("결제 오류");
   expect(document.querySelector(".thread-header").textContent).toContain("Email");
   expect(screen.getByRole("log").textContent).toMatch(/전송됨/);

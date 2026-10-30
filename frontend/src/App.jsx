@@ -565,6 +565,9 @@ export function App({ session: initialSession, client, initialState = emptyState
                     {selected.displayId ? (
                       <span className="font-medium">#{selected.displayId}</span>
                     ) : null}
+                    {selected.contactName ? (
+                      <span className="thread-header-contact">{selected.contactName}</span>
+                    ) : null}
                     {selected.lastContent ? (
                       <span className="thread-header-preview">{selected.lastContent}</span>
                     ) : null}

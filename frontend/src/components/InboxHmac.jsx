@@ -54,7 +54,7 @@ export function InboxHmac({ session, client }) {
           </select>
         </Label>
       ) : null}
-      <Label>
+      <Label className={session.inboxIds?.length ? "field-fallback" : undefined}>
         인박스 ID
         <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
       </Label>

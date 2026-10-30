@@ -78,7 +78,7 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
           </select>
         </Label>
       ) : null}
-      <Label>
+      <Label className={members.length > 0 ? "field-fallback" : undefined}>
         담당자 ID
         <Input
           value={assigneeId}

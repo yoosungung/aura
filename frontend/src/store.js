@@ -12,6 +12,7 @@ export function fixtureState() {
         inboxId: "i1",
         contactId: "p1",
         contactInboxId: "ci1",
+        contactName: "홍길동",
         lastContent: "결제 오류",
         unread: 1,
         version: 1,

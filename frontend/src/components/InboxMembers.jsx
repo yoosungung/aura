@@ -101,7 +101,7 @@ export function InboxMembers({ session, client }) {
             </select>
           </Label>
         ) : null}
-        <Label>
+        <Label className={session.inboxIds?.length ? "field-fallback" : undefined}>
           인박스 ID
           <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
         </Label>
@@ -118,7 +118,7 @@ export function InboxMembers({ session, client }) {
             </select>
           </Label>
         ) : null}
-        <Label>
+        <Label className={agentChoices.length > 0 ? "field-fallback" : undefined}>
           상담원 ID
           <Input value={userId} onChange={(e) => setUserId(e.target.value)} required />
         </Label>

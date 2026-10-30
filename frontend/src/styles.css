@@ -204,6 +204,11 @@ body,
   overflow: hidden;
 }
 
+.thread-header-contact {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .thread-header-preview {
   overflow: hidden;
   max-width: 28ch;
@@ -212,6 +217,18 @@ body,
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.field-fallback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .header-menu {
@@ -257,6 +274,7 @@ body,
   overflow: auto;
   margin: 0;
   padding: 16px;
+  background: rgb(248 250 252 / 0.6);
 }
 
 .bubble {
@@ -351,6 +369,26 @@ body,
 
 .composer-tabs .attach {
   margin-left: auto;
+}
+
+.attach-clip {
+  position: relative;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.attach-clip::before {
+  content: "📎";
+}
+
+.attach-clip input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .composer {
