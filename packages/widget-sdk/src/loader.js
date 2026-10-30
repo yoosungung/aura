@@ -151,7 +151,7 @@ export function createLoader(win, opts) {
   win.visualViewport?.addEventListener?.("scroll", syncMobileViewport);
 
   win.addEventListener("message", (event) => {
-    if (!isAllowedOrigin(event.origin, helpdesk)) {
+    if (!isAllowedOrigin(event.origin, helpdesk) || event.source !== iframe.contentWindow) {
       return;
     }
     const msg = decode(event.data);

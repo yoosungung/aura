@@ -20,7 +20,7 @@ function fakeFrame({ parentOrigin = "https://shop.example", origin = "https://he
       if (type === "message") listeners.push(fn);
     },
     deliver(event) {
-      for (const fn of listeners) fn(event);
+      for (const fn of listeners) fn({ source: win.parent, ...event });
     },
     document: {
       getElementById() {
@@ -60,6 +60,112 @@ test("frame ignores init from a foreign origin", async () => {
   });
   await assert.rejects(() => frame.send("hi"));
   assert.equal(calls.length, 0);
+});
+
+test("frame ignores parent-origin messages from another window", async () => {
+  const win = fakeFrame();
+  const calls = [];
+  const frame = createFrame(win, {
+    fetch(...args) {
+      calls.push(args);
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ token: "next" }),
+      });
+    },
+    WebSocket: function WS() {},
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    source: {},
+    data: encode("init", { token: "stolen", inboxId: "inbox-1" }),
+  });
+  await assert.rejects(() => frame.send("hi"));
+  assert.equal(calls.length, 0);
+});
+
+test("frame reconnects websocket after an unexpected close", async () => {
+  const win = fakeFrame();
+  let auths = 0;
+  const socks = [];
+  createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        auths += 1;
+        return { ok: true, json: async () => ({ access_token: `access-${auths}` }) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 1;
+        socks.push(this);
+      }
+      close() {
+        this.readyState = 3;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(socks.length, 1);
+  socks[0].onclose();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(auths, 2);
+  assert.equal(socks.length, 2);
+  assert.match(socks[1].url, /access-2/);
+});
+
+test("frame counts unread only while closed", async () => {
+  const win = fakeFrame();
+  let sock;
+  const frame = createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        return { ok: true, json: async () => ({ access_token: "access" }) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor() {
+        sock = this;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("hi");
+  const agent = {
+    data: JSON.stringify({
+      type: "event",
+      event: "message.created",
+      conversation_id: "c1",
+      message: { payload: { content: "hello", sender_type: "User" } },
+    }),
+  };
+  sock.onmessage(agent);
+  const unread = win.posted.filter((p) => p.data.event === "unread");
+  assert.equal(unread.at(-1).data.payload.count, 1);
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("toggle", { open: true }),
+  });
+  sock.onmessage(agent);
+  assert.equal(win.posted.filter((p) => p.data.event === "unread").length, unread.length);
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("toggle", { open: false }),
+  });
+  sock.onmessage(agent);
+  assert.equal(win.posted.filter((p) => p.data.event === "unread").at(-1).data.payload.count, 1);
 });
 
 test("frame send uses own origin API after parent init", async () => {

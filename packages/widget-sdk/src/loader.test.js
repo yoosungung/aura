@@ -76,6 +76,22 @@ test("loader ignores messages that are not from the helpdesk origin", () => {
   });
   win.deliver({
     origin: "https://shop.example",
+    source: api.iframe.contentWindow,
+    data: encode("ready"),
+  });
+  assert.equal(api.iframe.sent.length, 0);
+});
+
+test("loader ignores helpdesk-origin messages from another window", () => {
+  const win = fakeHost();
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  win.deliver({
+    origin: "https://help.example",
+    source: {},
     data: encode("ready"),
   });
   assert.equal(api.iframe.sent.length, 0);
@@ -91,6 +107,7 @@ test("loader inits iframe with token after ready from helpdesk origin", () => {
   assert.equal(new URL(api.iframe.src).searchParams.get("token"), null);
   win.deliver({
     origin: "https://help.example",
+    source: api.iframe.contentWindow,
     data: encode("ready"),
   });
   assert.equal(api.iframe.sent.length, 1);
@@ -170,7 +187,7 @@ test("closed loader does not let the iframe intercept host clicks", () => {
 
 test("loader paints unread count on the launcher badge", () => {
   const win = fakeHost();
-  createLoader(win, {
+  const api = createLoader(win, {
     baseUrl: "https://help.example",
     inboxId: "inbox-1",
     token: "secret-token",
@@ -181,6 +198,7 @@ test("loader paints unread count on the launcher badge", () => {
   assert.equal(badge.hidden, true);
   win.deliver({
     origin: "https://help.example",
+    source: api.iframe.contentWindow,
     data: encode("unread", { count: 3 }),
   });
   assert.equal(badge.hidden, false);
@@ -223,6 +241,7 @@ test("closed iframe after open stays hidden in the document without trapping cli
   );
   win.deliver({
     origin: "https://help.example",
+    source: api.iframe.contentWindow,
     data: encode("unread", { count: 2 }),
   });
   const host = win.document.body.children.find((el) => el.id === "aura-widget-host");

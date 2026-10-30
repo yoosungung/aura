@@ -28,13 +28,14 @@ export function createFrame(win, deps = {}) {
   let lastWsToken = "";
   let exchanging;
   let unread = 0;
+  let open = false;
 
   const apiBase = win.location.origin;
 
   win.parent.postMessage(encode("ready"), parentOrigin);
 
   win.addEventListener("message", (event) => {
-    if (!isAllowedOrigin(event.origin, parentOrigin)) {
+    if (!isAllowedOrigin(event.origin, parentOrigin) || event.source !== win.parent) {
       return;
     }
     const msg = decode(event.data);
@@ -61,8 +62,13 @@ export function createFrame(win, deps = {}) {
         .then(() => bindUser())
         .catch(() => {});
     }
-    if (msg.event === "toggle" && msg.payload?.open === false) {
-      win.parent.postMessage(encode("close"), parentOrigin);
+    if (msg.event === "toggle") {
+      open = msg.payload?.open === true;
+      if (open) {
+        unread = 0;
+      } else {
+        win.parent.postMessage(encode("close"), parentOrigin);
+      }
     }
   });
 
@@ -138,19 +144,33 @@ export function createFrame(win, deps = {}) {
       return;
     }
     const connecting = 0;
-    const open = 1;
+    const opened = 1;
     if (
       socket &&
       lastWsToken === token &&
-      (socket.readyState === connecting || socket.readyState === open || socket.readyState == null)
+      (socket.readyState === connecting || socket.readyState === opened || socket.readyState == null)
     ) {
       return;
     }
-    socket?.close?.();
+    if (socket) {
+      socket.onclose = null;
+      socket.close?.();
+    }
     const wsBase = apiBase.replace(/^http/, "ws");
-    socket = new WebSocketImpl(`${wsBase}/ws?token=${encodeURIComponent(token)}`);
+    const live = new WebSocketImpl(`${wsBase}/ws?token=${encodeURIComponent(token)}`);
+    socket = live;
     lastWsToken = token;
-    socket.onmessage = (event) => {
+    live.onclose = () => {
+      if (socket !== live) {
+        return;
+      }
+      lastWsToken = "";
+      token = "";
+      exchanging = null;
+      socket = null;
+      ensureAuth().catch(() => {});
+    };
+    live.onmessage = (event) => {
       let payload;
       try {
         payload = JSON.parse(event.data);
@@ -171,7 +191,7 @@ export function createFrame(win, deps = {}) {
       const content = msg.content;
       if (content) {
         append(content, msg.sender_type);
-        if (msg.sender_type === "User") {
+        if (msg.sender_type === "User" && !open) {
           unread += 1;
           win.parent.postMessage(encode("unread", { count: unread }), parentOrigin);
         }
