@@ -59,7 +59,7 @@
 - `gateway-kakao`: 상담톡 30일 세션, 세션 밖 알림톡 템플릿.
 - `helpdesk.tasks.outbound.email` / `outbound.kakao`.
 - 256KB 초과 본문·MIME은 오브젝트 스토리지 Claim-Check (`content_ref`).
-- 고객 병합: `contact_merged` 이벤트, `contacts.merged_into_contact_id`.
+- 고객 병합: `contact_merged` 이벤트, `contacts.merged_into_contact_id`. HMAC 통과 + 소스가 익명(identifier 없음)일 때만 티켓 `contact_id`를 기존 식별 컨택트로 옮긴다. 스레드는 합치지 않는다. `setUser` identify는 병합하지 않는다.
 
 성공: 메일 회신이 기존 티켓에 붙는다. 카카오 세션이 없으면 알림톡으로 나간다. `gateway-social`은 출시 후.
 
@@ -115,9 +115,10 @@
 
 **결정됨 — 라벨·매크로·저장응답 (A안).** 라벨은 분류(주제·고객 신호·다음 일), 저장응답은 `/short_code` 문장, 매크로는 상담원이 고른 뒤에만 도는 작업 묶음. 자동화는 P5. 카탈로그·공유 저장응답·`visibility=account` 매크로는 administrator가 만들고, 상담원은 있는 라벨만 붙이거나 떼고 `personal` 매크로만 만든다. 매크로 `actions`는 `send_message` / `add_label` / `add_private_note` / `assign_agent` / `snooze_conversation` / `resolve_conversation`.
 
+**결정됨 — setUser 이후 익명 대화.** P3는 합치지 않는다. HMAC이 맞으면 현재 컨택트에 identifier만 찍고, 다른 컨택트와 겹치면 거절한다. P4 `contact_merged`가 HMAC 통과 + 익명 소스일 때만 티켓의 `contact_id`를 기존 식별 컨택트로 옮긴다. 스레드는 합치지 않는다.
+
 **미결 — 에릭 결정 (P3).** 목록만 둔다. 구현하지 않는다.
 
-- 셋유저로 고객을 묶은 뒤 익명 대화를 합칠지
 - 인박스 HMAC 시크릿을 누가 복사하고 어떻게 돌릴지
 - 새로고침할 때 대화 목록 필터를 어떻게 할지
 - 해결 화면에 pending 상태를 넣을지
