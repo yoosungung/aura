@@ -16,6 +16,7 @@ const (
 	OutboundEmailConsumer = "gateway-email-outbound"
 	OutboundKakaoConsumer = "gateway-kakao-outbound"
 	SLARoutingConsumer    = "sla-routing"
+	AutomationConsumer    = "svc-automation"
 	EventsFilter          = "helpdesk.events.*.*.*.message_created"
 	SnoozeWakeFilter      = "helpdesk.tasks.snooze.wake.*"
 	DLQSubject            = "helpdesk.dlq.ingestion"
@@ -53,6 +54,15 @@ func EnsureStreams(ctx context.Context, js jetstream.JetStream) (jetstream.Consu
 	}
 	if _, err := js.CreateOrUpdateConsumer(ctx, ConversationsStream, jetstream.ConsumerConfig{
 		Durable:       SLARoutingConsumer,
+		FilterSubject: EventsFilter,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxAckPending: 1000,
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := js.CreateOrUpdateConsumer(ctx, ConversationsStream, jetstream.ConsumerConfig{
+		Durable:       AutomationConsumer,
 		FilterSubject: EventsFilter,
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       30 * time.Second,

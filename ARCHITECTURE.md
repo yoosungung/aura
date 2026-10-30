@@ -50,7 +50,7 @@ ingestion-worker  svc-core    svc-ai-agent
 | `svc-ingestion-worker` | `helpdesk.events.>` Pull 배치(500건 또는 100ms). 계층 정렬·단건 폴백·DLQ | 메시지·첨부·온톨로지·도구감사·CSAT·적용 SLA. 컨택트·대화는 멱등 업서트 |
 | `svc-core` | FSM, 컨택트·대화 생성, Application/Platform API, 설정 CRUD, Request-Reply | 설정 쓰기, `contacts`/`conversations` 쓰기, 나머지 이벤트 도메인 읽기 |
 | `svc-sla-routing` | 라운드로빈·capacity, FRT/NRT/RT 감시. `C_current`는 JetStream KV 원자 증감(P5), PG는 대사 | 읽기. 전이는 이벤트 |
-| `svc-automation` | Event → Conditions → Actions | 읽기. 액션은 이벤트 |
+| `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. P5 액션은 `add_label`/`change_priority`. 웹훅은 P6 | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 이벤트 |
 | `svc-ai-agent` | Ego-Graph 읽기, ReAct/Tool, 온톨로지 추출 요청 | Ego-Graph 읽기만 |
 | `frontend` | 상담원 3-Pane SPA | 없음 |
 | `packages/widget-sdk` | iframe 로더 + postMessage | 없음 |
@@ -570,6 +570,8 @@ CREATE TABLE automation_rules (
     actions JSONB NOT NULL,
     enabled BOOLEAN DEFAULT TRUE NOT NULL
 );
+-- conditions: [{attribute_key, filter_operator, values}] Chatwoot 호환. AND.
+-- actions: [{action_name, action_params}]. P5는 add_label / change_priority.
 
 CREATE TABLE sla_policies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
