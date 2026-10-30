@@ -305,7 +305,7 @@ Realtime 접근 토큰: User는 배속 인박스의 `helpdesk.realtime.<account_
 
 - `postMessage` 수신부는 `event.origin` 이 등록된 헬프데스크 origin(또는 허용 호스트)이 아니면 return. 호스트는 `event.source`가 위젯 iframe `contentWindow`, 프레임은 `window.parent`일 때만 받는다. origin 미검증 금지.
 - `window.$aura.setUser(identifier, { name, email, identifier_hash })` 의 `identifier_hash` 는 서버 HMAC-SHA256(`identifier`, inbox HMAC secret) **소문자 hex**. 불일치면 식별자 바인딩 거부. identify는 현재 컨택트에 identifier만 쓴다. 이미 식별된 컨택트와 겹치면 거절한다. 익명 컨택트는 HMAC 통과 뒤 `contact_merged`로 티켓 `contact_id`만 옮기고 스레드는 그대로 둔다. `hmac_secret`은 웹 인박스 administrator GET/rotate만 반환한다. 호스트 서버가 env에 복사하고 페이지에는 해시만 심는다. 회전은 컬럼을 즉시 덮어쓴다. 위젯·Client API·Agent·이메일/카카오 인박스는 시크릿을 받지 않는다.
-- 고객 WS는 Contact 토큰만 사용한다.
+- 고객 WS는 Contact 토큰만 사용한다. 위젯 iframe CSP는 `script-src`·`connect-src`를 자기 origin만 연다. 호스트 CSP는 헬프데스크 origin의 `script-src`와 `frame-src`만 연다.
 
 ## 8. Ego-Graph 읽기
 

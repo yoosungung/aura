@@ -20,3 +20,13 @@ test("widget.html chrome matches layout §4", () => {
   assert.match(html, /data-sender="User"/);
   assert.match(html, /li\.csat|#messages li\[data-csat/);
 });
+
+test("widget.html CSP keeps scripts and sockets on self", () => {
+  assert.match(html, /http-equiv="Content-Security-Policy"/);
+  assert.match(html, /default-src 'none'/);
+  assert.match(html, /script-src 'self'/);
+  assert.match(html, /connect-src 'self' ws: wss:/);
+  assert.match(html, /form-action 'self'/);
+  assert.doesNotMatch(html, /unsafe-eval/);
+  assert.doesNotMatch(html, /connect-src[^"]*\*/);
+});
