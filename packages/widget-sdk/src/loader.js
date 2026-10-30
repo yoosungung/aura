@@ -47,6 +47,11 @@ export function createLoader(win, opts) {
   badge.style.lineHeight = "20px";
   launcher.appendChild(badge);
   shadow.appendChild(launcher);
+  const hideLauncher = opts.launcher === false;
+  if (hideLauncher) {
+    launcher.style.display = "none";
+    host.style.display = "none";
+  }
   win.document.body.appendChild(host);
 
   const iframe = win.document.createElement("iframe");
@@ -118,7 +123,10 @@ export function createLoader(win, opts) {
       iframe.style.width = "0px";
       iframe.style.height = "0px";
       setFrameMounted(false);
-      launcher.style.display = "";
+      launcher.style.display = hideLauncher ? "none" : "";
+      if (hideLauncher) {
+        host.style.display = "none";
+      }
     }
     if (!silent) {
       postToFrame("toggle", { open });

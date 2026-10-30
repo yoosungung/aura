@@ -100,6 +100,28 @@ test("loader inits iframe with token after ready from helpdesk origin", () => {
   assert.notEqual(api.iframe.sent[0].target, "*");
 });
 
+test("host button mode hides the default launcher and does not trap clicks", () => {
+  const win = fakeHost();
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+    launcher: false,
+  });
+  const host = win.document.body.children.find((el) => el.id === "aura-widget-host");
+  assert.equal(api.open, false);
+  assert.equal(host.style.display, "none");
+  assert.equal(host.shadow.host.style.display, "none");
+  assert.equal(
+    win.document.body.children.some((el) => el.id === "aura-widget-frame"),
+    false,
+  );
+  api.toggle();
+  assert.equal(api.open, true);
+  assert.equal(api.iframe.style.width, "380px");
+  assert.equal(host.style.display, "none");
+});
+
 test("javascript baseUrl does not create an iframe", () => {
   const win = fakeHost();
   assert.throws(() =>

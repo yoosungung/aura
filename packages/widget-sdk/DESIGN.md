@@ -23,4 +23,4 @@ npm test
 
 iframe 엔트리는 `{helpdeskOrigin}/widget.html`(게이트웨이 `AURA_WIDGET_DIR`). 호스트는 `sdk.js`의 `run({ baseUrl, inboxId, token })`.
 
-호스트 예: `window.$aura = run({ baseUrl, inboxId, token })`. `token`은 Contact `pubsub_token` 시드.
+호스트 예: `window.$aura = run({ baseUrl, inboxId, token })`. `token`은 Contact `pubsub_token` 시드. 호스트 버튼을 쓸 때는 `launcher: false`로 기본 런처를 숨기고 `$aura.toggle()`로 연다.
