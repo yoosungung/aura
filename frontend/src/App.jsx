@@ -637,9 +637,6 @@ export function App({ session: initialSession, client, initialState = emptyState
                     {selected.contactName ? (
                       <span className="thread-header-contact">{selected.contactName}</span>
                     ) : null}
-                    {selected.lastContent ? (
-                      <span className="thread-header-preview">{selected.lastContent}</span>
-                    ) : null}
                     {selected.channel ? (
                       <Badge variant="outline">{channelLabel(selected.channel)}</Badge>
                     ) : null}

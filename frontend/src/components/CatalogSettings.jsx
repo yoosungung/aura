@@ -120,7 +120,7 @@ export function CatalogSettings({ session, client }) {
 
   return (
     <section className="catalog" aria-label="카탈로그">
-      <h2>라벨·저장응답</h2>
+      <h2>라벨·저장응답·매크로</h2>
       <ul>
         {labels.map((l) => (
           <li key={l.id || l.name}>{l.name}</li>

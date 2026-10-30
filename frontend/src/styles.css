@@ -209,16 +209,6 @@ body,
   font-weight: 500;
 }
 
-.thread-header-preview {
-  overflow: hidden;
-  max-width: 28ch;
-  color: var(--muted);
-  font-size: 0.875rem;
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .field-fallback {
   position: absolute;
   width: 1px;

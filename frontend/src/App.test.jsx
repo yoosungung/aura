@@ -1350,8 +1350,9 @@ test("thread header uses ticket number and timeline stamps", async () => {
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   expect(document.querySelector(".thread-header").textContent).toContain("#1042");
   expect(document.querySelector(".thread-header").textContent).toContain("홍길동");
-  expect(document.querySelector(".thread-header").textContent).toContain("결제 오류");
+  expect(document.querySelector(".thread-header").textContent).not.toContain("결제 오류");
   expect(document.querySelector(".thread-header").textContent).toContain("Email");
+  expect(screen.getByRole("log").textContent).toContain("결제 오류");
   expect(screen.getByRole("log").textContent).toMatch(/전송됨/);
   expect(screen.getByRole("log").textContent).toMatch(/내부 메모 \(상담원에게만 보임\)/);
   expect(screen.getByRole("region", { name: "고객 프로필" }).textContent).toMatch(/홍길동/);
