@@ -38,5 +38,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P4 옴니채널 완료(이메일·카카오 인입/아웃바운드, Claim-Check, `contact_merged`). P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 다음은 P5 운영 자동화. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
+P5 착수(배정·KV 라운드로빈). P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
 

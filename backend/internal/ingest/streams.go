@@ -15,6 +15,7 @@ const (
 	SnoozeWakeConsumer    = "svc-core-snooze"
 	OutboundEmailConsumer = "gateway-email-outbound"
 	OutboundKakaoConsumer = "gateway-kakao-outbound"
+	SLARoutingConsumer    = "sla-routing"
 	EventsFilter          = "helpdesk.events.*.*.*.message_created"
 	SnoozeWakeFilter      = "helpdesk.tasks.snooze.wake.*"
 	DLQSubject            = "helpdesk.dlq.ingestion"
@@ -47,6 +48,15 @@ func EnsureStreams(ctx context.Context, js jetstream.JetStream) (jetstream.Consu
 		Storage:  jetstream.FileStorage,
 		MaxAge:   30 * 24 * time.Hour,
 		Discard:  jetstream.DiscardOld,
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := js.CreateOrUpdateConsumer(ctx, ConversationsStream, jetstream.ConsumerConfig{
+		Durable:       SLARoutingConsumer,
+		FilterSubject: EventsFilter,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		AckWait:       30 * time.Second,
+		MaxAckPending: 1000,
 	}); err != nil {
 		return nil, err
 	}

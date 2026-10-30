@@ -77,6 +77,8 @@ nats stream add INGESTION_DLQ \
 
 `helpdesk.realtime.>` 와 `helpdesk.rpc.>` 는 스트림에 넣지 않는다. RPC는 NATS Core Request-Reply다.
 
+JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current`, `{account_id}.{inbox_id}.rr`은 라운드로빈 커서. `Update(revision)`으로만 증감한다. PG `conversations.assignee_id`는 대사다.
+
 | 구분 | 서브젝트 | 핵심 필드 | 발행 | 소비 |
 |---|---|---|---|---|
 | Core | `helpdesk.realtime.<account_id>.<conversation_id>.typing` | `user_type`, `user_id`, `is_typing` | gateway-\* | gateway-web |
@@ -418,6 +420,7 @@ CREATE TABLE inboxes (
     name VARCHAR(255) NOT NULL,
     channel_type VARCHAR(50) NOT NULL,
     enable_auto_assignment BOOLEAN DEFAULT TRUE NOT NULL,
+    auto_assignment_capacity INT NOT NULL DEFAULT 100,
     greeting_message TEXT,
     business_hours_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     business_hours JSONB DEFAULT '{}'::jsonb NOT NULL,
