@@ -20,9 +20,9 @@ type LabelInput struct {
 }
 
 type Label struct {
-	ID    uuid.UUID
-	Name  string
-	Color string
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Color string    `json:"color"`
 }
 
 func (s *Service) AddConversationLabel(ctx context.Context, in LabelInput) (Label, error) {
@@ -31,18 +31,21 @@ func (s *Service) AddConversationLabel(ctx context.Context, in LabelInput) (Labe
 		return Label{}, ErrInvalid
 	}
 	var out Label
-	err := s.withLabelConversation(ctx, in, func(tx pgx.Tx) error {
-		id, err := uuid.NewV7()
-		if err != nil {
-			return err
-		}
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO labels (id, account_id, name)
-			VALUES ($1,$2,$3)
-			ON CONFLICT (account_id, name) DO UPDATE SET name = EXCLUDED.name
-			RETURNING id, name, COALESCE(color, '')`,
-			id, in.AccountID, name,
-		).Scan(&out.ID, &out.Name, &out.Color); err != nil {
+	err := s.withLabelConversation(ctx, in, func(tx pgx.Tx, role string) error {
+		err := tx.QueryRow(ctx, `
+			SELECT id, name, COALESCE(color, '') FROM labels WHERE account_id = $1 AND name = $2`,
+			in.AccountID, name,
+		).Scan(&out.ID, &out.Name, &out.Color)
+		if err == pgx.ErrNoRows {
+			if role != "administrator" {
+				return ErrNotFound
+			}
+			created, err := insertAccountLabel(ctx, tx, in.AccountID, name)
+			if err != nil {
+				return err
+			}
+			out = created
+		} else if err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `
@@ -59,7 +62,7 @@ func (s *Service) RemoveConversationLabel(ctx context.Context, in LabelInput) er
 	if in.LabelID == uuid.Nil {
 		return ErrNotFound
 	}
-	return s.withLabelConversation(ctx, in, func(tx pgx.Tx) error {
+	return s.withLabelConversation(ctx, in, func(tx pgx.Tx, _ string) error {
 		_, err := tx.Exec(ctx, `
 			DELETE FROM conversation_labels
 			WHERE account_id = $1 AND conversation_id = $2 AND label_id = $3`,
@@ -70,7 +73,7 @@ func (s *Service) RemoveConversationLabel(ctx context.Context, in LabelInput) er
 
 func (s *Service) ListConversationLabels(ctx context.Context, in LabelInput) ([]Label, error) {
 	var out []Label
-	err := s.withLabelConversation(ctx, in, func(tx pgx.Tx) error {
+	err := s.withLabelConversation(ctx, in, func(tx pgx.Tx, _ string) error {
 		rows, err := tx.Query(ctx, `
 			SELECT l.id, l.name, COALESCE(l.color, '')
 			FROM conversation_labels cl
@@ -97,7 +100,61 @@ func (s *Service) ListConversationLabels(ctx context.Context, in LabelInput) ([]
 	return out, err
 }
 
-func (s *Service) withLabelConversation(ctx context.Context, in LabelInput, fn func(pgx.Tx) error) error {
+func (s *Service) CreateAccountLabel(ctx context.Context, in LabelInput) (Label, error) {
+	name := strings.TrimSpace(in.Name)
+	if name == "" || utf8.RuneCountInString(name) > 255 {
+		return Label{}, ErrInvalid
+	}
+	var out Label
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		created, err := insertAccountLabel(ctx, tx, in.AccountID, name)
+		out = created
+		return err
+	})
+	return out, err
+}
+
+func (s *Service) ListAccountLabels(ctx context.Context, in LabelInput) ([]Label, error) {
+	var out []Label
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, false, func(tx pgx.Tx, _ string) error {
+		rows, err := tx.Query(ctx, `
+			SELECT id, name, COALESCE(color, '') FROM labels WHERE account_id = $1 ORDER BY name`, in.AccountID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var l Label
+			if err := rows.Scan(&l.ID, &l.Name, &l.Color); err != nil {
+				return err
+			}
+			out = append(out, l)
+		}
+		return rows.Err()
+	})
+	if out == nil {
+		out = []Label{}
+	}
+	return out, err
+}
+
+func insertAccountLabel(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, name string) (Label, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return Label{}, err
+	}
+	var out Label
+	err = tx.QueryRow(ctx, `
+		INSERT INTO labels (id, account_id, name)
+		VALUES ($1,$2,$3)
+		ON CONFLICT (account_id, name) DO UPDATE SET name = EXCLUDED.name
+		RETURNING id, name, COALESCE(color, '')`,
+		id, accountID, name,
+	).Scan(&out.ID, &out.Name, &out.Color)
+	return out, err
+}
+
+func (s *Service) withLabelConversation(ctx context.Context, in LabelInput, fn func(pgx.Tx, string) error) error {
 	if in.ActorUserID == uuid.Nil || in.AccountID == uuid.Nil || in.ConversationID == uuid.Nil {
 		return ErrNotFound
 	}
@@ -117,13 +174,53 @@ func (s *Service) withLabelConversation(ctx context.Context, in LabelInput, fn f
 		}
 		return err
 	}
+	role, err := accountRole(ctx, tx, in.AccountID, in.ActorUserID)
+	if err != nil {
+		return err
+	}
 	if err := requireAssignActor(ctx, tx, in.AccountID, inboxID, in.ActorUserID); err != nil {
 		return err
 	}
-	if err := fn(tx); err != nil {
+	if err := fn(tx, role); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func (s *Service) withAccountMember(ctx context.Context, actor, account uuid.UUID, adminOnly bool, fn func(pgx.Tx, string) error) error {
+	if actor == uuid.Nil || account == uuid.Nil {
+		return ErrDenied
+	}
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, account.String()); err != nil {
+		return err
+	}
+	role, err := accountRole(ctx, tx, account, actor)
+	if err != nil {
+		return err
+	}
+	if adminOnly && role != "administrator" {
+		return ErrDenied
+	}
+	if err := fn(tx, role); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func accountRole(ctx context.Context, tx pgx.Tx, accountID, actor uuid.UUID) (string, error) {
+	var role string
+	err := tx.QueryRow(ctx, `
+		SELECT role FROM account_users WHERE account_id = $1 AND user_id = $2`, accountID, actor,
+	).Scan(&role)
+	if err == pgx.ErrNoRows {
+		return "", ErrDenied
+	}
+	return role, err
 }
 
 func (s *Service) handleLabelAdd(msg *nats.Msg) {
@@ -176,6 +273,42 @@ func (s *Service) handleLabelList(msg *nats.Msg) {
 	_ = msg.Respond(body)
 }
 
+func (s *Service) handleLabelCatalogList(msg *nats.Msg) {
+	in, err := parseLabelInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListAccountLabels(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, l := range list {
+		rows = append(rows, map[string]any{"id": l.ID.String(), "name": l.Name, "color": l.Color})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "labels": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleLabelCatalogCreate(msg *nats.Msg) {
+	in, err := parseLabelInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.CreateAccountLabel(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "id": out.ID.String(), "name": out.Name, "color": out.Color,
+	})
+	_ = msg.Respond(body)
+}
+
 func parseLabelInput(msg *nats.Msg) (LabelInput, error) {
 	var req struct {
 		ActorUserID    string `json:"actor_user_id"`
@@ -195,11 +328,14 @@ func parseLabelInput(msg *nats.Msg) (LabelInput, error) {
 	if err != nil {
 		return LabelInput{}, err
 	}
-	convID, err := uuid.Parse(req.ConversationID)
-	if err != nil {
-		return LabelInput{}, err
+	in := LabelInput{ActorUserID: actor, AccountID: accountID, Name: req.Name}
+	if req.ConversationID != "" {
+		convID, err := uuid.Parse(req.ConversationID)
+		if err != nil {
+			return LabelInput{}, err
+		}
+		in.ConversationID = convID
 	}
-	in := LabelInput{ActorUserID: actor, AccountID: accountID, ConversationID: convID, Name: req.Name}
 	if req.LabelID != "" {
 		id, err := uuid.Parse(req.LabelID)
 		if err != nil {

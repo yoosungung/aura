@@ -29,6 +29,7 @@ type ConversationRow struct {
 	SnoozedUntil   string
 	DisplayID      int64
 	LastContent    string
+	Labels         []LabelOut
 }
 
 type MessageRow struct {
@@ -85,6 +86,11 @@ func (s *Server) handleConversationList(w http.ResponseWriter, r *http.Request) 
 		if c.SnoozedUntil != "" {
 			row["snoozed_until"] = c.SnoozedUntil
 		}
+		labels := make([]map[string]string, 0, len(c.Labels))
+		for _, l := range c.Labels {
+			labels = append(labels, map[string]string{"id": l.ID.String(), "name": l.Name, "color": l.Color})
+		}
+		row["labels"] = labels
 		rows = append(rows, row)
 	}
 	writeJSON(w, map[string]any{"conversations": rows})
@@ -250,6 +256,11 @@ func (r *natsRPC) ListConversations(ctx context.Context, actor, account uuid.UUI
 			SnoozedUntil   string `json:"snoozed_until"`
 			DisplayID      int64  `json:"display_id"`
 			LastContent    string `json:"last_content"`
+			Labels         []struct {
+				ID    string `json:"id"`
+				Name  string `json:"name"`
+				Color string `json:"color"`
+			} `json:"labels"`
 		} `json:"conversations"`
 	}
 	if err := json.Unmarshal(msg, &out); err != nil {
@@ -260,11 +271,15 @@ func (r *natsRPC) ListConversations(ctx context.Context, actor, account uuid.UUI
 	}
 	rows := make([]ConversationRow, 0, len(out.Conversations))
 	for _, c := range out.Conversations {
+		labels := make([]LabelOut, 0, len(c.Labels))
+		for _, l := range c.Labels {
+			labels = append(labels, LabelOut{ID: parseUUID(l.ID), Name: l.Name, Color: l.Color})
+		}
 		rows = append(rows, ConversationRow{
 			ID: parseUUID(c.ID), InboxID: parseUUID(c.InboxID), ContactID: parseUUID(c.ContactID),
 			ContactInboxID: parseUUID(c.ContactInboxID), AssigneeID: parseUUID(c.AssigneeID),
 			Status: c.Status, Version: c.Version, SnoozedUntil: c.SnoozedUntil,
-			DisplayID: c.DisplayID, LastContent: c.LastContent,
+			DisplayID: c.DisplayID, LastContent: c.LastContent, Labels: labels,
 		})
 	}
 	return rows, nil

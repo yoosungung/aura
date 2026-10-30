@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +27,7 @@ type ConversationRow struct {
 	SnoozedUntil   *time.Time
 	DisplayID      int64
 	LastContent    string
+	Labels         []Label
 }
 
 type MessageRow struct {
@@ -62,7 +64,10 @@ func (s *Service) ListConversations(ctx context.Context, in ListInput) ([]Conver
 				c.status, c.version, c.snoozed_until, c.display_id,
 				COALESCE((SELECT m.content FROM messages m
 					WHERE m.conversation_id = c.id AND NOT m.private
-					ORDER BY m.created_at DESC LIMIT 1), '')
+					ORDER BY m.created_at DESC LIMIT 1), ''),
+				COALESCE((SELECT json_agg(json_build_object('id', l.id::text, 'name', l.name, 'color', COALESCE(l.color, '')) ORDER BY l.name)
+					FROM conversation_labels cl JOIN labels l ON l.id = cl.label_id
+					WHERE cl.conversation_id = c.id), '[]'::json)
 			FROM conversations c
 			WHERE c.account_id = $1 AND c.inbox_id = ANY($2)
 			ORDER BY c.updated_at DESC`,
@@ -73,9 +78,16 @@ func (s *Service) ListConversations(ctx context.Context, in ListInput) ([]Conver
 		defer rows.Close()
 		for rows.Next() {
 			var row ConversationRow
+			var labels []byte
 			if err := rows.Scan(&row.ID, &row.InboxID, &row.ContactID, &row.ContactInboxID, &row.AssigneeID,
-				&row.Status, &row.Version, &row.SnoozedUntil, &row.DisplayID, &row.LastContent); err != nil {
+				&row.Status, &row.Version, &row.SnoozedUntil, &row.DisplayID, &row.LastContent, &labels); err != nil {
 				return err
+			}
+			if err := json.Unmarshal(labels, &row.Labels); err != nil {
+				return err
+			}
+			if row.Labels == nil {
+				row.Labels = []Label{}
 			}
 			out = append(out, row)
 		}

@@ -90,7 +90,7 @@ func (s *Server) publishNoteRealtime(accountID uuid.UUID, out NoteOut) error {
 		AccountID:  accountID.String(), InboxID: out.InboxID.String(),
 		ConversationID: out.ConversationID.String(), HopCount: 0,
 		Payload: contracts.MessageCreatedPayload{
-			Content: out.Content, MessageType: MessageOutgoing, Private: true, Status: "sent",
+			Content: out.Content, MessageType: MessageOutgoing, Private: out.Private, Status: "sent",
 			ContentType: "text", SenderType: "User", SenderID: out.SenderID.String(),
 			ContactID: out.ContactID.String(), ContactInboxID: out.ContactInboxID.String(),
 			Attachments: []any{},

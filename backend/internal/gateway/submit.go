@@ -75,6 +75,8 @@ type Service struct {
 	Notes    Noter
 	Snooze   Snoozer
 	Labels   Labeler
+	Canned   CannedStore
+	Macros   MacroStore
 	Catalog  Catalog
 	Identify Identifier
 	Bus      Bus

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, listConversations, removeConversationLabel, resolveConversation, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, listCanned, listConversations, removeConversationLabel, resolveConversation, sendNote, sendReply, signIn, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -203,6 +203,35 @@ describe("gateway client", () => {
       async (url) => ({ ok: true, json: async () => ({ conversations: [{ id: "c1" }] }) }),
     );
     assert.equal(listed.conversations[0].id, "c1");
+  });
+
+  it("lists canned responses and executes a macro", async () => {
+    const canned = await listCanned(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok" },
+      async (url) => ({
+        ok: true,
+        json: async () => ({ canned_responses: [{ id: "r1", short_code: "인사", content: "안녕하세요" }] }),
+      }),
+    );
+    assert.equal(canned.canned_responses[0].short_code, "인사");
+    const calls = [];
+    await executeMacro(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", conversationId: "c1", macroId: "m1" },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ status: "resolved", version: 2, labels: [], messages: [] }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/macros/m1/execute");
+    assert.equal(calls[0].opts.method, "POST");
+    const created = await createCanned(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", shortCode: "인사", content: "안녕하세요" },
+      async (_url, opts) => ({
+        ok: true,
+        json: async () => JSON.parse(opts.body),
+      }),
+    );
+    assert.equal(created.short_code, "인사");
   });
 
   it("puts conversation resolved status", async () => {

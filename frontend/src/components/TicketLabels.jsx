@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "./ui/badge.jsx";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
@@ -8,7 +8,30 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [catalog, setCatalog] = useState([]);
   const labels = conversation.labels || [];
+
+  useEffect(() => {
+    if (!client.listAccountLabels) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listAccountLabels({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setCatalog(data?.labels || []);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [client, session]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -72,8 +95,18 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
       <form onSubmit={onSubmit} className="flex flex-col gap-2">
         <Label>
           라벨 이름
-          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            list="account-labels"
+            required
+          />
         </Label>
+        <datalist id="account-labels">
+          {catalog.map((l) => (
+            <option key={l.id || l.name} value={l.name} />
+          ))}
+        </datalist>
         {error ? <p role="alert">{error}</p> : null}
         <Button type="submit" disabled={pending}>
           부착

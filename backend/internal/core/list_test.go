@@ -50,6 +50,25 @@ func TestListConversations_OnlyActorInboxes(t *testing.T) {
 	if len(list) != 1 || list[0].ID != mine.ConversationID {
 		t.Fatalf("%+v", list)
 	}
+	if _, err := svc.CreateAccountLabel(ctx, core.LabelInput{
+		ActorUserID: adminID, AccountID: accountID, Name: "결제",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AddConversationLabel(ctx, core.LabelInput{
+		ActorUserID: agentID, AccountID: accountID, ConversationID: mine.ConversationID, Name: "결제",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	labeled, err := svc.ListConversations(ctx, core.ListInput{
+		ActorUserID: agentID, AccountID: accountID, InboxIDs: []uuid.UUID{inboxID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(labeled) != 1 || len(labeled[0].Labels) != 1 || labeled[0].Labels[0].Name != "결제" {
+		t.Fatalf("labels %+v", labeled)
+	}
 }
 
 func TestListMessagesAndContacts(t *testing.T) {

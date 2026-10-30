@@ -380,6 +380,97 @@ test("ticket view resolves and hides the card", async () => {
   expect(screen.getByText("대기 중인 대화가 없습니다")).toBeTruthy();
 });
 
+test("queue shows attached label badges", async () => {
+  render(
+    <App
+      session={session}
+      client={{ connect() {} }}
+      initialState={{
+        ...fixtureState(),
+        conversations: [{ ...fixtureState().conversations[0], labels: [{ id: "l1", name: "환불" }] }],
+      }}
+    />,
+  );
+  expect(screen.getByRole("button", { name: /환불/ }).textContent).toContain("환불");
+});
+
+test("composer inserts a canned response from slash", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listCanned() {
+          return { canned_responses: [{ id: "r1", short_code: "인사", content: "안녕하세요" }] };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.type(screen.getByLabelText("답장"), "/인사");
+  await user.click(screen.getByRole("button", { name: "/인사" }));
+  expect(screen.getByLabelText("답장").value).toBe("안녕하세요");
+});
+
+test("ticket view runs a macro", async () => {
+  const user = userEvent.setup();
+  const ran = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listMacros() {
+          return { macros: [{ id: "m1", name: "환불 완료" }] };
+        },
+        async executeMacro(req) {
+          ran.push(req);
+          return {
+            labels: [{ id: "l1", name: "환불" }],
+            messages: [{ message_id: "m9", content: "환불이 완료되었습니다.", private: false }],
+          };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "실행" }));
+  expect(ran[0].macroId).toBe("m1");
+  expect(screen.getByRole("log").textContent).toContain("환불이 완료되었습니다.");
+  expect(screen.getByRole("region", { name: "티켓 라벨" }).textContent).toContain("환불");
+});
+
+test("administrator adds a catalog label", async () => {
+  const user = userEvent.setup();
+  const created = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listAccountLabels() {
+          return { labels: [] };
+        },
+        async listCanned() {
+          return { canned_responses: [] };
+        },
+        async createAccountLabel(req) {
+          created.push(req);
+          return { id: "l9", name: req.name };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.type(screen.getByLabelText("카탈로그 라벨"), "결제");
+  await user.click(screen.getByRole("button", { name: "라벨 추가" }));
+  expect(created[0].name).toBe("결제");
+  expect(screen.getByRole("region", { name: "카탈로그" }).textContent).toContain("결제");
+});
+
 test("reply posts through the gateway client", async () => {
   const user = userEvent.setup();
   const sent = [];

@@ -32,6 +32,10 @@ type NoteResult struct {
 }
 
 func (s *Service) AddNote(ctx context.Context, in NoteInput) (NoteResult, error) {
+	return s.writeAgentMessage(ctx, in, true)
+}
+
+func (s *Service) writeAgentMessage(ctx context.Context, in NoteInput, private bool) (NoteResult, error) {
 	content := strings.TrimSpace(in.Content)
 	if content == "" {
 		return NoteResult{}, ErrInvalid
@@ -67,46 +71,54 @@ func (s *Service) AddNote(ctx context.Context, in NoteInput) (NoteResult, error)
 	if err != nil {
 		return NoteResult{}, err
 	}
+	msgType := 0
+	if private {
+		msgType = 1
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO messages (
 			id, account_id, inbox_id, conversation_id,
 			message_type, content, private, status, content_type, sender_type, sender_id
-		) VALUES ($1,$2,$3,$4,1,$5,TRUE,'sent','text','User',$6)`,
-		msgID, in.AccountID, inboxID, in.ConversationID, content, in.ActorUserID); err != nil {
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent','text','User',$8)`,
+		msgID, in.AccountID, inboxID, in.ConversationID, msgType, content, private, in.ActorUserID); err != nil {
 		return NoteResult{}, err
 	}
-	if err := s.writeNoteOutbox(ctx, tx, in, msgID, inboxID, contactID, contactInboxID, content); err != nil {
+	env, subject, err := s.writeNoteOutbox(ctx, tx, in, msgID, inboxID, contactID, contactInboxID, content, private, msgType)
+	if err != nil {
 		return NoteResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return NoteResult{}, err
 	}
+	if !private {
+		s.publishOutbox(ctx, in.AccountID, msgID, subject, env)
+	}
 	return NoteResult{
 		MessageID: msgID, InboxID: inboxID, ConversationID: in.ConversationID,
 		ContactID: contactID, ContactInboxID: contactInboxID, SenderID: in.ActorUserID,
-		Content: content, Private: true,
+		Content: content, Private: private,
 	}, nil
 }
 
-func (s *Service) writeNoteOutbox(ctx context.Context, tx pgx.Tx, in NoteInput, msgID, inboxID, contactID, contactInboxID uuid.UUID, content string) error {
+func (s *Service) writeNoteOutbox(ctx context.Context, tx pgx.Tx, in NoteInput, msgID, inboxID, contactID, contactInboxID uuid.UUID, content string, private bool, msgType int) ([]byte, string, error) {
 	env, err := json.Marshal(contracts.MessageCreated{
 		ID: msgID.String(), SchemaVersion: 1, Type: "message_created",
 		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
 		AccountID:  in.AccountID.String(), InboxID: inboxID.String(),
 		ConversationID: in.ConversationID.String(), TraceID: in.TraceID, HopCount: 0,
 		Payload: contracts.MessageCreatedPayload{
-			Content: content, MessageType: 1, Private: true, Status: "sent",
+			Content: content, MessageType: msgType, Private: private, Status: "sent",
 			ContentType: "text", SenderType: "User", SenderID: in.ActorUserID.String(),
 			ContactID: contactID.String(), ContactInboxID: contactInboxID.String(),
 			Attachments: []any{},
 		},
 	})
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	subject := fmt.Sprintf("helpdesk.events.%s.%s.%s.message_created", in.AccountID, inboxID, in.ConversationID)
 	_, err = tx.Exec(ctx, `
 		INSERT INTO event_outbox (id, account_id, subject, payload) VALUES ($1,$2,$3,$4::jsonb)`,
 		msgID, in.AccountID, subject, string(env))
-	return err
+	return env, subject, err
 }

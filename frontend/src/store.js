@@ -36,6 +36,7 @@ export function conversationsFromAPI(rows) {
     snoozedUntil: c.snoozed_until,
     lastContent: c.last_content,
     unread: 0,
+    labels: c.labels || [],
   }));
 }
 

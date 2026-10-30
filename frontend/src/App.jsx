@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from "react";
 import { AssignTicket } from "./components/AssignTicket.jsx";
+import { CatalogSettings } from "./components/CatalogSettings.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
@@ -7,6 +8,7 @@ import { ResolveTicket } from "./components/ResolveTicket.jsx";
 import { SnoozeTicket } from "./components/SnoozeTicket.jsx";
 import { TicketAttachments } from "./components/TicketAttachments.jsx";
 import { TicketLabels } from "./components/TicketLabels.jsx";
+import { TicketMacros } from "./components/TicketMacros.jsx";
 import { Badge } from "./components/ui/badge.jsx";
 import { Button } from "./components/ui/button.jsx";
 import { Textarea } from "./components/ui/textarea.jsx";
@@ -14,6 +16,7 @@ import { conversationsFromAPI, emptyState, messagesFromAPI, reduce, visibleInQue
 
 export function App({ session: initialSession, client, initialState = emptyState }) {
   const [session, setSession] = useState(initialSession);
+  const [canned, setCanned] = useState([]);
   const [booting, setBooting] = useState(
     !initialSession.token && !initialSession.fixture && typeof client.refresh === "function",
   );
@@ -86,6 +89,28 @@ export function App({ session: initialSession, client, initialState = emptyState
   }, [session, client]);
 
   useEffect(() => {
+    if (!session.token || !client.listCanned) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listCanned({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setCanned(data?.canned_responses || []);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, client]);
+
+  useEffect(() => {
     if (!state.selectedId || !session.token || !client.listMessages) {
       return undefined;
     }
@@ -127,6 +152,63 @@ export function App({ session: initialSession, client, initialState = emptyState
     setDraft("");
   }
 
+  const slash = draft.match(/(?:^|\s)(\/[^\s]*)$/);
+  const slashCode = slash ? slash[1].slice(1) : "";
+  const cannedHits = slashCode
+    ? canned.filter((c) => (c.short_code || "").startsWith(slashCode))
+    : [];
+
+  function insertCanned(item) {
+    const next = slash ? draft.slice(0, slash.index) + (slash.index > 0 ? " " : "") + item.content : item.content;
+    setDraft(next.trimStart());
+  }
+
+  function applyMacro(out) {
+    if (!selected) {
+      return;
+    }
+    for (const label of out.labels || []) {
+      dispatch({ type: "labeled", conversationId: selected.id, label });
+    }
+    for (const m of out.messages || []) {
+      dispatch({
+        type: "realtime",
+        event: {
+          event: "message.created",
+          conversation_id: selected.id,
+          inbox_id: selected.inboxId,
+          message: {
+            id: m.message_id,
+            payload: {
+              content: m.content,
+              sender_type: "User",
+              private: m.private,
+              contact_id: selected.contactId,
+              contact_inbox_id: selected.contactInboxId,
+            },
+          },
+        },
+      });
+    }
+    if (out.status === "resolved") {
+      dispatch({
+        type: "resolved",
+        conversationId: selected.id,
+        status: out.status,
+        version: out.version,
+      });
+    }
+    if (out.status === "snoozed") {
+      dispatch({
+        type: "snoozed",
+        conversationId: selected.id,
+        status: out.status,
+        version: out.version,
+        snoozedUntil: out.snoozed_until,
+      });
+    }
+  }
+
   if (booting) {
     return <p className="bg-white p-6 text-neutral-900">불러오는 중</p>;
   }
@@ -145,6 +227,7 @@ export function App({ session: initialSession, client, initialState = emptyState
       <nav className="queue" aria-label="대기열">
         <h1>대기열</h1>
         {session.role === "administrator" ? <InboxMembers session={session} client={client} /> : null}
+        {session.role === "administrator" ? <CatalogSettings session={session} client={client} /> : null}
         {queue.length === 0 ? (
           <p>대기 중인 대화가 없습니다</p>
         ) : (
@@ -158,6 +241,11 @@ export function App({ session: initialSession, client, initialState = emptyState
                   onClick={() => dispatch({ type: "select", id: c.id })}
                 >
                   {c.lastContent}
+                  {(c.labels || []).map((l) => (
+                    <Badge key={l.id || l.name} variant="secondary">
+                      {l.name}
+                    </Badge>
+                  ))}
                   {c.unread > 0 ? <Badge>{c.unread}</Badge> : null}
                 </Button>
               </li>
@@ -191,6 +279,13 @@ export function App({ session: initialSession, client, initialState = emptyState
               client={client}
               onLabeled={(next) => dispatch({ type: "labeled", ...next })}
               onUnlabeled={(next) => dispatch({ type: "unlabeled", ...next })}
+            />
+            <TicketMacros
+              key={`macros-${selected.id}`}
+              session={session}
+              conversation={selected}
+              client={client}
+              onRan={applyMacro}
             />
             <ResolveTicket
               key={`resolve-${selected.id}`}
@@ -269,6 +364,17 @@ export function App({ session: initialSession, client, initialState = emptyState
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
               />
+              {cannedHits.length > 0 ? (
+                <ul role="listbox" aria-label="저장응답">
+                  {cannedHits.map((item) => (
+                    <li key={item.id || item.short_code}>
+                      <Button type="button" variant="ghost" onClick={() => insertCanned(item)}>
+                        /{item.short_code}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <Button type="submit">보내기</Button>
             </form>
           </>

@@ -113,11 +113,10 @@
 
 **결정됨 — 스누즈 깨움.** PG `conversations.snoozed_until`은 상태 컬럼으로 유지한다. 시각 도래의 주체는 NATS JetStream 스케줄 메시지(`Nats-Schedule: @at`, 스트림 `AllowMsgSchedules`)다. 게이트웨이는 스케줄만 발행하고, `svc-core` 컨슈머가 `helpdesk.tasks.snooze.wake.*`를 받아 FSM으로 `open` 전이한다.
 
-**할 일 — 라벨·매크로·저장응답 사용법.** [ARCHITECTURE.md](ARCHITECTURE.md) §10 DDL에 `labels`/`conversation_labels`·`macros`·`canned_responses` 테이블은 있으나, 상담원 사용법이 비어 있다. 매크로·저장응답은 `actions` JSON 예·`short_code` 예가 없고 대표 API 경로에도 엔드포인트가 없다. 라벨은 [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)에 「라벨 부착」·「커스텀 라벨 목록」·「라벨링」만 있고, 계정 카탈로그 vs 티켓 부착 모델과 상담원 실사용이 안 적혀 있다. P3 구현 전에 그 분석과 스키마를 기준으로, 상담원이 라벨·매크로·저장응답을 어떻게 쓰는지 문서화한다.
+**결정됨 — 라벨·매크로·저장응답 (A안).** 라벨은 분류(주제·고객 신호·다음 일), 저장응답은 `/short_code` 문장, 매크로는 상담원이 고른 뒤에만 도는 작업 묶음. 자동화는 P5. 카탈로그·공유 저장응답·`visibility=account` 매크로는 administrator가 만들고, 상담원은 있는 라벨만 붙이거나 떼고 `personal` 매크로만 만든다. 매크로 `actions`는 `send_message` / `add_label` / `add_private_note` / `assign_agent` / `snooze_conversation` / `resolve_conversation`.
 
 **미결 — 에릭 결정 (P3).** 목록만 둔다. 구현하지 않는다.
 
-- 라벨과 매크로를 상담원이 어떻게 쓸지
 - 셋유저로 고객을 묶은 뒤 익명 대화를 합칠지
 - 인박스 HMAC 시크릿을 누가 복사하고 어떻게 돌릴지
 - 새로고침할 때 대화 목록 필터를 어떻게 할지

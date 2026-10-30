@@ -32,6 +32,16 @@ func (f *fakeLabels) ListConversationLabels(context.Context, uuid.UUID, uuid.UUI
 	}
 	return []gateway.LabelOut{f.out}, f.err
 }
+func (f *fakeLabels) ListAccountLabels(context.Context, uuid.UUID, uuid.UUID) ([]gateway.LabelOut, error) {
+	if f.out.ID == uuid.Nil {
+		return []gateway.LabelOut{}, f.err
+	}
+	return []gateway.LabelOut{f.out}, f.err
+}
+func (f *fakeLabels) CreateAccountLabel(_ context.Context, _, _ uuid.UUID, name string) (gateway.LabelOut, error) {
+	f.added = append(f.added, name)
+	return f.out, f.err
+}
 
 func TestHTTP_AttachConversationLabel(t *testing.T) {
 	accountID, actorID, convID, labelID := mustV7(t), mustV7(t), mustV7(t), mustV7(t)
@@ -89,6 +99,30 @@ func TestHTTP_LabelDenied(t *testing.T) {
 	}
 	res.Body.Close()
 	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_CreateAccountLabel(t *testing.T) {
+	accountID, actorID, labelID := mustV7(t), mustV7(t), mustV7(t)
+	lbl := &fakeLabels{out: gateway.LabelOut{ID: labelID, Name: "결제"}}
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Labels: lbl},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	body, _ := json.Marshal(map[string]any{"name": "결제"})
+	req, err := http.NewRequest(http.MethodPost,
+		srv.URL+"/api/v1/accounts/"+accountID.String()+"/labels", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+userToken(t, accountID, actorID))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", res.StatusCode)
 	}
 }

@@ -91,6 +91,13 @@ nats stream add INGESTION_DLQ \
 | Core | `helpdesk.rpc.conversations.label.add` | `actor_user_id`, `conversation_id`, `name` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.label.remove` | `actor_user_id`, `conversation_id`, `label_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.label.list` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.labels.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.labels.create` | `actor_user_id`, `account_id`, `name` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.canned.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.canned.create` | `actor_user_id`, `account_id`, `short_code`, `content` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.macros.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.macros.create` | `actor_user_id`, `account_id`, `name`, `actions`, `visibility` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.macros.execute` | `actor_user_id`, `account_id`, `conversation_id`, `macro_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.messages` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
@@ -221,6 +228,13 @@ nats stream add INGESTION_DLQ \
 - `GET /api/v1/accounts/{account_id}/conversations/{id}/labels`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/labels`
 - `DELETE /api/v1/accounts/{account_id}/conversations/{id}/labels/{label_id}`
+- `GET /api/v1/accounts/{account_id}/labels`
+- `POST /api/v1/accounts/{account_id}/labels`
+- `GET /api/v1/accounts/{account_id}/canned_responses`
+- `POST /api/v1/accounts/{account_id}/canned_responses`
+- `GET /api/v1/accounts/{account_id}/macros`
+- `POST /api/v1/accounts/{account_id}/macros`
+- `POST /api/v1/accounts/{account_id}/conversations/{id}/macros/{macro_id}/execute`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/conversations`
 - `GET /api/v1/accounts/{account_id}/conversations/{id}/messages`
@@ -233,9 +247,17 @@ nats stream add INGESTION_DLQ \
 |---|---|---|---|---|
 | 테넌트 생성·쿼터 | O | | | |
 | 인박스·자동화·SLA·상담원 초대 | O | O | | |
+| 라벨 카탈로그·저장응답·공유 매크로 | O | O | | |
 | 리포트·CSAT 리뷰 | O | O | | |
 | 배속 인박스 열람·대고객 답장 | O | O | O | |
+| 라벨 부착·매크로 실행·personal 매크로 | O | O | O | |
 | 내부 메모 | O | O | O | O |
+
+라벨은 계정 카탈로그(`labels`, 이름 유일)와 티켓 조인(`conversation_labels`)이다. 카탈로그 생성은 administrator. 티켓 부착은 있는 이름만이고, 없는 이름은 administrator만 upsert한다. 제거는 조인만 지운다. 상태는 FSM, 라벨은 주제·고객 신호·다음 일이다.
+
+저장응답은 `canned_responses.short_code`다. 에디터 `/short_code`는 본문만 넣고 전송은 상담원이 한다. 생성은 administrator.
+
+매크로 `actions`는 `{ "action_name", "action_params": [] }` 배열이다. P3 허용 이름: `send_message`, `add_label`, `add_private_note`, `assign_agent`, `snooze_conversation`, `resolve_conversation`. 실행은 상담원이 고른 뒤에만 `svc-core`가 기존 RPC와 같은 쓰기를 순서대로 한다. `visibility`는 `account`(관리자) 또는 `personal`(상담원 생성 시 강제).
 
 Agent라도 `inbox_members`에 없는 인박스 대화는 목록·읽기 모두 거절.
 

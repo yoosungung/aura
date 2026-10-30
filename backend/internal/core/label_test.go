@@ -77,6 +77,53 @@ func TestLabel_AttachByNameSharesCatalog(t *testing.T) {
 	}
 }
 
+func TestLabel_AgentCannotCreateMissingName(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	if err := svc.AddInboxMember(ctx, core.MemberInput{
+		ActorUserID: adminID, AccountID: accountID, InboxID: inboxID, UserID: agentID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	created, err := svc.Create(ctx, core.CreateInput{AccountID: accountID, InboxID: inboxID, SourceID: "s", TraceID: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AddConversationLabel(ctx, core.LabelInput{
+		ActorUserID: agentID, AccountID: accountID, ConversationID: created.ConversationID, Name: "환불",
+	}); err != core.ErrNotFound {
+		t.Fatalf("missing catalog got %v", err)
+	}
+	if _, err := svc.CreateAccountLabel(ctx, core.LabelInput{
+		ActorUserID: agentID, AccountID: accountID, Name: "환불",
+	}); err != core.ErrDenied {
+		t.Fatalf("agent catalog got %v", err)
+	}
+	cat, err := svc.CreateAccountLabel(ctx, core.LabelInput{
+		ActorUserID: adminID, AccountID: accountID, Name: "환불",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attached, err := svc.AddConversationLabel(ctx, core.LabelInput{
+		ActorUserID: agentID, AccountID: accountID, ConversationID: created.ConversationID, Name: "환불",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attached.ID != cat.ID {
+		t.Fatalf("%s vs %s", attached.ID, cat.ID)
+	}
+	list, err := svc.ListAccountLabels(ctx, core.LabelInput{ActorUserID: agentID, AccountID: accountID})
+	if err != nil || len(list) != 1 {
+		t.Fatalf("%+v %v", list, err)
+	}
+}
+
 func TestLabel_RejectsBlankAndOutsider(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)

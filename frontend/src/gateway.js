@@ -269,6 +269,99 @@ export async function uploadAttachment(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function listAccountLabels(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("label catalog failed");
+  }
+  return res.json();
+}
+
+export async function createAccountLabel(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, name } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    throw new Error("label catalog create failed");
+  }
+  return res.json();
+}
+
+export async function listCanned(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("canned list failed");
+  }
+  return res.json();
+}
+
+export async function createCanned(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, shortCode, content } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ short_code: shortCode, content }),
+  });
+  if (!res.ok) {
+    throw new Error("canned create failed");
+  }
+  return res.json();
+}
+
+export async function listMacros(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("macro list failed");
+  }
+  return res.json();
+}
+
+export async function createMacro(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, name, visibility, actions } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, visibility, actions }),
+  });
+  if (!res.ok) {
+    throw new Error("macro create failed");
+  }
+  return res.json();
+}
+
+export async function executeMacro(req, fetchImpl = fetch) {
+  const { gatewayUrl, accountId, token, conversationId, macroId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/macros/${macroId}/execute`,
+    { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: "{}" },
+  );
+  if (!res.ok) {
+    throw new Error("macro execute failed");
+  }
+  return res.json();
+}
+
 export async function sendNote(req, fetchImpl = fetch) {
   const { gatewayUrl, accountId, token, conversationId, content } = req;
   const res = await fetchImpl(
@@ -300,6 +393,13 @@ export const liveClient = {
   snoozeConversation,
   addConversationLabel,
   removeConversationLabel,
+  listAccountLabels,
+  createAccountLabel,
+  listCanned,
+  createCanned,
+  listMacros,
+  createMacro,
+  executeMacro,
   listConversations,
   listMessages,
   resolveConversation,

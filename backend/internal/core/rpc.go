@@ -14,27 +14,34 @@ import (
 )
 
 const (
-	SubjectCreate            = "helpdesk.rpc.conversations.create"
-	SubjectTransition        = "helpdesk.rpc.conversations.transition"
-	SubjectAuthLogin         = "helpdesk.rpc.auth.login"
-	SubjectAuthRefresh       = "helpdesk.rpc.auth.refresh"
-	SubjectAuthLogout        = "helpdesk.rpc.auth.logout"
-	SubjectInboxMemberAdd    = "helpdesk.rpc.inbox_members.add"
-	SubjectInboxMemberRemove = "helpdesk.rpc.inbox_members.remove"
-	SubjectInboxMemberList   = "helpdesk.rpc.inbox_members.list"
-	SubjectAssign            = "helpdesk.rpc.conversations.assign"
-	SubjectNote              = "helpdesk.rpc.conversations.note"
-	SubjectSnooze            = "helpdesk.rpc.conversations.snooze"
-	SubjectLabelAdd          = "helpdesk.rpc.conversations.label.add"
-	SubjectLabelRemove       = "helpdesk.rpc.conversations.label.remove"
-	SubjectLabelList         = "helpdesk.rpc.conversations.label.list"
-	SubjectConversationsList = "helpdesk.rpc.conversations.list"
-	SubjectMessagesList      = "helpdesk.rpc.conversations.messages"
-	SubjectContactsList      = "helpdesk.rpc.contacts.list"
-	SubjectContactIdentify   = "helpdesk.rpc.contacts.identify"
-	SubjectInboxResolveEmail = "helpdesk.rpc.inboxes.resolve_email"
-	SubjectResolveThread     = "helpdesk.rpc.conversations.resolve_thread"
-	QueueGroup               = "svc-core"
+	SubjectCreate             = "helpdesk.rpc.conversations.create"
+	SubjectTransition         = "helpdesk.rpc.conversations.transition"
+	SubjectAuthLogin          = "helpdesk.rpc.auth.login"
+	SubjectAuthRefresh        = "helpdesk.rpc.auth.refresh"
+	SubjectAuthLogout         = "helpdesk.rpc.auth.logout"
+	SubjectInboxMemberAdd     = "helpdesk.rpc.inbox_members.add"
+	SubjectInboxMemberRemove  = "helpdesk.rpc.inbox_members.remove"
+	SubjectInboxMemberList    = "helpdesk.rpc.inbox_members.list"
+	SubjectAssign             = "helpdesk.rpc.conversations.assign"
+	SubjectNote               = "helpdesk.rpc.conversations.note"
+	SubjectSnooze             = "helpdesk.rpc.conversations.snooze"
+	SubjectLabelAdd           = "helpdesk.rpc.conversations.label.add"
+	SubjectLabelRemove        = "helpdesk.rpc.conversations.label.remove"
+	SubjectLabelList          = "helpdesk.rpc.conversations.label.list"
+	SubjectLabelCatalogList   = "helpdesk.rpc.labels.list"
+	SubjectLabelCatalogCreate = "helpdesk.rpc.labels.create"
+	SubjectCannedList         = "helpdesk.rpc.canned.list"
+	SubjectCannedCreate       = "helpdesk.rpc.canned.create"
+	SubjectMacroList          = "helpdesk.rpc.macros.list"
+	SubjectMacroCreate        = "helpdesk.rpc.macros.create"
+	SubjectMacroExecute       = "helpdesk.rpc.macros.execute"
+	SubjectConversationsList  = "helpdesk.rpc.conversations.list"
+	SubjectMessagesList       = "helpdesk.rpc.conversations.messages"
+	SubjectContactsList       = "helpdesk.rpc.contacts.list"
+	SubjectContactIdentify    = "helpdesk.rpc.contacts.identify"
+	SubjectInboxResolveEmail  = "helpdesk.rpc.inboxes.resolve_email"
+	SubjectResolveThread      = "helpdesk.rpc.conversations.resolve_thread"
+	QueueGroup                = "svc-core"
 )
 
 func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) error {
@@ -182,6 +189,41 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subResolveThread.Unsubscribe()
+	subLabelCatalogList, err := nc.QueueSubscribe(SubjectLabelCatalogList, QueueGroup, s.handleLabelCatalogList)
+	if err != nil {
+		return err
+	}
+	defer subLabelCatalogList.Unsubscribe()
+	subLabelCatalogCreate, err := nc.QueueSubscribe(SubjectLabelCatalogCreate, QueueGroup, s.handleLabelCatalogCreate)
+	if err != nil {
+		return err
+	}
+	defer subLabelCatalogCreate.Unsubscribe()
+	subCannedList, err := nc.QueueSubscribe(SubjectCannedList, QueueGroup, s.handleCannedList)
+	if err != nil {
+		return err
+	}
+	defer subCannedList.Unsubscribe()
+	subCannedCreate, err := nc.QueueSubscribe(SubjectCannedCreate, QueueGroup, s.handleCannedCreate)
+	if err != nil {
+		return err
+	}
+	defer subCannedCreate.Unsubscribe()
+	subMacroList, err := nc.QueueSubscribe(SubjectMacroList, QueueGroup, s.handleMacroList)
+	if err != nil {
+		return err
+	}
+	defer subMacroList.Unsubscribe()
+	subMacroCreate, err := nc.QueueSubscribe(SubjectMacroCreate, QueueGroup, s.handleMacroCreate)
+	if err != nil {
+		return err
+	}
+	defer subMacroCreate.Unsubscribe()
+	subMacroExecute, err := nc.QueueSubscribe(SubjectMacroExecute, QueueGroup, s.handleMacroExecute)
+	if err != nil {
+		return err
+	}
+	defer subMacroExecute.Unsubscribe()
 	cc, err := s.consumeSnoozeWakes(ctx)
 	if err != nil {
 		return err
@@ -622,6 +664,11 @@ func (s *Service) handleConversationsList(msg *nats.Msg) {
 		if c.SnoozedUntil != nil {
 			row["snoozed_until"] = c.SnoozedUntil.UTC().Format(time.RFC3339)
 		}
+		labels := make([]map[string]any, 0, len(c.Labels))
+		for _, l := range c.Labels {
+			labels = append(labels, map[string]any{"id": l.ID.String(), "name": l.Name, "color": l.Color})
+		}
+		row["labels"] = labels
 		rows = append(rows, row)
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "conversations": rows})
