@@ -97,7 +97,7 @@ export function createLoader(win, opts) {
         iframe.style.right = "0";
         iframe.style.bottom = "0";
         iframe.style.width = "100vw";
-        iframe.style.height = "100dvh";
+        iframe.style.height = mobileFrameHeight();
         iframe.style.borderRadius = "0";
         iframe.style.boxShadow = "none";
       } else {
@@ -136,8 +136,22 @@ export function createLoader(win, opts) {
     },
   };
 
+  function mobileFrameHeight() {
+    const h = win.visualViewport?.height;
+    return typeof h === "number" ? `${Math.round(h)}px` : "100dvh";
+  }
+
+  function syncMobileViewport() {
+    if (!api.open || (win.innerWidth || 1280) >= 480) {
+      return;
+    }
+    iframe.style.height = mobileFrameHeight();
+  }
+
   applyOpen(false, true);
   launcher.addEventListener?.("click", () => applyOpen(true));
+  win.visualViewport?.addEventListener?.("resize", syncMobileViewport);
+  win.visualViewport?.addEventListener?.("scroll", syncMobileViewport);
 
   win.addEventListener("message", (event) => {
     if (!isAllowedOrigin(event.origin, helpdesk)) {

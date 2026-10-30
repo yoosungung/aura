@@ -7,7 +7,7 @@ import test from "node:test";
 const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../widget.html"), "utf8");
 
 test("widget.html chrome matches layout §4", () => {
-  assert.match(html, /Aura 고객센터/);
+  assert.match(html, /💬 Aura 고객센터/);
   assert.match(html, /보통 5분 내 응답합니다/);
   assert.match(html, /id="messages"/);
   assert.match(html, /role="log"/);

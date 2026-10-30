@@ -178,3 +178,25 @@ test("open loader fills the mobile viewport", () => {
   assert.equal(api.iframe.style.height, "100dvh");
   assert.equal(api.iframe.style.inset, "0");
 });
+
+test("open loader follows the mobile visual viewport when the keyboard opens", () => {
+  const win = fakeHost();
+  win.innerWidth = 390;
+  const listeners = [];
+  win.visualViewport = {
+    height: 640,
+    addEventListener(type, fn) {
+      listeners.push({ type, fn });
+    },
+  };
+  const api = createLoader(win, {
+    baseUrl: "https://help.example",
+    inboxId: "inbox-1",
+    token: "secret-token",
+  });
+  api.toggle();
+  assert.equal(api.iframe.style.height, "640px");
+  win.visualViewport.height = 400;
+  listeners.find((l) => l.type === "resize")?.fn();
+  assert.equal(api.iframe.style.height, "400px");
+});

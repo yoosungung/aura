@@ -169,8 +169,18 @@ export function createFrame(win, deps = {}) {
     const item = win.document.createElement
       ? win.document.createElement("li")
       : { textContent: "" };
-    item.textContent = content;
     item.dataset.sender = senderType ?? "";
+    if (win.document.createElement) {
+      const who = win.document.createElement("span");
+      who.className = "who";
+      who.textContent = senderType === "Contact" ? "고객" : "상담원";
+      const body = win.document.createElement("p");
+      body.textContent = content;
+      item.appendChild(who);
+      item.appendChild(body);
+    } else {
+      item.textContent = content;
+    }
     list.appendChild(item);
   }
 
@@ -184,7 +194,7 @@ export function createFrame(win, deps = {}) {
     item.className = "csat";
     item.setAttribute("aria-label", "상담 만족도를 평가해 주세요");
     const title = win.document.createElement("p");
-    title.textContent = content || "상담 만족도를 평가해 주세요";
+    title.textContent = `⭐ ${content || "상담 만족도를 평가해 주세요"}`;
     item.appendChild(title);
     const row = win.document.createElement("div");
     for (let n = 1; n <= 5; n += 1) {

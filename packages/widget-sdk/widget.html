@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
 <title>Aura</title>
 <style>
   :root {
@@ -56,7 +56,17 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+  #messages li .who {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--muted);
+  }
+  #messages li p { margin: 0; }
   #messages li[data-sender="User"] { margin-right: auto; }
+  #messages li[data-sender="Contact"] .who { color: #a1a1aa; }
   #messages li[data-sender="Contact"] {
     margin-left: auto;
     background: var(--primary);
@@ -120,7 +130,7 @@
 </style>
 <header>
   <div class="brand">
-    <strong>Aura 고객센터</strong>
+    <strong>💬 Aura 고객센터</strong>
     <p>보통 5분 내 응답합니다</p>
   </div>
   <button type="button" id="close" aria-label="닫기">✕</button>

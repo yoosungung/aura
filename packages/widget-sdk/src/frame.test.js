@@ -233,6 +233,7 @@ test("frame rates CSAT over public API", async () => {
   const card = log.items.find((el) => el.dataset.csat === "true");
   assert.equal(card.className, "csat");
   assert.equal(card.attrs["aria-label"], "상담 만족도를 평가해 주세요");
+  assert.match(card.children[0].textContent, /^⭐ /);
   await log.buttons[4]();
   const csat = calls.find((c) => String(c.url).endsWith("/csat"));
   assert.equal(csat.url, "https://help.example/public/api/v1/inboxes/inbox-1/csat");
@@ -271,7 +272,9 @@ test("frame marks agent and customer bubbles for the widget timeline", async () 
     }),
   });
   assert.equal(log.items[0].dataset.sender, "Contact");
+  assert.equal(log.items[0].children[0].textContent, "고객");
   assert.equal(log.items[1].dataset.sender, "User");
+  assert.equal(log.items[1].children[0].textContent, "상담원");
 });
 
 test("setUser without identifier_hash does not bind identity", async () => {
