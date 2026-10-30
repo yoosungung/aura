@@ -22,6 +22,8 @@ export function LoginForm({ client, gatewayUrl, onSuccess }) {
         role: data.user.role,
         inboxIds: data.user.inbox_ids || [],
         userId: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
       });
     } catch {
       setError("이메일 또는 비밀번호가 올바르지 않습니다");

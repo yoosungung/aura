@@ -103,7 +103,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.macros.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.create` | `actor_user_id`, `account_id`, `name`, `actions`, `visibility` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.execute` | `actor_user_id`, `account_id`, `conversation_id`, `macro_id` | gateway-web | svc-core |
-| Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids`. 기본 `status <> 'resolved'`. 행에 `sla_breached`, `display_id`, `channel_type` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids`. 기본 `status <> 'resolved'`. 행에 `sla_breached`, `display_id`, `channel_type`, `contact_name`, `contact_email`, `last_activity_at`, `applied_slas` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.messages` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.list` | `actor_user_id`, `account_id`, `inbox_ids` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.identify` | `inbox_id`, `contact_id`, `identifier`, `identifier_hash`. 익명+기존 identifier면 `contact_merged` 후 대상 `contact_id`. 식별된 충돌은 거절 | gateway-web | svc-core |

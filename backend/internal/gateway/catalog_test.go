@@ -37,8 +37,12 @@ func (f *fakeCatalog) Transition(context.Context, uuid.UUID, uuid.UUID, uuid.UUI
 func TestHTTP_ListConversationsAndContacts(t *testing.T) {
 	accountID, actorID, convID := mustV7(t), mustV7(t), mustV7(t)
 	cat := &fakeCatalog{
-		conversations: []gateway.ConversationRow{{ID: convID, LastContent: "결제 오류", Status: "unassigned", Version: 1}},
-		contacts:      []gateway.ContactRow{{ID: mustV7(t), Name: "Ada"}},
+		conversations: []gateway.ConversationRow{{
+			ID: convID, LastContent: "결제 오류", Status: "unassigned", Version: 1,
+			ContactName: "Ada", LastActivityAt: "2026-10-30T05:00:00Z",
+			FRTDueAt: "2026-10-30T06:00:00Z",
+		}},
+		contacts: []gateway.ContactRow{{ID: mustV7(t), Name: "Ada"}},
 	}
 	srv := httptest.NewServer((&gateway.Server{
 		Service: &gateway.Service{Secret: secret, Catalog: cat},
@@ -61,8 +65,13 @@ func TestHTTP_ListConversationsAndContacts(t *testing.T) {
 	}
 	var body struct {
 		Conversations []struct {
-			ID          string `json:"id"`
-			LastContent string `json:"last_content"`
+			ID             string `json:"id"`
+			LastContent    string `json:"last_content"`
+			ContactName    string `json:"contact_name"`
+			LastActivityAt string `json:"last_activity_at"`
+			AppliedSLAs    struct {
+				FRTDueAt string `json:"frt_due_at"`
+			} `json:"applied_slas"`
 		} `json:"conversations"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
@@ -70,6 +79,12 @@ func TestHTTP_ListConversationsAndContacts(t *testing.T) {
 	}
 	if len(body.Conversations) != 1 || body.Conversations[0].LastContent != "결제 오류" {
 		t.Fatalf("%+v", body)
+	}
+	if body.Conversations[0].ContactName != "Ada" || body.Conversations[0].LastActivityAt != "2026-10-30T05:00:00Z" {
+		t.Fatalf("queue fields %+v", body.Conversations[0])
+	}
+	if body.Conversations[0].AppliedSLAs.FRTDueAt != "2026-10-30T06:00:00Z" {
+		t.Fatalf("sla %+v", body.Conversations[0].AppliedSLAs)
 	}
 
 	req, err = http.NewRequest(http.MethodGet, srv.URL+"/api/v1/accounts/"+accountID.String()+"/contacts", nil)

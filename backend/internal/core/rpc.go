@@ -752,30 +752,7 @@ func (s *Service) handleConversationsList(msg *nats.Msg) {
 	}
 	rows := make([]map[string]any, 0, len(list))
 	for _, c := range list {
-		row := map[string]any{
-			"id":               c.ID.String(),
-			"inbox_id":         c.InboxID.String(),
-			"contact_id":       c.ContactID.String(),
-			"contact_inbox_id": c.ContactInboxID.String(),
-			"status":           c.Status,
-			"version":          c.Version,
-			"display_id":       c.DisplayID,
-			"last_content":     c.LastContent,
-			"sla_breached":     c.SLABreached,
-			"channel_type":     c.Channel,
-		}
-		if c.AssigneeID != uuid.Nil {
-			row["assignee_id"] = c.AssigneeID.String()
-		}
-		if c.SnoozedUntil != nil {
-			row["snoozed_until"] = c.SnoozedUntil.UTC().Format(time.RFC3339)
-		}
-		labels := make([]map[string]any, 0, len(c.Labels))
-		for _, l := range c.Labels {
-			labels = append(labels, map[string]any{"id": l.ID.String(), "name": l.Name, "color": l.Color})
-		}
-		row["labels"] = labels
-		rows = append(rows, row)
+		rows = append(rows, EncodeConversationList(c))
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "conversations": rows})
 	_ = msg.Respond(body)

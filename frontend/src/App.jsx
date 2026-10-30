@@ -15,6 +15,7 @@ import { Button } from "./components/ui/button.jsx";
 import { Textarea } from "./components/ui/textarea.jsx";
 import { bindAuth } from "./gateway.js";
 import {
+  channelLabel,
   conversationsFromAPI,
   emptyState,
   formatClock,
@@ -56,6 +57,8 @@ export function App({ session: initialSession, client, initialState = emptyState
       role: next.user?.role || next.role || prev.role,
       inboxIds: next.user?.inbox_ids || next.inboxIds || prev.inboxIds,
       userId: next.user?.id || next.userId || prev.userId,
+      name: next.user?.name || next.name || prev.name,
+      email: next.user?.email || next.email || prev.email,
     }));
   }
 
@@ -382,10 +385,13 @@ export function App({ session: initialSession, client, initialState = emptyState
       <aside className="rail" aria-label="워크스페이스">
         <div className="rail-top">
           <span
-            className="availability"
+            className="rail-avatar"
             data-availability={session.availabilityStatus || "online"}
             aria-label="가용 상태"
-          />
+          >
+            {agentInitials(session)}
+            <span className="availability" data-availability={session.availabilityStatus || "online"} />
+          </span>
           <Button
             variant={view === "inbox" ? "secondary" : "ghost"}
             size="icon"
@@ -472,7 +478,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                       onClick={() => dispatch({ type: "select", id: c.id })}
                     >
                       <span className="queue-card-meta">
-                        {c.channel ? <Badge variant="outline">{c.channel}</Badge> : null}
+                        {c.channel ? <Badge variant="outline">{channelLabel(c.channel)}</Badge> : null}
                         {c.displayId ? <span>#{c.displayId}</span> : null}
                         {c.contactName ? <span>{c.contactName}</span> : null}
                         {c.slaBreached ? (
@@ -516,9 +522,10 @@ export function App({ session: initialSession, client, initialState = emptyState
                     ) : null}
                     {selected.displayId ? (
                       <span className="font-medium">#{selected.displayId}</span>
-                    ) : (
-                      <span className="font-medium">{selected.lastContent}</span>
-                    )}
+                    ) : null}
+                    {selected.lastContent ? (
+                      <span className="thread-header-preview">{selected.lastContent}</span>
+                    ) : null}
                     {selected.status ? statusBadge(selected.status) : null}
                   </div>
                   <div className="thread-header-actions">
@@ -580,7 +587,9 @@ export function App({ session: initialSession, client, initialState = emptyState
                       data-private={m.private ? "true" : undefined}
                       className={bubbleClass(m)}
                     >
-                      {m.private ? <span className="note-caption">🔒 내부 메모</span> : null}
+                      {m.private ? (
+                        <span className="note-caption">🔒 내부 메모 (상담원에게만 보임)</span>
+                      ) : null}
                       {m.content}
                       {(m.attachments || []).map((a) => (
                         <a
@@ -590,6 +599,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         >
                           {a.file_name || a.filename || fileName(a.external_url)}
                           {a.file_size != null ? ` (${a.file_size} B)` : null}
+                          {" 열기"}
                         </a>
                       ))}
                       {m.createdAt || (!m.private && m.senderType === "User") ? (
@@ -720,7 +730,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                   onUnlabeled={(next) => dispatch({ type: "unlabeled", ...next })}
                 />
                 <section className="context-card" aria-label="채널 상태">
-                  {selected.channel ? <p>채널 {selected.channel}</p> : null}
+                  {selected.channel ? <p>채널 {channelLabel(selected.channel)}</p> : null}
                   {selected.channel === "email" && selected.displayId ? (
                     <p>#REQ-{selected.displayId}</p>
                   ) : null}
@@ -746,6 +756,16 @@ export function App({ session: initialSession, client, initialState = emptyState
       )}
     </div>
   );
+}
+
+function agentInitials(session) {
+  const name = (session.name || "").trim();
+  if (name) {
+    const parts = name.split(/\s+/);
+    return ((parts[0][0] || "") + (parts[1]?.[0] || "")).toUpperCase();
+  }
+  const email = (session.email || "").trim();
+  return email ? email[0].toUpperCase() : "A";
 }
 
 function layoutFor(width) {

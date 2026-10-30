@@ -52,9 +52,25 @@ body,
   gap: 8px;
 }
 
+.rail-avatar {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .availability {
+  position: absolute;
+  right: 0;
+  bottom: 0;
   width: 8px;
   height: 8px;
+  border: 1px solid #fff;
   border-radius: 9999px;
   background: #94a3b8;
 }
@@ -186,6 +202,16 @@ body,
 .thread-header-id {
   min-width: 0;
   overflow: hidden;
+}
+
+.thread-header-preview {
+  overflow: hidden;
+  max-width: 28ch;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-menu {

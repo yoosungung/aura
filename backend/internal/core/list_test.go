@@ -53,6 +53,9 @@ func TestListConversations_OnlyActorInboxes(t *testing.T) {
 	if list[0].Channel != "web" || list[0].DisplayID == 0 {
 		t.Fatalf("channel/display %+v", list[0])
 	}
+	if list[0].ContactName != "Ada" || list[0].LastActivityAt.IsZero() {
+		t.Fatalf("contact/activity %+v", list[0])
+	}
 	if _, err := svc.CreateAccountLabel(ctx, core.LabelInput{
 		ActorUserID: adminID, AccountID: accountID, Name: "결제",
 	}); err != nil {
@@ -107,6 +110,44 @@ func TestListConversations_ExcludesResolved(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].ID != open.ConversationID || list[0].Status == core.StatusResolved {
 		t.Fatalf("%+v", list)
+	}
+}
+
+func TestListConversations_IncludesSLADues(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	svc := &core.Service{DB: app}
+	created, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "w1", Name: "Ada",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := created.ConversationID
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO sla_policies (id, account_id, name, frt_threshold_seconds, nrt_threshold_seconds, rt_threshold_seconds)
+		VALUES ($1,$2,'p',60,120,3600)`, policyID, accountID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO applied_slas (account_id, conversation_id, sla_policy_id, frt_due_at)
+		VALUES ($1,$2,$3, TIMESTAMPTZ '2026-10-30 06:00:00+00')`, accountID, due, policyID); err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListConversations(ctx, core.ListInput{
+		ActorUserID: adminID, AccountID: accountID, InboxIDs: []uuid.UUID{inboxID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].FRTDueAt == nil || list[0].FRTDueAt.UTC().Format("15:04") != "06:00" {
+		t.Fatalf("sla %+v", list)
 	}
 }
 

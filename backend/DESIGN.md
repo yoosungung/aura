@@ -16,7 +16,7 @@
 - 첨부는 SeaweedFS 필러 HTTP다. 게이트웨이는 PG에 쓰지 않고 `{account_id}/{attachment_id}/{filename}`에 PUT한 뒤 `message_created.payload.attachments`에 URL만 넣는다. ingestion이 `attachments` 행을 `ON CONFLICT (id) DO NOTHING`으로 넣는다.
 - Client API `POST /public/api/v1/inboxes/{inbox_id}/messages`: 토큰에 대화 ID가 없으면 `helpdesk.rpc.conversations.create`가 성공한 뒤에만 `message_created`와 `helpdesk.realtime.<account_id>.<conversation_id>.updated`를 발행한다. RPC 실패 시 둘 다 없다. 기존 대화는 create를 건너뛴다.
 - Application API `POST /api/v1/accounts/{account_id}/conversations/{id}/messages`: User 토큰의 `inbox_ids`에 요청 `inbox_id`가 있을 때만 outgoing `message_created`. 대화 행 조회가 없으므로 바디에 `inbox_id`·`contact_id`·`contact_inbox_id`가 필요하다. 이메일 인박스면 `conversations.email_reply`가 스킵이 아닐 때 `payload.source_id`를 Message-ID로 넣고 `helpdesk.tasks.outbound.email`을 발행한다. 카카오면 `conversations.kakao_reply`가 세션이 살아 있을 때만 `helpdesk.tasks.outbound.kakao`를 발행한다.
-- Application API 목록은 게이트웨이 HTTP → `helpdesk.rpc.conversations.list` / `messages` / `contacts.list`. 배속 인박스만. 대화 목록 기본은 `status <> 'resolved'`. 행에 `display_id`·`channel_type`·`sla_breached`. 담당자 쿼리는 두지 않는다. `PUT .../status`는 기존 transition RPC다.
+- Application API 목록은 게이트웨이 HTTP → `helpdesk.rpc.conversations.list` / `messages` / `contacts.list`. 배속 인박스만. 대화 목록 기본은 `status <> 'resolved'`. 행에 `display_id`·`channel_type`·`sla_breached`·`contact_name`·`contact_email`·`last_activity_at`·`applied_slas`(FRT/NRT/RT due). 담당자 쿼리는 두지 않는다. `PUT .../status`는 기존 transition RPC다.
 - WS `GET /ws?token=`: Contact는 자기 `conversation_id`만, User는 클레임 `inbox_ids`에 속한 대화만 받는다. 연결 후 `{"type":"ready"}`. Origin은 비어 있거나 `http`/`https`만 허용한다. SPA는 접근 토큰이 바뀌면 재연결한다.
 
 ## Commands

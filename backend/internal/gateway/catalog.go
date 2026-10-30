@@ -32,6 +32,12 @@ type ConversationRow struct {
 	Labels         []LabelOut
 	SLABreached    bool
 	Channel        string
+	ContactName    string
+	ContactEmail   string
+	LastActivityAt string
+	FRTDueAt       string
+	NRTDueAt       string
+	RTDueAt        string
 }
 
 type MessageRow struct {
@@ -88,6 +94,18 @@ func (s *Server) handleConversationList(w http.ResponseWriter, r *http.Request) 
 		}
 		if c.SnoozedUntil != "" {
 			row["snoozed_until"] = c.SnoozedUntil
+		}
+		if c.ContactName != "" {
+			row["contact_name"] = c.ContactName
+		}
+		if c.ContactEmail != "" {
+			row["contact_email"] = c.ContactEmail
+		}
+		if c.LastActivityAt != "" {
+			row["last_activity_at"] = c.LastActivityAt
+		}
+		if sla := appliedSLAJSON(c); sla != nil {
+			row["applied_slas"] = sla
 		}
 		labels := make([]map[string]string, 0, len(c.Labels))
 		for _, l := range c.Labels {
@@ -226,6 +244,23 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+func appliedSLAJSON(c ConversationRow) map[string]any {
+	if c.FRTDueAt == "" && c.NRTDueAt == "" && c.RTDueAt == "" {
+		return nil
+	}
+	sla := map[string]any{}
+	if c.FRTDueAt != "" {
+		sla["frt_due_at"] = c.FRTDueAt
+	}
+	if c.NRTDueAt != "" {
+		sla["nrt_due_at"] = c.NRTDueAt
+	}
+	if c.RTDueAt != "" {
+		sla["rt_due_at"] = c.RTDueAt
+	}
+	return sla
+}
+
 func writeCatalogErr(w http.ResponseWriter, err error) {
 	code := http.StatusBadGateway
 	if errors.Is(err, core.ErrDenied) || err.Error() == "forbidden" {
@@ -261,7 +296,15 @@ func (r *natsRPC) ListConversations(ctx context.Context, actor, account uuid.UUI
 			LastContent    string `json:"last_content"`
 			SLABreached    bool   `json:"sla_breached"`
 			Channel        string `json:"channel_type"`
-			Labels         []struct {
+			ContactName    string `json:"contact_name"`
+			ContactEmail   string `json:"contact_email"`
+			LastActivityAt string `json:"last_activity_at"`
+			AppliedSLAs    struct {
+				FRTDueAt string `json:"frt_due_at"`
+				NRTDueAt string `json:"nrt_due_at"`
+				RTDueAt  string `json:"rt_due_at"`
+			} `json:"applied_slas"`
+			Labels []struct {
 				ID    string `json:"id"`
 				Name  string `json:"name"`
 				Color string `json:"color"`
@@ -285,6 +328,8 @@ func (r *natsRPC) ListConversations(ctx context.Context, actor, account uuid.UUI
 			ContactInboxID: parseUUID(c.ContactInboxID), AssigneeID: parseUUID(c.AssigneeID),
 			Status: c.Status, Version: c.Version, SnoozedUntil: c.SnoozedUntil,
 			DisplayID: c.DisplayID, LastContent: c.LastContent, SLABreached: c.SLABreached, Channel: c.Channel, Labels: labels,
+			ContactName: c.ContactName, ContactEmail: c.ContactEmail, LastActivityAt: c.LastActivityAt,
+			FRTDueAt: c.AppliedSLAs.FRTDueAt, NRTDueAt: c.AppliedSLAs.NRTDueAt, RTDueAt: c.AppliedSLAs.RTDueAt,
 		})
 	}
 	return rows, nil

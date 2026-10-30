@@ -329,9 +329,9 @@ test("ticket view uploads an attachment", async () => {
   expect(uploaded[0].conversation.id).toBe("c1");
   expect(uploaded[0].file.name).toBe("receipt.png");
   expect(screen.getByRole("log").textContent).toContain("receipt.png");
-  expect(screen.getByRole("link", { name: /receipt.png/ }).getAttribute("href")).toContain(
-    "http://127.0.0.1:8888/acc/a1/receipt.png",
-  );
+  const attach = screen.getByRole("link", { name: /receipt.png/ });
+  expect(attach.getAttribute("href")).toContain("http://127.0.0.1:8888/acc/a1/receipt.png");
+  expect(attach.textContent).toContain("열기");
 });
 
 test("ticket view keeps a note, a label, and an attachment on the same thread", async () => {
@@ -698,7 +698,7 @@ test("queue card shows channel ticket number and sla", () => {
     />,
   );
   const card = screen.getByRole("button", { name: /결제 오류/ });
-  expect(card.textContent).toContain("web");
+  expect(card.textContent).toContain("Web");
   expect(card.textContent).toContain("#1042");
   expect(card.textContent).toContain("SLA");
 });
@@ -813,7 +813,7 @@ test("rail shows unread availability shortcuts and signs out", async () => {
   const left = [];
   render(
     <App
-      session={{ ...session, availabilityStatus: "online" }}
+      session={{ ...session, availabilityStatus: "online", name: "Ada", email: "ada@acme.test" }}
       client={{
         connect() {},
         async signOut(req) {
@@ -823,7 +823,9 @@ test("rail shows unread availability shortcuts and signs out", async () => {
       initialState={fixtureState()}
     />,
   );
-  expect(document.querySelector("[data-availability]").getAttribute("data-availability")).toBe("online");
+  const avatar = screen.getByLabelText("가용 상태");
+  expect(avatar.getAttribute("data-availability")).toBe("online");
+  expect(avatar.textContent).toMatch(/A/);
   expect(screen.getByRole("button", { name: "대기열" }).textContent).toContain("1");
   await user.click(screen.getByRole("button", { name: "단축키" }));
   expect(screen.getByRole("dialog", { name: "단축키" }).textContent).toMatch(/J|K|R|N|E/);
@@ -905,8 +907,9 @@ test("thread header uses ticket number and timeline stamps", async () => {
   );
   await user.click(screen.getByRole("button", { name: /결제 오류/ }));
   expect(document.querySelector(".thread-header").textContent).toContain("#1042");
+  expect(document.querySelector(".thread-header").textContent).toContain("결제 오류");
   expect(screen.getByRole("log").textContent).toMatch(/전송됨/);
-  expect(screen.getByRole("log").textContent).toMatch(/내부 메모/);
+  expect(screen.getByRole("log").textContent).toMatch(/내부 메모 \(상담원에게만 보임\)/);
   expect(screen.getByRole("region", { name: "고객 프로필" }).textContent).toMatch(/홍길동/);
   expect(screen.getByRole("region", { name: "채널 상태" }).textContent).toMatch(/#REQ-1042|FRT/);
 });

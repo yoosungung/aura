@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { conversationsFromAPI, emptyState, messagesFromAPI, reduce, visibleInQueue } from "./store.js";
+import {
+  channelLabel,
+  conversationsFromAPI,
+  emptyState,
+  messagesFromAPI,
+  reduce,
+  visibleInQueue,
+} from "./store.js";
 
 function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
   return {
@@ -29,6 +36,7 @@ describe("reduce realtime", () => {
     assert.equal(s.conversations.length, 1);
     assert.equal(s.conversations[0].lastContent, "결제 오류");
     assert.equal(s.conversations[0].unread, 1);
+    assert.ok(s.conversations[0].lastActivityAt);
     assert.equal(s.messages.c1[0].content, "결제 오류");
   });
 
@@ -246,6 +254,14 @@ describe("conversationsFromAPI", () => {
     assert.equal(rows[0].contactEmail, "ada@acme.test");
     assert.equal(rows[0].lastActivityAt, "2026-10-30T05:00:00Z");
     assert.equal(rows[0].appliedSlas.frtDueAt, "2026-10-30T06:00:00Z");
+  });
+});
+
+describe("channelLabel", () => {
+  it("maps channel_type to the queue badge", () => {
+    assert.equal(channelLabel("web"), "Web");
+    assert.equal(channelLabel("kakao"), "Kakao");
+    assert.equal(channelLabel("email"), "Email");
   });
 });
 

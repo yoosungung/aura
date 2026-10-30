@@ -24,6 +24,17 @@ export function fixtureState() {
   };
 }
 
+export const CHANNEL_LABELS = {
+  web: "Web",
+  kakao: "Kakao",
+  email: "Email",
+  social: "Social",
+};
+
+export function channelLabel(channel) {
+  return CHANNEL_LABELS[channel] || channel || "";
+}
+
 export function conversationsFromAPI(rows) {
   return (rows || []).map((c) => ({
     id: c.id,
@@ -289,6 +300,7 @@ function applyRealtime(state, event) {
     contactId: payload.contact_id || prev?.contactId,
     contactInboxId: payload.contact_inbox_id || prev?.contactInboxId,
     lastContent: content,
+    lastActivityAt: msg.createdAt || new Date().toISOString(),
     unread: selected ? 0 : (prev?.unread ?? 0) + 1,
     labels: prev?.labels || [],
   };

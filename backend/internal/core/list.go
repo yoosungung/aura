@@ -30,6 +30,12 @@ type ConversationRow struct {
 	Labels         []Label
 	SLABreached    bool
 	Channel        string
+	ContactName    string
+	ContactEmail   string
+	LastActivityAt time.Time
+	FRTDueAt       *time.Time
+	NRTDueAt       *time.Time
+	RTDueAt        *time.Time
 }
 
 type MessageRow struct {
@@ -75,9 +81,19 @@ func (s *Service) ListConversations(ctx context.Context, in ListInput) ([]Conver
 					WHERE a.conversation_id = c.id
 						AND (a.is_frt_breached OR a.is_nrt_breached OR a.is_rt_breached)
 				),
-				COALESCE(i.channel_type, '')
+				COALESCE(i.channel_type, ''),
+				COALESCE(ct.name, ''), COALESCE(ct.email, ''),
+				COALESCE((SELECT m.created_at FROM messages m
+					WHERE m.conversation_id = c.id AND NOT m.private
+					ORDER BY m.created_at DESC LIMIT 1), c.updated_at),
+				sla.frt_due_at, sla.nrt_due_at, sla.rt_due_at
 			FROM conversations c
 			JOIN inboxes i ON i.id = c.inbox_id
+			JOIN contacts ct ON ct.id = c.contact_id
+			LEFT JOIN LATERAL (
+				SELECT frt_due_at, nrt_due_at, rt_due_at
+				FROM applied_slas a WHERE a.conversation_id = c.id LIMIT 1
+			) sla ON true
 			WHERE c.account_id = $1 AND c.inbox_id = ANY($2) AND c.status <> 'resolved'
 			ORDER BY c.updated_at DESC`,
 			in.AccountID, inboxIDs)
@@ -89,7 +105,8 @@ func (s *Service) ListConversations(ctx context.Context, in ListInput) ([]Conver
 			var row ConversationRow
 			var labels []byte
 			if err := rows.Scan(&row.ID, &row.InboxID, &row.ContactID, &row.ContactInboxID, &row.AssigneeID,
-				&row.Status, &row.Version, &row.SnoozedUntil, &row.DisplayID, &row.LastContent, &labels, &row.SLABreached, &row.Channel); err != nil {
+				&row.Status, &row.Version, &row.SnoozedUntil, &row.DisplayID, &row.LastContent, &labels, &row.SLABreached, &row.Channel,
+				&row.ContactName, &row.ContactEmail, &row.LastActivityAt, &row.FRTDueAt, &row.NRTDueAt, &row.RTDueAt); err != nil {
 				return err
 			}
 			if err := json.Unmarshal(labels, &row.Labels); err != nil {
@@ -243,6 +260,62 @@ func (s *Service) withActorAccount(ctx context.Context, in ListInput, fn func(pg
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func EncodeConversationList(c ConversationRow) map[string]any {
+	row := map[string]any{
+		"id":               c.ID.String(),
+		"inbox_id":         c.InboxID.String(),
+		"contact_id":       c.ContactID.String(),
+		"contact_inbox_id": c.ContactInboxID.String(),
+		"status":           c.Status,
+		"version":          c.Version,
+		"display_id":       c.DisplayID,
+		"last_content":     c.LastContent,
+		"sla_breached":     c.SLABreached,
+		"channel_type":     c.Channel,
+	}
+	if c.AssigneeID != uuid.Nil {
+		row["assignee_id"] = c.AssigneeID.String()
+	}
+	if c.SnoozedUntil != nil {
+		row["snoozed_until"] = c.SnoozedUntil.UTC().Format(time.RFC3339)
+	}
+	if c.ContactName != "" {
+		row["contact_name"] = c.ContactName
+	}
+	if c.ContactEmail != "" {
+		row["contact_email"] = c.ContactEmail
+	}
+	if !c.LastActivityAt.IsZero() {
+		row["last_activity_at"] = c.LastActivityAt.UTC().Format(time.RFC3339)
+	}
+	if sla := encodeAppliedSLA(c); sla != nil {
+		row["applied_slas"] = sla
+	}
+	labels := make([]map[string]any, 0, len(c.Labels))
+	for _, l := range c.Labels {
+		labels = append(labels, map[string]any{"id": l.ID.String(), "name": l.Name, "color": l.Color})
+	}
+	row["labels"] = labels
+	return row
+}
+
+func encodeAppliedSLA(c ConversationRow) map[string]any {
+	if c.FRTDueAt == nil && c.NRTDueAt == nil && c.RTDueAt == nil {
+		return nil
+	}
+	sla := map[string]any{}
+	if c.FRTDueAt != nil {
+		sla["frt_due_at"] = c.FRTDueAt.UTC().Format(time.RFC3339)
+	}
+	if c.NRTDueAt != nil {
+		sla["nrt_due_at"] = c.NRTDueAt.UTC().Format(time.RFC3339)
+	}
+	if c.RTDueAt != nil {
+		sla["rt_due_at"] = c.RTDueAt.UTC().Format(time.RFC3339)
+	}
+	return sla
 }
 
 func memberInboxIDs(ctx context.Context, tx pgx.Tx, actor uuid.UUID, requested []uuid.UUID) ([]uuid.UUID, error) {
