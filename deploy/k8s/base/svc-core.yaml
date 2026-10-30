@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-core
+  template:
+    metadata:
+      labels:
+        app: svc-core
+    spec:
+      containers:
+        - name: svc-core
+          image: aura/svc-core:main
+          envFrom:
+            - configMapRef:
+                name: aura-config
+          env:
+            - name: AURA_PLATFORM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aura-secrets
+                  key: AURA_PLATFORM_TOKEN
+                  optional: true

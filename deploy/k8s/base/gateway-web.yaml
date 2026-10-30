@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-web
+  template:
+    metadata:
+      labels:
+        app: gateway-web
+    spec:
+      containers:
+        - name: gateway-web
+          image: aura/gateway-web:main
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: aura-config
+          env:
+            - name: AURA_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aura-secrets
+                  key: AURA_TOKEN_SECRET
+            - name: AURA_PLATFORM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aura-secrets
+                  key: AURA_PLATFORM_TOKEN
+                  optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-web
+spec:
+  selector:
+    app: gateway-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

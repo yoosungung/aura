@@ -13,6 +13,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/gateway"
 	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/limit"
 )
 
 func main() {
@@ -41,6 +42,7 @@ func main() {
 		Kakao:       n,
 		Bus:         gateway.NewBus(nc, js),
 		JS:          js,
+		Guard:       limit.DefaultGuard(),
 		KakaoSender: gateway.KakaoHub{BaseURL: os.Getenv("AURA_KAKAO_API_URL"), Token: os.Getenv("AURA_KAKAO_API_KEY")},
 	}
 	srv := &gateway.Server{Service: svc, NC: nc}

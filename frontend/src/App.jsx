@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
+import { ApprovalCard } from "./components/ApprovalCard.jsx";
 import { AssignTicket } from "./components/AssignTicket.jsx";
 import { ArticleSettings } from "./components/ArticleSettings.jsx";
 import { CatalogSettings } from "./components/CatalogSettings.jsx";
@@ -6,6 +7,7 @@ import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { ReportSettings } from "./components/ReportSettings.jsx";
 import { WebhookSettings } from "./components/WebhookSettings.jsx";
+import { LivingProfile } from "./components/LivingProfile.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
 import { LoginForm } from "./components/LoginForm.jsx";
 import { ResolveTicket } from "./components/ResolveTicket.jsx";
@@ -33,6 +35,7 @@ import {
 export function App({ session: initialSession, client, initialState = emptyState, viewportWidth }) {
   const [session, setSession] = useState(initialSession);
   const [canned, setCanned] = useState([]);
+  const [ego, setEgo] = useState([]);
   const [view, setView] = useState("inbox");
   const [composeMode, setComposeMode] = useState("reply");
   const [contextOpen, setContextOpen] = useState(false);
@@ -225,6 +228,34 @@ export function App({ session: initialSession, client, initialState = emptyState
       cancelled = true;
     };
   }, [state.selectedId, session, client]);
+
+  useEffect(() => {
+    if (!selected?.contactId || !session.token || !client.listEgo) {
+      setEgo([]);
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listEgo({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        contactId: selected.contactId,
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setEgo(data?.nodes || []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEgo([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.contactId, session, client]);
 
   useEffect(() => {
     function onKey(e) {
@@ -733,7 +764,25 @@ export function App({ session: initialSession, client, initialState = emptyState
                       {m.private ? (
                         <span className="note-caption">🔒 내부 메모 (상담원에게만 보임)</span>
                       ) : null}
-                      {m.content}
+                      {m.contentType === "form" ? (
+                        <ApprovalCard
+                          message={m}
+                          onApprove={(card) => {
+                            if (!client.approveTool) {
+                              return;
+                            }
+                            client.approveTool({
+                              gatewayUrl: session.gatewayUrl,
+                              accountId: session.accountId,
+                              token: session.token,
+                              conversationId: selected.id,
+                              executionId: card.execution_id,
+                            });
+                          }}
+                        />
+                      ) : (
+                        m.content
+                      )}
                       {(m.attachments || []).map((a) => {
                         const name = a.file_name || a.filename || fileName(a.external_url);
                         return (
@@ -912,6 +961,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                   onLabeled={(next) => dispatch({ type: "labeled", ...next })}
                   onUnlabeled={(next) => dispatch({ type: "unlabeled", ...next })}
                 />
+                <LivingProfile nodes={ego} />
                 <section className="context-card" aria-label="채널 상태">
                   {selected.channel ? <p>채널 {channelLabel(selected.channel)}</p> : null}
                   {selected.channel === "email" && selected.displayId ? (

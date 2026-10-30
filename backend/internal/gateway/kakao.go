@@ -84,6 +84,7 @@ func (s *Service) AcceptKakao(ctx context.Context, raw []byte) error {
 	}
 	_, _, err = s.publishMessage(ctx, accountID, inboxID, out.ConversationID, out.ContactID, out.ContactInboxID, out.ContactID, content, "Contact", MessageIncoming, messageMeta{
 		SourceID: hook.MsgKey,
+		Channel:  "kakao",
 	})
 	return err
 }

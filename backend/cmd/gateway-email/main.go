@@ -12,6 +12,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/gateway"
 	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/limit"
 )
 
 func main() {
@@ -43,6 +44,7 @@ func main() {
 		Bus:    gateway.NewBus(nc, js),
 		Blobs:  &gateway.FilerStore{Endpoint: filer, Public: public},
 		JS:     js,
+		Guard:  limit.DefaultGuard(),
 		Mailer: gateway.SMTPRelay{Addr: getenv("AURA_SMTP_RELAY", "127.0.0.1:2525")},
 	}
 	go func() {

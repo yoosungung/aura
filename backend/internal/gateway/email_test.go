@@ -175,7 +175,7 @@ need help
 		t.Fatalf("creates=%d", email.createCount())
 	}
 	ev, rt := bus.counts()
-	if ev != 1 || rt != 1 {
+	if ev != 2 || rt != 1 {
 		t.Fatalf("events=%d realtime=%d", ev, rt)
 	}
 	var env contracts.MessageCreated
@@ -421,7 +421,7 @@ hello smtp
 
 	deadline = time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if ev, _ := bus.counts(); ev == 1 {
+		if ev, _ := bus.counts(); ev >= 1 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)

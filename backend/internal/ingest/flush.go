@@ -127,6 +127,18 @@ func applyAll(ctx context.Context, tx pgx.Tx, items []Ackable) error {
 			if err := insertCSAT(ctx, tx, it.Data); err != nil {
 				return err
 			}
+		case "tool_execution":
+			if err := insertToolExecution(ctx, tx, it.Data); err != nil {
+				return err
+			}
+		case "ontology_extracted":
+			if err := insertOntology(ctx, tx, it.Data); err != nil {
+				return err
+			}
+		case "embedding_upsert":
+			if err := insertEmbedding(ctx, tx, it.Data); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

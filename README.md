@@ -13,4 +13,4 @@ go run ./cmd/ingestion-worker
 go run ./cmd/svc-core
 ```
 
-명령의 정본은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`. 스택은 Go 코어, Python `svc-ai-agent`, React 상담원 SPA다.
+명령의 정본은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`. 스택은 Go 코어, Python `svc-ai-agent`, React 상담원 SPA다. 배포는 [deploy/SETUP.md](deploy/SETUP.md).

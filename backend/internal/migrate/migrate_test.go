@@ -89,6 +89,52 @@ func TestUp_PublicArticlesSearch(t *testing.T) {
 	}
 }
 
+func TestUp_EmbeddingsSeparatedAndTemporalEdges(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+
+	var n int
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*) FROM information_schema.columns
+		WHERE table_name = 'articles' AND column_name = 'embedding'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("articles.embedding should be dropped")
+	}
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*) FROM information_schema.columns
+		WHERE table_name = 'ontology_nodes' AND column_name = 'embedding'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("ontology_nodes.embedding should be dropped")
+	}
+	var col string
+	if err := admin.QueryRow(ctx, `
+		SELECT column_name FROM information_schema.columns
+		WHERE table_name = 'ontology_edges' AND column_name = 'valid_until'`).Scan(&col); err != nil {
+		t.Fatalf("valid_until: %v", err)
+	}
+	if err := admin.QueryRow(ctx, `
+		SELECT indexname FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw'`).Scan(&col); err != nil {
+		t.Fatalf("hnsw: %v", err)
+	}
+	var forced bool
+	if err := admin.QueryRow(ctx, `SELECT relforcerowsecurity FROM pg_class WHERE relname = 'embeddings'`).Scan(&forced); err != nil {
+		t.Fatal(err)
+	}
+	if !forced {
+		t.Fatal("expected FORCE RLS on embeddings")
+	}
+	if err := app.QueryRow(ctx, `SELECT count(*) FROM embeddings`).Scan(&n); err != nil {
+		t.Fatalf("app embeddings: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0 visible embeddings without guc, got %d", n)
+	}
+}
+
 func TestUp_AppCannotBypassRLS(t *testing.T) {
 	ctx := context.Background()
 	_, app := testutil.Postgres(t)

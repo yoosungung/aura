@@ -83,6 +83,7 @@ func (s *Service) AcceptEmail(ctx context.Context, raw []byte, envelopeFrom stri
 	_, _, err = s.publishMessage(ctx, accountID, inboxID, out.ConversationID, out.ContactID, out.ContactInboxID, out.ContactID, content, "Contact", MessageIncoming, messageMeta{
 		SourceID:   parsed.MessageID,
 		ContentRef: contentRef,
+		Channel:    "email",
 	})
 	return err
 }

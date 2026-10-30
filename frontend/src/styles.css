@@ -440,6 +440,42 @@ select {
   padding: 12px;
 }
 
+.profile-chips,
+.approval-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.approval-card {
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff7ed;
+}
+
+.profile-chips [data-entity="PainPoint"] {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.profile-chips [data-entity="Product"] {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.profile-chips [data-entity="Preference"] {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.profile-chips [data-entity="Feature"] {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 .context-card,
 .settings-pane {
   display: flex;

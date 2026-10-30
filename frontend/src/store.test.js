@@ -5,6 +5,7 @@ import {
   conversationsFromAPI,
   emptyState,
   messagesFromAPI,
+  parseApproval,
   parseSession,
   reduce,
   visibleInQueue,
@@ -341,5 +342,13 @@ describe("optimistic send", () => {
     });
     assert.equal(s.messages.c1.at(-1).private, true);
     assert.equal(s.conversations[0].lastContent, "결제 오류");
+  });
+});
+
+describe("approval card", () => {
+  it("parses tool_approval json", () => {
+    const card = parseApproval(JSON.stringify({ kind: "tool_approval", execution_id: "e1", tool_name: "refund" }));
+    assert.equal(card.execution_id, "e1");
+    assert.equal(parseApproval("hi"), null);
   });
 });

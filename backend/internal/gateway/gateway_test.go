@@ -80,10 +80,12 @@ func (f *fakeBus) PublishEvent(_ context.Context, subject string, data []byte) e
 func (f *fakeBus) lastEvent() []byte {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(f.payloads) == 0 {
-		return nil
+	for i := len(f.events) - 1; i >= 0; i-- {
+		if !strings.Contains(f.events[i], "helpdesk.tasks.ai.") {
+			return f.payloads[i]
+		}
 	}
-	return f.payloads[len(f.payloads)-1]
+	return nil
 }
 
 func (f *fakeBus) PublishRealtime(subject string, _ []byte) error {
@@ -126,7 +128,7 @@ func TestSubmit_NewConversation_CreateThenPublish(t *testing.T) {
 		t.Fatalf("create calls=%d", rpc.n())
 	}
 	ev, rt := bus.counts()
-	if ev != 1 || rt != 1 {
+	if ev != 2 || rt != 1 {
 		t.Fatalf("events=%d realtime=%d", ev, rt)
 	}
 	if got.ConversationID != outIDs.ConversationID || got.MessageID == uuid.Nil {
@@ -174,7 +176,7 @@ func TestSubmit_Existing_SkipsCreate(t *testing.T) {
 		t.Fatalf("create calls=%d", rpc.n())
 	}
 	ev, rt := bus.counts()
-	if ev != 1 || rt != 1 {
+	if ev != 2 || rt != 1 {
 		t.Fatalf("events=%d realtime=%d", ev, rt)
 	}
 }

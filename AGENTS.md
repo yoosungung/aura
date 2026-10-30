@@ -16,8 +16,10 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `contracts/` | 이벤트·RPC JSON Schema. Go 생성 타입은 `backend/internal/contracts` | `contracts/` |
 | `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
+| `deploy/SETUP.md` | 로컬·클러스터 배포 런북 | `deploy/SETUP.md` |
+| `deploy/k8s/base/` | Kustomize 베이스 | `deploy/k8s/base/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
-| `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/` |
+| `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/` |
  
 규칙:
  
@@ -38,5 +40,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P6 플랫폼 완료(Platform API 테넌트 프로비저닝, Client API 정식 경로, HMAC 웹훅·재시도, 리포트 CSAT%/SLA hit rate, Help Center·위젯 검색). P5.5 상담 워크스페이스 완료(4-Zone 셸·통합 컴포저·401 refresh·위젯 런처·Contact `/auth`). P5 운영 자동화 완료(배정·KV, SLA 시계, 자동화 `hop_count>5`, resolved CSAT). P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 다음은 P7 AI-Native 출시. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md) `## Commands`.
+P7 AI-Native 출시 완료(svc-ai-agent Ego-Graph·ReAct/승인 카드, embeddings 분리, Cold Archive, k8s/CI). P6 플랫폼 완료. P5.5 상담 워크스페이스 완료. P5 운영 자동화 완료. P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`.
 

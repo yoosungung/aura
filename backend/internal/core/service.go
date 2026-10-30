@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/yoosungung/aura/internal/ingest"
 )
 
 type DB interface {
@@ -20,10 +21,11 @@ type DB interface {
 }
 
 type Service struct {
-	DB   DB
-	JS   jetstream.JetStream
-	NC   *nats.Conn
-	HTTP *http.Client
+	DB      DB
+	JS      jetstream.JetStream
+	NC      *nats.Conn
+	HTTP    *http.Client
+	Archive ArchiveStore
 }
 
 type CreateInput struct {
@@ -275,7 +277,24 @@ func (s *Service) Transition(ctx context.Context, in TransitionInput) (Transitio
 	if csatID != uuid.Nil {
 		s.publishOutbox(ctx, in.AccountID, csatID, csatSubject, csatEnv)
 	}
+	if in.NewStatus == StatusResolved {
+		s.publishOntologyExtract(ctx, in.AccountID, inboxID, in.ConversationID, contactID)
+	}
 	return TransitionResult{Status: in.NewStatus, Version: in.ExpectedVersion + 1}, nil
+}
+
+func (s *Service) publishOntologyExtract(ctx context.Context, accountID, inboxID, conversationID, contactID uuid.UUID) {
+	if s.JS == nil {
+		return
+	}
+	body, err := json.Marshal(map[string]any{
+		"account_id": accountID.String(), "inbox_id": inboxID.String(),
+		"conversation_id": conversationID.String(), "contact_id": contactID.String(),
+	})
+	if err != nil {
+		return
+	}
+	_, _ = s.JS.Publish(ctx, ingest.OntologyExtractSubject, body)
 }
 
 func (s *Service) publishOutbox(ctx context.Context, accountID, eventID uuid.UUID, subject string, env []byte) {

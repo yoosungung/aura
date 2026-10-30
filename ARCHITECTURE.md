@@ -51,7 +51,8 @@ ingestion-worker  svc-core    svc-ai-agent
 | `svc-core` | FSM, 컨택트·대화 생성, Application/Platform API, 설정 CRUD, 웹훅 배달, Request-Reply | 설정 쓰기, `contacts`/`conversations` 쓰기, 나머지 이벤트 도메인 읽기 |
 | `svc-sla-routing` | 라운드로빈·capacity, FRT/NRT/RT 감시. `C_current`는 JetStream KV 원자 증감(P5), PG는 대사 | 읽기. 전이는 이벤트 |
 | `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. 액션은 `add_label`/`change_priority`/`send_webhook` | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 `helpdesk.tasks.webhooks.deliver` |
-| `svc-ai-agent` | Ego-Graph 읽기, ReAct/Tool, 온톨로지 추출 요청 | Ego-Graph 읽기만 |
+| `svc-ai-agent` | Ego-Graph 1~2홉 읽기, OpenAI 호환 ReAct/Tool, 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 온톨로지 추출 | Ego-Graph·embeddings **읽기만**. 쓰기는 이벤트 |
+| `event-archive` | JetStream `helpdesk.events.>` → 오브젝트 스토리지 JSONL Cold Archive | 없음 |
 | `frontend` | 상담원 Rail + 3-Pane SPA | 없음 |
 | `packages/widget-sdk` | 호스트 런처(Shadow DOM) + 교차출처 iframe + postMessage | 없음 |
 
@@ -76,6 +77,10 @@ nats stream add INGESTION_DLQ \
 ```
 
 `helpdesk.realtime.>` 와 `helpdesk.rpc.>` 는 스트림에 넣지 않는다. RPC는 NATS Core Request-Reply다.
+
+`event-archive` durable은 Limits 스트림 `helpdesk.events.>`를 읽어 오브젝트 스토리지 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}/{event_id}.json`에 적재한다. JetStream은 90일 Hot, 아카이브는 영구. 고객 파기 `contacts.purge`는 그 컨택트 대화 subject를 JetStream에서 purge하고 `archive/{account_id}/{conversation_id}/` prefix의 아카이브 객체를 지운다.
+
+채널 아웃바운드(`email`/`kakao`/`web`)는 프로세스 내 token-bucket(기본 20/s, burst 40)과 연속 5회 실패 시 open되는 서킷브레이커(30s)를 거친다. open이면 NAK하지 않고 드롭하지 않으며, half-open 한 건만 통과한다.
 
 JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current`, `{account_id}.{inbox_id}.rr`은 라운드로빈 커서. `Update(revision)`으로만 증감한다. PG `conversations.assignee_id`는 대사다.
 
@@ -122,6 +127,9 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.articles.search` | `inbox_id`, `query`. 공개 게시글. SECURITY DEFINER | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.conversations` | `account_id`, `inbox_id`, `contact_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.messages` | `account_id`, `inbox_id`, `contact_id`, `conversation_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.ontology.ego` | `actor_user_id`, `account_id`, `contact_id`. 유효 엣지 1~2홉 `LIMIT 50` | gateway-web, svc-ai-agent | svc-core |
+| Core | `helpdesk.rpc.tools.approve` | `actor_user_id`, `account_id`, `conversation_id`, `execution_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.contacts.purge` | `actor_user_id`, `account_id`, `contact_id`. administrator. JetStream subject + archive prefix 삭제 | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.add` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.remove` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
@@ -134,9 +142,14 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.assigned` | `assignee_id` | sla-routing, svc-core | ingestion, automation |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.csat_submitted` | `rating`, `feedback` | gateway-\* | ingestion |
 | Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.contact_merged` | `source_contact_id`, `target_contact_id` | svc-core | automation |
-| WorkQueue | `helpdesk.tasks.ai.reasoning` | `conversation_id`, `trigger_message_id` | gateway-\*, svc-core | svc-ai-agent |
-| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live` | gateway-web, svc-ai-agent | gateway-\<channel_type\> |
-| WorkQueue | `helpdesk.tasks.ontology.extract` | `contact_id`, `conversation_id` | svc-core (resolved 시) | svc-ai-agent |
+| WorkQueue | `helpdesk.tasks.ai.reasoning` | `account_id`, `inbox_id`, `conversation_id`, `contact_id`, `contact_inbox_id`, `trigger_message_id`, `content`, `channel_type` | gateway-\* (고객 인입) | svc-ai-agent |
+| WorkQueue | `helpdesk.tasks.ai.execute` | `account_id`, `inbox_id`, `conversation_id`, `contact_id`, `contact_inbox_id`, `execution_id`, `channel_type` | svc-core (승인 후) | svc-ai-agent |
+| WorkQueue | `helpdesk.tasks.ai.embed` | `account_id`, `owner_type`, `owner_id` | svc-core (article 생성) | svc-ai-agent |
+| WorkQueue | `helpdesk.tasks.outbound.<channel_type>` | `conversation_id`, `message_id`, `from`, `to`, `content`, `display_id`, `in_reply_to`, `source_id`, `session_live` | gateway-web, svc-ai-agent | gateway-\<channel_type\>. 채널별 token-bucket + 서킷브레이커 |
+| WorkQueue | `helpdesk.tasks.ontology.extract` | `account_id`, `inbox_id`, `conversation_id`, `contact_id` | svc-core (resolved 시) | svc-ai-agent |
+| Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.tool_execution` | 아래 payload | svc-ai-agent, svc-core | ingestion |
+| Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.ontology_extracted` | 아래 payload | svc-ai-agent | ingestion |
+| Limits | `helpdesk.events.<account_id>.<inbox_id>.<conversation_id>.embedding_upsert` | 아래 payload | svc-ai-agent | ingestion |
 | WorkQueue | `helpdesk.tasks.webhooks.deliver` | `webhook_id`, `account_id`, `event` | automation `send_webhook`, svc-core fanout | svc-core 워커. 5xx·네트워크는 NAK 재시도(최대 5), 2xx·4xx는 ACK |
 | WorkQueue | `helpdesk.tasks.sla.evaluate` | `conversation_id` | sla-routing 스케줄 | sla-routing |
 | WorkQueue | `helpdesk.tasks.snooze.schedule.<conversation_id>` | `account_id`, `conversation_id`. 헤더 `Nats-Schedule: @at <RFC3339>`, `Nats-Schedule-Target` | gateway-web | (스케줄 보관, 컨슈머 없음) |
@@ -225,6 +238,68 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 
 `rating`은 1–5. 대화당 한 행(`uq_csat_conversation`). 재제출은 rating/feedback을 덮어쓴다.
 
+**`tool_execution` payload.** envelope `id` = `agent_tool_executions.id`.
+
+```json
+{
+  "tool_name": "refund",
+  "input_args": {"amount": 45000, "reason": "결제 오류"},
+  "output_result": {},
+  "is_success": false,
+  "requires_approval": true,
+  "approved_by": null
+}
+```
+
+승인 후 `approved_by`가 User UUID로 덮어써지고 `helpdesk.tasks.ai.execute`가 발행된다. 저위험 도구는 `requires_approval=false`, `is_success=true`로 한 번에 적재한다.
+
+고위험 도구(`refund`, `cancel_subscription`, `change_plan`)는 스레드에 `content_type=form` `sender_type=AgentBot` 메시지를 같이 낸다. `content`는 `{"kind":"tool_approval","execution_id","tool_name","summary","args"}` JSON이다. 저위험(`lookup_order`, `lookup_shipping`, `send_status`)은 즉시 실행하고 outgoing `message_created`와 채널 아웃바운드를 낸다.
+
+**`ontology_extracted` payload**
+
+```json
+{
+  "nodes": [
+    {
+      "id": "0192d4f0-8c00-7000-8000-aaaaaaaaaaaa",
+      "entity_type": "PainPoint",
+      "name": "결제 오류",
+      "external_ref_id": "",
+      "properties": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "0192d4f0-8c00-7000-8000-bbbbbbbbbbbb",
+      "source_node_id": "0192d4f0-8c00-7000-8000-cccccccccccc",
+      "target_node_id": "0192d4f0-8c00-7000-8000-aaaaaaaaaaaa",
+      "relation_type": "EXPERIENCED",
+      "weight": 1.0,
+      "valid_from": "2026-10-30T05:00:00Z",
+      "valid_until": null,
+      "confidence": 0.9,
+      "source_conversation_id": "0192d4ef-0000-7000-8000-cccccccccccc"
+    }
+  ]
+}
+```
+
+같은 `(account_id, source_node_id, target_node_id, relation_type)`의 현재 엣지(`valid_until IS NULL`)가 있으면 이전 행의 `valid_until`을 찍고 새 행을 넣는다.
+
+**`embedding_upsert` payload.** 계정 수준이면 `inbox_id`/`conversation_id`는 nil UUID.
+
+```json
+{
+  "owner_type": "article",
+  "owner_id": "0192d4ef-0000-7000-8000-aaaaaaaaaaaa",
+  "model": "text-embedding-3-small",
+  "version": 1,
+  "embedding": [0.01]
+}
+```
+
+`owner_type`: `article` \| `ontology_node`. `embedding` 길이 1536. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다.
+
 아웃바운드 웹훅 본문은 envelope를 펼친 공개 형태다. 헤더 `X-Helpdesk-Signature: sha256=<hex>`, `X-Helpdesk-Timestamp`. 검증식은 `HMAC-SHA256(timestamp + "." + body, webhook_secret)`. 타임스탬프 오차 5분 초과는 거절.
 
 ## 5. 대화 FSM
@@ -296,6 +371,9 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `DELETE /api/v1/accounts/{account_id}/webhooks/{webhook_id}`
 - `GET /api/v1/accounts/{account_id}/reports` (`conversations` 상태별, `agents`, `inboxes`, `csat_percent` 4–5점 비율, `sla_hit_rate`)
 - `GET`/`POST /api/v1/accounts/{account_id}/articles`
+- `GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego` (Living Profile 1~2홉)
+- `POST /api/v1/accounts/{account_id}/conversations/{id}/tools/{execution_id}/approve`
+- `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. JetStream subject + Cold Archive prefix)
 
 Platform API는 `Authorization: Bearer` 가 환경 `AURA_PLATFORM_TOKEN` 과 같아야 한다. 토큰이 비면 거절한다.
 
@@ -330,7 +408,7 @@ Realtime 접근 토큰: User는 배속 인박스의 `helpdesk.realtime.<account_
 
 ## 8. Ego-Graph 읽기
 
-중심은 `entity_type = 'Customer'` 이고 `external_ref_id = contacts.id` 인 노드다. `svc-ai-agent`와 우측 패널은 이 고객의 **1~2홉**만 읽는다. 추론 중 그래프를 쓰지 않는다. 쓰기는 resolved 후 `helpdesk.tasks.ontology.extract` → 추출 이벤트 → ingestion.
+중심은 `entity_type = 'Customer'` 이고 `external_ref_id = contacts.id` 인 노드다. `svc-ai-agent`와 우측 패널은 이 고객의 **1~2홉**만 읽는다. 추론 중 그래프를 쓰지 않는다. 쓰기는 resolved 후 `helpdesk.tasks.ontology.extract` → 추출 이벤트 → ingestion. 엣지는 `valid_until IS NULL`(또는 미래)이고 `valid_from <= now()` 인 것만 읽는다.
 
 ```sql
 WITH center AS (
@@ -340,24 +418,30 @@ WITH center AS (
     AND external_ref_id = $contact_id
 ),
 hop1 AS (
-  SELECT e.target_node_id AS node_id, e.relation_type, 1 AS hop
+  SELECT e.target_node_id AS node_id, e.relation_type, e.weight, 1 AS hop
   FROM ontology_edges e
   JOIN center c ON e.source_node_id = c.id
   WHERE e.account_id = current_setting('app.current_account_id')::uuid
+    AND e.valid_from <= CURRENT_TIMESTAMP
+    AND (e.valid_until IS NULL OR e.valid_until > CURRENT_TIMESTAMP)
   UNION ALL
-  SELECT e.source_node_id, e.relation_type, 1
+  SELECT e.source_node_id, e.relation_type, e.weight, 1
   FROM ontology_edges e
   JOIN center c ON e.target_node_id = c.id
   WHERE e.account_id = current_setting('app.current_account_id')::uuid
+    AND e.valid_from <= CURRENT_TIMESTAMP
+    AND (e.valid_until IS NULL OR e.valid_until > CURRENT_TIMESTAMP)
 ),
 hop2 AS (
-  SELECT e.target_node_id AS node_id, e.relation_type, 2 AS hop
+  SELECT e.target_node_id AS node_id, e.relation_type, e.weight, 2 AS hop
   FROM ontology_edges e
   JOIN hop1 h ON e.source_node_id = h.node_id
   JOIN ontology_nodes n ON n.id = e.target_node_id
   WHERE e.account_id = current_setting('app.current_account_id')::uuid
     AND h.hop = 1
     AND n.entity_type <> 'Customer'
+    AND e.valid_from <= CURRENT_TIMESTAMP
+    AND (e.valid_until IS NULL OR e.valid_until > CURRENT_TIMESTAMP)
 )
 SELECT n.id, n.entity_type, n.name, n.properties, x.relation_type, x.hop
 FROM (
@@ -366,7 +450,7 @@ FROM (
   SELECT * FROM hop2
 ) x
 JOIN ontology_nodes n ON n.id = x.node_id
-ORDER BY x.hop ASC, n.updated_at DESC
+ORDER BY x.hop ASC, x.weight DESC, n.updated_at DESC
 LIMIT 50;
 ```
 
@@ -656,7 +740,6 @@ CREATE TABLE articles (
     slug VARCHAR(255) NOT NULL,
     body TEXT NOT NULL,
     published BOOLEAN DEFAULT FALSE NOT NULL,
-    embedding vector(1536),
     CONSTRAINT uq_article_slug UNIQUE (account_id, slug)
 );
 
@@ -667,7 +750,6 @@ CREATE TABLE ontology_nodes (
     name VARCHAR(255) NOT NULL,
     external_ref_id VARCHAR(255),
     properties JSONB DEFAULT '{}'::jsonb NOT NULL,
-    embedding vector(1536),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -680,8 +762,26 @@ CREATE TABLE ontology_edges (
     relation_type VARCHAR(100) NOT NULL,
     weight FLOAT DEFAULT 1.0 NOT NULL,
     properties JSONB DEFAULT '{}'::jsonb NOT NULL,
+    valid_from TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    valid_until TIMESTAMPTZ,
+    confidence FLOAT DEFAULT 1.0 NOT NULL,
+    last_observed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    source_conversation_id UUID,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE UNIQUE INDEX uq_edge_current ON ontology_edges (account_id, source_node_id, target_node_id, relation_type)
+    WHERE valid_until IS NULL;
+
+CREATE TABLE embeddings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    owner_type VARCHAR(50) NOT NULL,
+    owner_id UUID NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    version INT NOT NULL DEFAULT 1,
+    embedding vector(1536) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_edge UNIQUE (account_id, source_node_id, target_node_id, relation_type)
+    CONSTRAINT uq_embedding_owner_model UNIQUE (account_id, owner_type, owner_id, model, version)
 );
 
 CREATE TABLE agent_tool_executions (
@@ -703,6 +803,7 @@ CREATE INDEX idx_messages_conv_created ON messages(account_id, conversation_id, 
 CREATE INDEX idx_contact_inboxes_lookup ON contact_inboxes(account_id, inbox_id, source_id);
 CREATE INDEX idx_ontology_nodes_ref ON ontology_nodes(account_id, entity_type, external_ref_id);
 CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_node_id, relation_type);
+CREATE INDEX idx_embeddings_hnsw ON embeddings USING hnsw (embedding vector_cosine_ops);
 ```
 
 `channel_type`: `web` \| `kakao` \| `email` \| `social`. `availability_status`: `online` \| `offline` \| `busy`. `priority`: `low` \| `medium` \| `high` \| `urgent`. `messages.status`: `sent` \| `delivered` \| `read` \| `failed`. `conversations.display_id` 는 이메일 제목 `[#REQ-{display_id}]` 토큰이다. 채번은 `account_sequences`에서 `INSERT ... ON CONFLICT (account_id) DO UPDATE SET last_conversation_display_id = account_sequences.last_conversation_display_id + 1 RETURNING last_conversation_display_id` 로만 한다. `MAX(display_id)+1` 금지.

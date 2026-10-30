@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/contracts"
+	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/limit"
 )
 
 const (
@@ -101,6 +103,23 @@ type Service struct {
 	Reports     Reporter
 	Articles    ArticleStore
 	ContactAPI  ContactCatalog
+	AI          AI
+	Guard       *limit.Guard
+}
+
+type AI interface {
+	Ego(ctx context.Context, actor, account, contact uuid.UUID) ([]EgoNode, error)
+	ApproveTool(ctx context.Context, actor, account, conversation, execution uuid.UUID) error
+	PurgeContact(ctx context.Context, actor, account, contact uuid.UUID) error
+}
+
+type EgoNode struct {
+	ID           uuid.UUID
+	EntityType   string
+	Name         string
+	Properties   map[string]any
+	RelationType string
+	Hop          int
 }
 
 func (s *Service) SubmitContact(ctx context.Context, tok Token, inboxID uuid.UUID, req SubmitRequest) (SubmitResult, error) {
@@ -230,6 +249,7 @@ type messageMeta struct {
 	SourceID    string
 	ContentRef  string
 	Attachments []any
+	Channel     string
 }
 
 func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conversationID, contactID, contactInboxID, senderID uuid.UUID, content, senderType string, messageType int, meta messageMeta) (uuid.UUID, []byte, error) {
@@ -277,6 +297,24 @@ func (s *Service) publishMessage(ctx context.Context, accountID, inboxID, conver
 	rtSubject := fmt.Sprintf("helpdesk.realtime.%s.%s.updated", accountID, conversationID)
 	if err := s.Bus.PublishRealtime(rtSubject, rt); err != nil {
 		return uuid.Nil, nil, err
+	}
+	if senderType == "Contact" {
+		channel := meta.Channel
+		if channel == "" {
+			channel = "web"
+		}
+		task, err := json.Marshal(map[string]any{
+			"account_id": accountID.String(), "inbox_id": inboxID.String(),
+			"conversation_id": conversationID.String(), "contact_id": contactID.String(),
+			"contact_inbox_id": contactInboxID.String(), "trigger_message_id": msgID.String(),
+			"content": content, "channel_type": channel,
+		})
+		if err != nil {
+			return uuid.Nil, nil, err
+		}
+		if err := s.Bus.PublishEvent(ctx, ingest.AIReasoningSubject, task); err != nil {
+			return uuid.Nil, nil, err
+		}
 	}
 	return msgID, env, nil
 }

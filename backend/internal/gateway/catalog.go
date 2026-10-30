@@ -44,6 +44,7 @@ type MessageRow struct {
 	ID          uuid.UUID
 	Content     string
 	SenderType  string
+	ContentType string
 	Private     bool
 	CreatedAt   string
 	Attachments []AttachmentOut
@@ -152,7 +153,7 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, map[string]any{
 			"id": m.ID.String(), "content": m.Content, "sender_type": m.SenderType,
-			"private": m.Private, "created_at": m.CreatedAt, "attachments": atts,
+			"content_type": m.ContentType, "private": m.Private, "created_at": m.CreatedAt, "attachments": atts,
 		})
 	}
 	writeJSON(w, map[string]any{"messages": rows})
@@ -347,6 +348,7 @@ func (r *natsRPC) ListMessages(ctx context.Context, actor, account, conversation
 			ID          string `json:"id"`
 			Content     string `json:"content"`
 			SenderType  string `json:"sender_type"`
+			ContentType string `json:"content_type"`
 			Private     bool   `json:"private"`
 			CreatedAt   string `json:"created_at"`
 			Attachments []struct {
@@ -371,7 +373,7 @@ func (r *natsRPC) ListMessages(ctx context.Context, actor, account, conversation
 		}
 		rows = append(rows, MessageRow{
 			ID: parseUUID(m.ID), Content: m.Content, SenderType: m.SenderType,
-			Private: m.Private, CreatedAt: m.CreatedAt, Attachments: atts,
+			ContentType: m.ContentType, Private: m.Private, CreatedAt: m.CreatedAt, Attachments: atts,
 		})
 	}
 	return rows, nil

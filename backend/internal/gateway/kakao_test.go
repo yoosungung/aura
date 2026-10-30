@@ -96,7 +96,7 @@ func TestAcceptKakao_CreateThenPublish(t *testing.T) {
 		t.Fatalf("creates=%d", kakao.createCount())
 	}
 	ev, rt := bus.counts()
-	if ev != 1 || rt != 1 {
+	if ev != 2 || rt != 1 {
 		t.Fatalf("events=%d realtime=%d", ev, rt)
 	}
 	var env contracts.MessageCreated
@@ -184,7 +184,7 @@ func TestHTTP_CstalkMessage_A000(t *testing.T) {
 	if out.Code != "A000" || out.Result != "Success" {
 		t.Fatalf("%+v", out)
 	}
-	if ev, _ := bus.counts(); ev != 1 {
+	if ev, _ := bus.counts(); ev != 2 {
 		t.Fatalf("events=%d", ev)
 	}
 }

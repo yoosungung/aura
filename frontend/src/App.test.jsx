@@ -1486,3 +1486,69 @@ test("administrator publishes a help article", async () => {
   expect(created[0].published).toBe(true);
   expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 오류");
 });
+
+test("context panel shows living profile chips without changing layout", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async listEgo() {
+          return {
+            nodes: [
+              { id: "n1", entity_type: "PainPoint", name: "결제 오류", hop: 1 },
+              { id: "n2", entity_type: "Product", name: "프로 플랜", hop: 1 },
+            ],
+          };
+        },
+      }}
+      initialState={{ ...fixtureState(), selectedId: "c1" }}
+    />,
+  );
+  expect(await screen.findByRole("region", { name: "Living Profile" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Living Profile" }).textContent).toMatch(/결제 오류/);
+  expect(screen.getByRole("region", { name: "Living Profile" }).textContent).toMatch(/프로 플랜/);
+  expect(document.querySelector(".rail")).toBeTruthy();
+  expect(document.querySelector(".context-pane")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+});
+
+test("thread renders tool approval card", async () => {
+  const approved = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async approveTool(req) {
+          approved.push(req.executionId);
+          return { ok: true };
+        },
+      }}
+      initialState={{
+        ...fixtureState(),
+        selectedId: "c1",
+        messages: {
+          c1: [
+            {
+              id: "m-ai",
+              content: JSON.stringify({
+                kind: "tool_approval",
+                execution_id: "ex1",
+                tool_name: "refund",
+                summary: "결제 취소 실행",
+              }),
+              senderType: "AgentBot",
+              contentType: "form",
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "승인 및 실행" }));
+  expect(approved).toEqual(["ex1"]);
+  expect(screen.getByRole("group", { name: "AI 승인 요청" }).textContent).toMatch(/결제 취소/);
+});

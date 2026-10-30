@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-kakao
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-kakao
+  template:
+    metadata:
+      labels:
+        app: gateway-kakao
+    spec:
+      containers:
+        - name: gateway-kakao
+          image: aura/gateway-kakao:main
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: aura-config
+          env:
+            - name: AURA_KAKAO_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aura-secrets
+                  key: AURA_KAKAO_API_URL
+                  optional: true
+            - name: AURA_KAKAO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aura-secrets
+                  key: AURA_KAKAO_API_KEY
+                  optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-kakao
+spec:
+  selector:
+    app: gateway-kakao
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081

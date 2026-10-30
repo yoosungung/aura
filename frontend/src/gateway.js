@@ -240,6 +240,31 @@ export async function listConversations(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function listEgo(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, contactId } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/contacts/${contactId}/ego`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("ego failed");
+  }
+  return res.json();
+}
+
+export async function approveTool(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, conversationId, executionId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversationId}/tools/${executionId}/approve`,
+    { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    throw new Error("approve failed");
+  }
+  return res.json();
+}
+
 export async function listMessages(req, fetchImpl = fetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId } = req;
@@ -581,6 +606,8 @@ export const liveClient = {
   executeMacro,
   listConversations,
   listMessages,
+  listEgo,
+  approveTool,
   resolveConversation,
   uploadAttachment,
   getReport,

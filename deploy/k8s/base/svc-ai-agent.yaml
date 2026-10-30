@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-ai-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-ai-agent
+  template:
+    metadata:
+      labels:
+        app: svc-ai-agent
+    spec:
+      containers:
+        - name: svc-ai-agent
+          image: aura/svc-ai-agent:main
+          envFrom:
+            - configMapRef:
+                name: aura-config
+          env:
+            - name: AURA_LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aura-secrets
+                  key: AURA_LLM_API_KEY
+                  optional: true

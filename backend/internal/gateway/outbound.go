@@ -10,6 +10,7 @@ import (
 	"github.com/emersion/go-smtp"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/limit"
 )
 
 const (
@@ -123,35 +124,44 @@ func (s *Service) ConsumeKakaoOutbound(ctx context.Context) error {
 }
 
 func (s *Service) handleKakaoOutbound(msg jetstream.Msg) {
-	var t OutboundTask
-	if err := json.Unmarshal(msg.Data(), &t); err != nil {
-		_ = msg.Ack()
-		return
-	}
-	if err := s.DeliverKakaoOutbound(context.Background(), t); err != nil {
-		if errors.Is(err, ErrInvalid) {
-			_ = msg.Ack()
-			return
-		}
-		_ = msg.Nak()
-		return
-	}
-	_ = msg.Ack()
+	s.handleChannelOutbound(msg, "kakao", func(ctx context.Context, t OutboundTask) error {
+		return s.DeliverKakaoOutbound(ctx, t)
+	})
 }
 
 func (s *Service) handleOutbound(msg jetstream.Msg) {
+	s.handleChannelOutbound(msg, "email", func(ctx context.Context, t OutboundTask) error {
+		return s.DeliverOutbound(ctx, t)
+	})
+}
+
+func (s *Service) handleChannelOutbound(msg jetstream.Msg, channel string, deliver func(context.Context, OutboundTask) error) {
 	var t OutboundTask
 	if err := json.Unmarshal(msg.Data(), &t); err != nil {
 		_ = msg.Ack()
 		return
 	}
-	if err := s.DeliverOutbound(context.Background(), t); err != nil {
+	if s.Guard != nil {
+		if err := s.Guard.Allow(channel); err != nil {
+			if errors.Is(err, limit.ErrCircuitOpen) || errors.Is(err, limit.ErrRateLimited) {
+				_ = msg.Nak()
+				return
+			}
+		}
+	}
+	if err := deliver(context.Background(), t); err != nil {
+		if s.Guard != nil {
+			s.Guard.Failure(channel)
+		}
 		if errors.Is(err, ErrInvalid) {
 			_ = msg.Ack()
 			return
 		}
 		_ = msg.Nak()
 		return
+	}
+	if s.Guard != nil {
+		s.Guard.Success(channel)
 	}
 	_ = msg.Ack()
 }

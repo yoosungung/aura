@@ -86,10 +86,23 @@ export function messagesFromAPI(rows) {
     id: m.id,
     content: m.content,
     senderType: m.sender_type,
+    contentType: m.content_type,
     private: m.private,
     createdAt: m.created_at,
     attachments: m.attachments || [],
   }));
+}
+
+export function parseApproval(content) {
+  try {
+    const data = JSON.parse(content || "");
+    if (data?.kind === "tool_approval" && data.execution_id) {
+      return data;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export function relativeTime(iso, now = Date.now()) {
@@ -328,6 +341,7 @@ function applyRealtime(state, event) {
     id: msgId,
     content,
     senderType: payload.sender_type,
+    contentType: payload.content_type,
     private: isPrivate,
     createdAt: payload.created_at || env.created_at,
     attachments: payload.attachments || [],

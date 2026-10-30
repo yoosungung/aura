@@ -13,6 +13,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/yoosungung/aura/internal/gateway"
 	"github.com/yoosungung/aura/internal/ingest"
+	"github.com/yoosungung/aura/internal/limit"
 )
 
 func main() {
@@ -65,6 +66,8 @@ func main() {
 			Reports:     n,
 			Articles:    n,
 			ContactAPI:  n,
+			AI:          n,
+			Guard:       limit.DefaultGuard(),
 			Bus:         gateway.NewBus(nc, js),
 			Blobs:       &gateway.FilerStore{Endpoint: filer, Public: public},
 		},

@@ -102,7 +102,7 @@
 - JetStream → 오브젝트 스토리지 Cold Event 아카이브. 고객 파기 시 subject purge API.
 - `deploy/k8s/base/`, `deploy/SETUP.md`, `.github/workflows/ci.yml` — 이 시점에 실제 배포·PR이 생길 때 추가.
 
-성공: 웹+메일+카카오로 **파일럿 테넌트 1곳**이 돌아간다. 이 마일스톤이 제품 출시 선.
+성공: 웹+메일+카카오로 **파일럿 테넌트 1곳**이 돌아간다. 이 마일스톤이 제품 출시 선. **완료.**
 
 ## 출시 후
 
@@ -121,8 +121,8 @@
 
 | 항목 | 선택지 | 기본 가정 |
 |---|---|---|
-| LLM 벤더 | OpenAI 호환 / 기타 | P7 착수 전. P1–P6는 `vector(1536)`. 모델 교체는 P7 embeddings 분리로 검토 |
-| NATS 격리 | account 대 subject prefix `helpdesk.events.<account_id>.>` | P1–P6는 subject prefix. account 격리는 P7 운영 검토 |
+| LLM 벤더 | OpenAI 호환 / 기타 | **결정됨 — OpenAI 호환 Chat Completions + native tool calling.** `AURA_LLM_BASE_URL`(기본 `https://api.openai.com/v1`) · `AURA_LLM_API_KEY` · `AURA_LLM_MODEL`(기본 `gpt-4o-mini`) · `AURA_EMBEDDING_MODEL`(기본 `text-embedding-3-small`). 키가 비면 결정적 stub. 본 테이블 `vector(1536)`은 `embeddings`로 분리하고 `model`/`version`으로 세대 구분 |
+| NATS 격리 | account 대 subject prefix `helpdesk.events.<account_id>.>` | **결정됨 — 출시는 subject prefix.** NATS account 격리는 출시 후 |
 | 첨부 버킷 | 테넌트 prefix vs 버킷 분리 | P3는 SeaweedFS 필러 단일 트리 + `account_id/` prefix |
 
 **결정됨 — Auth.** 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.

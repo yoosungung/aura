@@ -1,3 +1,66 @@
 # SETUP
 
+로컬은 Compose, 클러스터는 Kustomize 베이스다. 빈 매니페스트를 두지 않는다.
+
+## 로컬 (파일럿 테넌트)
+
+```sh
+docker compose -f deploy/compose/docker-compose.yml up -d
+cd backend && go test ./... && go run ./cmd/ingestion-worker
+# 다른 셸
+go run ./cmd/svc-core
+go run ./cmd/gateway-web
+go run ./cmd/gateway-email
+go run ./cmd/gateway-kakao
+go run ./cmd/svc-sla-routing
+go run ./cmd/svc-automation
+go run ./cmd/event-archive
+cd ../svc-ai-agent && python -m aura_ai
+cd ../frontend && npm run dev
+```
+
 `gateway-email` SMTP 문서상 기본 포트는 `25`다. 에릭은 `:2050`에서 실행한다. 포트는 `AURA_SMTP_ADDR`로 바꾼다.
+
+Platform API로 파일럿 계정:
+
+```sh
+curl -H "Authorization: Bearer $AURA_PLATFORM_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"pilot","locale":"ko","user":{"name":"Ada","email":"ada@pilot.test","password":"s3cret"}}' \
+  http://127.0.0.1:8080/platform/api/v1/accounts
+```
+
+LLM 키가 비면 `svc-ai-agent`는 결정적 stub이다. 실모델은 `AURA_LLM_API_KEY`와 `AURA_LLM_BASE_URL`.
+
+필수 시크릿: `AURA_TOKEN_SECRET`, `AURA_PLATFORM_TOKEN`. 선택: `AURA_LLM_API_KEY`, `AURA_KAKAO_API_URL`, `AURA_KAKAO_API_KEY`.
+
+## 이미지
+
+저장소 루트에서:
+
+```sh
+docker build -t aura/svc-core:main --build-arg CMD=svc-core backend
+docker build -t aura/ingestion-worker:main --build-arg CMD=ingestion-worker backend
+docker build -t aura/gateway-web:main --build-arg CMD=gateway-web backend
+docker build -t aura/gateway-email:main --build-arg CMD=gateway-email backend
+docker build -t aura/gateway-kakao:main --build-arg CMD=gateway-kakao backend
+docker build -t aura/svc-sla-routing:main --build-arg CMD=svc-sla-routing backend
+docker build -t aura/svc-automation:main --build-arg CMD=svc-automation backend
+docker build -t aura/event-archive:main --build-arg CMD=event-archive backend
+docker build -t aura/svc-ai-agent:main svc-ai-agent
+docker build -t aura/frontend:main frontend
+```
+
+## 클러스터
+
+PostgreSQL(pgvector)·NATS JetStream·SeaweedFS는 클러스터 밖 또는 별도 차트다. `deploy/k8s/base/configmap.yaml` DSN을 맞춘 뒤:
+
+```sh
+kubectl create secret generic aura-secrets -n aura \
+  --from-literal=AURA_TOKEN_SECRET=change-me \
+  --from-literal=AURA_PLATFORM_TOKEN=change-me \
+  --from-literal=AURA_LLM_API_KEY= \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -k deploy/k8s/base
+```
+
+고객 파기: administrator `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` 가 그 컨택트 대화 JetStream subject와 `archive/{account_id}/{conversation_id}/` prefix를 지운다.

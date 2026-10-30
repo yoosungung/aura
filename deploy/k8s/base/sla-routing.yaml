@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sla-routing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sla-routing
+  template:
+    metadata:
+      labels:
+        app: sla-routing
+    spec:
+      containers:
+        - name: sla-routing
+          image: aura/svc-sla-routing:main
+          envFrom:
+            - configMapRef:
+                name: aura-config

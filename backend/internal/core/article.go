@@ -2,11 +2,13 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/yoosungung/aura/internal/ingest"
 )
 
 type ArticleInput struct {
@@ -50,6 +52,9 @@ func (s *Service) CreateArticle(ctx context.Context, in ArticleInput) (Article, 
 		}
 		return err
 	})
+	if err == nil {
+		s.publishArticleEmbed(ctx, in.AccountID, out.ID)
+	}
 	return out, err
 }
 
@@ -110,4 +115,17 @@ func (s *Service) SearchArticles(ctx context.Context, inboxID uuid.UUID, query s
 		out = []Article{}
 	}
 	return out, nil
+}
+
+func (s *Service) publishArticleEmbed(ctx context.Context, accountID, articleID uuid.UUID) {
+	if s.JS == nil || articleID == uuid.Nil {
+		return
+	}
+	body, err := json.Marshal(map[string]any{
+		"account_id": accountID.String(), "owner_type": "article", "owner_id": articleID.String(),
+	})
+	if err != nil {
+		return
+	}
+	_, _ = s.JS.Publish(ctx, ingest.AIEmbedSubject, body)
 }

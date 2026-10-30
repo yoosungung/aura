@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,6 +60,9 @@ const (
 	SubjectArticleSearch        = "helpdesk.rpc.articles.search"
 	SubjectContactConversations = "helpdesk.rpc.contacts.conversations"
 	SubjectContactMessages      = "helpdesk.rpc.contacts.messages"
+	SubjectOntologyEgo          = "helpdesk.rpc.ontology.ego"
+	SubjectToolsApprove         = "helpdesk.rpc.tools.approve"
+	SubjectContactPurge         = "helpdesk.rpc.contacts.purge"
 	QueueGroup                  = "svc-core"
 )
 
@@ -66,7 +70,10 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
 		return err
 	}
-	s := &Service{DB: db, JS: js, NC: nc}
+	s := &Service{DB: db, JS: js, NC: nc, Archive: FilerPurge{Endpoint: os.Getenv("AURA_FILER_URL")}}
+	if f, ok := s.Archive.(FilerPurge); ok && f.Endpoint == "" {
+		s.Archive = FilerPurge{Endpoint: "http://127.0.0.1:8888"}
+	}
 	subCreate, err := nc.QueueSubscribe(SubjectCreate, QueueGroup, func(msg *nats.Msg) {
 		s.handleCreate(msg)
 	})
@@ -803,7 +810,8 @@ func (s *Service) handleMessagesList(msg *nats.Msg) {
 		}
 		rows = append(rows, map[string]any{
 			"id": m.ID.String(), "content": m.Content, "sender_type": m.SenderType,
-			"private": m.Private, "created_at": m.CreatedAt.UTC().Format(time.RFC3339Nano),
+			"content_type": m.ContentType, "private": m.Private,
+			"created_at":  m.CreatedAt.UTC().Format(time.RFC3339Nano),
 			"attachments": atts,
 		})
 	}

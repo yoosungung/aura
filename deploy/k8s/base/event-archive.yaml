@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-archive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-archive
+  template:
+    metadata:
+      labels:
+        app: event-archive
+    spec:
+      containers:
+        - name: event-archive
+          image: aura/event-archive:main
+          envFrom:
+            - configMapRef:
+                name: aura-config

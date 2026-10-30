@@ -42,6 +42,7 @@ type MessageRow struct {
 	ID          uuid.UUID
 	Content     string
 	SenderType  string
+	ContentType string
 	Private     bool
 	CreatedAt   time.Time
 	Attachments []AttachmentRow
@@ -142,7 +143,7 @@ func (s *Service) ListMessages(ctx context.Context, in ListInput) ([]MessageRow,
 			return err
 		}
 		rows, err := tx.Query(ctx, `
-			SELECT id, COALESCE(content, ''), sender_type, private, created_at
+			SELECT id, COALESCE(content, ''), sender_type, COALESCE(content_type, 'text'), private, created_at
 			FROM messages WHERE conversation_id = $1
 			ORDER BY created_at ASC`, in.ConversationID)
 		if err != nil {
@@ -151,7 +152,7 @@ func (s *Service) ListMessages(ctx context.Context, in ListInput) ([]MessageRow,
 		defer rows.Close()
 		for rows.Next() {
 			var row MessageRow
-			if err := rows.Scan(&row.ID, &row.Content, &row.SenderType, &row.Private, &row.CreatedAt); err != nil {
+			if err := rows.Scan(&row.ID, &row.Content, &row.SenderType, &row.ContentType, &row.Private, &row.CreatedAt); err != nil {
 				return err
 			}
 			out = append(out, row)
