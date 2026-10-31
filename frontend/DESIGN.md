@@ -24,4 +24,6 @@ npm run typecheck
 npm run dev
 ```
 
-프록시 대상은 `127.0.0.1:30080`(클러스터 SPA NodePort). 실WS는 그 origin의 `/ws`다. compose 게이트웨이만 쓸 때는 `127.0.0.1:8080`.
+프록시 대상은 클러스터 SPA NodePort `127.0.0.1:30080`. 실WS는 그 origin의 `/ws`다. compose 게이트웨이만 쓸 때는 `127.0.0.1:8080`.
+
+VS Code Run and Debug `Frontend: Vite`는 `frontend/`에서 `npm run dev`를 띄운다. `/auth`·`/api`·`/ws`는 쿠버네티스 프론트(`:30080`)로 프록시한다.
