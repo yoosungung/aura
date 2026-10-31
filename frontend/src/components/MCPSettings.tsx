@@ -24,6 +24,7 @@ export function MCPSettings({ session, client }: MCPSettingsProps) {
   const [url, setUrl] = useState("");
   const [auth, setAuth] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -50,7 +51,16 @@ export function MCPSettings({ session, client }: MCPSettingsProps) {
     };
   }, [client, session]);
 
+  function resetForm() {
+    setEditing(false);
+    setName("");
+    setUrl("");
+    setAuth("");
+    setError("");
+  }
+
   function selectServer(s: MCPServer) {
+    setEditing(true);
     setSelectedId(s.id || "");
     setName(s.name || "");
     setUrl(s.url || "");
@@ -73,9 +83,7 @@ export function MCPSettings({ session, client }: MCPSettingsProps) {
       });
       setServers((prev) => [...prev.filter((s) => s.name !== created.name), created]);
       setSelectedId(created.id || "");
-      setName("");
-      setUrl("");
-      setAuth("");
+      resetForm();
     } catch {
       setError("MCP 서버를 저장하지 못했습니다");
     }
@@ -173,6 +181,11 @@ export function MCPSettings({ session, client }: MCPSettingsProps) {
           <Button type="button" size="sm" variant="secondary" onClick={onRotate}>
             재발급
           </Button>
+          {editing ? (
+            <Button type="button" size="sm" variant="secondary" onClick={resetForm}>
+              취소
+            </Button>
+          ) : null}
           <Button type="submit" size="sm">
             MCP 추가
           </Button>

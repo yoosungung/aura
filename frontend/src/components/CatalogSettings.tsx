@@ -74,6 +74,26 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
     };
   }, [client, session, pane]);
 
+  function resetLabelForm() {
+    setEditingLabelId("");
+    setLabelName("");
+    setError("");
+  }
+
+  function resetCannedForm() {
+    setEditingCannedId("");
+    setShortCode("");
+    setContent("");
+    setError("");
+  }
+
+  function resetMacroForm() {
+    setEditingMacroId("");
+    setMacroName("");
+    setMacroMessageText("");
+    setError("");
+  }
+
   async function onSaveLabel(e: FormEvent) {
     e.preventDefault();
     if (!labelName.trim()) {
@@ -90,8 +110,7 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
           name: labelName.trim(),
         });
         setLabels((prev) => prev.map((row) => (row.id === editingLabelId ? { ...row, ...updated } : row)));
-        setEditingLabelId("");
-        setLabelName("");
+        resetLabelForm();
         return;
       }
       if (!client.createAccountLabel) {
@@ -127,9 +146,7 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
           content: content.trim(),
         });
         setCanned((prev) => prev.map((row) => (row.id === editingCannedId ? { ...row, ...updated } : row)));
-        setEditingCannedId("");
-        setShortCode("");
-        setContent("");
+        resetCannedForm();
         return;
       }
       if (!client.createCanned) {
@@ -169,9 +186,7 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
           actions,
         });
         setMacros((prev) => prev.map((row) => (row.id === editingMacroId ? { ...row, ...updated } : row)));
-        setEditingMacroId("");
-        setMacroName("");
-        setMacroMessageText("");
+        resetMacroForm();
         return;
       }
       if (!client.createMacro) {
@@ -207,8 +222,7 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
       });
       setLabels((prev) => prev.filter((row) => row.id !== label.id));
       if (editingLabelId === label.id) {
-        setEditingLabelId("");
-        setLabelName("");
+        resetLabelForm();
       }
     } catch {
       setError("라벨을 삭제하지 못했습니다");
@@ -229,9 +243,7 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
       });
       setCanned((prev) => prev.filter((item) => item.id !== row.id));
       if (editingCannedId === row.id) {
-        setEditingCannedId("");
-        setShortCode("");
-        setContent("");
+        resetCannedForm();
       }
     } catch {
       setError("저장응답을 삭제하지 못했습니다");
@@ -269,9 +281,7 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
       });
       setMacros((prev) => prev.filter((item) => item.id !== macro.id));
       if (editingMacroId === macro.id) {
-        setEditingMacroId("");
-        setMacroName("");
-        setMacroMessageText("");
+        resetMacroForm();
       }
     } catch {
       setError("매크로를 삭제하지 못했습니다");
@@ -315,6 +325,11 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
             <Input value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
           </Label>
           <div className="settings-form-actions">
+            {editingLabelId ? (
+              <Button type="button" size="sm" variant="secondary" onClick={resetLabelForm}>
+                취소
+              </Button>
+            ) : null}
             <Button type="submit" size="sm">
               {editingLabelId ? "라벨 저장" : "라벨 추가"}
             </Button>
@@ -360,6 +375,11 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
             <Textarea value={content} onChange={(e) => setContent(e.target.value)} required />
           </Label>
           <div className="settings-form-actions">
+            {editingCannedId ? (
+              <Button type="button" size="sm" variant="secondary" onClick={resetCannedForm}>
+                취소
+              </Button>
+            ) : null}
             <Button type="submit" size="sm">
               {editingCannedId ? "저장응답 저장" : "저장응답 추가"}
             </Button>
@@ -406,6 +426,11 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
               <Textarea value={macroMessageText} onChange={(e) => setMacroMessageText(e.target.value)} required />
             </Label>
             <div className="settings-form-actions">
+              {editingMacroId ? (
+                <Button type="button" size="sm" variant="secondary" onClick={resetMacroForm}>
+                  취소
+                </Button>
+              ) : null}
               <Button type="submit" size="sm">
                 매크로 저장
               </Button>

@@ -43,6 +43,14 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
     };
   }, [client, session]);
 
+  function resetForm() {
+    setEditingId("");
+    setTitle("");
+    setSlug("");
+    setBody("");
+    setError("");
+  }
+
   async function onSave(e: FormEvent) {
     e.preventDefault();
     if (!title.trim() || !slug.trim() || !body.trim()) {
@@ -62,10 +70,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           published: true,
         });
         setArticles((prev) => prev.map((a) => (a.id === editingId ? { ...a, ...updated } : a)));
-        setEditingId("");
-        setTitle("");
-        setSlug("");
-        setBody("");
+        resetForm();
         return;
       }
       if (!client.createArticle) {
@@ -110,10 +115,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
       });
       setArticles((prev) => prev.filter((a) => a.id !== article.id));
       if (editingId === article.id) {
-        setEditingId("");
-        setTitle("");
-        setSlug("");
-        setBody("");
+        resetForm();
       }
     } catch {
       setError("문서를 삭제하지 못했습니다");
@@ -164,6 +166,11 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} required />
         </Label>
         <div className="settings-form-actions">
+          {editingId ? (
+            <Button type="button" size="sm" variant="secondary" onClick={resetForm}>
+              취소
+            </Button>
+          ) : null}
           <Button type="submit" size="sm">
             {editingId ? "문서 저장" : "문서 게시"}
           </Button>

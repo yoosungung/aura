@@ -40,6 +40,12 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
     };
   }, [client, session]);
 
+  function resetForm() {
+    setEditingId("");
+    setUrl("");
+    setError("");
+  }
+
   async function onSave(e: FormEvent) {
     e.preventDefault();
     if (!url.trim()) {
@@ -57,8 +63,7 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
           subscriptions: ["message_created"],
         });
         setHooks((prev) => prev.map((h) => (h.id === editingId ? { ...h, ...updated } : h)));
-        setEditingId("");
-        setUrl("");
+        resetForm();
         return;
       }
       if (!client.createWebhook) {
@@ -92,8 +97,7 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
       });
       setHooks((prev) => prev.filter((h) => h.id !== hook.id));
       if (editingId === hook.id) {
-        setEditingId("");
-        setUrl("");
+        resetForm();
       }
     } catch {
       setError("웹훅을 삭제하지 못했습니다");
@@ -134,6 +138,11 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
           <Input value={url} onChange={(e) => setUrl(e.target.value)} required />
         </Label>
         <div className="settings-form-actions">
+          {editingId ? (
+            <Button type="button" size="sm" variant="secondary" onClick={resetForm}>
+              취소
+            </Button>
+          ) : null}
           <Button type="submit" size="sm">
             {editingId ? "웹훅 저장" : "웹훅 추가"}
           </Button>

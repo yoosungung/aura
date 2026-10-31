@@ -423,6 +423,66 @@ test("administrator patches and deletes an inbox", async () => {
   expect(screen.queryByRole("button", { name: "웹 상담 · Web" })).toBeNull();
 });
 
+test("administrator can cancel settings edit without saving", async () => {
+  const user = userEvent.setup();
+  const saved: ClientReq[] = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxes() {
+          return { inboxes: [{ id: "i1", name: "웹", channel_type: "web" }] };
+        },
+        async updateInbox(req) {
+          saved.push(req);
+          return { id: req.inboxId, name: req.name, channel_type: req.channelType };
+        },
+        async listWebhooks() {
+          return { webhooks: [{ id: "wh1", url: "https://crm.example/hook" }] };
+        },
+        async updateWebhook(req) {
+          saved.push(req);
+          return { id: req.webhook_id, url: req.url };
+        },
+        async listAccountLabels() {
+          return { labels: [{ id: "l1", name: "결제" }] };
+        },
+        async updateAccountLabel(req) {
+          saved.push(req);
+          return { id: req.labelId, name: req.name };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(screen.queryByRole("button", { name: "취소" })).toBeNull();
+  await user.click(await screen.findByRole("button", { name: "수정" }));
+  expect((screen.getByLabelText("이름") as HTMLInputElement).value).toBe("웹");
+  await user.clear(screen.getByLabelText("이름"));
+  await user.type(screen.getByLabelText("이름"), "바꾸면 안 됨");
+  await user.click(screen.getByRole("button", { name: "취소" }));
+  expect((screen.getByLabelText("이름") as HTMLInputElement).value).toBe("");
+  expect(screen.getByRole("button", { name: "인박스 추가" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "취소" })).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "웹훅" }));
+  await user.click(await screen.findByRole("button", { name: "수정" }));
+  expect((screen.getByLabelText("웹훅 URL") as HTMLInputElement).value).toBe("https://crm.example/hook");
+  await user.click(screen.getByRole("button", { name: "취소" }));
+  expect((screen.getByLabelText("웹훅 URL") as HTMLInputElement).value).toBe("");
+  expect(screen.getByRole("button", { name: "웹훅 추가" })).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
+  const labels = await screen.findByRole("region", { name: "라벨" });
+  await user.click(within(labels).getByRole("button", { name: "수정" }));
+  expect((screen.getByLabelText("카탈로그 라벨") as HTMLInputElement).value).toBe("결제");
+  await user.click(screen.getByRole("button", { name: "취소" }));
+  expect((screen.getByLabelText("카탈로그 라벨") as HTMLInputElement).value).toBe("");
+  expect(screen.getByRole("button", { name: "라벨 추가" })).toBeTruthy();
+  expect(saved).toEqual([]);
+});
+
 test("inbox member and hmac selects use inbox names", async () => {
   const user = userEvent.setup();
   render(

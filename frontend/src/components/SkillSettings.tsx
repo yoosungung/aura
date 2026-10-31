@@ -18,6 +18,7 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -42,7 +43,16 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
     };
   }, [client, session]);
 
+  function resetForm() {
+    setEditing(false);
+    setName("");
+    setDescription("");
+    setBody("");
+    setError("");
+  }
+
   function loadSkill(s: Skill) {
+    setEditing(true);
     setName(s.name || "");
     setDescription(s.description || "");
     setBody(s.body || "");
@@ -64,9 +74,7 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
         body: body.trim(),
       });
       setSkills((prev) => [...prev.filter((s) => s.name !== created.name), created]);
-      setName("");
-      setDescription("");
-      setBody("");
+      resetForm();
     } catch {
       setError("스킬을 저장하지 못했습니다");
     }
@@ -86,9 +94,7 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
       });
       setSkills((prev) => prev.filter((s) => s.id !== skill.id));
       if (name === skill.name) {
-        setName("");
-        setDescription("");
-        setBody("");
+        resetForm();
       }
     } catch {
       setError("스킬을 삭제하지 못했습니다");
@@ -138,6 +144,11 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} required />
         </Label>
         <div className="settings-form-actions">
+          {editing ? (
+            <Button type="button" size="sm" variant="secondary" onClick={resetForm}>
+              취소
+            </Button>
+          ) : null}
           <Button type="submit" size="sm">
             스킬 저장
           </Button>

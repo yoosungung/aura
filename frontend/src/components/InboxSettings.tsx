@@ -56,6 +56,15 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
     };
   }, [client, session]);
 
+  function resetForm() {
+    setEditingId("");
+    setName("");
+    setChannel(channels[0] || "web");
+    setEmail("");
+    setKakao("");
+    setError("");
+  }
+
   function selectBox(box: InboxRow) {
     setEditingId(box.id || "");
     setName(box.name || "");
@@ -93,11 +102,7 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
       if (editingId && client.updateInbox) {
         const updated = await client.updateInbox({ ...payload, inboxId: editingId });
         setBoxes((prev) => prev.map((row) => (row.id === editingId ? { ...row, ...updated } : row)));
-        setEditingId("");
-        setName("");
-        setChannel(channels[0] || "web");
-        setEmail("");
-        setKakao("");
+        resetForm();
         return;
       }
       if (!client.createInbox) {
@@ -129,10 +134,7 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
       });
       setBoxes((prev) => prev.filter((row) => row.id !== box.id));
       if (editingId === box.id) {
-        setEditingId("");
-        setName("");
-        setEmail("");
-        setKakao("");
+        resetForm();
       }
       await refreshSession();
     } catch {
@@ -197,6 +199,11 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
           </Label>
         ) : null}
         <div className="settings-form-actions">
+          {editingId ? (
+            <Button type="button" size="sm" variant="secondary" onClick={resetForm}>
+              취소
+            </Button>
+          ) : null}
           <Button type="submit" size="sm">
             {editingId ? "인박스 저장" : "인박스 추가"}
           </Button>
