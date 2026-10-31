@@ -9,7 +9,7 @@
 ## P0 문서 — 완료 조건
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) §1 계약과 §2 이후 형태가 있다.
-- 이 파일에 P0~P7·P5.5와 미결정이 있다.
+- 이 파일에 P0~P7·P5.5와 미결정·결정 로그가 있다.
 - [README.md](README.md)는 운영자·배포자, [README.developer.md](README.developer.md)는 기여자. 계약은 링크만 한다.
 
 성공: 제품 범위가 코드가 아닌 문서에만 있다.
@@ -144,24 +144,34 @@
 
 ## 미결정
 
-| 항목 | 선택지 | 기본 가정 |
-|---|---|---|
-| LLM 벤더 | OpenAI 호환 / 기타 | **결정됨 — OpenAI 호환 Chat Completions + native tool calling.** `AURA_LLM_BASE_URL`(기본 `https://api.openai.com/v1`) · `AURA_LLM_API_KEY` · `AURA_LLM_MODEL`(기본 `gpt-4o-mini`) · `AURA_EMBEDDING_MODEL`(기본 `text-embedding-3-small`). 키가 비면 결정적 stub. 본 테이블 `vector(1536)`은 `embeddings`로 분리하고 `model`/`version`으로 세대 구분. P8 추론은 LangChain `create_agent`가 같은 엔드포인트를 쓴다 |
-| 운영계 MCP | 테넌트 URL / 인프로세스 stub | **결정됨 — 테넌트 `mcp_servers.url`(https Streamable HTTP).** 서버가 없으면 in-process FastMCP stub(현재 lookup/refund JSON). Aura 서비스 사이 MCP는 두지 않는다 |
-| Agent Skills 저장 | 리포만 / 테넌트 덮어쓰기 | **결정됨 — 리포 `SKILL.md` 기본 + `agent_skills` 테넌트 last-wins** |
-| NATS 격리 | account 대 subject prefix `helpdesk.events.<account_id>.>` | **결정됨 — 출시는 subject prefix.** NATS account 격리는 출시 후 |
-| 첨부 버킷 | 테넌트 prefix vs 버킷 분리 | P3는 SeaweedFS 필러 단일 트리 + `account_id/` prefix |
+아직 고르지 않은 항목만 둔다. 고르면 아래 결정 로그로 옮긴다. 표 열은 `항목` / `선택지` / `기본 가정`이다.
 
-**결정됨 — Auth.** 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.
+현재 없음.
 
-**결정됨 — 스누즈 깨움.** PG `conversations.snoozed_until`은 상태 컬럼으로 유지한다. 시각 도래의 주체는 NATS JetStream 스케줄 메시지(`Nats-Schedule: @at`, 스트림 `AllowMsgSchedules`)다. 게이트웨이는 스케줄만 발행하고, `svc-core` 컨슈머가 `helpdesk.tasks.snooze.wake.*`를 받아 FSM으로 `open` 전이한다.
+## 결정 로그
 
-**결정됨 — 라벨·매크로·저장응답 (A안).** 라벨은 분류(주제·고객 신호·다음 일), 저장응답은 `/short_code` 문장, 매크로는 상담원이 고른 뒤에만 도는 작업 묶음. 자동화는 P5. 카탈로그·공유 저장응답·`visibility=account` 매크로는 administrator가 만들고, 상담원은 있는 라벨만 붙이거나 떼고 `personal` 매크로만 만든다. 매크로 `actions`는 `send_message` / `add_label` / `add_private_note` / `assign_agent` / `snooze_conversation` / `resolve_conversation`.
+고른 항목만 둔다. 계약으로 승격된 내용은 [ARCHITECTURE.md](ARCHITECTURE.md)를 따른다.
 
-**결정됨 — setUser 이후 익명 대화.** P3는 합치지 않는다. HMAC이 맞으면 현재 컨택트에 identifier만 찍고, 다른 컨택트와 겹치면 거절한다. P4 `contact_merged`가 HMAC 통과 + 익명 소스일 때만 티켓의 `contact_id`를 기존 식별 컨택트로 옮긴다. 스레드는 합치지 않는다.
+**LLM 벤더.** OpenAI 호환 / 기타 → OpenAI 호환 Chat Completions + native tool calling. `AURA_LLM_BASE_URL`(기본 `https://api.openai.com/v1`) · `AURA_LLM_API_KEY` · `AURA_LLM_MODEL`(기본 `gpt-4o-mini`) · `AURA_EMBEDDING_MODEL`(기본 `text-embedding-3-small`). 키가 비면 결정적 stub. 본 테이블 `vector(1536)`은 `embeddings`로 분리하고 `model`/`version`으로 세대 구분. P8 추론은 LangChain `create_agent`가 같은 엔드포인트를 쓴다.
 
-**결정됨 — 해결 화면 pending.** 스레드 해결 영역에 `pending` 버튼을 둔다. 큐에는 남고, `resolved`만 숨긴다. `unassigned`/`open`에서 `pending`으로 간다.
+**운영계 MCP.** 테넌트 URL / 인프로세스 stub → 테넌트 `mcp_servers.url`(https Streamable HTTP). 서버가 없으면 in-process FastMCP stub(현재 lookup/refund JSON). Aura 서비스 사이 MCP는 두지 않는다.
 
-**결정됨 — 인박스 HMAC 시크릿.** administrator만 웹 인박스 설정에서 보고 복사한다. Agent·Client API·위젯에는 내려가지 않는다. 호스트 서버가 env에 넣고 `identifier_hash`만 페이지에 심는다. 회전은 `hmac_secret`을 즉시 덮어쓰고, 이전 키·`hmac_mandatory`는 두지 않는다. 이메일/카카오 인박스는 이 키를 쓰지 않는다.
+**Agent Skills 저장.** 리포만 / 테넌트 덮어쓰기 → 리포 `SKILL.md` 기본 + `agent_skills` 테넌트 last-wins.
 
-**결정됨 — 대화 목록 필터 (B안).** `GET /conversations`와 `conversations.list` 기본은 작업 큐다. `resolved`는 내려주지 않는다. 담당자·Mine/미배정 쿼리는 두지 않는다. 화면은 미래 `snoozed`를 숨긴다. Mine/미배정/전체 + 상태 탭과 URL 복원·라벨 폴더는 출시 후.
+**NATS 격리.** account 대 subject prefix `helpdesk.events.<account_id>.>` → 출시는 subject prefix. NATS account 격리는 출시 후.
+
+**첨부 버킷.** 테넌트 prefix vs 버킷 분리 → P3는 SeaweedFS 필러 단일 트리 + `account_id/` prefix. 버킷 분리·멀티리전은 출시 후.
+
+**Auth.** 자체 세션 vs OIDC → 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.
+
+**스누즈 깨움.** PG `conversations.snoozed_until`은 상태 컬럼으로 유지한다. 시각 도래의 주체는 NATS JetStream 스케줄 메시지(`Nats-Schedule: @at`, 스트림 `AllowMsgSchedules`)다. 게이트웨이는 스케줄만 발행하고, `svc-core` 컨슈머가 `helpdesk.tasks.snooze.wake.*`를 받아 FSM으로 `open` 전이한다.
+
+**라벨·매크로·저장응답 (A안).** 라벨은 분류(주제·고객 신호·다음 일), 저장응답은 `/short_code` 문장, 매크로는 상담원이 고른 뒤에만 도는 작업 묶음. 자동화는 P5. 카탈로그·공유 저장응답·`visibility=account` 매크로는 administrator가 만들고, 상담원은 있는 라벨만 붙이거나 떼고 `personal` 매크로만 만든다. 매크로 `actions`는 `send_message` / `add_label` / `add_private_note` / `assign_agent` / `snooze_conversation` / `resolve_conversation`.
+
+**setUser 이후 익명 대화.** P3는 합치지 않는다. HMAC이 맞으면 현재 컨택트에 identifier만 찍고, 다른 컨택트와 겹치면 거절한다. P4 `contact_merged`가 HMAC 통과 + 익명 소스일 때만 티켓의 `contact_id`를 기존 식별 컨택트로 옮긴다. 스레드는 합치지 않는다.
+
+**해결 화면 pending.** 스레드 해결 영역에 `pending` 버튼을 둔다. 큐에는 남고, `resolved`만 숨긴다. `unassigned`/`open`에서 `pending`으로 간다.
+
+**인박스 HMAC 시크릿.** administrator만 웹 인박스 설정에서 보고 복사한다. Agent·Client API·위젯에는 내려가지 않는다. 호스트 서버가 env에 넣고 `identifier_hash`만 페이지에 심는다. 회전은 `hmac_secret`을 즉시 덮어쓰고, 이전 키·`hmac_mandatory`는 두지 않는다. 이메일/카카오 인박스는 이 키를 쓰지 않는다.
+
+**대화 목록 필터 (B안).** `GET /conversations`와 `conversations.list` 기본은 작업 큐다. `resolved`는 내려주지 않는다. 담당자·Mine/미배정 쿼리는 두지 않는다. 화면은 미래 `snoozed`를 숨긴다. Mine/미배정/전체 + 상태 탭과 URL 복원·라벨 폴더는 출시 후.
