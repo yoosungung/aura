@@ -7,6 +7,13 @@ on:
     branches: [main]
 
 jobs:
+  kustomize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      - run: sh deploy/k8s/ghcr/assert.sh
+
   backend:
     runs-on: ubuntu-latest
     defaults:

@@ -1,6 +1,6 @@
 # SETUP
 
-로컬은 Compose, 클러스터는 Kustomize 베이스다. 빈 매니페스트를 두지 않는다.
+로컬은 Compose, 클러스터는 Kustomize GHCR 오버레이다. 빈 매니페스트를 두지 않는다.
 
 ## 로컬 (파일럿 테넌트)
 
@@ -85,7 +85,7 @@ kubectl create secret generic aura-secrets -n aura \
   --from-literal=AURA_PLATFORM_TOKEN=change-me \
   --from-literal=AURA_LLM_API_KEY= \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -k deploy/k8s/base
+kubectl apply -k deploy/k8s/ghcr
 ```
 
 고객 파기: administrator `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` 가 PG 식별자·본문·CSAT·도구 JSON을 익명화하고 그 컨택트 대화 JetStream subject와 `archive/{account_id}/{conversation_id}/` JSONL prefix를 지운다.

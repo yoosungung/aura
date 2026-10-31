@@ -1,6 +1,6 @@
 # k8s
 
-로컬·클러스터에서 Kustomize 베이스를 적용하는 사용법이다. 이미지 빌드·CD·시크릿·런북은 [../SETUP.md](../SETUP.md).
+로컬·클러스터에서 Kustomize를 적용하는 사용법이다. 클러스터 기본은 GitHub Packages(`ghcr.io/yoosungung/aura/*:current`). 이미지 빌드·CD·시크릿·런북은 [../SETUP.md](../SETUP.md).
 
 ## 전제
 
@@ -9,18 +9,18 @@ Docker Desktop Kubernetes, 또는 `kubectl`이 가리키는 클러스터. 앱 �
 ## 적용
 
 ```sh
-kubectl apply -k deploy/k8s/base
+kubectl apply -k deploy/k8s/ghcr
 ```
 
-로컬에서 빌드한 `aura/*:main`이다. CD가 올린 GHCR `:current`(릴리즈 `current`)를 쓰려면 `kubectl apply -k deploy/k8s/ghcr`. 네임스페이스는 `aura`다. `namespace.yaml`이 만들고, 베이스 리소스는 그 안에 들어간다.
+CD가 올린 GHCR `:current`(릴리즈 `current`, `linux/amd64`·`linux/arm64`)다. 로컬에서 빌드한 `aura/*:main`은 `kubectl apply -k deploy/k8s/base`. 네임스페이스는 `aura`다. `namespace.yaml`이 만들고, 베이스 리소스는 그 안에 들어간다.
 
 ## 시드
 
-`aura/seed:main`(`backend/Dockerfile` `--build-arg CMD=seed`)이 `cmd/seed`를 실행한다. compose `seed` 서비스와 같은 이미지·엔트리포인트다. 베이스 Job `seed`가 `AURA_MIGRATE_DSN`으로 마이그레이션 뒤 기본 로그인을 넣고, 계정이 있으면 건너뛴다. 값은 [../compose/README.md](../compose/README.md). 다시 돌리려면 `kubectl delete job seed -n aura` 후 베이스를 적용한다.
+클러스터 Job `seed`는 `ghcr.io/yoosungung/aura/seed:current`다. compose `seed`는 로컬 `aura/seed:main`(`backend/Dockerfile` `--build-arg CMD=seed`)이다. 엔트리포인트는 같다. Job이 `AURA_MIGRATE_DSN`으로 마이그레이션 뒤 기본 로그인을 넣고, 계정이 있으면 건너뛴다. 값은 [../compose/README.md](../compose/README.md). 다시 돌리려면 `kubectl delete job seed -n aura` 후 GHCR 오버레이를 적용한다.
 
 ```sh
-docker build -t aura/seed:main --build-arg CMD=seed backend
-kubectl apply -k deploy/k8s/base
+kubectl delete job seed -n aura
+kubectl apply -k deploy/k8s/ghcr
 ```
 
 ## NodePort

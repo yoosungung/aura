@@ -20,7 +20,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/SETUP.md` | 로컬·클러스터 배포 런북 | `deploy/SETUP.md` |
 | `deploy/k8s/README.md` | 클러스터 로컬 사용법(적용·NodePort·TLS·위젯) | `deploy/k8s/` |
 | `deploy/k8s/base/` | Kustomize 베이스(로컬 태그 `aura/*:main`) | `deploy/k8s/base/` |
-| `deploy/k8s/ghcr/` | GHCR 이미지 Kustomize 오버레이(CD 산출) | `deploy/k8s/ghcr/` |
+| `deploy/k8s/ghcr/` | 클러스터 기본 오버레이(GHCR `:current`) | `deploy/k8s/ghcr/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/` |
  
@@ -31,7 +31,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 - **README.md vs README.developer.md.** README는 운영자·배포자, `README.developer.md`는 기여자. 계약·내부 설계는 둘 다에 복사하지 않고 [ARCHITECTURE.md](ARCHITECTURE.md)·`<comp>/DESIGN.md`로 **링크만** 한다. 
 - **배포 가능한 패키지·실행 하네스**에는 README를 둘 수 있다 — 해당 디렉터리 **로컬 사용법만**.
 - 파일이 새로 생기거나 용도가 바뀌면 위 표를 즉시 갱신한다.
-- 배포 런북은 `deploy/SETUP.md`, Kustomize 베이스는 `deploy/k8s/base/`, GHCR 오버레이는 `deploy/k8s/ghcr/`. PR/push CI는 `.github/workflows/ci.yml`, main CI 통과 후 CD(이미지 빌드·GHCR·선택 배포)는 `.github/workflows/cd.yml`. 빈 stub을 만들지 않는다.
+- 배포 런북은 `deploy/SETUP.md`, Kustomize 베이스는 `deploy/k8s/base/`(로컬 태그), 클러스터 적용은 `deploy/k8s/ghcr/`(GitHub Packages). PR/push CI는 `.github/workflows/ci.yml`, main CI 통과 후 CD(이미지 빌드·GHCR·선택 배포)는 `.github/workflows/cd.yml`. 빈 stub을 만들지 않는다.
  
 ## 2. 수행 방법 (How we work in this repo)
  
