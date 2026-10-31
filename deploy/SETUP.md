@@ -7,7 +7,7 @@
 ```sh
 docker compose -f deploy/compose/docker-compose.yml up -d
 cd backend && go test ./... && go run ./cmd/ingestion-worker
-# 다른 셸
+
 go run ./cmd/svc-core
 go run ./cmd/gateway-web
 go run ./cmd/gateway-email
