@@ -11,7 +11,9 @@ export const SETTINGS_GROUPS = [
   {
     group: "콘텐츠",
     items: [
-      { id: "catalog", label: "카탈로그" },
+      { id: "canned", label: "저장응답" },
+      { id: "labels", label: "라벨" },
+      { id: "macros", label: "매크로" },
       { id: "articles", label: "도움말" },
     ],
   },

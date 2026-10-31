@@ -653,7 +653,9 @@ export function App({ session: initialSession, client, initialState = emptyState
           <div className="settings-body">
             {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
             {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
-            {settingsTab === "catalog" ? <CatalogSettings session={session} client={client} /> : null}
+            {settingsTab === "canned" ? <CatalogSettings pane="canned" session={session} client={client} /> : null}
+            {settingsTab === "labels" ? <CatalogSettings pane="labels" session={session} client={client} /> : null}
+            {settingsTab === "macros" ? <CatalogSettings pane="macros" session={session} client={client} /> : null}
             {settingsTab === "webhooks" ? <WebhookSettings session={session} client={client} /> : null}
             {settingsTab === "reports" ? <ReportSettings session={session} client={client} /> : null}
             {settingsTab === "articles" ? <ArticleSettings session={session} client={client} /> : null}

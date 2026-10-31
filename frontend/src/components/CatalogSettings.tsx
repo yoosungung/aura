@@ -10,9 +10,18 @@ type Canned = { id?: string; short_code?: string; content?: string };
 type MacroAction = { action_name?: string; action_params?: string[] };
 type Macro = { id?: string; name?: string; actions?: MacroAction[] };
 
+export type CatalogPane = "labels" | "canned" | "macros";
+
+const PANE_LABEL: Record<CatalogPane, string> = {
+  labels: "라벨",
+  canned: "저장응답",
+  macros: "매크로",
+};
+
 type CatalogSettingsProps = {
   session: Session;
   client: Partial<HelpdeskClient>;
+  pane: CatalogPane;
 };
 
 function macroMessage(macro: Macro) {
@@ -20,7 +29,7 @@ function macroMessage(macro: Macro) {
   return action?.action_params?.[0] || "";
 }
 
-export function CatalogSettings({ session, client }: CatalogSettingsProps) {
+export function CatalogSettings({ session, client, pane }: CatalogSettingsProps) {
   const [labels, setLabels] = useState<TicketLabel[]>([]);
   const [canned, setCanned] = useState<Canned[]>([]);
   const [labelName, setLabelName] = useState("");
@@ -36,41 +45,34 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      client.listAccountLabels
-        ? client.listAccountLabels({
-            gatewayUrl: session.gatewayUrl,
-            accountId: session.accountId,
-            token: session.token,
+    const req = {
+      gatewayUrl: session.gatewayUrl,
+      accountId: session.accountId,
+      token: session.token,
+    };
+    const load =
+      pane === "labels"
+        ? (client.listAccountLabels ? client.listAccountLabels(req) : Promise.resolve({ labels: [] })).then((data) => {
+            if (!cancelled) {
+              setLabels(data?.labels || []);
+            }
           })
-        : Promise.resolve({ labels: [] }),
-      client.listCanned
-        ? client.listCanned({
-            gatewayUrl: session.gatewayUrl,
-            accountId: session.accountId,
-            token: session.token,
-          })
-        : Promise.resolve({ canned_responses: [] }),
-      client.listMacros
-        ? client.listMacros({
-            gatewayUrl: session.gatewayUrl,
-            accountId: session.accountId,
-            token: session.token,
-          })
-        : Promise.resolve({ macros: [] }),
-    ])
-      .then(([labelData, cannedData, macroData]) => {
-        if (!cancelled) {
-          setLabels(labelData?.labels || []);
-          setCanned(cannedData?.canned_responses || []);
-          setMacros(macroData?.macros || []);
-        }
-      })
-      .catch(() => {});
+        : pane === "canned"
+          ? (client.listCanned ? client.listCanned(req) : Promise.resolve({ canned_responses: [] })).then((data) => {
+              if (!cancelled) {
+                setCanned(data?.canned_responses || []);
+              }
+            })
+          : (client.listMacros ? client.listMacros(req) : Promise.resolve({ macros: [] })).then((data) => {
+              if (!cancelled) {
+                setMacros(data?.macros || []);
+              }
+            });
+    load.catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [client, session]);
+  }, [client, session, pane]);
 
   async function onSaveLabel(e: FormEvent) {
     e.preventDefault();
@@ -277,8 +279,9 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
   }
 
   return (
-    <section className="settings-resource" aria-label="카탈로그">
-      <h2>라벨·저장응답·매크로</h2>
+    <section className="settings-resource" aria-label={PANE_LABEL[pane]}>
+      <h2>{PANE_LABEL[pane]}</h2>
+      {pane === "labels" ? (
       <div className="settings-block">
         <h3>라벨</h3>
         <ul className="settings-list">
@@ -319,6 +322,8 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           </div>
         </form>
       </div>
+      ) : null}
+      {pane === "canned" ? (
       <div className="settings-block">
         <h3>저장응답</h3>
         <ul className="settings-list">
@@ -363,6 +368,8 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           </div>
         </form>
       </div>
+      ) : null}
+      {pane === "macros" ? (
       <div className="settings-block">
         <h3>매크로</h3>
         <ul className="settings-list">
@@ -409,6 +416,7 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           </form>
         ) : null}
       </div>
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
     </section>
   );

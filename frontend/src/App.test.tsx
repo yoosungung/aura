@@ -907,11 +907,11 @@ test("administrator adds a catalog label", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "카탈로그" }));
+  await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
   await user.type(screen.getByLabelText("카탈로그 라벨"), "결제");
   await user.click(screen.getByRole("button", { name: "라벨 추가" }));
   expect(created[0].name).toBe("결제");
-  expect(screen.getByRole("region", { name: "카탈로그" }).textContent).toContain("결제");
+  expect(screen.getByRole("region", { name: "라벨" }).textContent).toContain("결제");
 });
 
 test("administrator deletes catalog labels canned and macros", async () => {
@@ -944,21 +944,22 @@ test("administrator deletes catalog labels canned and macros", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "카탈로그" }));
-  const catalog = await screen.findByRole("region", { name: "카탈로그" });
-  expect(catalog.textContent).toContain("결제");
-  const buttons = within(catalog).getAllByRole("button", { name: "삭제" });
-  await user.click(buttons[0]);
-  await user.click(buttons[1]);
-  await user.click(buttons[2]);
+  await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
+  const labels = await screen.findByRole("region", { name: "라벨" });
+  expect(labels.textContent).toContain("결제");
+  await user.click(within(labels).getByRole("button", { name: "삭제" }));
+  await user.click(screen.getByRole("button", { name: "저장응답", exact: true }));
+  const canned = await screen.findByRole("region", { name: "저장응답" });
+  await user.click(within(canned).getByRole("button", { name: "삭제" }));
+  await user.click(screen.getByRole("button", { name: "매크로", exact: true }));
+  const macros = await screen.findByRole("region", { name: "매크로" });
+  await user.click(within(macros).getByRole("button", { name: "삭제" }));
   expect(deleted).toEqual([
     ["label", "l1"],
     ["canned", "c1"],
     ["macro", "m1"],
   ]);
-  expect(catalog.textContent).not.toContain("결제");
-  expect(catalog.textContent).not.toContain("/인사");
-  expect(catalog.textContent).not.toContain("공유");
+  expect(screen.getByRole("region", { name: "매크로" }).textContent).not.toContain("공유");
 });
 
 test("administrator edits catalog labels canned and macros", async () => {
@@ -996,22 +997,26 @@ test("administrator edits catalog labels canned and macros", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "카탈로그" }));
-  const catalog = await screen.findByRole("region", { name: "카탈로그" });
-  await user.click(within(catalog).getByRole("button", { name: "결제" }));
+  await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
+  const labels = await screen.findByRole("region", { name: "라벨" });
+  await user.click(within(labels).getByRole("button", { name: "결제" }));
   expect((screen.getByLabelText("카탈로그 라벨") as HTMLInputElement).value).toBe("결제");
   await user.clear(screen.getByLabelText("카탈로그 라벨"));
   await user.type(screen.getByLabelText("카탈로그 라벨"), "환불");
   await user.click(screen.getByRole("button", { name: "라벨 저장" }));
-  await user.click(within(catalog).getByRole("button", { name: "/인사" }));
+  await user.click(screen.getByRole("button", { name: "저장응답", exact: true }));
+  const canned = await screen.findByRole("region", { name: "저장응답" });
+  await user.click(within(canned).getByRole("button", { name: "/인사" }));
   expect((screen.getByLabelText("short_code") as HTMLInputElement).value).toBe("인사");
-  expect((screen.getByLabelText("저장응답") as HTMLTextAreaElement).value).toBe("안녕하세요");
+  expect((screen.getByLabelText("저장응답", { selector: "textarea" }) as HTMLTextAreaElement).value).toBe("안녕하세요");
   await user.clear(screen.getByLabelText("short_code"));
   await user.type(screen.getByLabelText("short_code"), "종료");
-  await user.clear(screen.getByLabelText("저장응답"));
-  await user.type(screen.getByLabelText("저장응답"), "감사합니다");
+  await user.clear(screen.getByLabelText("저장응답", { selector: "textarea" }));
+  await user.type(screen.getByLabelText("저장응답", { selector: "textarea" }), "감사합니다");
   await user.click(screen.getByRole("button", { name: "저장응답 저장" }));
-  await user.click(within(catalog).getByRole("button", { name: "공유" }));
+  await user.click(screen.getByRole("button", { name: "매크로", exact: true }));
+  const macros = await screen.findByRole("region", { name: "매크로" });
+  await user.click(within(macros).getByRole("button", { name: "공유" }));
   expect((screen.getByLabelText("매크로 이름") as HTMLInputElement).value).toBe("공유");
   expect((screen.getByLabelText("공개 메시지") as HTMLTextAreaElement).value).toBe("완료");
   await user.clear(screen.getByLabelText("매크로 이름"));
@@ -1022,9 +1027,7 @@ test("administrator edits catalog labels canned and macros", async () => {
   expect(updated[0][1].name).toBe("환불");
   expect(updated[1][1].shortCode).toBe("종료");
   expect(updated[2][1].name).toBe("환불 안내");
-  expect(catalog.textContent).toContain("환불");
-  expect(catalog.textContent).toContain("/종료");
-  expect(catalog.textContent).toContain("환불 안내");
+  expect(macros.textContent).toContain("환불 안내");
 });
 
 test("administrator creates a shared macro in catalog settings", async () => {
@@ -1050,13 +1053,13 @@ test("administrator creates a shared macro in catalog settings", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "카탈로그" }));
+  await user.click(screen.getByRole("button", { name: "매크로", exact: true }));
   await user.type(screen.getByLabelText("매크로 이름"), "환불 완료");
   await user.type(screen.getByLabelText("공개 메시지"), "환불했습니다");
   await user.click(screen.getByRole("button", { name: "매크로 저장" }));
   expect(created[0].name).toBe("환불 완료");
   expect(created[0].visibility).toBe("account");
-  expect(screen.getByRole("region", { name: "카탈로그" }).textContent).toContain("환불 완료");
+  expect(screen.getByRole("region", { name: "매크로" }).textContent).toContain("환불 완료");
 });
 
 test("reply posts through the gateway client", async () => {
@@ -1645,15 +1648,31 @@ test("administrator sees CSAT percent and SLA hit rate", async () => {
       client={{
         connect() {},
         async getReport() {
-          return { csat_percent: 80, sla_hit_rate: 75, conversations: { total: 10, resolved: 4 } };
+          return {
+            csat_percent: 80,
+            sla_hit_rate: 75,
+            conversations: { total: 10, unassigned: 1, open: 3, pending: 2, snoozed: 0, resolved: 4 },
+            agents: [{ name: "Ada", open_count: 2, resolved_count: 3 }],
+            inboxes: [{ name: "Web", conversation_count: 10 }],
+          };
         },
       }}
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "리포트" }));
-  expect(screen.getByRole("region", { name: "리포트" }).textContent).toContain("80");
-  expect(screen.getByRole("region", { name: "리포트" }).textContent).toContain("75");
+  const report = screen.getByRole("region", { name: "리포트" });
+  expect(report.textContent).toContain("80");
+  expect(report.textContent).toContain("75");
+  const csatChart = screen.getByRole("region", { name: "CSAT · SLA" });
+  expect(csatChart).toBeTruthy();
+  expect(screen.getByRole("region", { name: "대화 상태" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "상담원" }).textContent).toContain("Ada");
+  expect(screen.getByRole("region", { name: "인박스" }).textContent).toContain("Web");
+  const wrapper = csatChart.querySelector(".recharts-wrapper");
+  expect(wrapper).toBeTruthy();
+  fireEvent.mouseMove(wrapper as Element, { clientX: 280, clientY: 80 });
+  expect(csatChart.querySelector(".recharts-tooltip-cursor")).toBeNull();
 });
 
 test("administrator registers a webhook", async () => {
@@ -1883,7 +1902,7 @@ test("settings save buttons are compact and right aligned", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "카탈로그" }));
+  await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
   const labelSave = screen.getByRole("button", { name: "라벨 추가" });
   expect(labelSave.className).toMatch(/\bh-8\b/);
   expect(labelSave.closest(".settings-form-actions")).toBeTruthy();
@@ -1910,6 +1929,16 @@ test("administrator settings nav groups inbox content integration and reports", 
   expect(screen.getByRole("heading", { name: "콘텐츠" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "연동" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "분석" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "카탈로그" })).toBeNull();
+  expect(screen.getByRole("button", { name: "저장응답", exact: true })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "라벨", exact: true })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "매크로", exact: true })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
+  expect(screen.getByRole("region", { name: "라벨" })).toBeTruthy();
+  expect(screen.queryByLabelText("short_code")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "저장응답", exact: true }));
+  expect(screen.getByRole("region", { name: "저장응답" })).toBeTruthy();
+  expect(screen.queryByLabelText("카탈로그 라벨")).toBeNull();
 });
 
 test("administrator edits a webhook", async () => {

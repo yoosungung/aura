@@ -546,6 +546,22 @@ select {
   margin: 0;
 }
 
+.settings-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-chart h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-chart .recharts-tooltip-cursor {
+  fill: none;
+}
+
 .settings-resource h2 {
   font-size: 18px;
 }
