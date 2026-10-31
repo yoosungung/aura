@@ -2071,10 +2071,10 @@ test("administrator publishes a help article", async () => {
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "도움말" }));
   await user.type(screen.getByLabelText("문서 제목"), "결제 오류");
-  await user.type(screen.getByLabelText("slug"), "pay-error");
   await user.type(screen.getByLabelText("본문"), "한도를 확인하세요");
   await user.click(screen.getByRole("button", { name: "문서 게시" }));
   expect(created[0].title).toBe("결제 오류");
+  expect(created[0].slug).toBe("결제-오류");
   expect(created[0].published).toBe(true);
   expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 오류");
 });
@@ -2101,13 +2101,14 @@ test("administrator edits a help article", async () => {
   await user.click(screen.getByRole("button", { name: "도움말" }));
   await user.click(await screen.findByRole("button", { name: "결제 오류" }));
   expect((screen.getByLabelText("문서 제목") as HTMLInputElement).value).toBe("결제 오류");
-  expect((screen.getByLabelText("slug") as HTMLInputElement).value).toBe("pay-error");
+  expect(screen.queryByLabelText("slug")).toBeNull();
   expect((screen.getByLabelText("본문") as HTMLTextAreaElement).value).toBe("한도를 확인하세요");
   await user.clear(screen.getByLabelText("문서 제목"));
   await user.type(screen.getByLabelText("문서 제목"), "결제 FAQ");
   await user.click(screen.getByRole("button", { name: "문서 저장" }));
   expect(saved[0].article_id).toBe("a1");
   expect(saved[0].title).toBe("결제 FAQ");
+  expect(saved[0].slug).toBe("결제-faq");
   expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 FAQ");
 });
 

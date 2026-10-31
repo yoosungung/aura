@@ -4,6 +4,7 @@ import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
 import type { HelpdeskClient } from "../gateway.js";
+import { slugFromTitle } from "../lib/utils.js";
 import type { Session } from "../store.js";
 
 type Article = { id?: string; slug?: string; title?: string; body?: string; published?: boolean };
@@ -16,7 +17,6 @@ type ArticleSettingsProps = {
 export function ArticleSettings({ session, client }: ArticleSettingsProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
   const [body, setBody] = useState("");
   const [editingId, setEditingId] = useState("");
   const [error, setError] = useState("");
@@ -46,14 +46,14 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
   function resetForm() {
     setEditingId("");
     setTitle("");
-    setSlug("");
     setBody("");
     setError("");
   }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !slug.trim() || !body.trim()) {
+    const slug = slugFromTitle(title);
+    if (!title.trim() || !slug || !body.trim()) {
       return;
     }
     setError("");
@@ -65,7 +65,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           token: session.token,
           article_id: editingId,
           title: title.trim(),
-          slug: slug.trim(),
+          slug,
           body: body.trim(),
           published: true,
         });
@@ -81,13 +81,12 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
         accountId: session.accountId,
         token: session.token,
         title: title.trim(),
-        slug: slug.trim(),
+        slug,
         body: body.trim(),
         published: true,
       });
       setArticles((prev) => [...prev, created]);
       setTitle("");
-      setSlug("");
       setBody("");
     } catch {
       setError(editingId ? "문서를 수정하지 못했습니다" : "문서를 만들지 못했습니다");
@@ -97,7 +96,6 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
   function selectArticle(article: Article) {
     setEditingId(article.id || "");
     setTitle(article.title || "");
-    setSlug(article.slug || "");
     setBody(article.body || "");
   }
 
@@ -156,10 +154,6 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
         <Label>
           문서 제목
           <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </Label>
-        <Label>
-          slug
-          <Input value={slug} onChange={(e) => setSlug(e.target.value)} required />
         </Label>
         <Label>
           본문
