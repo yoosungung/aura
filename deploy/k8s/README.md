@@ -1,6 +1,6 @@
 # k8s
 
-로컬·클러스터에서 Kustomize 베이스를 적용하는 사용법이다. 이미지 빌드·시크릿·런북은 [../SETUP.md](../SETUP.md).
+로컬·클러스터에서 Kustomize 베이스를 적용하는 사용법이다. 이미지 빌드·CD·시크릿·런북은 [../SETUP.md](../SETUP.md).
 
 ## 전제
 
@@ -12,7 +12,7 @@ Docker Desktop Kubernetes, 또는 `kubectl`이 가리키는 클러스터. 앱 �
 kubectl apply -k deploy/k8s/base
 ```
 
-네임스페이스는 `aura`다. `namespace.yaml`이 만들고, 베이스 리소스는 그 안에 들어간다.
+로컬에서 빌드한 `aura/*:main`이다. CD가 올린 GHCR 이미지를 쓰려면 `kubectl apply -k deploy/k8s/ghcr`. 네임스페이스는 `aura`다. `namespace.yaml`이 만들고, 베이스 리소스는 그 안에 들어간다.
 
 ## 시드
 

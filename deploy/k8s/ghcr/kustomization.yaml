@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+images:
+  - name: aura/svc-core
+    newName: ghcr.io/yoosungung/aura/svc-core
+    newTag: main
+  - name: aura/ingestion-worker
+    newName: ghcr.io/yoosungung/aura/ingestion-worker
+    newTag: main
+  - name: aura/gateway-web
+    newName: ghcr.io/yoosungung/aura/gateway-web
+    newTag: main
+  - name: aura/gateway-email
+    newName: ghcr.io/yoosungung/aura/gateway-email
+    newTag: main
+  - name: aura/gateway-kakao
+    newName: ghcr.io/yoosungung/aura/gateway-kakao
+    newTag: main
+  - name: aura/svc-sla-routing
+    newName: ghcr.io/yoosungung/aura/svc-sla-routing
+    newTag: main
+  - name: aura/svc-automation
+    newName: ghcr.io/yoosungung/aura/svc-automation
+    newTag: main
+  - name: aura/event-archive
+    newName: ghcr.io/yoosungung/aura/event-archive
+    newTag: main
+  - name: aura/seed
+    newName: ghcr.io/yoosungung/aura/seed
+    newTag: main
+  - name: aura/svc-ai-agent
+    newName: ghcr.io/yoosungung/aura/svc-ai-agent
+    newTag: main
+  - name: aura/frontend
+    newName: ghcr.io/yoosungung/aura/frontend
+    newTag: main
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always

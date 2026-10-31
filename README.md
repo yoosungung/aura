@@ -20,7 +20,7 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 
 ## 이미지와 클러스터
 
-이미지 빌드와 `kubectl apply -k deploy/k8s/base`는 [deploy/SETUP.md](deploy/SETUP.md). 클러스터 로컬 사용법은 [deploy/k8s/README.md](deploy/k8s/README.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 베이스를 적용한다.
+이미지 빌드와 `kubectl apply -k deploy/k8s/base`(로컬 태그) 또는 `deploy/k8s/ghcr`(CD가 올린 GHCR)는 [deploy/SETUP.md](deploy/SETUP.md). 클러스터 로컬 사용법은 [deploy/k8s/README.md](deploy/k8s/README.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 베이스를 적용한다. main CI가 통과하면 CD가 이미지를 GHCR에 올린다.
 
 클러스터 안은 HTTP다. 로컬 베이스 NodePort: `frontend` `30080`, `gateway-email` SMTP `30025`, `gateway-kakao` `30081`. `gateway-web`은 ClusterIP. TLS는 고객 인그레스 또는 L4/L7 로드밸런서에서 종료한다. 상세는 [deploy/SETUP.md](deploy/SETUP.md) 클러스터.
 

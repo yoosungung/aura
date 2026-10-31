@@ -53,6 +53,20 @@ docker build -t aura/svc-ai-agent:main svc-ai-agent
 docker build -t aura/frontend:main frontend
 ```
 
+같은 Dockerfiles를 CD(`.github/workflows/cd.yml`)가 main에서 CI가 통과한 뒤에 빌드한다. 태그는 `ghcr.io/yoosungung/aura/<name>:sha-<7글자>`이고, 11개 모두 성공하면 `:main`을 그 SHA로 옮긴다. 레지스트리 경로는 저장소 소문자(`ghcr.io/<owner>/<repo>/<name>`).
+
+## CD
+
+흐름: PR/push → `.github/workflows/ci.yml`(테스트) → main에서 성공이면 `workflow_run`으로 `.github/workflows/cd.yml` → 이미지 빌드·GHCR push → `:main` promote → `KUBECONFIG` 시크릿이 있으면 `deploy/k8s/ghcr` 적용.
+
+클러스터 자동 적용은 저장소 시크릿 `KUBECONFIG`(kubeconfig YAML 원문)가 있을 때만 돈다. 없으면 이미지만 GHCR에 남고, 운영자가 오버레이를 적용한다.
+
+```sh
+kubectl apply -k deploy/k8s/ghcr
+```
+
+GHCR 패키지가 private이면 클러스터에 pull secret이 필요하다. 로컬 이미지는 위 명령 대신 베이스 `deploy/k8s/base`다.
+
 ## 클러스터
 
 베이스에서 외부 인입은 NodePort다. `frontend` HTTP `30080`→`:80`, `gateway-email` SMTP `30025`→`:25`, `gateway-kakao` HTTP `30081`→`:8081`. nginx는 `/api`·`/auth`·`/ws`를 `gateway-web`으로 프록시한다. `gateway-web`과 워커는 ClusterIP. TLS/HTTPS는 패키지가 종료하지 않는다. 고객 앞단 L4/L7 로드밸런서 또는 Ingress에서 종료한다.

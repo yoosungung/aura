@@ -1,0 +1,171 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: cd-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAMES: svc-core ingestion-worker gateway-web gateway-email gateway-kakao svc-sla-routing svc-automation event-archive seed svc-ai-agent frontend
+
+jobs:
+  meta:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.out.outputs.sha }}
+      short: ${{ steps.out.outputs.short }}
+      repo: ${{ steps.out.outputs.repo }}
+    steps:
+      - id: out
+        run: |
+          set -euo pipefail
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: meta
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: svc-core
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=svc-core
+          - name: ingestion-worker
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=ingestion-worker
+          - name: gateway-web
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=gateway-web
+            target: gateway-web
+            build_contexts: widget=packages/widget-sdk
+          - name: gateway-email
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=gateway-email
+          - name: gateway-kakao
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=gateway-kakao
+          - name: svc-sla-routing
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=svc-sla-routing
+          - name: svc-automation
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=svc-automation
+          - name: event-archive
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=event-archive
+          - name: seed
+            context: backend
+            file: backend/Dockerfile
+            build_args: CMD=seed
+          - name: svc-ai-agent
+            context: svc-ai-agent
+            file: svc-ai-agent/Dockerfile
+          - name: frontend
+            context: frontend
+            file: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          build-args: ${{ matrix.build_args }}
+          build-contexts: ${{ matrix.build_contexts }}
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ needs.meta.outputs.repo }}/${{ matrix.name }}:${{ needs.meta.outputs.short }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.meta.outputs.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  promote:
+    needs: [meta, images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point :main at this SHA
+        env:
+          REPO: ${{ needs.meta.outputs.repo }}
+          TAG: ${{ needs.meta.outputs.short }}
+        run: |
+          set -euo pipefail
+          for name in ${IMAGE_NAMES}; do
+            docker buildx imagetools create \
+              -t "ghcr.io/${REPO}/${name}:main" \
+              "ghcr.io/${REPO}/${name}:${TAG}"
+          done
+
+  deploy:
+    needs: [meta, promote]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect cluster credentials
+        id: kube
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          if [ -n "${KUBECONFIG_DATA}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Images only
+        if: steps.kube.outputs.present != 'true'
+        run: echo "KUBECONFIG is unset. Images are on GHCR; apply deploy/k8s/ghcr on the cluster."
+      - uses: actions/checkout@v4
+        if: steps.kube.outputs.present == 'true'
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+      - name: Apply GHCR overlay
+        if: steps.kube.outputs.present == 'true'
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+          TAG: ${{ needs.meta.outputs.short }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.kube"
+          printf '%s\n' "${KUBECONFIG_DATA}" > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
+          sed -i "s/newTag: main/newTag: ${TAG}/" deploy/k8s/ghcr/kustomization.yaml
+          kubectl apply -k deploy/k8s/ghcr
