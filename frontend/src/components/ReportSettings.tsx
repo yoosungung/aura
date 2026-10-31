@@ -73,12 +73,6 @@ export function ReportSettings({ session, client }: ReportSettingsProps) {
   return (
     <section className="settings-resource" aria-label="리포트">
       <h2>운영 리포트</h2>
-      <p>
-        CSAT% <span data-testid="csat-percent">{csat}</span>
-      </p>
-      <p>
-        SLA hit rate <span data-testid="sla-hit-rate">{sla}</span>
-      </p>
       {report?.conversations ? (
         <p>
           대화 {report.conversations.total ?? 0} · 해결 {report.conversations.resolved ?? 0}

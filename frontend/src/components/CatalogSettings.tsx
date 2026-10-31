@@ -283,7 +283,6 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
       <h2>{PANE_LABEL[pane]}</h2>
       {pane === "labels" ? (
       <div className="settings-block">
-        <h3>라벨</h3>
         <ul className="settings-list">
           {labels.map((l) => (
             <li key={l.id || l.name}>
@@ -325,7 +324,6 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
       ) : null}
       {pane === "canned" ? (
       <div className="settings-block">
-        <h3>저장응답</h3>
         <ul className="settings-list">
           {canned.map((c) => (
             <li key={c.id || c.short_code}>
@@ -371,7 +369,6 @@ export function CatalogSettings({ session, client, pane }: CatalogSettingsProps)
       ) : null}
       {pane === "macros" ? (
       <div className="settings-block">
-        <h3>매크로</h3>
         <ul className="settings-list">
           {macros.map((m) => (
             <li key={m.id || m.name}>

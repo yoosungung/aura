@@ -1662,8 +1662,10 @@ test("administrator sees CSAT percent and SLA hit rate", async () => {
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "리포트" }));
   const report = screen.getByRole("region", { name: "리포트" });
-  expect(report.textContent).toContain("80");
-  expect(report.textContent).toContain("75");
+  expect(report.textContent).not.toMatch(/CSAT%/);
+  expect(report.textContent).not.toMatch(/SLA hit rate/);
+  expect(screen.queryByTestId("csat-percent")).toBeNull();
+  expect(screen.queryByTestId("sla-hit-rate")).toBeNull();
   const csatChart = screen.getByRole("region", { name: "CSAT · SLA" });
   expect(csatChart).toBeTruthy();
   expect(screen.getByRole("region", { name: "대화 상태" })).toBeTruthy();
@@ -1934,11 +1936,16 @@ test("administrator settings nav groups inbox content integration and reports", 
   expect(screen.getByRole("button", { name: "라벨", exact: true })).toBeTruthy();
   expect(screen.getByRole("button", { name: "매크로", exact: true })).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
-  expect(screen.getByRole("region", { name: "라벨" })).toBeTruthy();
+  const labels = screen.getByRole("region", { name: "라벨" });
+  expect(within(labels).getAllByRole("heading", { name: "라벨" })).toHaveLength(1);
   expect(screen.queryByLabelText("short_code")).toBeNull();
   await user.click(screen.getByRole("button", { name: "저장응답", exact: true }));
-  expect(screen.getByRole("region", { name: "저장응답" })).toBeTruthy();
+  const canned = screen.getByRole("region", { name: "저장응답" });
+  expect(within(canned).getAllByRole("heading", { name: "저장응답" })).toHaveLength(1);
   expect(screen.queryByLabelText("카탈로그 라벨")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "매크로", exact: true }));
+  const macros = screen.getByRole("region", { name: "매크로" });
+  expect(within(macros).getAllByRole("heading", { name: "매크로" })).toHaveLength(1);
 });
 
 test("administrator edits a webhook", async () => {
