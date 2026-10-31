@@ -586,6 +586,13 @@ select {
   font-size: 12px;
 }
 
+.settings-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .assign,
 .snooze,
 .attach,

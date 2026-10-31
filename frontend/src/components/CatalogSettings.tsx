@@ -236,6 +236,23 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
     }
   }
 
+  function selectLabel(label: TicketLabel) {
+    setEditingLabelId(label.id || "");
+    setLabelName(label.name || "");
+  }
+
+  function selectCanned(row: Canned) {
+    setEditingCannedId(row.id || "");
+    setShortCode(row.short_code || "");
+    setContent(row.content || "");
+  }
+
+  function selectMacro(macro: Macro) {
+    setEditingMacroId(macro.id || "");
+    setMacroName(macro.name || "");
+    setMacroMessageText(macroMessage(macro));
+  }
+
   async function onDeleteMacro(macro: Macro) {
     if (!client.deleteMacro || !macro?.id) {
       return;
@@ -267,17 +284,18 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
         <ul className="settings-list">
           {labels.map((l) => (
             <li key={l.id || l.name}>
-              <span className="settings-item-main">{l.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="settings-item-main justify-start"
+                aria-current={l.id && l.id === editingLabelId ? "true" : undefined}
+                onClick={() => selectLabel(l)}
+              >
+                {l.name}
+              </Button>
               {client.updateAccountLabel && l.id ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingLabelId(l.id || "");
-                    setLabelName(l.name || "");
-                  }}
-                >
+                <Button type="button" size="sm" variant="ghost" onClick={() => selectLabel(l)}>
                   수정
                 </Button>
               ) : null}
@@ -294,7 +312,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
             카탈로그 라벨
             <Input value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
           </Label>
-          <Button type="submit">{editingLabelId ? "라벨 저장" : "라벨 추가"}</Button>
+          <div className="settings-form-actions">
+            <Button type="submit" size="sm">
+              {editingLabelId ? "라벨 저장" : "라벨 추가"}
+            </Button>
+          </div>
         </form>
       </div>
       <div className="settings-block">
@@ -302,18 +324,18 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
         <ul className="settings-list">
           {canned.map((c) => (
             <li key={c.id || c.short_code}>
-              <span className="settings-item-main">/{c.short_code}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="settings-item-main justify-start"
+                aria-current={c.id && c.id === editingCannedId ? "true" : undefined}
+                onClick={() => selectCanned(c)}
+              >
+                /{c.short_code}
+              </Button>
               {client.updateCanned && c.id ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingCannedId(c.id || "");
-                    setShortCode(c.short_code || "");
-                    setContent(c.content || "");
-                  }}
-                >
+                <Button type="button" size="sm" variant="ghost" onClick={() => selectCanned(c)}>
                   수정
                 </Button>
               ) : null}
@@ -334,7 +356,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
             저장응답
             <Textarea value={content} onChange={(e) => setContent(e.target.value)} required />
           </Label>
-          <Button type="submit">{editingCannedId ? "저장응답 저장" : "저장응답 추가"}</Button>
+          <div className="settings-form-actions">
+            <Button type="submit" size="sm">
+              {editingCannedId ? "저장응답 저장" : "저장응답 추가"}
+            </Button>
+          </div>
         </form>
       </div>
       <div className="settings-block">
@@ -342,18 +368,18 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
         <ul className="settings-list">
           {macros.map((m) => (
             <li key={m.id || m.name}>
-              <span className="settings-item-main">{m.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="settings-item-main justify-start"
+                aria-current={m.id && m.id === editingMacroId ? "true" : undefined}
+                onClick={() => selectMacro(m)}
+              >
+                {m.name}
+              </Button>
               {client.updateMacro && m.id ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingMacroId(m.id || "");
-                    setMacroName(m.name || "");
-                    setMacroMessageText(macroMessage(m));
-                  }}
-                >
+                <Button type="button" size="sm" variant="ghost" onClick={() => selectMacro(m)}>
                   수정
                 </Button>
               ) : null}
@@ -375,7 +401,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
               공개 메시지
               <Textarea value={macroMessageText} onChange={(e) => setMacroMessageText(e.target.value)} required />
             </Label>
-            <Button type="submit">매크로 저장</Button>
+            <div className="settings-form-actions">
+              <Button type="submit" size="sm">
+                매크로 저장
+              </Button>
+            </div>
           </form>
         ) : null}
       </div>

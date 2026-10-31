@@ -998,17 +998,22 @@ test("administrator edits catalog labels canned and macros", async () => {
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "카탈로그" }));
   const catalog = await screen.findByRole("region", { name: "카탈로그" });
-  await user.click(within(catalog).getAllByRole("button", { name: "수정" })[0]);
+  await user.click(within(catalog).getByRole("button", { name: "결제" }));
+  expect((screen.getByLabelText("카탈로그 라벨") as HTMLInputElement).value).toBe("결제");
   await user.clear(screen.getByLabelText("카탈로그 라벨"));
   await user.type(screen.getByLabelText("카탈로그 라벨"), "환불");
   await user.click(screen.getByRole("button", { name: "라벨 저장" }));
-  await user.click(within(catalog).getAllByRole("button", { name: "수정" })[1]);
+  await user.click(within(catalog).getByRole("button", { name: "/인사" }));
+  expect((screen.getByLabelText("short_code") as HTMLInputElement).value).toBe("인사");
+  expect((screen.getByLabelText("저장응답") as HTMLTextAreaElement).value).toBe("안녕하세요");
   await user.clear(screen.getByLabelText("short_code"));
   await user.type(screen.getByLabelText("short_code"), "종료");
   await user.clear(screen.getByLabelText("저장응답"));
   await user.type(screen.getByLabelText("저장응답"), "감사합니다");
   await user.click(screen.getByRole("button", { name: "저장응답 저장" }));
-  await user.click(within(catalog).getAllByRole("button", { name: "수정" })[2]);
+  await user.click(within(catalog).getByRole("button", { name: "공유" }));
+  expect((screen.getByLabelText("매크로 이름") as HTMLInputElement).value).toBe("공유");
+  expect((screen.getByLabelText("공개 메시지") as HTMLTextAreaElement).value).toBe("완료");
   await user.clear(screen.getByLabelText("매크로 이름"));
   await user.type(screen.getByLabelText("매크로 이름"), "환불 안내");
   await user.clear(screen.getByLabelText("공개 메시지"));
@@ -1809,7 +1814,10 @@ test("administrator edits a help article", async () => {
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "도움말" }));
-  await user.click(await screen.findByRole("button", { name: "수정" }));
+  await user.click(await screen.findByRole("button", { name: "결제 오류" }));
+  expect((screen.getByLabelText("문서 제목") as HTMLInputElement).value).toBe("결제 오류");
+  expect((screen.getByLabelText("slug") as HTMLInputElement).value).toBe("pay-error");
+  expect((screen.getByLabelText("본문") as HTMLTextAreaElement).value).toBe("한도를 확인하세요");
   await user.clear(screen.getByLabelText("문서 제목"));
   await user.type(screen.getByLabelText("문서 제목"), "결제 FAQ");
   await user.click(screen.getByRole("button", { name: "문서 저장" }));
@@ -1841,6 +1849,52 @@ test("administrator deletes a help article", async () => {
   await user.click(screen.getByRole("button", { name: "삭제" }));
   expect(deleted[0].article_id).toBe("a1");
   expect(screen.getByRole("region", { name: "도움말" }).textContent).not.toContain("결제 오류");
+});
+
+test("settings save buttons are compact and right aligned", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listAccountLabels() {
+          return { labels: [] };
+        },
+        async listCanned() {
+          return { canned_responses: [] };
+        },
+        async listMacros() {
+          return { macros: [] };
+        },
+        async listArticles() {
+          return { articles: [] };
+        },
+        async listWebhooks() {
+          return { webhooks: [] };
+        },
+        async listMCP() {
+          return { mcp_servers: [] };
+        },
+        async listSkills() {
+          return { agent_skills: [] };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "카탈로그" }));
+  const labelSave = screen.getByRole("button", { name: "라벨 추가" });
+  expect(labelSave.className).toMatch(/\bh-8\b/);
+  expect(labelSave.closest(".settings-form-actions")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "도움말" }));
+  expect(screen.getByRole("button", { name: "문서 게시" }).closest(".settings-form-actions")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "웹훅" }));
+  expect(screen.getByRole("button", { name: "웹훅 추가" }).closest(".settings-form-actions")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "MCP" }));
+  expect(screen.getByRole("button", { name: "MCP 추가" }).closest(".settings-form-actions")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Agent Skills" }));
+  expect(screen.getByRole("button", { name: "스킬 저장" }).closest(".settings-form-actions")).toBeTruthy();
 });
 
 test("administrator settings nav groups inbox content integration and reports", async () => {

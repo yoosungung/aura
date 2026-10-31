@@ -14,6 +14,13 @@ kubectl apply -k deploy/k8s/ghcr
 
 CD가 올린 GHCR `:current`(릴리즈 `current`, `linux/amd64`·`linux/arm64`)다. 로컬에서 빌드한 `aura/*:main`은 `kubectl apply -k deploy/k8s/base`. 네임스페이스는 `aura`다. `namespace.yaml`이 만들고, 베이스 리소스는 그 안에 들어간다.
 
+노드가 containerd면 `docker build -t aura/<svc>:main`만으로는 파드가 새 레이어를 보지 않는다. 이미지를 노드에 넣은 뒤 재시작한다.
+
+```sh
+docker save aura/frontend:main | docker exec -i desktop-control-plane ctr -n k8s.io images import --all-platforms -
+kubectl -n aura rollout restart deploy/frontend
+```
+
 ## 시드
 
 클러스터 Job `seed`는 `ghcr.io/yoosungung/aura/seed:current`다. compose `seed`는 로컬 `aura/seed:main`(`backend/Dockerfile` `--build-arg CMD=seed`)이다. 엔트리포인트는 같다. Job이 `AURA_MIGRATE_DSN`으로 마이그레이션 뒤 기본 로그인을 넣고, 계정이 있으면 건너뛴다. 값은 [../compose/README.md](../compose/README.md). 다시 돌리려면 `kubectl delete job seed -n aura` 후 GHCR 오버레이를 적용한다.

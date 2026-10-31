@@ -166,16 +166,18 @@ export function MCPSettings({ session, client }: MCPSettingsProps) {
           인증 헤더
           <Input value={auth} onChange={(e) => setAuth(e.target.value)} />
         </Label>
-        <Button type="submit">MCP 추가</Button>
+        <div className="settings-form-actions">
+          <Button type="button" size="sm" variant="secondary" onClick={() => setRevealed(true)}>
+            보기
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onRotate}>
+            재발급
+          </Button>
+          <Button type="submit" size="sm">
+            MCP 추가
+          </Button>
+        </div>
       </form>
-      <div className="flex gap-2">
-        <Button type="button" variant="secondary" onClick={() => setRevealed(true)}>
-          보기
-        </Button>
-        <Button type="button" variant="secondary" onClick={onRotate}>
-          재발급
-        </Button>
-      </div>
       {error ? <p role="alert">{error}</p> : null}
     </section>
   );

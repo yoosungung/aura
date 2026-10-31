@@ -18,4 +18,10 @@ describe("nginx.conf", () => {
     expect(conf).not.toContain("widget\\.html");
     expect(conf).not.toMatch(/location \/src/);
   });
+
+  it("revalidates the SPA shell and caches hashed assets", () => {
+    expect(conf).toContain("location /assets/");
+    expect(conf).toContain('Cache-Control "no-cache"');
+    expect(conf).toContain('Cache-Control "public, max-age=31536000, immutable"');
+  });
 });

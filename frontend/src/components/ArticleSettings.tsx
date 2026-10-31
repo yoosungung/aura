@@ -89,6 +89,13 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
     }
   }
 
+  function selectArticle(article: Article) {
+    setEditingId(article.id || "");
+    setTitle(article.title || "");
+    setSlug(article.slug || "");
+    setBody(article.body || "");
+  }
+
   async function onDelete(article: Article) {
     if (!client.deleteArticle || !article?.id) {
       return;
@@ -119,20 +126,19 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
       <ul className="settings-list">
         {articles.map((a) => (
           <li key={a.id || a.slug}>
-            <span className="settings-item-main">{a.title}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="settings-item-main justify-start"
+              aria-current={a.id && a.id === editingId ? "true" : undefined}
+              onClick={() => selectArticle(a)}
+            >
+              {a.title}
+            </Button>
             {a.slug ? <span className="settings-item-meta">{a.slug}</span> : null}
             {client.updateArticle && a.id ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setEditingId(a.id || "");
-                  setTitle(a.title || "");
-                  setSlug(a.slug || "");
-                  setBody(a.body || "");
-                }}
-              >
+              <Button type="button" size="sm" variant="ghost" onClick={() => selectArticle(a)}>
                 수정
               </Button>
             ) : null}
@@ -157,7 +163,11 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           본문
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} required />
         </Label>
-        <Button type="submit">{editingId ? "문서 저장" : "문서 게시"}</Button>
+        <div className="settings-form-actions">
+          <Button type="submit" size="sm">
+            {editingId ? "문서 저장" : "문서 게시"}
+          </Button>
+        </div>
       </form>
       {error ? <p role="alert">{error}</p> : null}
     </section>

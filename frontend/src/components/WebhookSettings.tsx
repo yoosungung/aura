@@ -133,7 +133,11 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
           웹훅 URL
           <Input value={url} onChange={(e) => setUrl(e.target.value)} required />
         </Label>
-        <Button type="submit">{editingId ? "웹훅 저장" : "웹훅 추가"}</Button>
+        <div className="settings-form-actions">
+          <Button type="submit" size="sm">
+            {editingId ? "웹훅 저장" : "웹훅 추가"}
+          </Button>
+        </div>
       </form>
       {error ? <p role="alert">{error}</p> : null}
     </section>

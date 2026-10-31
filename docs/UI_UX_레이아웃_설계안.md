@@ -223,8 +223,8 @@
 
 * `section[aria-label="인박스 멤버"]`: 인박스별 소속 상담원 조회 및 추가.
 * `section[aria-label="HMAC 시크릿"]`: 시크릿 마스킹(`••••••••`), `보기` 클릭 시 노출, `복사`, `재발급` 즉시 회전.
-* `section[aria-label="카탈로그"]`: 라벨 / 저장응답 / 매크로 소절. 계정 공통 라벨(`카탈로그 라벨` + `라벨 추가`), 저장응답(`short_code` + `저장응답` + `저장응답 추가`), 공유 매크로(`매크로 이름` + `공개 메시지` + `매크로 저장`). 행마다 `삭제`.
-* `section[aria-label="도움말"]`: Help Center 문서 제목·slug·본문 게시·행 삭제.
+* `section[aria-label="카탈로그"]`: 라벨 / 저장응답 / 매크로 소절. 계정 공통 라벨(`카탈로그 라벨` + `라벨 추가`), 저장응답(`short_code` + `저장응답` + `저장응답 추가`), 공유 매크로(`매크로 이름` + `공개 메시지` + `매크로 저장`). 목록 항목을 누르면 아래 폼에 채워 수정. 행마다 `삭제`. 저장 버튼은 `settings-form-actions`에서 작게 오른쪽 정렬.
+* `section[aria-label="도움말"]`: Help Center 문서 제목·slug·본문. 목록에서 고르면 폼에 채워 수정, 행 삭제.
 * `section[aria-label="웹훅"]`: 아웃바운드 URL 등록(`message_created`)·행 삭제.
 * `section[aria-label="MCP"]`: 운영계 MCP 목록에서 고르면 upsert, 행 삭제. `auth_header`는 보기 전 `••••••••`, `재발급`은 고른 서버(없으면 첫 행).
 * `section[aria-label="Agent Skills"]`: 목록에서 고르면 폼에 채워 upsert, 행 삭제.

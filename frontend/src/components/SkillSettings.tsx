@@ -137,7 +137,11 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
           스킬 본문
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} required />
         </Label>
-        <Button type="submit">스킬 저장</Button>
+        <div className="settings-form-actions">
+          <Button type="submit" size="sm">
+            스킬 저장
+          </Button>
+        </div>
       </form>
       {error ? <p role="alert">{error}</p> : null}
     </section>
