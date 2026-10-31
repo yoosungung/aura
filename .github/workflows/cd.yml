@@ -141,9 +141,13 @@ jobs:
     needs: [meta, promote]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
       - name: Overwrite current release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           REPO: ${{ needs.meta.outputs.repo }}
           SHA: ${{ needs.meta.outputs.sha }}
           TAG: ${{ needs.meta.outputs.short }}
