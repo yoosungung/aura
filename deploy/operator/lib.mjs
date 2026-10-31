@@ -151,6 +151,25 @@ function rawReq(method, url, token) {
   };
 }
 
+export function decodeBody(contentType, text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const html =
+    /html/i.test(contentType || "") ||
+    /^<!doctype html/i.test(trimmed) ||
+    /^<html[\s>]/i.test(trimmed);
+  if (html) {
+    throw new Error("AURA_GATEWAY_URL returned HTML instead of JSON; /platform must reach gateway-web");
+  }
+  try {
+    return `${JSON.stringify(JSON.parse(trimmed), null, 2)}\n`;
+  } catch {
+    throw new Error("AURA_GATEWAY_URL returned non-JSON");
+  }
+}
+
 function jsonReq(method, url, token, body) {
   return {
     method,

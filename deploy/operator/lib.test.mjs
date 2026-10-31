@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { buildRequest, loadDotEnv, parseArgs } from "./lib.mjs";
+import { buildRequest, decodeBody, loadDotEnv, parseArgs } from "./lib.mjs";
 
 test("parseArgs reads resource action and flags", () => {
   const got = parseArgs(["accounts", "create", "--name", "pilot", "--locale", "ko"]);
@@ -98,6 +98,17 @@ test("buildRequest refuses missing platform token", () => {
     () => buildRequest({ gatewayUrl: "http://gw", platformToken: "" }, parseArgs(["accounts", "list"])),
     /AURA_PLATFORM_TOKEN/,
   );
+});
+
+test("decodeBody rejects SPA HTML from the frontend origin", () => {
+  assert.throws(
+    () => decodeBody("text/html", "<!doctype html>\n<html lang=\"ko\">"),
+    /AURA_GATEWAY_URL returned HTML/,
+  );
+});
+
+test("decodeBody pretty-prints JSON", () => {
+  assert.equal(decodeBody("application/json", "{\"accounts\":[]}"), `${JSON.stringify({ accounts: [] }, null, 2)}\n`);
 });
 
 test("loadDotEnv fills unset keys from file", () => {

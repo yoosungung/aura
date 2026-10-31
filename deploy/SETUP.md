@@ -71,7 +71,7 @@ GHCR 패키지가 private이면 클러스터에 pull secret이 필요하다. 로
 
 ## 클러스터
 
-베이스에서 외부 인입은 NodePort다. `frontend` HTTP `30080`→`:80`, `gateway-email` SMTP `30025`→`:25`, `gateway-kakao` HTTP `30081`→`:8081`. nginx는 `/api`·`/auth`·`/ws`를 `gateway-web`으로 프록시한다. `gateway-web`과 워커는 ClusterIP. TLS/HTTPS는 패키지가 종료하지 않는다. 고객 앞단 L4/L7 로드밸런서 또는 Ingress에서 종료한다.
+베이스에서 외부 인입은 NodePort다. `frontend` HTTP `30080`→`:80`, `gateway-email` SMTP `30025`→`:25`, `gateway-kakao` HTTP `30081`→`:8081`. nginx는 `/api`·`/auth`·`/platform`·`/ws`를 `gateway-web`으로 프록시한다. `gateway-web`과 워커는 ClusterIP. TLS/HTTPS는 패키지가 종료하지 않는다. 고객 앞단 L4/L7 로드밸런서 또는 Ingress에서 종료한다.
 
 로컬 접속:
 

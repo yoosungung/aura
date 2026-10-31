@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       "/auth": "http://127.0.0.1:30080",
       "/api": "http://127.0.0.1:30080",
+      "/platform": "http://127.0.0.1:30080",
       "/ws": { target: "ws://127.0.0.1:30080", ws: true },
     },
   },

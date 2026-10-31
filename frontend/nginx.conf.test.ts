@@ -6,9 +6,10 @@ import { describe, expect, it } from "vitest";
 const conf = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "nginx.conf"), "utf8");
 
 describe("nginx.conf", () => {
-  it("proxies API, auth, and websocket to in-cluster gateway-web", () => {
+  it("proxies API, auth, platform, and websocket to in-cluster gateway-web", () => {
     expect(conf).toMatch(/location \/api/);
     expect(conf).toMatch(/location \/auth/);
+    expect(conf).toMatch(/location \/platform/);
     expect(conf).toMatch(/location \/ws/);
     expect(conf).toContain("http://gateway-web.aura.svc.cluster.local:8080");
     expect(conf).toMatch(/proxy_set_header Upgrade/);

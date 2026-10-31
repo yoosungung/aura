@@ -40,7 +40,7 @@ kubectl apply -k deploy/k8s/ghcr
 | `gateway-kakao` | 카카오 웹훅 | `30081` → `:8081` |
 | `gateway-email` | SMTP | `30025` → `:25` |
 
-`gateway-web`과 워커는 ClusterIP. 로컬에서 SPA는 `http://localhost:30080`.
+`gateway-web`과 워커는 ClusterIP. 로컬에서 SPA는 `http://localhost:30080`. nginx가 `/api`·`/auth`·`/platform`·`/ws`를 `gateway-web`으로 넘긴다.
 
 ## 위젯 SDK
 
