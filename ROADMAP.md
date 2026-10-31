@@ -185,3 +185,5 @@
 **인박스 HMAC 시크릿.** administrator만 웹 인박스 설정에서 보고 복사한다. Agent·Client API·위젯에는 내려가지 않는다. 호스트 서버가 env에 넣고 `identifier_hash`만 페이지에 심는다. 회전은 `hmac_secret`을 즉시 덮어쓰고, 이전 키·`hmac_mandatory`는 두지 않는다. 이메일/카카오 인박스는 이 키를 쓰지 않는다.
 
 **대화 목록 필터 (B안).** `GET /conversations`와 `conversations.list` 기본은 작업 큐다. `resolved`는 내려주지 않는다. 담당자·Mine/미배정 쿼리는 두지 않는다. 화면은 미래 `snoozed`를 숨긴다. Mine/미배정/전체 + 상태 탭과 URL 복원·라벨 폴더는 출시 후.
+
+**인박스 멤버 UI.** 인박스별 상담원 ID 입력 / 사용자×인박스 매트릭스 → 계정 사용자 행 × 인박스 열 체크. 변경된 행만 이름 앞 체크로 저장 대상을 고르고, 기존 add/remove API를 그 행의 diff에만 호출한다. 행 데이터는 `GET .../users`(administrator).

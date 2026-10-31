@@ -117,16 +117,39 @@ test("administrator settings live behind the rail", async () => {
   expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
 });
 
-test("administrator removes an inbox member", async () => {
+test("administrator assigns inbox membership from a user matrix", async () => {
   const user = userEvent.setup();
+  const added: ClientReq[] = [];
   const removed: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
       client={{
         connect() {},
-        async listInboxMembers() {
-          return { members: [{ user_id: "user-1", email: "ada@acme.test" }] };
+        async listInboxes() {
+          return {
+            inboxes: [
+              { id: "i1", name: "웹" },
+              { id: "i2", name: "메일함" },
+            ],
+          };
+        },
+        async listAccountUsers() {
+          return {
+            users: [
+              { id: "user-1", name: "Ada", email: "ada@acme.test" },
+              { id: "user-2", name: "Bee", email: "bee@acme.test" },
+            ],
+          };
+        },
+        async listInboxMembers(req) {
+          if (req.inboxId === "i1") {
+            return { members: [{ user_id: "user-1", name: "Ada", email: "ada@acme.test" }] };
+          }
+          return { members: [] };
+        },
+        async addInboxMember(req) {
+          added.push(req);
         },
         async removeInboxMember(req) {
           removed.push(req);
@@ -136,21 +159,38 @@ test("administrator removes an inbox member", async () => {
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
-  expect(await screen.findByText("ada@acme.test")).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(await screen.findByRole("columnheader", { name: "메일함" })).toBeTruthy();
+  expect((screen.getByRole("checkbox", { name: "Ada · 웹" }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.queryByRole("checkbox", { name: "Ada 저장" })).toBeNull();
+  await user.click(screen.getByRole("checkbox", { name: "Ada · 웹" }));
+  expect((screen.getByRole("checkbox", { name: "Ada 저장" }) as HTMLInputElement).checked).toBe(true);
+  await user.click(screen.getByRole("checkbox", { name: "Bee · 메일함" }));
+  await user.click(screen.getByRole("button", { name: "저장" }));
   expect(removed[0].userId).toBe("user-1");
   expect(removed[0].inboxId).toBe("i1");
-  expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
+  expect(added[0].userId).toBe("user-2");
+  expect(added[0].inboxId).toBe("i2");
 });
 
-test("administrator can add an inbox member", async () => {
+test("administrator skips unchecked dirty rows when saving inbox members", async () => {
   const user = userEvent.setup();
-  const added = [];
+  const added: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
       client={{
         connect() {},
+        async listInboxes() {
+          return { inboxes: [{ id: "i1", name: "웹" }] };
+        },
+        async listAccountUsers() {
+          return {
+            users: [
+              { id: "user-1", name: "Ada", email: "ada@acme.test" },
+              { id: "user-2", name: "Bee", email: "bee@acme.test" },
+            ],
+          };
+        },
         async listInboxMembers() {
           return { members: [] };
         },
@@ -162,46 +202,17 @@ test("administrator can add an inbox member", async () => {
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
-  expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
-  await user.type(screen.getByLabelText("상담원 ID"), "user-1");
-  await user.click(screen.getByRole("button", { name: "추가" }));
-  expect(added[0].userId).toBe("user-1");
-  expect(added[0].inboxId).toBe("i1");
-});
-
-test("administrator picks an agent from other inbox members", async () => {
-  const user = userEvent.setup();
-  const added = [];
-  render(
-    <App
-      session={{ ...session, role: "administrator", inboxIds: ["i1", "i2"] }}
-      client={{
-        connect() {},
-        async listInboxMembers(req) {
-          if (req.inboxId === "i2") {
-            return { members: [{ user_id: "user-2", name: "Bee", email: "bee@acme.test" }] };
-          }
-          return { members: [] };
-        },
-        async addInboxMember(req) {
-          added.push(req);
-        },
-      }}
-    />,
-  );
-  await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
-  await user.selectOptions(screen.getByRole("combobox", { name: "상담원" }), "user-2");
-  expect(screen.getByLabelText("상담원 ID").value).toBe("user-2");
-  expect(screen.getByLabelText("상담원 ID").closest("label").className).toMatch(/field-fallback/);
-  await user.click(screen.getByRole("button", { name: "추가" }));
+  await user.click(await screen.findByRole("checkbox", { name: "Ada · 웹" }));
+  await user.click(screen.getByRole("checkbox", { name: "Bee · 웹" }));
+  await user.click(screen.getByRole("checkbox", { name: "Ada 저장" }));
+  await user.click(screen.getByRole("button", { name: "저장" }));
+  expect(added).toHaveLength(1);
   expect(added[0].userId).toBe("user-2");
   expect(added[0].inboxId).toBe("i1");
 });
 
 test("administrator picks inbox from a session select", async () => {
   const user = userEvent.setup();
-  const added = [];
   const seen = [];
   render(
     <App
@@ -210,9 +221,6 @@ test("administrator picks inbox from a session select", async () => {
         connect() {},
         async listInboxMembers() {
           return { members: [] };
-        },
-        async addInboxMember(req) {
-          added.push(req);
         },
         async listInboxes() {
           return {
@@ -230,13 +238,6 @@ test("administrator picks inbox from a session select", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
-  await user.selectOptions(screen.getByRole("combobox", { name: "인박스" }), "i2");
-  expect(screen.getByLabelText("인박스 ID").value).toBe("i2");
-  expect(screen.getByLabelText("인박스 ID").closest("label").className).toMatch(/field-fallback/);
-  await user.type(screen.getByLabelText("상담원 ID"), "user-1");
-  await user.click(screen.getByRole("button", { name: "추가" }));
-  expect(added[0].inboxId).toBe("i2");
   await user.click(screen.getByRole("button", { name: "인박스", exact: true }));
   await user.click(await screen.findByRole("button", { name: "웹2 · Web" }));
   await user.click(screen.getByRole("button", { name: "보기" }));
@@ -540,7 +541,7 @@ test("administrator can cancel settings edit without saving", async () => {
   expect(saved).toEqual([]);
 });
 
-test("inbox member select uses inbox names", async () => {
+test("inbox member matrix uses inbox names", async () => {
   const user = userEvent.setup();
   render(
     <App
@@ -555,6 +556,9 @@ test("inbox member select uses inbox names", async () => {
             ],
           };
         },
+        async listAccountUsers() {
+          return { users: [{ id: "user-1", name: "Ada", email: "ada@acme.test" }] };
+        },
         async listInboxMembers() {
           return { members: [] };
         },
@@ -563,8 +567,9 @@ test("inbox member select uses inbox names", async () => {
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
   await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
-  expect(await screen.findByRole("option", { name: "메일함" })).toBeTruthy();
-  expect(screen.getByRole("option", { name: "웹" })).toBeTruthy();
+  expect(await screen.findByRole("columnheader", { name: "메일함" })).toBeTruthy();
+  expect(screen.getByRole("columnheader", { name: "웹" })).toBeTruthy();
+  expect(screen.getByRole("checkbox", { name: "Ada · 메일함" })).toBeTruthy();
 });
 
 test("ticket view assigns to an inbox agent", async () => {
