@@ -1,18 +1,31 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteAccountLabel, deleteArticle, deleteCanned, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
+import type { FetchImpl, SessionUpdate } from "./gateway.js";
+
+type FakeSock = {
+  url: string;
+  readyState?: number;
+  sent?: string[];
+  onclose?: () => void;
+  close: () => void;
+  send?: (data: string) => void;
+};
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
-    const socks = [];
+    const socks: FakeSock[] = [];
     const prev = globalThis.WebSocket;
     globalThis.WebSocket = class {
-      constructor(url) {
+      url: string;
+      readyState = 1;
+      sent: string[] = [];
+      constructor(url: string) {
         this.url = url;
         socks.push(this);
       }
       close() {}
-    };
+    } as unknown as typeof WebSocket;
     try {
       const stop = connect(
         { token: "t1", gatewayUrl: "http://gw" },
@@ -30,21 +43,22 @@ describe("gateway client", () => {
   });
 
   it("retries once after a single-flight refresh on 401", async () => {
-    const calls = [];
+    const calls: any[] = [];
     let refreshes = 0;
-    const sessions = [];
+    const sessions: SessionUpdate[] = [];
     const conv = { id: "c1", inboxId: "i1", contactId: "p1", contactInboxId: "ci1" };
     const refresh = async () => {
       refreshes += 1;
       await new Promise((r) => setTimeout(r, 15));
       return { access_token: "new" };
     };
-    const fetchImpl = async (_url, opts) => {
-      calls.push(opts);
-      if (opts.headers.Authorization === "Bearer old") {
-        return { status: 401, ok: false };
+    const fetchImpl: FetchImpl = async (_url, opts) => {
+      const headers = (opts?.headers || {}) as Record<string, string>;
+      calls.push({ ...opts, headers });
+      if (headers.Authorization === "Bearer old") {
+        return { status: 401, ok: false, json: async () => ({}) };
       }
-      return { ok: true, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({}) };
     };
     const req = {
       gatewayUrl: "http://gw",
@@ -52,7 +66,7 @@ describe("gateway client", () => {
       token: "old",
       conversation: conv,
       refresh,
-      onSessionUpdate: (next) => sessions.push(next),
+      onSessionUpdate: (next: SessionUpdate) => sessions.push(next),
     };
     await Promise.all([
       sendReply({ ...req, content: "하나" }, fetchImpl),
@@ -64,23 +78,26 @@ describe("gateway client", () => {
   });
 
   it("notifies the session when websocket refresh rotates the token", async () => {
-    const socks = [];
-    const sessions = [];
+    const socks: FakeSock[] = [];
+    const sessions: SessionUpdate[] = [];
     const prev = globalThis.WebSocket;
     globalThis.WebSocket = class {
-      constructor(url) {
+      url: string;
+      readyState = 1;
+      sent: string[] = [];
+      constructor(url: string) {
         this.url = url;
         socks.push(this);
       }
       close() {}
-    };
+    } as unknown as typeof WebSocket;
     try {
       const stop = connect(
         { token: "t1", gatewayUrl: "http://gw" },
         () => {},
         {
           refresh: async () => ({ access_token: "t2" }),
-          onSessionUpdate: (next) => sessions.push(next),
+          onSessionUpdate: (next: SessionUpdate) => sessions.push(next),
         },
       );
       socks[0].onclose();
@@ -93,20 +110,23 @@ describe("gateway client", () => {
   });
 
   it("sends typing frames on the live socket", () => {
-    const socks = [];
+    const socks: FakeSock[] = [];
     const prev = globalThis.WebSocket;
     globalThis.WebSocket = class {
-      constructor(url) {
+      url: string;
+      readyState = 1;
+      sent: string[] = [];
+      constructor(url: string) {
         this.url = url;
         this.readyState = 1;
         this.sent = [];
         socks.push(this);
       }
-      send(data) {
+      send(data: string) {
         this.sent.push(data);
       }
       close() {}
-    };
+    } as unknown as typeof WebSocket;
     try {
       const stop = connect({ token: "t1", gatewayUrl: "http://gw" }, () => {});
       stop.send({ type: "typing", conversation_id: "c1", is_typing: true });
@@ -125,7 +145,7 @@ describe("gateway client", () => {
   });
 
   it("posts reply with inbox and contact ids", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await sendReply(
       {
         gatewayUrl: "http://gw",
@@ -139,9 +159,9 @@ describe("gateway client", () => {
         },
         content: "확인했습니다",
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({}) };
+        return { ok: true, status: 200, json: async () => ({}) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/messages");
@@ -155,12 +175,12 @@ describe("gateway client", () => {
   });
 
   it("posts sign in with credentials", async () => {
-    const calls = [];
+    const calls: any[] = [];
     const data = await signIn(
       { gatewayUrl: "http://gw", email: "ada@acme.test", password: "s3cret" },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ access_token: "tok", user: { account_id: "acc" } }) };
+        return { ok: true, status: 200, json: async () => ({ access_token: "tok", user: { account_id: "acc" } }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/auth/sign_in");
@@ -169,10 +189,10 @@ describe("gateway client", () => {
   });
 
   it("signs out by deleting the session cookie", async () => {
-    const calls = [];
-    await signOut({ gatewayUrl: "http://gw" }, async (url, opts) => {
+    const calls: any[] = [];
+    await signOut({ gatewayUrl: "http://gw" }, async (url: string, opts?: any) => {
       calls.push({ url, opts });
-      return { ok: true };
+      return { ok: true, status: 200, json: async () => ({}) };
     });
     assert.equal(calls[0].url, "http://gw/auth/sign_out");
     assert.equal(calls[0].opts.method, "DELETE");
@@ -188,7 +208,7 @@ describe("gateway client", () => {
   });
 
   it("puts inbox members as admin", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await addInboxMember(
       {
         gatewayUrl: "http://gw",
@@ -197,9 +217,9 @@ describe("gateway client", () => {
         inboxId: "i1",
         userId: "u1",
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true };
+        return { ok: true, status: 200, json: async () => ({}) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/members/u1");
@@ -212,12 +232,12 @@ describe("gateway client", () => {
       async (url) => ({ ok: true, json: async () => ({ hmac_secret: "secret" }) }),
     );
     assert.equal(got.hmac_secret, "secret");
-    const calls = [];
+    const calls: any[] = [];
     const rotated = await rotateHmac(
       { gatewayUrl: "http://gw", accountId: "acc", token: "tok", inboxId: "i1" },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ hmac_secret: "newsecret" }) };
+        return { ok: true, status: 200, json: async () => ({ hmac_secret: "newsecret" }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/hmac/rotate");
@@ -226,7 +246,7 @@ describe("gateway client", () => {
   });
 
   it("patches inbox greeting and hours", async () => {
-    const calls = [];
+    const calls: any[] = [];
     const got = await updateInbox(
       {
         gatewayUrl: "http://gw",
@@ -237,9 +257,9 @@ describe("gateway client", () => {
         businessHoursEnabled: true,
         businessHours: { timezone: "Asia/Seoul" },
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ greeting_message: "부재중" }) };
+        return { ok: true, status: 200, json: async () => ({ greeting_message: "부재중" }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1");
@@ -249,7 +269,7 @@ describe("gateway client", () => {
   });
 
   it("puts conversation assignee", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await assignConversation(
       {
         gatewayUrl: "http://gw",
@@ -259,9 +279,9 @@ describe("gateway client", () => {
         assigneeId: "u1",
         expectedVersion: 1,
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ assignee_id: "u1", status: "open", version: 2 }) };
+        return { ok: true, status: 200, json: async () => ({ assignee_id: "u1", status: "open", version: 2 }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/assignee");
@@ -273,7 +293,7 @@ describe("gateway client", () => {
   });
 
   it("posts an internal note", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await sendNote(
       {
         gatewayUrl: "http://gw",
@@ -282,9 +302,9 @@ describe("gateway client", () => {
         conversationId: "c1",
         content: "환불 검토",
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ private: true }) };
+        return { ok: true, status: 200, json: async () => ({ private: true }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/notes");
@@ -293,7 +313,7 @@ describe("gateway client", () => {
   });
 
   it("puts conversation snooze until", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await snoozeConversation(
       {
         gatewayUrl: "http://gw",
@@ -303,9 +323,9 @@ describe("gateway client", () => {
         snoozedUntil: "2026-10-30T00:00:00Z",
         expectedVersion: 1,
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ status: "snoozed" }) };
+        return { ok: true, status: 200, json: async () => ({ status: "snoozed" }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/snooze");
@@ -317,7 +337,7 @@ describe("gateway client", () => {
   });
 
   it("posts a conversation label name", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await addConversationLabel(
       {
         gatewayUrl: "http://gw",
@@ -326,9 +346,9 @@ describe("gateway client", () => {
         conversationId: "c1",
         name: "환불",
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ id: "l1", name: "환불" }) };
+        return { ok: true, status: 200, json: async () => ({ id: "l1", name: "환불" }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/labels");
@@ -337,12 +357,12 @@ describe("gateway client", () => {
   });
 
   it("deletes a conversation label and lists conversations", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await removeConversationLabel(
       { gatewayUrl: "http://gw", accountId: "acc", token: "tok", conversationId: "c1", labelId: "l1" },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true };
+        return { ok: true, status: 200, json: async () => ({}) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/labels/l1");
@@ -363,12 +383,12 @@ describe("gateway client", () => {
       }),
     );
     assert.equal(canned.canned_responses[0].short_code, "인사");
-    const calls = [];
+    const calls: any[] = [];
     await executeMacro(
       { gatewayUrl: "http://gw", accountId: "acc", token: "tok", conversationId: "c1", macroId: "m1" },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ status: "resolved", version: 2, labels: [], messages: [] }) };
+        return { ok: true, status: 200, json: async () => ({ status: "resolved", version: 2, labels: [], messages: [] }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/macros/m1/execute");
@@ -384,12 +404,12 @@ describe("gateway client", () => {
   });
 
   it("puts conversation resolved status", async () => {
-    const calls = [];
+    const calls: any[] = [];
     await resolveConversation(
       { gatewayUrl: "http://gw", accountId: "acc", token: "tok", conversationId: "c1", expectedVersion: 1 },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ status: "resolved", version: 2 }) };
+        return { ok: true, status: 200, json: async () => ({ status: "resolved", version: 2 }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/status");
@@ -404,16 +424,16 @@ describe("gateway client", () => {
         expectedVersion: 1,
         newStatus: "pending",
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         pending.push({ url, opts });
-        return { ok: true, json: async () => ({ status: "pending", version: 2 }) };
+        return { ok: true, status: 200, json: async () => ({ status: "pending", version: 2 }) };
       },
     );
     assert.deepEqual(JSON.parse(pending[0].opts.body), { new_status: "pending", expected_version: 1 });
   });
 
   it("posts a conversation attachment as multipart", async () => {
-    const calls = [];
+    const calls: any[] = [];
     const file = new File(["pngdata"], "receipt.png", { type: "image/png" });
     await uploadAttachment(
       {
@@ -428,9 +448,9 @@ describe("gateway client", () => {
         },
         file,
       },
-      async (url, opts) => {
+      async (url: string, opts?: any) => {
         calls.push({ url, opts });
-        return { ok: true, json: async () => ({ message_id: "m2", attachments: [] }) };
+        return { ok: true, status: 200, json: async () => ({ message_id: "m2", attachments: [] }) };
       },
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/conversations/c1/attachments");
@@ -442,10 +462,10 @@ describe("gateway client", () => {
   });
 
   it("deletes webhooks, mcp servers, agent skills, and articles", async () => {
-    const calls = [];
-    const fetchImpl = async (url, opts) => {
+    const calls: any[] = [];
+    const fetchImpl: FetchImpl = async (url, opts: any) => {
       calls.push({ url, opts });
-      return { ok: true, json: async () => ({ ok: true }) };
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
     };
     await deleteWebhook(
       { gatewayUrl: "http://gw", accountId: "acc", token: "tok", webhook_id: "wh1" },

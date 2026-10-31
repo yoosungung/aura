@@ -9,9 +9,22 @@ import {
   parseSession,
   reduce,
   visibleInQueue,
+  type RealtimeEvent,
 } from "./store.js";
 
-function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
+function created({
+  id,
+  conv,
+  content,
+  contact = "p1",
+  inbox = "i1",
+}: {
+  id: string;
+  conv: string;
+  content: string;
+  contact?: string;
+  inbox?: string;
+}): RealtimeEvent {
   return {
     type: "event",
     event: "message.created",
@@ -35,7 +48,7 @@ describe("reduce realtime", () => {
       type: "realtime",
       event: { event: "typing", conversation_id: "c1", is_typing: true, user_id: "u1", user_type: "User" },
     });
-    assert.equal(s.typing.c1.userId, "u1");
+    assert.equal(s.typing.c1?.userId, "u1");
     s = reduce(s, {
       type: "realtime",
       event: { event: "typing", conversation_id: "c1", is_typing: false, user_id: "u1" },

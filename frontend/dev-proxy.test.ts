@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const conf = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "vite.config.js"), "utf8");
+const conf = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "vite.config.ts"), "utf8");
 
 describe("vite.config", () => {
   it("proxies auth, api, and websocket to the cluster frontend NodePort", () => {

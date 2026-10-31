@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { App } from "./App.js";
+import type { ClientReq } from "./gateway.js";
 import { fixtureState } from "./store.js";
 
 if (typeof window !== "undefined") {
@@ -12,7 +13,7 @@ afterEach(() => cleanup());
 
 const session = { accountId: "acc", token: "tok", gatewayUrl: "" };
 
-async function openHeaderMenu(user, name) {
+async function openHeaderMenu(user: UserEvent, name: string) {
   await user.click(screen.getByText(name, { selector: "summary" }));
 }
 
@@ -890,7 +891,7 @@ test("administrator adds a catalog label", async () => {
 
 test("administrator deletes catalog labels canned and macros", async () => {
   const user = userEvent.setup();
-  const deleted = [];
+  const deleted: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator" }}
@@ -1704,7 +1705,7 @@ test("administrator publishes a help article", async () => {
 
 test("administrator deletes a help article", async () => {
   const user = userEvent.setup();
-  const deleted = [];
+  const deleted: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator" }}
@@ -1744,7 +1745,7 @@ test("administrator settings nav groups inbox content integration and reports", 
 
 test("administrator deletes a webhook", async () => {
   const user = userEvent.setup();
-  const deleted = [];
+  const deleted: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator" }}
@@ -1769,7 +1770,7 @@ test("administrator deletes a webhook", async () => {
 
 test("administrator deletes an ops MCP server", async () => {
   const user = userEvent.setup();
-  const deleted = [];
+  const deleted: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator" }}
@@ -1796,7 +1797,7 @@ test("administrator deletes an ops MCP server", async () => {
 
 test("administrator deletes an agent skill", async () => {
   const user = userEvent.setup();
-  const deleted = [];
+  const deleted: ClientReq[] = [];
   render(
     <App
       session={{ ...session, role: "administrator" }}
