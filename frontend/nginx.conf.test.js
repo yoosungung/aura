@@ -13,4 +13,9 @@ describe("nginx.conf", () => {
     expect(conf).toContain("http://gateway-web.aura.svc.cluster.local:8080");
     expect(conf).toMatch(/proxy_set_header Upgrade/);
   });
+
+  it("does not proxy widget source files", () => {
+    expect(conf).not.toContain("widget\\.html");
+    expect(conf).not.toMatch(/location \/src/);
+  });
 });

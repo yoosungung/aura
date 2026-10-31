@@ -54,6 +54,12 @@ docker build -t aura/frontend:main frontend
 
 베이스에서 외부 인입은 NodePort다. `frontend` HTTP `30080`→`:80`, `gateway-email` SMTP `30025`→`:25`, `gateway-kakao` HTTP `30081`→`:8081`. nginx는 `/api`·`/auth`·`/ws`를 `gateway-web`으로 프록시한다. `gateway-web`과 워커는 ClusterIP. TLS/HTTPS는 패키지가 종료하지 않는다. 고객 앞단 L4/L7 로드밸런서 또는 Ingress에서 종료한다.
 
+로컬 접속:
+
+- 상담원 SPA: `http://localhost:30080`
+- 카카오 웹훅: `POST http://localhost:30081/cstalk/message`
+- SMTP: `localhost:30025`
+
 PostgreSQL(pgvector)·NATS JetStream·SeaweedFS는 클러스터 밖 또는 별도 차트다. `deploy/k8s/base/configmap.yaml` DSN을 맞춘 뒤:
 
 ```sh
