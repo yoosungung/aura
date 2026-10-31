@@ -103,12 +103,15 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.conversations.label.list` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.labels.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.labels.create` | `actor_user_id`, `account_id`, `name` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.labels.update` | `actor_user_id`, `account_id`, `label_id`, `name`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.labels.delete` | `actor_user_id`, `account_id`, `label_id`. administrator. 조인은 CASCADE | gateway-web | svc-core |
 | Core | `helpdesk.rpc.canned.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.canned.create` | `actor_user_id`, `account_id`, `short_code`, `content` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.canned.update` | `actor_user_id`, `account_id`, `canned_id`, `short_code`, `content`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.canned.delete` | `actor_user_id`, `account_id`, `canned_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.create` | `actor_user_id`, `account_id`, `name`, `actions`, `visibility` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.macros.update` | `actor_user_id`, `account_id`, `macro_id`, `name`, `actions`, `visibility`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.delete` | `actor_user_id`, `account_id`, `macro_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.execute` | `actor_user_id`, `account_id`, `conversation_id`, `macro_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids`. 기본 `status <> 'resolved'`. 행에 `sla_breached`, `display_id`, `channel_type`, `contact_name`, `contact_email`, `last_activity_at`, `applied_slas` | gateway-web | svc-core |
@@ -126,10 +129,12 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.platform.users.create` | `account_id`, `name`, `email`, `password`, `role` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.create` | `actor_user_id`, `account_id`, `url`, `subscriptions` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.webhooks.update` | `actor_user_id`, `account_id`, `webhook_id`, `url`, `subscriptions`. administrator. 시크릿은 유지 | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.delete` | `actor_user_id`, `account_id`, `webhook_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.reports.get` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.create` | `actor_user_id`, `account_id`, `title`, `slug`, `body`, `published` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.articles.update` | `actor_user_id`, `account_id`, `article_id`, `title`, `slug`, `body`, `published`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.delete` | `actor_user_id`, `account_id`, `article_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.search` | `inbox_id`, `query`. 공개 게시글. SECURITY DEFINER | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.conversations` | `account_id`, `inbox_id`, `contact_id` | gateway-web | svc-core |
@@ -362,15 +367,19 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `DELETE /api/v1/accounts/{account_id}/conversations/{id}/labels/{label_id}`
 - `GET /api/v1/accounts/{account_id}/labels`
 - `POST /api/v1/accounts/{account_id}/labels`
+- `PATCH /api/v1/accounts/{account_id}/labels/{label_id}`
 - `DELETE /api/v1/accounts/{account_id}/labels/{label_id}`
 - `GET /api/v1/accounts/{account_id}/canned_responses`
 - `POST /api/v1/accounts/{account_id}/canned_responses`
+- `PATCH /api/v1/accounts/{account_id}/canned_responses/{canned_id}`
 - `DELETE /api/v1/accounts/{account_id}/canned_responses/{canned_id}`
 - `GET /api/v1/accounts/{account_id}/macros`
 - `POST /api/v1/accounts/{account_id}/macros`
+- `PATCH /api/v1/accounts/{account_id}/macros/{macro_id}`
 - `DELETE /api/v1/accounts/{account_id}/macros/{macro_id}`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/macros/{macro_id}/execute`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
+- `DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`hmac_secret` administrator, `greeting_message`, `business_hours_enabled`, `business_hours`)
 - `PATCH /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`greeting_message`, `business_hours_enabled`, `business_hours`. administrator)
 - `POST /api/v1/accounts/{account_id}/inboxes/{inbox_id}/hmac/rotate`
@@ -386,9 +395,11 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `POST /platform/api/v1/accounts` `{ name, locale, user: { name, email, password } }` → 계정·administrator·기본 웹 인박스
 - `POST /platform/api/v1/users` `{ account_id, name, email, password, role }`
 - `GET`/`POST /api/v1/accounts/{account_id}/webhooks`
+- `PATCH /api/v1/accounts/{account_id}/webhooks/{webhook_id}`
 - `DELETE /api/v1/accounts/{account_id}/webhooks/{webhook_id}`
 - `GET /api/v1/accounts/{account_id}/reports` (`conversations` 상태별, `agents`, `inboxes`, `csat_percent` 4–5점 비율, `sla_hit_rate`)
 - `GET`/`POST /api/v1/accounts/{account_id}/articles`
+- `PATCH /api/v1/accounts/{account_id}/articles/{article_id}`
 - `DELETE /api/v1/accounts/{account_id}/articles/{article_id}`
 - `GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego` (Living Profile 1~2홉)
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/tools/{execution_id}/approve`

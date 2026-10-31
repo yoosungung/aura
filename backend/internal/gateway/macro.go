@@ -15,6 +15,7 @@ import (
 type MacroStore interface {
 	ListMacros(ctx context.Context, actor, account uuid.UUID) ([]MacroOut, error)
 	CreateMacro(ctx context.Context, actor, account uuid.UUID, name, visibility string, actions []core.MacroAction) (MacroOut, error)
+	UpdateMacro(ctx context.Context, actor, account, macroID uuid.UUID, name, visibility string, actions []core.MacroAction) (MacroOut, error)
 	DeleteMacro(ctx context.Context, actor, account, macroID uuid.UUID) error
 	ExecuteMacro(ctx context.Context, actor, account, conversation, macroID uuid.UUID) (ExecuteOut, error)
 }
@@ -78,6 +79,31 @@ func (s *Server) handleMacros(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, err := s.Service.Macros.CreateMacro(r.Context(), tok.UserID, accountID, body.Name, body.Visibility, body.Actions)
+		if err != nil {
+			writeMacroErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": out.ID.String(), "name": out.Name, "actions": out.Actions,
+			"visibility": out.Visibility, "created_by": out.CreatedBy.String(),
+		})
+	case http.MethodPatch:
+		id, err := uuid.Parse(r.PathValue("macro_id"))
+		if err != nil {
+			http.Error(w, "invalid macro", http.StatusBadRequest)
+			return
+		}
+		var body struct {
+			Name       string             `json:"name"`
+			Visibility string             `json:"visibility"`
+			Actions    []core.MacroAction `json:"actions"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		out, err := s.Service.Macros.UpdateMacro(r.Context(), tok.UserID, accountID, id, body.Name, body.Visibility, body.Actions)
 		if err != nil {
 			writeMacroErr(w, err)
 			return
@@ -234,6 +260,42 @@ func (r *natsRPC) CreateMacro(ctx context.Context, actor, account uuid.UUID, nam
 		return MacroOut{}, err
 	}
 	msg, err := r.nc.RequestWithContext(ctx, core.SubjectMacroCreate, body)
+	if err != nil {
+		return MacroOut{}, err
+	}
+	var out struct {
+		OK         bool               `json:"ok"`
+		Error      string             `json:"error"`
+		ID         string             `json:"id"`
+		Name       string             `json:"name"`
+		Actions    []core.MacroAction `json:"actions"`
+		Visibility string             `json:"visibility"`
+		CreatedBy  string             `json:"created_by"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return MacroOut{}, err
+	}
+	if !out.OK {
+		return MacroOut{}, macroRPCErr(out.Error)
+	}
+	id, err := uuid.Parse(out.ID)
+	if err != nil {
+		return MacroOut{}, err
+	}
+	return MacroOut{
+		ID: id, Name: out.Name, Actions: out.Actions, Visibility: out.Visibility, CreatedBy: parseUUID(out.CreatedBy),
+	}, nil
+}
+
+func (r *natsRPC) UpdateMacro(ctx context.Context, actor, account, macroID uuid.UUID, name, visibility string, actions []core.MacroAction) (MacroOut, error) {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "macro_id": macroID.String(),
+		"name": name, "visibility": visibility, "actions": actions,
+	})
+	if err != nil {
+		return MacroOut{}, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectMacroUpdate, body)
 	if err != nil {
 		return MacroOut{}, err
 	}

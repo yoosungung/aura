@@ -75,6 +75,34 @@ func (s *Service) ListCanned(ctx context.Context, in CannedInput) ([]CannedRespo
 	return out, err
 }
 
+func (s *Service) UpdateCanned(ctx context.Context, in CannedInput) (CannedResponse, error) {
+	code := strings.TrimSpace(in.ShortCode)
+	content := strings.TrimSpace(in.Content)
+	if in.CannedID == uuid.Nil {
+		return CannedResponse{}, ErrNotFound
+	}
+	if code == "" || content == "" || utf8.RuneCountInString(code) > 50 || strings.ContainsAny(code, " \t\n/") {
+		return CannedResponse{}, ErrInvalid
+	}
+	var out CannedResponse
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		err := tx.QueryRow(ctx, `
+			UPDATE canned_responses SET short_code = $2, content = $3
+			WHERE id = $1
+			RETURNING id, short_code, content`,
+			in.CannedID, code, content,
+		).Scan(&out.ID, &out.ShortCode, &out.Content)
+		if err == pgx.ErrNoRows {
+			return ErrNotFound
+		}
+		return err
+	})
+	if isUniqueViolation(err) {
+		return CannedResponse{}, ErrConflict
+	}
+	return out, err
+}
+
 func (s *Service) DeleteCanned(ctx context.Context, in CannedInput) error {
 	if in.CannedID == uuid.Nil {
 		return ErrNotFound
@@ -126,6 +154,23 @@ func (s *Service) handleCannedList(msg *nats.Msg) {
 		})
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "canned_responses": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleCannedUpdate(msg *nats.Msg) {
+	in, err := parseCannedInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateCanned(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "id": out.ID.String(), "short_code": out.ShortCode, "content": out.Content,
+	})
 	_ = msg.Respond(body)
 }
 

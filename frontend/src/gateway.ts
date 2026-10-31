@@ -288,6 +288,21 @@ export async function addInboxMember(req: ClientReq, fetchImpl: FetchImpl = asFe
   }
 }
 
+export async function removeInboxMember(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, inboxId, userId } = req;
+  const res = await fetchImpl(
+    `${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/members/${userId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!res.ok) {
+    throw new Error("remove member failed");
+  }
+}
+
 export async function listInboxMembers(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
@@ -532,6 +547,23 @@ export async function listAccountLabels(req: ClientReq, fetchImpl: FetchImpl = a
   return res.json();
 }
 
+export async function updateAccountLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, labelId, name } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels/${labelId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    throw new Error("label catalog update failed");
+  }
+  return res.json();
+}
+
 export async function deleteAccountLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, labelId } = req;
@@ -570,6 +602,23 @@ export async function listCanned(req: ClientReq, fetchImpl: FetchImpl = asFetch)
   });
   if (!res.ok) {
     throw new Error("canned list failed");
+  }
+  return res.json();
+}
+
+export async function updateCanned(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, canned_id, shortCode, content } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses/${canned_id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ short_code: shortCode, content }),
+  });
+  if (!res.ok) {
+    throw new Error("canned update failed");
   }
   return res.json();
 }
@@ -629,6 +678,23 @@ export async function createMacro(req: ClientReq, fetchImpl: FetchImpl = asFetch
   });
   if (!res.ok) {
     throw new Error("macro create failed");
+  }
+  return res.json();
+}
+
+export async function updateMacro(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, macroId, name, visibility, actions } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros/${macroId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, visibility, actions }),
+  });
+  if (!res.ok) {
+    throw new Error("macro update failed");
   }
   return res.json();
 }
@@ -696,6 +762,23 @@ export async function createWebhook(req: ClientReq, fetchImpl: FetchImpl = asFet
   });
   if (!res.ok) {
     throw new Error("webhook create failed");
+  }
+  return res.json();
+}
+
+export async function updateWebhook(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, webhook_id, url, subscriptions } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/webhooks/${webhook_id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url, subscriptions }),
+  });
+  if (!res.ok) {
+    throw new Error("webhook update failed");
   }
   return res.json();
 }
@@ -826,6 +909,23 @@ export async function deleteSkill(req: ClientReq, fetchImpl: FetchImpl = asFetch
   return res.json();
 }
 
+export async function updateArticle(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, article_id, title, slug, body, published } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles/${article_id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title, slug, body, published }),
+  });
+  if (!res.ok) {
+    throw new Error("article update failed");
+  }
+  return res.json();
+}
+
 export async function deleteArticle(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, article_id } = req;
@@ -884,6 +984,7 @@ export const liveClient = {
   refresh: refreshSession,
   listContacts,
   addInboxMember,
+  removeInboxMember,
   listInboxMembers,
   getInbox,
   rotateHmac,
@@ -895,12 +996,15 @@ export const liveClient = {
   removeConversationLabel,
   listAccountLabels,
   createAccountLabel,
+  updateAccountLabel,
   deleteAccountLabel,
   listCanned,
   createCanned,
+  updateCanned,
   deleteCanned,
   listMacros,
   createMacro,
+  updateMacro,
   deleteMacro,
   executeMacro,
   listConversations,
@@ -912,9 +1016,11 @@ export const liveClient = {
   getReport,
   listWebhooks,
   createWebhook,
+  updateWebhook,
   deleteWebhook,
   listArticles,
   createArticle,
+  updateArticle,
   deleteArticle,
   listMCP,
   upsertMCP,

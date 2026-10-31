@@ -134,6 +134,36 @@ func TestLabel_AgentCannotCreateMissingName(t *testing.T) {
 	}
 }
 
+func TestAccountLabel_AdminUpdates(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, _ := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	cat, err := svc.CreateAccountLabel(ctx, core.LabelInput{
+		ActorUserID: adminID, AccountID: accountID, Name: "결제",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateAccountLabel(ctx, core.LabelInput{
+		ActorUserID: agentID, AccountID: accountID, LabelID: cat.ID, Name: "환불",
+	}); err != core.ErrDenied {
+		t.Fatalf("agent update got %v", err)
+	}
+	got, err := svc.UpdateAccountLabel(ctx, core.LabelInput{
+		ActorUserID: adminID, AccountID: accountID, LabelID: cat.ID, Name: "환불",
+	})
+	if err != nil || got.ID != cat.ID || got.Name != "환불" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	list, err := svc.ListAccountLabels(ctx, core.LabelInput{ActorUserID: adminID, AccountID: accountID})
+	if err != nil || len(list) != 1 || list[0].Name != "환불" {
+		t.Fatalf("%+v %v", list, err)
+	}
+}
+
 func TestLabel_RejectsBlankAndOutsider(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)

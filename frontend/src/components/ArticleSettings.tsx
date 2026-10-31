@@ -6,7 +6,7 @@ import { Textarea } from "./ui/textarea.jsx";
 import type { HelpdeskClient } from "../gateway.js";
 import type { Session } from "../store.js";
 
-type Article = { id?: string; slug?: string; title?: string };
+type Article = { id?: string; slug?: string; title?: string; body?: string; published?: boolean };
 
 type ArticleSettingsProps = {
   session: Session;
@@ -18,6 +18,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [body, setBody] = useState("");
+  const [editingId, setEditingId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -42,13 +43,34 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
     };
   }, [client, session]);
 
-  async function onCreate(e: FormEvent) {
+  async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!client.createArticle || !title.trim() || !slug.trim() || !body.trim()) {
+    if (!title.trim() || !slug.trim() || !body.trim()) {
       return;
     }
     setError("");
     try {
+      if (editingId && client.updateArticle) {
+        const updated = await client.updateArticle({
+          gatewayUrl: session.gatewayUrl,
+          accountId: session.accountId,
+          token: session.token,
+          article_id: editingId,
+          title: title.trim(),
+          slug: slug.trim(),
+          body: body.trim(),
+          published: true,
+        });
+        setArticles((prev) => prev.map((a) => (a.id === editingId ? { ...a, ...updated } : a)));
+        setEditingId("");
+        setTitle("");
+        setSlug("");
+        setBody("");
+        return;
+      }
+      if (!client.createArticle) {
+        return;
+      }
       const created = await client.createArticle({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
@@ -63,7 +85,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
       setSlug("");
       setBody("");
     } catch {
-      setError("문서를 만들지 못했습니다");
+      setError(editingId ? "문서를 수정하지 못했습니다" : "문서를 만들지 못했습니다");
     }
   }
 
@@ -80,6 +102,12 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
         article_id: article.id,
       });
       setArticles((prev) => prev.filter((a) => a.id !== article.id));
+      if (editingId === article.id) {
+        setEditingId("");
+        setTitle("");
+        setSlug("");
+        setBody("");
+      }
     } catch {
       setError("문서를 삭제하지 못했습니다");
     }
@@ -93,6 +121,21 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           <li key={a.id || a.slug}>
             <span className="settings-item-main">{a.title}</span>
             {a.slug ? <span className="settings-item-meta">{a.slug}</span> : null}
+            {client.updateArticle && a.id ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(a.id || "");
+                  setTitle(a.title || "");
+                  setSlug(a.slug || "");
+                  setBody(a.body || "");
+                }}
+              >
+                수정
+              </Button>
+            ) : null}
             {client.deleteArticle && a.id ? (
               <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(a)}>
                 삭제
@@ -101,7 +144,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           </li>
         ))}
       </ul>
-      <form onSubmit={onCreate} className="flex flex-col gap-2">
+      <form onSubmit={onSave} className="flex flex-col gap-2">
         <Label>
           문서 제목
           <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -114,7 +157,7 @@ export function ArticleSettings({ session, client }: ArticleSettingsProps) {
           본문
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} required />
         </Label>
-        <Button type="submit">문서 게시</Button>
+        <Button type="submit">{editingId ? "문서 저장" : "문서 게시"}</Button>
       </form>
       {error ? <p role="alert">{error}</p> : null}
     </section>

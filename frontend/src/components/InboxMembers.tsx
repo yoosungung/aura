@@ -95,6 +95,25 @@ export function InboxMembers({ session, client }: InboxMembersProps) {
     }
   }
 
+  async function onRemove(member: InboxMember) {
+    if (!inboxId.trim() || !member?.user_id || !client.removeInboxMember) {
+      return;
+    }
+    setError("");
+    try {
+      await client.removeInboxMember({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        inboxId: inboxId.trim(),
+        userId: member.user_id,
+      });
+      setMembers((prev) => prev.filter((m) => m.user_id !== member.user_id));
+    } catch {
+      setError("삭제하지 못했습니다");
+    }
+  }
+
   const taken = new Set(members.map((m) => m.user_id));
   const agentChoices = directory.filter((m) => !taken.has(m.user_id));
 
@@ -139,9 +158,16 @@ export function InboxMembers({ session, client }: InboxMembersProps) {
         <Button type="submit">추가</Button>
       </form>
       {members.length > 0 ? (
-        <ul>
+        <ul className="settings-list">
           {members.map((m) => (
-            <li key={m.user_id}>{m.email || m.user_id}</li>
+            <li key={m.user_id}>
+              <span className="settings-item-main">{m.email || m.user_id}</span>
+              {client.removeInboxMember ? (
+                <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(m)}>
+                  삭제
+                </Button>
+              ) : null}
+            </li>
           ))}
         </ul>
       ) : null}

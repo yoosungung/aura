@@ -19,10 +19,12 @@ func (s *Service) subscribeP6(nc *nats.Conn) error {
 		{SubjectPlatformUser, s.handlePlatformUser},
 		{SubjectWebhookList, s.handleWebhookList},
 		{SubjectWebhookCreate, s.handleWebhookCreate},
+		{SubjectWebhookUpdate, s.handleWebhookUpdate},
 		{SubjectWebhookDelete, s.handleWebhookDelete},
 		{SubjectReportsGet, s.handleReportsGet},
 		{SubjectArticleList, s.handleArticleList},
 		{SubjectArticleCreate, s.handleArticleCreate},
+		{SubjectArticleUpdate, s.handleArticleUpdate},
 		{SubjectArticleDelete, s.handleArticleDelete},
 		{SubjectArticleSearch, s.handleArticleSearch},
 		{SubjectContactConversations, s.handleContactConversations},
@@ -138,6 +140,20 @@ func (s *Service) handleWebhookCreate(msg *nats.Msg) {
 	_ = msg.Respond(webhookJSON(out))
 }
 
+func (s *Service) handleWebhookUpdate(msg *nats.Msg) {
+	in, err := parseWebhookInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateWebhook(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	_ = msg.Respond(webhookJSON(out))
+}
+
 func (s *Service) handleWebhookDelete(msg *nats.Msg) {
 	in, err := parseWebhookInput(msg)
 	if err != nil {
@@ -204,6 +220,21 @@ func (s *Service) handleArticleCreate(msg *nats.Msg) {
 		return
 	}
 	out, err := s.CreateArticle(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "article": encodeArticle(out)})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleArticleUpdate(msg *nats.Msg) {
+	in, err := parseArticleInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateArticle(context.Background(), in)
 	if err != nil {
 		_ = msg.Respond(rpcErr(err))
 		return

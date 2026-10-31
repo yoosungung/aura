@@ -32,12 +32,15 @@ const (
 	SubjectLabelList            = "helpdesk.rpc.conversations.label.list"
 	SubjectLabelCatalogList     = "helpdesk.rpc.labels.list"
 	SubjectLabelCatalogCreate   = "helpdesk.rpc.labels.create"
+	SubjectLabelCatalogUpdate   = "helpdesk.rpc.labels.update"
 	SubjectLabelCatalogDelete   = "helpdesk.rpc.labels.delete"
 	SubjectCannedList           = "helpdesk.rpc.canned.list"
 	SubjectCannedCreate         = "helpdesk.rpc.canned.create"
+	SubjectCannedUpdate         = "helpdesk.rpc.canned.update"
 	SubjectCannedDelete         = "helpdesk.rpc.canned.delete"
 	SubjectMacroList            = "helpdesk.rpc.macros.list"
 	SubjectMacroCreate          = "helpdesk.rpc.macros.create"
+	SubjectMacroUpdate          = "helpdesk.rpc.macros.update"
 	SubjectMacroDelete          = "helpdesk.rpc.macros.delete"
 	SubjectMacroExecute         = "helpdesk.rpc.macros.execute"
 	SubjectConversationsList    = "helpdesk.rpc.conversations.list"
@@ -56,10 +59,12 @@ const (
 	SubjectPlatformUser         = "helpdesk.rpc.platform.users.create"
 	SubjectWebhookList          = "helpdesk.rpc.webhooks.list"
 	SubjectWebhookCreate        = "helpdesk.rpc.webhooks.create"
+	SubjectWebhookUpdate        = "helpdesk.rpc.webhooks.update"
 	SubjectWebhookDelete        = "helpdesk.rpc.webhooks.delete"
 	SubjectReportsGet           = "helpdesk.rpc.reports.get"
 	SubjectArticleList          = "helpdesk.rpc.articles.list"
 	SubjectArticleCreate        = "helpdesk.rpc.articles.create"
+	SubjectArticleUpdate        = "helpdesk.rpc.articles.update"
 	SubjectArticleDelete        = "helpdesk.rpc.articles.delete"
 	SubjectArticleSearch        = "helpdesk.rpc.articles.search"
 	SubjectContactConversations = "helpdesk.rpc.contacts.conversations"
@@ -272,6 +277,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subLabelCatalogCreate.Unsubscribe()
+	subLabelCatalogUpdate, err := nc.QueueSubscribe(SubjectLabelCatalogUpdate, QueueGroup, s.handleLabelCatalogUpdate)
+	if err != nil {
+		return err
+	}
+	defer subLabelCatalogUpdate.Unsubscribe()
 	subLabelCatalogDelete, err := nc.QueueSubscribe(SubjectLabelCatalogDelete, QueueGroup, s.handleLabelCatalogDelete)
 	if err != nil {
 		return err
@@ -287,6 +297,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subCannedCreate.Unsubscribe()
+	subCannedUpdate, err := nc.QueueSubscribe(SubjectCannedUpdate, QueueGroup, s.handleCannedUpdate)
+	if err != nil {
+		return err
+	}
+	defer subCannedUpdate.Unsubscribe()
 	subCannedDelete, err := nc.QueueSubscribe(SubjectCannedDelete, QueueGroup, s.handleCannedDelete)
 	if err != nil {
 		return err
@@ -302,6 +317,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subMacroCreate.Unsubscribe()
+	subMacroUpdate, err := nc.QueueSubscribe(SubjectMacroUpdate, QueueGroup, s.handleMacroUpdate)
+	if err != nil {
+		return err
+	}
+	defer subMacroUpdate.Unsubscribe()
 	subMacroDelete, err := nc.QueueSubscribe(SubjectMacroDelete, QueueGroup, s.handleMacroDelete)
 	if err != nil {
 		return err

@@ -28,6 +28,10 @@ func (f *fakeMacros) CreateMacro(_ context.Context, _, _ uuid.UUID, name, _ stri
 	f.created = append(f.created, name)
 	return f.out, f.err
 }
+func (f *fakeMacros) UpdateMacro(_ context.Context, _, _, _ uuid.UUID, name, _ string, _ []core.MacroAction) (gateway.MacroOut, error) {
+	f.created = append(f.created, name)
+	return f.out, f.err
+}
 func (f *fakeMacros) DeleteMacro(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return f.err
 }

@@ -100,6 +100,34 @@ func (s *Service) ListWebhooks(ctx context.Context, in WebhookInput) ([]Webhook,
 	return out, err
 }
 
+func (s *Service) UpdateWebhook(ctx context.Context, in WebhookInput) (Webhook, error) {
+	if in.WebhookID == uuid.Nil {
+		return Webhook{}, ErrNotFound
+	}
+	rawURL := strings.TrimSpace(in.URL)
+	if err := validWebhookURL(rawURL); err != nil {
+		return Webhook{}, err
+	}
+	subs := in.Subscriptions
+	if len(subs) == 0 {
+		subs = []string{"message_created"}
+	}
+	var out Webhook
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		err := tx.QueryRow(ctx, `
+			UPDATE webhooks SET url = $2, subscriptions = $3
+			WHERE id = $1
+			RETURNING id, url, subscriptions, secret`,
+			in.WebhookID, rawURL, subs,
+		).Scan(&out.ID, &out.URL, &out.Subscriptions, &out.Secret)
+		if err == pgx.ErrNoRows {
+			return ErrNotFound
+		}
+		return err
+	})
+	return out, err
+}
+
 func (s *Service) DeleteWebhook(ctx context.Context, in WebhookInput) error {
 	if in.WebhookID == uuid.Nil {
 		return ErrNotFound

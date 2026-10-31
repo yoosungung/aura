@@ -111,6 +111,11 @@ export function SkillSettings({ session, client }: SkillSettingsProps) {
               {s.name}
             </Button>
             {s.description ? <span className="settings-item-meta">{s.description}</span> : null}
+            {client.upsertSkill ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => loadSkill(s)}>
+                수정
+              </Button>
+            ) : null}
             {client.deleteSkill && s.id ? (
               <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(s)}>
                 삭제

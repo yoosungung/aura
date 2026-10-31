@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteAccountLabel, deleteArticle, deleteCanned, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteAccountLabel, deleteArticle, deleteCanned, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, removeInboxMember, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateAccountLabel, updateArticle, updateCanned, updateInbox, updateMacro, updateWebhook, uploadAttachment, wsUrl } from "./gateway.js";
 import type { FetchImpl, SessionUpdate } from "./gateway.js";
 
 type FakeSock = {
@@ -224,6 +224,25 @@ describe("gateway client", () => {
     );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/members/u1");
     assert.equal(calls[0].opts.method, "PUT");
+  });
+
+  it("deletes inbox members as admin", async () => {
+    const calls: any[] = [];
+    await removeInboxMember(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        inboxId: "i1",
+        userId: "u1",
+      },
+      async (url: string, opts?: any) => {
+        calls.push({ url, opts });
+        return { ok: true, status: 204, json: async () => ({}) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/members/u1");
+    assert.equal(calls[0].opts.method, "DELETE");
   });
 
   it("gets and rotates inbox hmac secret", async () => {
@@ -509,5 +528,56 @@ describe("gateway client", () => {
     assert.equal(calls[5].opts.method, "DELETE");
     assert.equal(calls[6].url, "http://gw/api/v1/accounts/acc/macros/m1");
     assert.equal(calls[6].opts.method, "DELETE");
+  });
+
+  it("patches catalog webhooks and articles", async () => {
+    const calls: any[] = [];
+    const fetchImpl: FetchImpl = async (url, opts: any) => {
+      calls.push({ url, opts });
+      return { ok: true, status: 200, json: async () => JSON.parse(opts.body) };
+    };
+    await updateAccountLabel(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", labelId: "l1", name: "환불" },
+      fetchImpl,
+    );
+    await updateCanned(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", canned_id: "c1", shortCode: "종료", content: "감사합니다" },
+      fetchImpl,
+    );
+    await updateMacro(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        macroId: "m1",
+        name: "환불 안내",
+        visibility: "account",
+        actions: [{ action_name: "send_message", action_params: ["환불했습니다"] }],
+      },
+      fetchImpl,
+    );
+    await updateWebhook(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", webhook_id: "wh1", url: "https://crm.example/v2" },
+      fetchImpl,
+    );
+    await updateArticle(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        article_id: "a1",
+        title: "결제 FAQ",
+        slug: "pay-faq",
+        body: "한도를 올리세요",
+        published: true,
+      },
+      fetchImpl,
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/labels/l1");
+    assert.equal(calls[0].opts.method, "PATCH");
+    assert.equal(calls[1].url, "http://gw/api/v1/accounts/acc/canned_responses/c1");
+    assert.equal(calls[2].url, "http://gw/api/v1/accounts/acc/macros/m1");
+    assert.equal(calls[3].url, "http://gw/api/v1/accounts/acc/webhooks/wh1");
+    assert.equal(calls[4].url, "http://gw/api/v1/accounts/acc/articles/a1");
   });
 });

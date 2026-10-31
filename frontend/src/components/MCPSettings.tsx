@@ -140,6 +140,11 @@ export function MCPSettings({ session, client }: MCPSettingsProps) {
             >
               {s.name} {s.url} {revealed && s.auth_header ? s.auth_header : "••••••••"}
             </Button>
+            {client.upsertMCP ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => selectServer(s)}>
+                수정
+              </Button>
+            ) : null}
             {client.deleteMCP && s.id ? (
               <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(s)}>
                 삭제

@@ -14,6 +14,7 @@ import (
 type CannedStore interface {
 	ListCanned(ctx context.Context, actor, account uuid.UUID) ([]CannedOut, error)
 	CreateCanned(ctx context.Context, actor, account uuid.UUID, shortCode, content string) (CannedOut, error)
+	UpdateCanned(ctx context.Context, actor, account, cannedID uuid.UUID, shortCode, content string) (CannedOut, error)
 	DeleteCanned(ctx context.Context, actor, account, cannedID uuid.UUID) error
 }
 
@@ -63,6 +64,29 @@ func (s *Server) handleCanned(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, err := s.Service.Canned.CreateCanned(r.Context(), tok.UserID, accountID, body.ShortCode, body.Content)
+		if err != nil {
+			writeCannedErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": out.ID.String(), "short_code": out.ShortCode, "content": out.Content,
+		})
+	case http.MethodPatch:
+		id, err := uuid.Parse(r.PathValue("canned_id"))
+		if err != nil {
+			http.Error(w, "invalid canned", http.StatusBadRequest)
+			return
+		}
+		var body struct {
+			ShortCode string `json:"short_code"`
+			Content   string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		out, err := s.Service.Canned.UpdateCanned(r.Context(), tok.UserID, accountID, id, body.ShortCode, body.Content)
 		if err != nil {
 			writeCannedErr(w, err)
 			return
@@ -148,6 +172,38 @@ func (r *natsRPC) CreateCanned(ctx context.Context, actor, account uuid.UUID, sh
 		return CannedOut{}, err
 	}
 	msg, err := r.nc.RequestWithContext(ctx, core.SubjectCannedCreate, body)
+	if err != nil {
+		return CannedOut{}, err
+	}
+	var out struct {
+		OK        bool   `json:"ok"`
+		Error     string `json:"error"`
+		ID        string `json:"id"`
+		ShortCode string `json:"short_code"`
+		Content   string `json:"content"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return CannedOut{}, err
+	}
+	if !out.OK {
+		return CannedOut{}, cannedRPCErr(out.Error)
+	}
+	id, err := uuid.Parse(out.ID)
+	if err != nil {
+		return CannedOut{}, err
+	}
+	return CannedOut{ID: id, ShortCode: out.ShortCode, Content: out.Content}, nil
+}
+
+func (r *natsRPC) UpdateCanned(ctx context.Context, actor, account, cannedID uuid.UUID, shortCode, content string) (CannedOut, error) {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(),
+		"canned_id": cannedID.String(), "short_code": shortCode, "content": content,
+	})
+	if err != nil {
+		return CannedOut{}, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectCannedUpdate, body)
 	if err != nil {
 		return CannedOut{}, err
 	}

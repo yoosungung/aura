@@ -35,6 +35,7 @@ type WebhookOut struct {
 type WebhookStore interface {
 	ListWebhooks(ctx context.Context, actor, account uuid.UUID) ([]WebhookOut, error)
 	CreateWebhook(ctx context.Context, actor, account uuid.UUID, rawURL string, subs []string) (WebhookOut, error)
+	UpdateWebhook(ctx context.Context, actor, account, webhook uuid.UUID, rawURL string, subs []string) (WebhookOut, error)
 	DeleteWebhook(ctx context.Context, actor, account, webhook uuid.UUID) error
 }
 
@@ -61,6 +62,7 @@ type ArticleOut struct {
 type ArticleStore interface {
 	ListArticles(ctx context.Context, actor, account uuid.UUID) ([]ArticleOut, error)
 	CreateArticle(ctx context.Context, actor, account uuid.UUID, title, slug, body string, published bool) (ArticleOut, error)
+	UpdateArticle(ctx context.Context, actor, account, article uuid.UUID, title, slug, body string, published bool) (ArticleOut, error)
 	DeleteArticle(ctx context.Context, actor, account, article uuid.UUID) error
 	SearchArticles(ctx context.Context, inbox uuid.UUID, query string) ([]ArticleOut, error)
 }
@@ -180,6 +182,26 @@ func (s *Server) handleWebhooks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, encodeWebhookHTTP(got))
+	case http.MethodPatch:
+		id, err := uuid.Parse(r.PathValue("webhook_id"))
+		if err != nil {
+			http.Error(w, "invalid webhook", http.StatusBadRequest)
+			return
+		}
+		var body struct {
+			URL           string   `json:"url"`
+			Subscriptions []string `json:"subscriptions"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		got, err := s.Service.Webhooks.UpdateWebhook(r.Context(), tok.UserID, accountID, id, body.URL, body.Subscriptions)
+		if err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		writeJSON(w, encodeWebhookHTTP(got))
 	case http.MethodDelete:
 		id, err := uuid.Parse(r.PathValue("webhook_id"))
 		if err != nil {
@@ -257,6 +279,28 @@ func (s *Server) handleArticles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		got, err := s.Service.Articles.CreateArticle(r.Context(), tok.UserID, accountID, body.Title, body.Slug, body.Body, body.Published)
+		if err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		writeJSON(w, encodeArticleHTTP(got))
+	case http.MethodPatch:
+		id, err := uuid.Parse(r.PathValue("article_id"))
+		if err != nil {
+			http.Error(w, "invalid article", http.StatusBadRequest)
+			return
+		}
+		var body struct {
+			Title     string `json:"title"`
+			Slug      string `json:"slug"`
+			Body      string `json:"body"`
+			Published bool   `json:"published"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		got, err := s.Service.Articles.UpdateArticle(r.Context(), tok.UserID, accountID, id, body.Title, body.Slug, body.Body, body.Published)
 		if err != nil {
 			writeCatalogErr(w, err)
 			return
@@ -442,6 +486,18 @@ func (r *natsRPC) CreateWebhook(ctx context.Context, actor, account uuid.UUID, r
 	return decodeWebhook(hook), nil
 }
 
+func (r *natsRPC) UpdateWebhook(ctx context.Context, actor, account, webhook uuid.UUID, rawURL string, subs []string) (WebhookOut, error) {
+	raw, err := r.call(ctx, core.SubjectWebhookUpdate, map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "webhook_id": webhook.String(),
+		"url": rawURL, "subscriptions": subs,
+	})
+	if err != nil {
+		return WebhookOut{}, err
+	}
+	hook, _ := raw["webhook"].(map[string]any)
+	return decodeWebhook(hook), nil
+}
+
 func (r *natsRPC) DeleteWebhook(ctx context.Context, actor, account, webhook uuid.UUID) error {
 	_, err := r.call(ctx, core.SubjectWebhookDelete, map[string]any{
 		"actor_user_id": actor.String(), "account_id": account.String(), "webhook_id": webhook.String(),
@@ -478,6 +534,18 @@ func (r *natsRPC) ListArticles(ctx context.Context, actor, account uuid.UUID) ([
 func (r *natsRPC) CreateArticle(ctx context.Context, actor, account uuid.UUID, title, slug, body string, published bool) (ArticleOut, error) {
 	raw, err := r.call(ctx, core.SubjectArticleCreate, map[string]any{
 		"actor_user_id": actor.String(), "account_id": account.String(),
+		"title": title, "slug": slug, "body": body, "published": published,
+	})
+	if err != nil {
+		return ArticleOut{}, err
+	}
+	art, _ := raw["article"].(map[string]any)
+	return decodeArticle(art), nil
+}
+
+func (r *natsRPC) UpdateArticle(ctx context.Context, actor, account, article uuid.UUID, title, slug, body string, published bool) (ArticleOut, error) {
+	raw, err := r.call(ctx, core.SubjectArticleUpdate, map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "article_id": article.String(),
 		"title": title, "slug": slug, "body": body, "published": published,
 	})
 	if err != nil {

@@ -37,6 +37,9 @@ func (f *fakeWebhooks) ListWebhooks(context.Context, uuid.UUID, uuid.UUID) ([]ga
 func (f *fakeWebhooks) CreateWebhook(context.Context, uuid.UUID, uuid.UUID, string, []string) (gateway.WebhookOut, error) {
 	return f.got, f.err
 }
+func (f *fakeWebhooks) UpdateWebhook(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, []string) (gateway.WebhookOut, error) {
+	return f.got, f.err
+}
 func (f *fakeWebhooks) DeleteWebhook(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return f.err
 }
@@ -66,6 +69,12 @@ func (f *fakeArticles) CreateArticle(context.Context, uuid.UUID, uuid.UUID, stri
 }
 func (f *fakeArticles) SearchArticles(context.Context, uuid.UUID, string) ([]gateway.ArticleOut, error) {
 	return f.list, f.err
+}
+func (f *fakeArticles) UpdateArticle(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string, string, bool) (gateway.ArticleOut, error) {
+	if len(f.list) > 0 {
+		return f.list[0], f.err
+	}
+	return gateway.ArticleOut{}, f.err
 }
 func (f *fakeArticles) DeleteArticle(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return f.err
@@ -193,6 +202,28 @@ func TestHTTP_CreateWebhook(t *testing.T) {
 	tok := userToken(t, accountID, actorID)
 	body, _ := json.Marshal(map[string]any{"url": "https://crm.example/hook", "subscriptions": []string{"message_created"}})
 	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/accounts/"+accountID.String()+"/webhooks", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_UpdateWebhook(t *testing.T) {
+	accountID, actorID, hookID := mustV7(t), mustV7(t), mustV7(t)
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Webhooks: &fakeWebhooks{got: gateway.WebhookOut{
+			ID: hookID, URL: "https://crm.example/v2", Subscriptions: []string{"message_created"}, Secret: "sec",
+		}}},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	tok := userToken(t, accountID, actorID)
+	body, _ := json.Marshal(map[string]any{"url": "https://crm.example/v2", "subscriptions": []string{"message_created"}})
+	req, _ := http.NewRequest(http.MethodPatch, srv.URL+"/api/v1/accounts/"+accountID.String()+"/webhooks/"+hookID.String(), bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+tok)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

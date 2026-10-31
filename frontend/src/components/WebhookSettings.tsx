@@ -15,6 +15,7 @@ type WebhookSettingsProps = {
 export function WebhookSettings({ session, client }: WebhookSettingsProps) {
   const [hooks, setHooks] = useState<Webhook[]>([]);
   const [url, setUrl] = useState("");
+  const [editingId, setEditingId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -39,13 +40,30 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
     };
   }, [client, session]);
 
-  async function onCreate(e: FormEvent) {
+  async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!client.createWebhook || !url.trim()) {
+    if (!url.trim()) {
       return;
     }
     setError("");
     try {
+      if (editingId && client.updateWebhook) {
+        const updated = await client.updateWebhook({
+          gatewayUrl: session.gatewayUrl,
+          accountId: session.accountId,
+          token: session.token,
+          webhook_id: editingId,
+          url: url.trim(),
+          subscriptions: ["message_created"],
+        });
+        setHooks((prev) => prev.map((h) => (h.id === editingId ? { ...h, ...updated } : h)));
+        setEditingId("");
+        setUrl("");
+        return;
+      }
+      if (!client.createWebhook) {
+        return;
+      }
       const created = await client.createWebhook({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
@@ -56,7 +74,7 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
       setHooks((prev) => [...prev, created]);
       setUrl("");
     } catch {
-      setError("웹훅을 만들지 못했습니다");
+      setError(editingId ? "웹훅을 수정하지 못했습니다" : "웹훅을 만들지 못했습니다");
     }
   }
 
@@ -73,6 +91,10 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
         webhook_id: hook.id,
       });
       setHooks((prev) => prev.filter((h) => h.id !== hook.id));
+      if (editingId === hook.id) {
+        setEditingId("");
+        setUrl("");
+      }
     } catch {
       setError("웹훅을 삭제하지 못했습니다");
     }
@@ -85,6 +107,19 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
         {hooks.map((h) => (
           <li key={h.id || h.url}>
             <span className="settings-item-main">{h.url}</span>
+            {client.updateWebhook && h.id ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(h.id || "");
+                  setUrl(h.url || "");
+                }}
+              >
+                수정
+              </Button>
+            ) : null}
             {client.deleteWebhook && h.id ? (
               <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(h)}>
                 삭제
@@ -93,12 +128,12 @@ export function WebhookSettings({ session, client }: WebhookSettingsProps) {
           </li>
         ))}
       </ul>
-      <form onSubmit={onCreate} className="flex flex-col gap-2">
+      <form onSubmit={onSave} className="flex flex-col gap-2">
         <Label>
           웹훅 URL
           <Input value={url} onChange={(e) => setUrl(e.target.value)} required />
         </Label>
-        <Button type="submit">웹훅 추가</Button>
+        <Button type="submit">{editingId ? "웹훅 저장" : "웹훅 추가"}</Button>
       </form>
       {error ? <p role="alert">{error}</p> : null}
     </section>

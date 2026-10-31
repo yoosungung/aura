@@ -142,6 +142,50 @@ func (s *Service) ListMacros(ctx context.Context, in MacroInput) ([]Macro, error
 	return out, err
 }
 
+func (s *Service) UpdateMacro(ctx context.Context, in MacroInput) (Macro, error) {
+	if in.MacroID == uuid.Nil {
+		return Macro{}, ErrNotFound
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" || utf8.RuneCountInString(name) > 255 || len(in.Actions) == 0 {
+		return Macro{}, ErrInvalid
+	}
+	for _, a := range in.Actions {
+		if !macroActions[a.ActionName] {
+			return Macro{}, ErrInvalid
+		}
+	}
+	var out Macro
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		visibility := in.Visibility
+		if visibility == "" {
+			visibility = MacroVisibilityAccount
+		}
+		if visibility != MacroVisibilityAccount && visibility != MacroVisibilityPersonal {
+			return ErrInvalid
+		}
+		raw, err := json.Marshal(in.Actions)
+		if err != nil {
+			return err
+		}
+		var actions []byte
+		err = tx.QueryRow(ctx, `
+			UPDATE macros SET name = $2, actions = $3::jsonb, visibility = $4
+			WHERE id = $1
+			RETURNING id, name, actions, visibility, COALESCE(created_by, '00000000-0000-0000-0000-000000000000')`,
+			in.MacroID, name, string(raw), visibility,
+		).Scan(&out.ID, &out.Name, &actions, &out.Visibility, &out.CreatedBy)
+		if err == pgx.ErrNoRows {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(actions, &out.Actions)
+	})
+	return out, err
+}
+
 func (s *Service) DeleteMacro(ctx context.Context, in MacroInput) error {
 	if in.MacroID == uuid.Nil {
 		return ErrNotFound
@@ -367,6 +411,24 @@ func (s *Service) handleMacroList(msg *nats.Msg) {
 		})
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "macros": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleMacroUpdate(msg *nats.Msg) {
+	in, err := parseMacroInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateMacro(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "id": out.ID.String(), "name": out.Name,
+		"actions": out.Actions, "visibility": out.Visibility, "created_by": out.CreatedBy.String(),
+	})
 	_ = msg.Respond(body)
 }
 

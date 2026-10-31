@@ -42,6 +42,10 @@ func (f *fakeLabels) CreateAccountLabel(_ context.Context, _, _ uuid.UUID, name 
 	f.added = append(f.added, name)
 	return f.out, f.err
 }
+func (f *fakeLabels) UpdateAccountLabel(_ context.Context, _, _, _ uuid.UUID, name string) (gateway.LabelOut, error) {
+	f.added = append(f.added, name)
+	return f.out, f.err
+}
 func (f *fakeLabels) DeleteAccountLabel(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return f.err
 }
@@ -116,6 +120,30 @@ func TestHTTP_CreateAccountLabel(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"name": "결제"})
 	req, err := http.NewRequest(http.MethodPost,
 		srv.URL+"/api/v1/accounts/"+accountID.String()+"/labels", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+userToken(t, accountID, actorID))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_UpdateAccountLabel(t *testing.T) {
+	accountID, actorID, labelID := mustV7(t), mustV7(t), mustV7(t)
+	lbl := &fakeLabels{out: gateway.LabelOut{ID: labelID, Name: "환불"}}
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Labels: lbl},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	body, _ := json.Marshal(map[string]any{"name": "환불"})
+	req, err := http.NewRequest(http.MethodPatch,
+		srv.URL+"/api/v1/accounts/"+accountID.String()+"/labels/"+labelID.String(), bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

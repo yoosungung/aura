@@ -24,6 +24,9 @@ func (f *fakeCanned) ListCanned(context.Context, uuid.UUID, uuid.UUID) ([]gatewa
 func (f *fakeCanned) CreateCanned(context.Context, uuid.UUID, uuid.UUID, string, string) (gateway.CannedOut, error) {
 	return f.out, f.err
 }
+func (f *fakeCanned) UpdateCanned(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) (gateway.CannedOut, error) {
+	return f.out, f.err
+}
 func (f *fakeCanned) DeleteCanned(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return f.err
 }
@@ -76,6 +79,29 @@ func TestHTTP_CannedDenied(t *testing.T) {
 	}
 	res.Body.Close()
 	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_UpdateCanned(t *testing.T) {
+	accountID, actorID, id := mustV7(t), mustV7(t), mustV7(t)
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Canned: &fakeCanned{out: gateway.CannedOut{ID: id, ShortCode: "종료", Content: "감사합니다"}}},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	body, _ := json.Marshal(map[string]any{"short_code": "종료", "content": "감사합니다"})
+	req, err := http.NewRequest(http.MethodPatch,
+		srv.URL+"/api/v1/accounts/"+accountID.String()+"/canned_responses/"+id.String(), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+userToken(t, accountID, actorID))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", res.StatusCode)
 	}
 }

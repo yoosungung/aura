@@ -17,6 +17,7 @@ type Labeler interface {
 	ListConversationLabels(ctx context.Context, actor, account, conversation uuid.UUID) ([]LabelOut, error)
 	ListAccountLabels(ctx context.Context, actor, account uuid.UUID) ([]LabelOut, error)
 	CreateAccountLabel(ctx context.Context, actor, account uuid.UUID, name string) (LabelOut, error)
+	UpdateAccountLabel(ctx context.Context, actor, account, labelID uuid.UUID, name string) (LabelOut, error)
 	DeleteAccountLabel(ctx context.Context, actor, account, labelID uuid.UUID) error
 }
 
@@ -54,6 +55,28 @@ func (s *Server) handleAccountLabels(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, err := s.Service.Labels.CreateAccountLabel(r.Context(), tok.UserID, accountID, body.Name)
+		if err != nil {
+			s.writeLabelErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": out.ID.String(), "name": out.Name, "color": out.Color,
+		})
+	case http.MethodPatch:
+		id, err := uuid.Parse(r.PathValue("label_id"))
+		if err != nil {
+			http.Error(w, "invalid label", http.StatusBadRequest)
+			return
+		}
+		var patch struct {
+			Name string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		out, err := s.Service.Labels.UpdateAccountLabel(r.Context(), tok.UserID, accountID, id, patch.Name)
 		if err != nil {
 			s.writeLabelErr(w, err)
 			return
@@ -156,6 +179,8 @@ func (s *Server) writeLabelErr(w http.ResponseWriter, err error) {
 		code = http.StatusForbidden
 	} else if errors.Is(err, core.ErrInvalid) || err.Error() == "invalid" {
 		code = http.StatusBadRequest
+	} else if errors.Is(err, core.ErrConflict) || err.Error() == "conflict" {
+		code = http.StatusConflict
 	} else if errors.Is(err, core.ErrNotFound) || err.Error() == "not_found" {
 		code = http.StatusNotFound
 	}
@@ -256,6 +281,37 @@ func (r *natsRPC) CreateAccountLabel(ctx context.Context, actor, account uuid.UU
 		return LabelOut{}, err
 	}
 	msg, err := r.nc.RequestWithContext(ctx, core.SubjectLabelCatalogCreate, body)
+	if err != nil {
+		return LabelOut{}, err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Color string `json:"color"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return LabelOut{}, err
+	}
+	if !out.OK {
+		return LabelOut{}, labelRPCErr(out.Error)
+	}
+	id, err := uuid.Parse(out.ID)
+	if err != nil {
+		return LabelOut{}, err
+	}
+	return LabelOut{ID: id, Name: out.Name, Color: out.Color}, nil
+}
+
+func (r *natsRPC) UpdateAccountLabel(ctx context.Context, actor, account, labelID uuid.UUID, name string) (LabelOut, error) {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "label_id": labelID.String(), "name": name,
+	})
+	if err != nil {
+		return LabelOut{}, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectLabelCatalogUpdate, body)
 	if err != nil {
 		return LabelOut{}, err
 	}

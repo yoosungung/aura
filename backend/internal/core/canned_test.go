@@ -58,3 +58,29 @@ func TestCanned_AdminCreatesAgentLists(t *testing.T) {
 		t.Fatalf("deleted canned leaked %+v %v", list, err)
 	}
 }
+
+func TestCanned_AdminUpdates(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, _ := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	created, err := svc.CreateCanned(ctx, core.CannedInput{
+		ActorUserID: adminID, AccountID: accountID, ShortCode: "인사", Content: "안녕하세요",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateCanned(ctx, core.CannedInput{
+		ActorUserID: agentID, AccountID: accountID, CannedID: created.ID, ShortCode: "종료", Content: "감사합니다",
+	}); err != core.ErrDenied {
+		t.Fatalf("agent update got %v", err)
+	}
+	got, err := svc.UpdateCanned(ctx, core.CannedInput{
+		ActorUserID: adminID, AccountID: accountID, CannedID: created.ID, ShortCode: "종료", Content: "감사합니다",
+	})
+	if err != nil || got.ID != created.ID || got.ShortCode != "종료" || got.Content != "감사합니다" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}

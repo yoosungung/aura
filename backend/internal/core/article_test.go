@@ -83,3 +83,36 @@ func TestDeleteArticle_AdminRemovesFromSearch(t *testing.T) {
 		t.Fatalf("deleted article leaked %+v", hits)
 	}
 }
+
+func TestUpdateArticle_AdminEditsBody(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	got, err := svc.CreateArticle(ctx, core.ArticleInput{
+		ActorUserID: adminID, AccountID: accountID,
+		Title: "결제 오류", Slug: "pay-error", Body: "카드 한도를 확인하세요", Published: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateArticle(ctx, core.ArticleInput{
+		ActorUserID: agentID, AccountID: accountID, ArticleID: got.ID,
+		Title: "결제 FAQ", Slug: "pay-faq", Body: "한도를 올리세요", Published: true,
+	}); err != core.ErrDenied {
+		t.Fatalf("agent got %v", err)
+	}
+	updated, err := svc.UpdateArticle(ctx, core.ArticleInput{
+		ActorUserID: adminID, AccountID: accountID, ArticleID: got.ID,
+		Title: "결제 FAQ", Slug: "pay-faq", Body: "한도를 올리세요", Published: true,
+	})
+	if err != nil || updated.Slug != "pay-faq" || updated.Body != "한도를 올리세요" {
+		t.Fatalf("%+v %v", updated, err)
+	}
+	hits, err := svc.SearchArticles(ctx, inboxID, "한도")
+	if err != nil || len(hits) != 1 || hits[0].Slug != "pay-faq" {
+		t.Fatalf("%+v %v", hits, err)
+	}
+}

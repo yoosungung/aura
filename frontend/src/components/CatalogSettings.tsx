@@ -6,23 +6,32 @@ import { Textarea } from "./ui/textarea.jsx";
 import type { HelpdeskClient } from "../gateway.js";
 import type { Session, TicketLabel } from "../store.js";
 
-type Canned = { id?: string; short_code?: string };
-type Macro = { id?: string; name?: string };
+type Canned = { id?: string; short_code?: string; content?: string };
+type MacroAction = { action_name?: string; action_params?: string[] };
+type Macro = { id?: string; name?: string; actions?: MacroAction[] };
 
 type CatalogSettingsProps = {
   session: Session;
   client: Partial<HelpdeskClient>;
 };
 
+function macroMessage(macro: Macro) {
+  const action = (macro.actions || []).find((a) => a.action_name === "send_message");
+  return action?.action_params?.[0] || "";
+}
+
 export function CatalogSettings({ session, client }: CatalogSettingsProps) {
   const [labels, setLabels] = useState<TicketLabel[]>([]);
   const [canned, setCanned] = useState<Canned[]>([]);
   const [labelName, setLabelName] = useState("");
+  const [editingLabelId, setEditingLabelId] = useState("");
   const [shortCode, setShortCode] = useState("");
   const [content, setContent] = useState("");
+  const [editingCannedId, setEditingCannedId] = useState("");
   const [macros, setMacros] = useState<Macro[]>([]);
   const [macroName, setMacroName] = useState("");
-  const [macroMessage, setMacroMessage] = useState("");
+  const [macroMessageText, setMacroMessageText] = useState("");
+  const [editingMacroId, setEditingMacroId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -63,13 +72,29 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
     };
   }, [client, session]);
 
-  async function onCreateLabel(e: FormEvent) {
+  async function onSaveLabel(e: FormEvent) {
     e.preventDefault();
-    if (!client.createAccountLabel || !labelName.trim()) {
+    if (!labelName.trim()) {
       return;
     }
     setError("");
     try {
+      if (editingLabelId && client.updateAccountLabel) {
+        const updated = await client.updateAccountLabel({
+          gatewayUrl: session.gatewayUrl,
+          accountId: session.accountId,
+          token: session.token,
+          labelId: editingLabelId,
+          name: labelName.trim(),
+        });
+        setLabels((prev) => prev.map((row) => (row.id === editingLabelId ? { ...row, ...updated } : row)));
+        setEditingLabelId("");
+        setLabelName("");
+        return;
+      }
+      if (!client.createAccountLabel) {
+        return;
+      }
       const created = await client.createAccountLabel({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
@@ -79,17 +104,35 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
       setLabels((prev) => [...prev, created]);
       setLabelName("");
     } catch {
-      setError("라벨을 만들지 못했습니다");
+      setError(editingLabelId ? "라벨을 수정하지 못했습니다" : "라벨을 만들지 못했습니다");
     }
   }
 
-  async function onCreateCanned(e: FormEvent) {
+  async function onSaveCanned(e: FormEvent) {
     e.preventDefault();
-    if (!client.createCanned || !shortCode.trim() || !content.trim()) {
+    if (!shortCode.trim() || !content.trim()) {
       return;
     }
     setError("");
     try {
+      if (editingCannedId && client.updateCanned) {
+        const updated = await client.updateCanned({
+          gatewayUrl: session.gatewayUrl,
+          accountId: session.accountId,
+          token: session.token,
+          canned_id: editingCannedId,
+          shortCode: shortCode.trim(),
+          content: content.trim(),
+        });
+        setCanned((prev) => prev.map((row) => (row.id === editingCannedId ? { ...row, ...updated } : row)));
+        setEditingCannedId("");
+        setShortCode("");
+        setContent("");
+        return;
+      }
+      if (!client.createCanned) {
+        return;
+      }
       const created = await client.createCanned({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
@@ -101,30 +144,50 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
       setShortCode("");
       setContent("");
     } catch {
-      setError("저장응답을 만들지 못했습니다");
+      setError(editingCannedId ? "저장응답을 수정하지 못했습니다" : "저장응답을 만들지 못했습니다");
     }
   }
 
-  async function onCreateMacro(e: FormEvent) {
+  async function onSaveMacro(e: FormEvent) {
     e.preventDefault();
-    if (!client.createMacro || !macroName.trim() || !macroMessage.trim()) {
+    if (!macroName.trim() || !macroMessageText.trim()) {
       return;
     }
+    const actions = [{ action_name: "send_message", action_params: [macroMessageText.trim()] }];
     setError("");
     try {
+      if (editingMacroId && client.updateMacro) {
+        const updated = await client.updateMacro({
+          gatewayUrl: session.gatewayUrl,
+          accountId: session.accountId,
+          token: session.token,
+          macroId: editingMacroId,
+          name: macroName.trim(),
+          visibility: "account",
+          actions,
+        });
+        setMacros((prev) => prev.map((row) => (row.id === editingMacroId ? { ...row, ...updated } : row)));
+        setEditingMacroId("");
+        setMacroName("");
+        setMacroMessageText("");
+        return;
+      }
+      if (!client.createMacro) {
+        return;
+      }
       const created = await client.createMacro({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
         token: session.token,
         name: macroName.trim(),
         visibility: "account",
-        actions: [{ action_name: "send_message", action_params: [macroMessage.trim()] }],
+        actions,
       });
       setMacros((prev) => [...prev, created]);
       setMacroName("");
-      setMacroMessage("");
+      setMacroMessageText("");
     } catch {
-      setError("매크로를 만들지 못했습니다");
+      setError(editingMacroId ? "매크로를 수정하지 못했습니다" : "매크로를 만들지 못했습니다");
     }
   }
 
@@ -141,6 +204,10 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
         labelId: label.id,
       });
       setLabels((prev) => prev.filter((row) => row.id !== label.id));
+      if (editingLabelId === label.id) {
+        setEditingLabelId("");
+        setLabelName("");
+      }
     } catch {
       setError("라벨을 삭제하지 못했습니다");
     }
@@ -159,6 +226,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
         canned_id: row.id,
       });
       setCanned((prev) => prev.filter((item) => item.id !== row.id));
+      if (editingCannedId === row.id) {
+        setEditingCannedId("");
+        setShortCode("");
+        setContent("");
+      }
     } catch {
       setError("저장응답을 삭제하지 못했습니다");
     }
@@ -177,6 +249,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
         macroId: macro.id,
       });
       setMacros((prev) => prev.filter((item) => item.id !== macro.id));
+      if (editingMacroId === macro.id) {
+        setEditingMacroId("");
+        setMacroName("");
+        setMacroMessageText("");
+      }
     } catch {
       setError("매크로를 삭제하지 못했습니다");
     }
@@ -191,6 +268,19 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           {labels.map((l) => (
             <li key={l.id || l.name}>
               <span className="settings-item-main">{l.name}</span>
+              {client.updateAccountLabel && l.id ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingLabelId(l.id || "");
+                    setLabelName(l.name || "");
+                  }}
+                >
+                  수정
+                </Button>
+              ) : null}
               {client.deleteAccountLabel && l.id ? (
                 <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteLabel(l)}>
                   삭제
@@ -199,12 +289,12 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
             </li>
           ))}
         </ul>
-        <form onSubmit={onCreateLabel} className="flex flex-col gap-2">
+        <form onSubmit={onSaveLabel} className="flex flex-col gap-2">
           <Label>
             카탈로그 라벨
             <Input value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
           </Label>
-          <Button type="submit">라벨 추가</Button>
+          <Button type="submit">{editingLabelId ? "라벨 저장" : "라벨 추가"}</Button>
         </form>
       </div>
       <div className="settings-block">
@@ -213,6 +303,20 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           {canned.map((c) => (
             <li key={c.id || c.short_code}>
               <span className="settings-item-main">/{c.short_code}</span>
+              {client.updateCanned && c.id ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingCannedId(c.id || "");
+                    setShortCode(c.short_code || "");
+                    setContent(c.content || "");
+                  }}
+                >
+                  수정
+                </Button>
+              ) : null}
               {client.deleteCanned && c.id ? (
                 <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteCanned(c)}>
                   삭제
@@ -221,7 +325,7 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
             </li>
           ))}
         </ul>
-        <form onSubmit={onCreateCanned} className="flex flex-col gap-2">
+        <form onSubmit={onSaveCanned} className="flex flex-col gap-2">
           <Label>
             short_code
             <Input value={shortCode} onChange={(e) => setShortCode(e.target.value)} required />
@@ -230,7 +334,7 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
             저장응답
             <Textarea value={content} onChange={(e) => setContent(e.target.value)} required />
           </Label>
-          <Button type="submit">저장응답 추가</Button>
+          <Button type="submit">{editingCannedId ? "저장응답 저장" : "저장응답 추가"}</Button>
         </form>
       </div>
       <div className="settings-block">
@@ -239,6 +343,20 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           {macros.map((m) => (
             <li key={m.id || m.name}>
               <span className="settings-item-main">{m.name}</span>
+              {client.updateMacro && m.id ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingMacroId(m.id || "");
+                    setMacroName(m.name || "");
+                    setMacroMessageText(macroMessage(m));
+                  }}
+                >
+                  수정
+                </Button>
+              ) : null}
               {client.deleteMacro && m.id ? (
                 <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteMacro(m)}>
                   삭제
@@ -247,15 +365,15 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
             </li>
           ))}
         </ul>
-        {client.createMacro ? (
-          <form onSubmit={onCreateMacro} className="flex flex-col gap-2">
+        {client.createMacro || client.updateMacro ? (
+          <form onSubmit={onSaveMacro} className="flex flex-col gap-2">
             <Label>
               매크로 이름
               <Input value={macroName} onChange={(e) => setMacroName(e.target.value)} required />
             </Label>
             <Label>
               공개 메시지
-              <Textarea value={macroMessage} onChange={(e) => setMacroMessage(e.target.value)} required />
+              <Textarea value={macroMessageText} onChange={(e) => setMacroMessageText(e.target.value)} required />
             </Label>
             <Button type="submit">매크로 저장</Button>
           </form>

@@ -138,6 +138,32 @@ func (s *Service) ListAccountLabels(ctx context.Context, in LabelInput) ([]Label
 	return out, err
 }
 
+func (s *Service) UpdateAccountLabel(ctx context.Context, in LabelInput) (Label, error) {
+	name := strings.TrimSpace(in.Name)
+	if in.LabelID == uuid.Nil {
+		return Label{}, ErrNotFound
+	}
+	if name == "" || utf8.RuneCountInString(name) > 255 {
+		return Label{}, ErrInvalid
+	}
+	var out Label
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		err := tx.QueryRow(ctx, `
+			UPDATE labels SET name = $2 WHERE id = $1
+			RETURNING id, name, COALESCE(color, '')`,
+			in.LabelID, name,
+		).Scan(&out.ID, &out.Name, &out.Color)
+		if err == pgx.ErrNoRows {
+			return ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return ErrConflict
+		}
+		return err
+	})
+	return out, err
+}
+
 func (s *Service) DeleteAccountLabel(ctx context.Context, in LabelInput) error {
 	if in.LabelID == uuid.Nil {
 		return ErrNotFound
@@ -315,6 +341,23 @@ func (s *Service) handleLabelCatalogCreate(msg *nats.Msg) {
 		return
 	}
 	out, err := s.CreateAccountLabel(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "id": out.ID.String(), "name": out.Name, "color": out.Color,
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleLabelCatalogUpdate(msg *nats.Msg) {
+	in, err := parseLabelInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateAccountLabel(context.Background(), in)
 	if err != nil {
 		_ = msg.Respond(rpcErr(err))
 		return

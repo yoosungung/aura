@@ -113,6 +113,31 @@ test("administrator settings live behind the rail", async () => {
   expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
 });
 
+test("administrator removes an inbox member", async () => {
+  const user = userEvent.setup();
+  const removed: ClientReq[] = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [{ user_id: "user-1", email: "ada@acme.test" }] };
+        },
+        async removeInboxMember(req) {
+          removed.push(req);
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(await screen.findByText("ada@acme.test")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(removed[0].userId).toBe("user-1");
+  expect(removed[0].inboxId).toBe("i1");
+  expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
+});
+
 test("administrator can add an inbox member", async () => {
   const user = userEvent.setup();
   const added = [];
@@ -936,6 +961,67 @@ test("administrator deletes catalog labels canned and macros", async () => {
   expect(catalog.textContent).not.toContain("공유");
 });
 
+test("administrator edits catalog labels canned and macros", async () => {
+  const user = userEvent.setup();
+  const updated: any[] = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listAccountLabels() {
+          return { labels: [{ id: "l1", name: "결제" }] };
+        },
+        async listCanned() {
+          return { canned_responses: [{ id: "c1", short_code: "인사", content: "안녕하세요" }] };
+        },
+        async listMacros() {
+          return {
+            macros: [{ id: "m1", name: "공유", actions: [{ action_name: "send_message", action_params: ["완료"] }] }],
+          };
+        },
+        async updateAccountLabel(req) {
+          updated.push(["label", req]);
+          return { id: req.labelId, name: req.name };
+        },
+        async updateCanned(req) {
+          updated.push(["canned", req]);
+          return { id: req.canned_id, short_code: req.shortCode, content: req.content };
+        },
+        async updateMacro(req) {
+          updated.push(["macro", req]);
+          return { id: req.macroId, name: req.name, actions: req.actions };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "카탈로그" }));
+  const catalog = await screen.findByRole("region", { name: "카탈로그" });
+  await user.click(within(catalog).getAllByRole("button", { name: "수정" })[0]);
+  await user.clear(screen.getByLabelText("카탈로그 라벨"));
+  await user.type(screen.getByLabelText("카탈로그 라벨"), "환불");
+  await user.click(screen.getByRole("button", { name: "라벨 저장" }));
+  await user.click(within(catalog).getAllByRole("button", { name: "수정" })[1]);
+  await user.clear(screen.getByLabelText("short_code"));
+  await user.type(screen.getByLabelText("short_code"), "종료");
+  await user.clear(screen.getByLabelText("저장응답"));
+  await user.type(screen.getByLabelText("저장응답"), "감사합니다");
+  await user.click(screen.getByRole("button", { name: "저장응답 저장" }));
+  await user.click(within(catalog).getAllByRole("button", { name: "수정" })[2]);
+  await user.clear(screen.getByLabelText("매크로 이름"));
+  await user.type(screen.getByLabelText("매크로 이름"), "환불 안내");
+  await user.clear(screen.getByLabelText("공개 메시지"));
+  await user.type(screen.getByLabelText("공개 메시지"), "환불했습니다");
+  await user.click(screen.getByRole("button", { name: "매크로 저장" }));
+  expect(updated[0][1].name).toBe("환불");
+  expect(updated[1][1].shortCode).toBe("종료");
+  expect(updated[2][1].name).toBe("환불 안내");
+  expect(catalog.textContent).toContain("환불");
+  expect(catalog.textContent).toContain("/종료");
+  expect(catalog.textContent).toContain("환불 안내");
+});
+
 test("administrator creates a shared macro in catalog settings", async () => {
   const user = userEvent.setup();
   const created = [];
@@ -1703,6 +1789,35 @@ test("administrator publishes a help article", async () => {
   expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 오류");
 });
 
+test("administrator edits a help article", async () => {
+  const user = userEvent.setup();
+  const saved: ClientReq[] = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listArticles() {
+          return { articles: [{ id: "a1", title: "결제 오류", slug: "pay-error", body: "한도를 확인하세요" }] };
+        },
+        async updateArticle(req) {
+          saved.push(req);
+          return { id: req.article_id, title: req.title, slug: req.slug, body: req.body };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "도움말" }));
+  await user.click(await screen.findByRole("button", { name: "수정" }));
+  await user.clear(screen.getByLabelText("문서 제목"));
+  await user.type(screen.getByLabelText("문서 제목"), "결제 FAQ");
+  await user.click(screen.getByRole("button", { name: "문서 저장" }));
+  expect(saved[0].article_id).toBe("a1");
+  expect(saved[0].title).toBe("결제 FAQ");
+  expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 FAQ");
+});
+
 test("administrator deletes a help article", async () => {
   const user = userEvent.setup();
   const deleted: ClientReq[] = [];
@@ -1741,6 +1856,35 @@ test("administrator settings nav groups inbox content integration and reports", 
   expect(screen.getByRole("heading", { name: "콘텐츠" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "연동" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "분석" })).toBeTruthy();
+});
+
+test("administrator edits a webhook", async () => {
+  const user = userEvent.setup();
+  const saved: ClientReq[] = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listWebhooks() {
+          return { webhooks: [{ id: "wh1", url: "https://crm.example/hook" }] };
+        },
+        async updateWebhook(req) {
+          saved.push(req);
+          return { id: req.webhook_id, url: req.url };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "웹훅" }));
+  await user.click(await screen.findByRole("button", { name: "수정" }));
+  await user.clear(screen.getByLabelText("웹훅 URL"));
+  await user.type(screen.getByLabelText("웹훅 URL"), "https://crm.example/v2");
+  await user.click(screen.getByRole("button", { name: "웹훅 저장" }));
+  expect(saved[0].webhook_id).toBe("wh1");
+  expect(saved[0].url).toBe("https://crm.example/v2");
+  expect(screen.getByRole("region", { name: "웹훅" }).textContent).toContain("https://crm.example/v2");
 });
 
 test("administrator deletes a webhook", async () => {

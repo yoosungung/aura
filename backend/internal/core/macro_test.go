@@ -93,6 +93,19 @@ func TestMacro_AgentForcedPersonalAndExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	updated, err := svc.UpdateMacro(ctx, core.MacroInput{
+		ActorUserID: adminID, AccountID: accountID, MacroID: personal.ID, Name: "환불 안내",
+		Actions: []core.MacroAction{{ActionName: core.ActionSendMessage, ActionParams: []string{"환불했습니다"}}},
+	})
+	if err != nil || updated.Name != "환불 안내" || len(updated.Actions) != 1 || updated.Actions[0].ActionParams[0] != "환불했습니다" {
+		t.Fatalf("%+v %v", updated, err)
+	}
+	if _, err := svc.UpdateMacro(ctx, core.MacroInput{
+		ActorUserID: agentID, AccountID: accountID, MacroID: personal.ID, Name: "막힘",
+		Actions: []core.MacroAction{{ActionName: core.ActionSendMessage, ActionParams: []string{"x"}}},
+	}); err != core.ErrDenied {
+		t.Fatalf("agent update got %v", err)
+	}
 	for _, m := range list {
 		if m.ID == shared.ID {
 			t.Fatalf("deleted macro leaked %+v", list)

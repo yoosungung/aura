@@ -82,6 +82,38 @@ func (s *Service) ListArticles(ctx context.Context, in ArticleInput) ([]Article,
 	return out, err
 }
 
+func (s *Service) UpdateArticle(ctx context.Context, in ArticleInput) (Article, error) {
+	if in.ArticleID == uuid.Nil {
+		return Article{}, ErrNotFound
+	}
+	title := strings.TrimSpace(in.Title)
+	slug := strings.TrimSpace(in.Slug)
+	body := strings.TrimSpace(in.Body)
+	if title == "" || slug == "" || body == "" || utf8.RuneCountInString(title) > 255 || utf8.RuneCountInString(slug) > 255 {
+		return Article{}, ErrInvalid
+	}
+	var out Article
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		err := tx.QueryRow(ctx, `
+			UPDATE articles SET title = $2, slug = $3, body = $4, published = $5
+			WHERE id = $1
+			RETURNING id, title, slug, body, published`,
+			in.ArticleID, title, slug, body, in.Published,
+		).Scan(&out.ID, &out.Title, &out.Slug, &out.Body, &out.Published)
+		if err == pgx.ErrNoRows {
+			return ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return ErrConflict
+		}
+		return err
+	})
+	if err == nil {
+		s.publishArticleEmbed(ctx, in.AccountID, out.ID)
+	}
+	return out, err
+}
+
 func (s *Service) DeleteArticle(ctx context.Context, in ArticleInput) error {
 	if in.ArticleID == uuid.Nil {
 		return ErrNotFound

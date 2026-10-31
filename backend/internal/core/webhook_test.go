@@ -45,6 +45,18 @@ func TestCreateWebhook_AdminOnly(t *testing.T) {
 	if err != core.ErrDenied {
 		t.Fatalf("agent got %v", err)
 	}
+	updated, err := svc.UpdateWebhook(ctx, core.WebhookInput{
+		ActorUserID: adminID, AccountID: accountID, WebhookID: got.ID,
+		URL: "https://crm.example/v2", Subscriptions: []string{"message_created"},
+	})
+	if err != nil || updated.URL != "https://crm.example/v2" || updated.Secret != got.Secret {
+		t.Fatalf("%+v %v", updated, err)
+	}
+	if _, err := svc.UpdateWebhook(ctx, core.WebhookInput{
+		ActorUserID: agentID, AccountID: accountID, WebhookID: got.ID, URL: "https://crm.example/nope",
+	}); err != core.ErrDenied {
+		t.Fatalf("agent update got %v", err)
+	}
 }
 
 func TestDeliverWebhook_SignsPayload(t *testing.T) {
