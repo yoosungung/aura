@@ -4,6 +4,7 @@ namespace: aura
 resources:
   - namespace.yaml
   - configmap.yaml
+  - seed-job.yaml
   - ingestion-worker.yaml
   - svc-core.yaml
   - gateway-web.yaml

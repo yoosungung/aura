@@ -20,7 +20,7 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 
 ## 이미지와 클러스터
 
-이미지 빌드와 `kubectl apply -k deploy/k8s/base`는 [deploy/SETUP.md](deploy/SETUP.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 베이스를 적용한다.
+이미지 빌드와 `kubectl apply -k deploy/k8s/base`는 [deploy/SETUP.md](deploy/SETUP.md). 클러스터 로컬 사용법은 [deploy/k8s/README.md](deploy/k8s/README.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 베이스를 적용한다.
 
 클러스터 안은 HTTP다. 로컬 베이스 NodePort: `frontend` `30080`, `gateway-email` SMTP `30025`, `gateway-kakao` `30081`. `gateway-web`은 ClusterIP. TLS는 고객 인그레스 또는 L4/L7 로드밸런서에서 종료한다. 상세는 [deploy/SETUP.md](deploy/SETUP.md) 클러스터.
 
@@ -31,4 +31,4 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 kubectl get svc -n aura frontend gateway-email gateway-kakao
 ```
 
-파일럿 계정은 Platform API(`AURA_PLATFORM_TOKEN`)로 만든다. 예는 [deploy/SETUP.md](deploy/SETUP.md).
+로컬 compose 기본 로그인은 [deploy/compose/README.md](deploy/compose/README.md). 추가 테넌트는 Platform API(`AURA_PLATFORM_TOKEN`), 예는 [deploy/SETUP.md](deploy/SETUP.md).

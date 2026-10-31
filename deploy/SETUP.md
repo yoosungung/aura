@@ -21,7 +21,9 @@ cd ../frontend && npm run dev
 
 `gateway-email` SMTP 문서상 기본 포트는 `25`다. 에릭은 `:2050`에서 실행한다. 포트는 `AURA_SMTP_ADDR`로 바꾼다.
 
-Platform API로 파일럿 계정:
+compose `seed`와 k8s Job `seed`는 같은 `aura/seed:main`이다. 기본 로그인은 [compose/README.md](compose/README.md).
+
+Platform API로 추가 파일럿 계정:
 
 ```sh
 curl -H "Authorization: Bearer $AURA_PLATFORM_TOKEN" -H 'Content-Type: application/json' \
@@ -46,6 +48,7 @@ docker build -t aura/gateway-kakao:main --build-arg CMD=gateway-kakao backend
 docker build -t aura/svc-sla-routing:main --build-arg CMD=svc-sla-routing backend
 docker build -t aura/svc-automation:main --build-arg CMD=svc-automation backend
 docker build -t aura/event-archive:main --build-arg CMD=event-archive backend
+docker build -t aura/seed:main --build-arg CMD=seed backend
 docker build -t aura/svc-ai-agent:main svc-ai-agent
 docker build -t aura/frontend:main frontend
 ```

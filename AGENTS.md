@@ -18,6 +18,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `contracts/` | 이벤트·RPC JSON Schema. Go 생성 타입은 `backend/internal/contracts` | `contracts/` |
 | `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
 | `deploy/SETUP.md` | 로컬·클러스터 배포 런북 | `deploy/SETUP.md` |
+| `deploy/k8s/README.md` | 클러스터 로컬 사용법(적용·NodePort·TLS·위젯) | `deploy/k8s/` |
 | `deploy/k8s/base/` | Kustomize 베이스 | `deploy/k8s/base/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/` |

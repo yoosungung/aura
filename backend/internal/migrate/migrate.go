@@ -11,7 +11,14 @@ import (
 	"github.com/yoosungung/aura/migrations"
 )
 
+const migrateLockKey int64 = 8723641
+
 func Up(ctx context.Context, conn *pgx.Conn) error {
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrateLockKey); err != nil {
+		return fmt.Errorf("migrate lock: %w", err)
+	}
+	defer func() { _, _ = conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, migrateLockKey) }()
+
 	if _, err := conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version TEXT PRIMARY KEY,

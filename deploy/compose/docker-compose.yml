@@ -63,6 +63,20 @@ services:
       timeout: 5s
       retries: 20
 
+  seed:
+    image: aura/seed:main
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+      args:
+        CMD: seed
+    environment:
+      AURA_MIGRATE_DSN: postgres://aura:aura@postgres:5432/aura?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
 volumes:
   nats-data:
   seaweed-data:
