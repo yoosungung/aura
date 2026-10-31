@@ -52,7 +52,7 @@ docker build -t aura/frontend:main frontend
 
 ## 클러스터
 
-베이스 Service는 ClusterIP다. `frontend` nginx는 클러스터 안 **HTTP `:80`**만 듣는다. TLS/HTTPS는 패키지가 종료하지 않는다. 고객이 앞단에 두는 자체 L4/L7 로드밸런서 또는 Ingress에서 종료한다. Kubernetes Service(NodePort·LoadBalancer 포함)를 고객망에 직접 노출하지 않는다. HTTPS를 붙여도 서비스를 바깥에 여는 구성은 권장하지 않는다.
+베이스에서 외부 인입은 NodePort다. `frontend` HTTP `30080`→`:80`, `gateway-email` SMTP `30025`→`:25`, `gateway-kakao` HTTP `30081`→`:8081`. nginx는 `/api`·`/auth`·`/ws`를 `gateway-web`으로 프록시한다. `gateway-web`과 워커는 ClusterIP. TLS/HTTPS는 패키지가 종료하지 않는다. 고객 앞단 L4/L7 로드밸런서 또는 Ingress에서 종료한다.
 
 PostgreSQL(pgvector)·NATS JetStream·SeaweedFS는 클러스터 밖 또는 별도 차트다. `deploy/k8s/base/configmap.yaml` DSN을 맞춘 뒤:
 

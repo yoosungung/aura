@@ -22,11 +22,13 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 
 이미지 빌드와 `kubectl apply -k deploy/k8s/base`는 [deploy/SETUP.md](deploy/SETUP.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 베이스를 적용한다.
 
-클러스터 안은 HTTP다. `frontend` nginx `:80`, `gateway-web` `:8080`. TLS는 고객 인그레스 또는 L4/L7 로드밸런서에서 종료한다. 서비스를 고객망에 직접 열지 않는다. 상세는 [deploy/SETUP.md](deploy/SETUP.md) 클러스터. 베이스에 Ingress·NodePort는 없다. 호스트에서 보려면 포트포워드한다.
+클러스터 안은 HTTP다. 로컬 베이스 NodePort: `frontend` `30080`, `gateway-email` SMTP `30025`, `gateway-kakao` `30081`. `gateway-web`은 ClusterIP. TLS는 고객 인그레스 또는 L4/L7 로드밸런서에서 종료한다. 상세는 [deploy/SETUP.md](deploy/SETUP.md) 클러스터.
 
 ```sh
-kubectl port-forward -n aura svc/frontend 8080:80
-kubectl port-forward -n aura svc/gateway-web 8081:8080
+# http://localhost:30080
+# smtp://localhost:30025
+# http://localhost:30081
+kubectl get svc -n aura frontend gateway-email gateway-kakao
 ```
 
 파일럿 계정은 Platform API(`AURA_PLATFORM_TOKEN`)로 만든다. 예는 [deploy/SETUP.md](deploy/SETUP.md).

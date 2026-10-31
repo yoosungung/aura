@@ -39,9 +39,11 @@ kind: Service
 metadata:
   name: gateway-kakao
 spec:
+  type: NodePort
   selector:
     app: gateway-kakao
   ports:
     - name: http
       port: 8081
       targetPort: 8081
+      nodePort: 30081

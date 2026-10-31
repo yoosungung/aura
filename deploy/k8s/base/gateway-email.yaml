@@ -26,9 +26,11 @@ kind: Service
 metadata:
   name: gateway-email
 spec:
+  type: NodePort
   selector:
     app: gateway-email
   ports:
     - name: smtp
       port: 25
       targetPort: 25
+      nodePort: 30025
