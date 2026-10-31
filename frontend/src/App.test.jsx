@@ -1458,6 +1458,89 @@ test("administrator registers a webhook", async () => {
   expect(screen.getByRole("region", { name: "웹훅" }).textContent).toContain("https://crm.example/hook");
 });
 
+test("administrator registers an ops MCP server", async () => {
+  const user = userEvent.setup();
+  const created = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listMCP() {
+          return { mcp_servers: [] };
+        },
+        async upsertMCP(req) {
+          created.push(req);
+          return { id: "m1", name: req.name, url: req.url };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "MCP" }));
+  await user.type(screen.getByLabelText("MCP 이름"), "shop");
+  await user.type(screen.getByLabelText("MCP URL"), "https://ops.example/mcp");
+  await user.click(screen.getByRole("button", { name: "MCP 추가" }));
+  expect(created[0].url).toBe("https://ops.example/mcp");
+  expect(screen.getByRole("region", { name: "MCP" }).textContent).toContain("https://ops.example/mcp");
+});
+
+test("administrator rotates mcp auth header", async () => {
+  const user = userEvent.setup();
+  const rotated = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listMCP() {
+          return {
+            mcp_servers: [{ id: "m1", name: "shop", url: "https://ops.example/mcp", auth_header: "Bearer old" }],
+          };
+        },
+        async rotateMCP(req) {
+          rotated.push(req);
+          return { id: "m1", name: "shop", url: "https://ops.example/mcp", auth_header: req.auth_header };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "MCP" }));
+  expect((await screen.findByRole("region", { name: "MCP" })).textContent).toContain("••••••••");
+  await user.type(screen.getByLabelText("인증 헤더"), "Bearer new");
+  await user.click(screen.getByRole("button", { name: "재발급" }));
+  expect(rotated[0].mcp_server_id).toBe("m1");
+  expect(rotated[0].auth_header).toBe("Bearer new");
+});
+
+test("administrator overrides an agent skill", async () => {
+  const user = userEvent.setup();
+  const created = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listSkills() {
+          return { agent_skills: [] };
+        },
+        async upsertSkill(req) {
+          created.push(req);
+          return { id: "s1", name: req.name, body: req.body };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "Agent Skills" }));
+  await user.type(screen.getByLabelText("스킬 이름"), "refund-policy");
+  await user.type(screen.getByLabelText("스킬 본문"), "TENANT_BODY");
+  await user.click(screen.getByRole("button", { name: "스킬 저장" }));
+  expect(created[0].name).toBe("refund-policy");
+  expect(screen.getByRole("region", { name: "Agent Skills" }).textContent).toContain("refund-policy");
+});
+
 test("administrator publishes a help article", async () => {
   const user = userEvent.setup();
   const created = [];

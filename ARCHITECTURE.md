@@ -6,8 +6,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 ## 1. 계약사항
 
-1. **NATS 단일 백본.** 서비스 간 HTTP/gRPC 호출을 두지 않는다. 비동기 이벤트, 작업 큐, 동기 질의는 모두 NATS다. Redis Pub/Sub·Sidekiq를 도입하지 않는다.
-2. **Zero DB Direct Write (게이트웨이·AI).** 채널 게이트웨이, 위젯, `svc-ai-agent`는 PostgreSQL에 INSERT/UPDATE/DELETE 하지 않는다. 메시지·첨부·온톨로지·도구감사·CSAT·적용 SLA는 NATS `helpdesk.events.>` 로 발행하고 `svc-ingestion-worker`만 배치 적재한다. **컨택트·대화 생성과 `conversations.status` 전이는 `svc-core`가 PG에 동기 커밋**한 뒤 같은 트랜잭션에서 이벤트를 발행한다(Transactional Outbox). 설정 도메인(계정·인박스·멤버·규칙·SLA 정책·매크로·웹훅·문서)도 `svc-core`가 PG에 직접 쓴다.
+1. **NATS 단일 백본.** 서비스 간 HTTP/gRPC 호출을 두지 않는다. 비동기 이벤트, 작업 큐, 동기 질의는 모두 NATS다. Redis Pub/Sub·Sidekiq를 도입하지 않는다. **예외: `svc-ai-agent`가 테넌트 운영계 MCP(Streamable HTTP)만 호출한다.** Aura 컴포넌트 사이에는 MCP를 두지 않는다.
+2. **Zero DB Direct Write (게이트웨이·AI).** 채널 게이트웨이, 위젯, `svc-ai-agent`는 PostgreSQL에 INSERT/UPDATE/DELETE 하지 않는다. 메시지·첨부·온톨로지·도구감사·CSAT·적용 SLA는 NATS `helpdesk.events.>` 로 발행하고 `svc-ingestion-worker`만 배치 적재한다. **컨택트·대화 생성과 `conversations.status` 전이는 `svc-core`가 PG에 동기 커밋**한 뒤 같은 트랜잭션에서 이벤트를 발행한다(Transactional Outbox). 설정 도메인(계정·인박스·멤버·규칙·SLA 정책·매크로·웹훅·문서·`mcp_servers`·`agent_skills`)도 `svc-core`가 PG에 직접 쓴다.
 3. **`svc-core`가 대화 마스터를 쓴다.** 목록·스레드·Ego-Graph·FSM 허용 여부 계산은 PG SELECT와 NATS Request-Reply다. 상태 컬럼은 core가 전이 트랜잭션에서 `version` CAS로 갱신한다. `status_changed`의 `expected_version`이 행의 `version`과 다르면 거절한다. ingestion은 동일 PK를 멱등 업서트할 뿐, 전이를 결정하지 않는다. 게이트웨이는 대화가 없으면 core의 생성 RPC가 성공한 뒤에만 `message_created`를 발행한다.
 4. **단일 PostgreSQL.** 헬프데스크 관계형 스키마, pgvector, Ego-Graph(`ontology_nodes`/`ontology_edges`)를 한 클러스터의 ACID 트랜잭션으로 다룬다. 대화 그래프를 별도 DB에 두지 않는다.
 5. **채널 장애 격리.** `gateway-web` / `gateway-kakao` / `gateway-email` / `gateway-social`은 독립 프로세스다. 한 채널 장애가 다른 채널 인입을 막지 않는다.
@@ -51,7 +51,7 @@ ingestion-worker  svc-core    svc-ai-agent
 | `svc-core` | FSM, 컨택트·대화 생성, Application/Platform API, 설정 CRUD, 웹훅 배달, Request-Reply | 설정 쓰기, `contacts`/`conversations` 쓰기, 나머지 이벤트 도메인 읽기 |
 | `svc-sla-routing` | 라운드로빈·capacity, FRT/NRT/RT 감시. `C_current`는 JetStream KV 원자 증감(P5), PG는 대사 | 읽기. 전이는 이벤트 |
 | `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. 액션은 `add_label`/`change_priority`/`send_webhook` | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 `helpdesk.tasks.webhooks.deliver` |
-| `svc-ai-agent` | Ego-Graph 1~2홉 읽기, OpenAI 호환 ReAct/Tool, 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 온톨로지 추출 | Ego-Graph·embeddings **읽기만**. 쓰기는 이벤트 |
+| `svc-ai-agent` | Ego-Graph 1~2홉 읽기, LangChain `create_agent`(네이티브 `send_status` + 운영계 MCP + Agent Skills), 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 온톨로지 추출 | Ego-Graph·embeddings·`mcp_servers`·`agent_skills` **읽기만**. 쓰기는 이벤트. 운영계 MCP HTTP는 테넌트 URL만 |
 | `event-archive` | JetStream `helpdesk.events.>` → 오브젝트 스토리지 JSONL Cold Archive | 없음 |
 | `frontend` | 상담원 Rail + 3-Pane SPA | 없음 |
 | `packages/widget-sdk` | 호스트 런처(Shadow DOM) + 교차출처 iframe + postMessage | 없음 |
@@ -130,6 +130,13 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.ontology.ego` | `actor_user_id`, `account_id`, `contact_id`. 유효 엣지 1~2홉 `LIMIT 50` | gateway-web, svc-ai-agent | svc-core |
 | Core | `helpdesk.rpc.tools.approve` | `actor_user_id`, `account_id`, `conversation_id`, `execution_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.purge` | `actor_user_id`, `account_id`, `contact_id`. administrator. PG PII(식별자·본문·CSAT·도구 JSON) 익명화, JetStream subject + archive prefix 삭제 | gateway-web | svc-core |
+| Core | `helpdesk.rpc.mcp.list` | `actor_user_id`, `account_id`. administrator | gateway-web | svc-core |
+| Core | `helpdesk.rpc.mcp.upsert` | `actor_user_id`, `account_id`, `name`, `url`, `auth_header`, `allowed_tools`, `high_risk_tools`, `enabled` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.mcp.delete` | `actor_user_id`, `account_id`, `mcp_server_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.mcp.rotate` | `actor_user_id`, `account_id`, `mcp_server_id`, `auth_header`. 시크릿 덮어쓰기 | gateway-web | svc-core |
+| Core | `helpdesk.rpc.agent_skills.list` | `actor_user_id`, `account_id`. administrator | gateway-web | svc-core |
+| Core | `helpdesk.rpc.agent_skills.upsert` | `actor_user_id`, `account_id`, `name`, `description`, `body`, `enabled` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.agent_skills.delete` | `actor_user_id`, `account_id`, `skill_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.add` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.remove` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
@@ -253,7 +260,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 
 승인 후 `approved_by`가 User UUID로 덮어써지고 `helpdesk.tasks.ai.execute`가 발행된다. 저위험 도구는 `requires_approval=false`, `is_success=true`로 한 번에 적재한다.
 
-고위험 도구(`refund`, `cancel_subscription`, `change_plan`)는 스레드에 `content_type=form` `sender_type=AgentBot` 메시지를 같이 낸다. `content`는 `{"kind":"tool_approval","execution_id","tool_name","summary","args"}` JSON이다. 저위험(`lookup_order`, `lookup_shipping`, `send_status`)은 즉시 실행하고 outgoing `message_created`와 채널 아웃바운드를 낸다.
+고위험 도구(`refund`, `cancel_subscription`, `change_plan`, 또는 `mcp_servers.high_risk_tools`·MCP destructive annotation)는 스레드에 `content_type=form` `sender_type=AgentBot` 메시지를 같이 낸다. `content`는 `{"kind":"tool_approval","execution_id","tool_name","summary","args"}` JSON이다. **승인 전에는 운영계 MCP를 호출하지 않는다.** 저위험 운영계 조회(`lookup_order`, `lookup_shipping` 등)는 MCP를 즉시 호출하고, 네이티브 `send_status`는 outgoing `message_created`와 채널 아웃바운드를 낸다. `auth_header`는 이벤트 payload에 넣지 않는다.
 
 **`ontology_extracted` payload**
 
@@ -374,6 +381,11 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego` (Living Profile 1~2홉)
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/tools/{execution_id}/approve`
 - `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. PG 식별자·본문·CSAT·도구 JSON 익명화, JetStream subject, Cold Archive JSONL prefix)
+- `GET`/`POST /api/v1/accounts/{account_id}/mcp_servers`
+- `POST /api/v1/accounts/{account_id}/mcp_servers/{mcp_server_id}/auth/rotate`
+- `DELETE /api/v1/accounts/{account_id}/mcp_servers/{mcp_server_id}`
+- `GET`/`POST /api/v1/accounts/{account_id}/agent_skills`
+- `DELETE /api/v1/accounts/{account_id}/agent_skills/{skill_id}`
 
 Platform API는 `Authorization: Bearer` 가 환경 `AURA_PLATFORM_TOKEN` 과 같아야 한다. 토큰이 비면 거절한다.
 
@@ -382,6 +394,7 @@ Platform API는 `Authorization: Bearer` 가 환경 `AURA_PLATFORM_TOKEN` 과 같
 | 테넌트 생성·쿼터 | O | | | |
 | 인박스·자동화·SLA·상담원 초대 | O | O | | |
 | 웹 인박스 HMAC 시크릿 열람·회전 | O | O | | |
+| 운영계 MCP·Agent Skills 설정 | O | O | | |
 | 라벨 카탈로그·저장응답·공유 매크로 | O | O | | |
 | 리포트·CSAT 리뷰 | O | O | | |
 | 배속 인박스 열람·대고객 답장 | O | O | O | |
@@ -782,6 +795,32 @@ CREATE TABLE embeddings (
     embedding halfvec(1536) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT uq_embedding_owner_model UNIQUE (account_id, owner_type, owner_id, model, version)
+);
+
+CREATE TABLE mcp_servers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    url TEXT NOT NULL,
+    auth_header TEXT NOT NULL DEFAULT '',
+    allowed_tools TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    high_risk_tools TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    enabled BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_mcp_server_name UNIQUE (account_id, name)
+);
+
+CREATE TABLE agent_skills (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_agent_skill_name UNIQUE (account_id, name)
 );
 
 CREATE TABLE agent_tool_executions (

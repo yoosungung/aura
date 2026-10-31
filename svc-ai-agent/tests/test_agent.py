@@ -4,6 +4,7 @@ from aura_ai.agent import Agent, MemoryBus, new_id
 from aura_ai.ego import bind_agent
 from aura_ai.limit import ChannelGuard, CircuitOpen
 from aura_ai.llm import LLM, openai_complete, stub_complete
+from aura_ai.skills import load_builtin_skills, merge_skills
 from aura_ai.tools import TOOLS
 
 
@@ -46,6 +47,18 @@ def test_low_risk_sends_outbound_message():
     assert "message_created" in types
     assert env["payload"]["content_type"] == "text"
     assert env["payload"]["sender_type"] == "AgentBot"
+
+
+def test_execute_calls_ops_mcp():
+    bus = MemoryBus()
+    agent = Agent(bus)
+    env = agent.handle_execute(task(tool_name="refund", input_args={"amount": 45000, "reason": "고객 요청"}))
+    assert env["payload"]["content_type"] == "text"
+    types = [payload["type"] for _, payload in bus.events if isinstance(payload, dict)]
+    assert "tool_execution" in types
+    tool = next(payload for _, payload in bus.events if isinstance(payload, dict) and payload.get("type") == "tool_execution")
+    assert tool["payload"]["output_result"].get("executed") is True
+    assert tool["payload"]["output_result"].get("amount") == 45000
 
 
 def test_high_risk_emits_approval_card():
@@ -172,6 +185,21 @@ def test_openai_complete_posts_chat(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer sk"
     assert captured["json"]["tools"] == TOOLS
     assert out["content"] == "hi"
+
+
+def test_builtin_skills_include_refund_policy():
+    skills = load_builtin_skills()
+    assert "refund-policy" in skills
+    assert "승인" in skills["refund-policy"].body
+
+
+def test_tenant_skill_overrides_builtin():
+    skills = merge_skills(
+        load_builtin_skills(),
+        [{"name": "refund-policy", "description": "tenant", "body": "TENANT_BODY", "enabled": True}],
+    )
+    assert skills["refund-policy"].body == "TENANT_BODY"
+    assert skills["refund-policy"].description == "tenant"
 
 
 def test_from_env_stub_without_key(monkeypatch):

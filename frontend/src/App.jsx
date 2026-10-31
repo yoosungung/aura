@@ -6,6 +6,8 @@ import { CatalogSettings } from "./components/CatalogSettings.jsx";
 import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { ReportSettings } from "./components/ReportSettings.jsx";
+import { MCPSettings } from "./components/MCPSettings.jsx";
+import { SkillSettings } from "./components/SkillSettings.jsx";
 import { WebhookSettings } from "./components/WebhookSettings.jsx";
 import { LivingProfile } from "./components/LivingProfile.jsx";
 import { InternalNote } from "./components/InternalNote.jsx";
@@ -621,6 +623,20 @@ export function App({ session: initialSession, client, initialState = emptyState
             >
               도움말
             </Button>
+            <Button
+              size="sm"
+              variant={settingsTab === "mcp" ? "secondary" : "ghost"}
+              onClick={() => setSettingsTab("mcp")}
+            >
+              MCP
+            </Button>
+            <Button
+              size="sm"
+              variant={settingsTab === "skills" ? "secondary" : "ghost"}
+              onClick={() => setSettingsTab("skills")}
+            >
+              Agent Skills
+            </Button>
           </div>
           {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
           {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
@@ -628,6 +644,8 @@ export function App({ session: initialSession, client, initialState = emptyState
           {settingsTab === "webhooks" ? <WebhookSettings session={session} client={client} /> : null}
           {settingsTab === "reports" ? <ReportSettings session={session} client={client} /> : null}
           {settingsTab === "articles" ? <ArticleSettings session={session} client={client} /> : null}
+          {settingsTab === "mcp" ? <MCPSettings session={session} client={client} /> : null}
+          {settingsTab === "skills" ? <SkillSettings session={session} client={client} /> : null}
         </section>
       ) : (
         <>

@@ -104,11 +104,22 @@
 
 성공: 웹+메일+카카오로 **파일럿 테넌트 1곳**이 돌아간다. 이 마일스톤이 제품 출시 선. **완료.**
 
+## P8 LangChain create_agent · Skills · MCP
+
+목표: P7 손수 ReAct 루프를 LangChain `create_agent` 하네스로 옮긴다. Aura 고유 행위는 네이티브 도구, 테넌트 운영계(주문·배송·환불·해지·플랜)는 MCP, 절차 플레이북은 Agent Skills다. NATS 승인 카드·Zero DB Write·`hop_count`는 유지한다.
+
+- `svc-ai-agent`: `create_agent` + 미들웨어(Ego/RAG 주입, Skills `load_skill`, `ToolCallLimitMiddleware(run_limit=8)`, `ModelRetryMiddleware`, AuraHITL). DeepAgents·LangGraph checkpointer HITL은 두지 않는다. 키 없으면 결정적 stub 모델 + in-process FastMCP.
+- 네이티브 도구는 `send_status`(outgoing `message_created` + 채널 outbound). 운영계 도구는 테넌트 `mcp_servers` Streamable HTTP. 고위험(`refund`/`cancel_subscription`/`change_plan` 또는 서버 `high_risk_tools`·destructive annotation)은 승인 카드 뒤에만 MCP를 호출한다. `auth_header`는 이벤트 payload에 넣지 않는다.
+- Agent Skills: 리포 `svc-ai-agent/skills/*/SKILL.md` + 테이블 `agent_skills` 테넌트 덮어쓰기(같은 `name` last-wins). Help Center RAG(article cosine top-5)는 그대로. 상담원 Skill 라우팅(출시 후)과 이름을 구분한다.
+- administrator 설정: `mcp_servers`·`agent_skills` CRUD. 시크릿은 HMAC처럼 GET에서 가리고 회전에 덮어쓴다. P5.5 셸·브레이크포인트는 바꾸지 않는다.
+
+성공: 기존 P7 행위 테스트(hop, 저위험 outbound, 환불 승인 카드, Ego/RAG, 키 없음 stub)가 통과한다. 환불은 승인 후에만 운영계 MCP를 친다. 테넌트 스킬이 리포 스킬을 덮어쓴다. **완료.**
+
 ## 출시 후
 
 - 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
 - `gateway-social` (WhatsApp 24시간 창, SMS)
-- Skill/Team 라우팅 고도화
+- 상담원 Skill/Team 라우팅 고도화 (티켓을 상담원 스킬·팀으로 나눈다. P8 `agent_skills` 플레이북과 다른 개념)
 - PG 읽기 복제본
 - 멀티리전 첨부 버킷
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
@@ -121,7 +132,9 @@
 
 | 항목 | 선택지 | 기본 가정 |
 |---|---|---|
-| LLM 벤더 | OpenAI 호환 / 기타 | **결정됨 — OpenAI 호환 Chat Completions + native tool calling.** `AURA_LLM_BASE_URL`(기본 `https://api.openai.com/v1`) · `AURA_LLM_API_KEY` · `AURA_LLM_MODEL`(기본 `gpt-4o-mini`) · `AURA_EMBEDDING_MODEL`(기본 `text-embedding-3-small`). 키가 비면 결정적 stub. 본 테이블 `vector(1536)`은 `embeddings`로 분리하고 `model`/`version`으로 세대 구분 |
+| LLM 벤더 | OpenAI 호환 / 기타 | **결정됨 — OpenAI 호환 Chat Completions + native tool calling.** `AURA_LLM_BASE_URL`(기본 `https://api.openai.com/v1`) · `AURA_LLM_API_KEY` · `AURA_LLM_MODEL`(기본 `gpt-4o-mini`) · `AURA_EMBEDDING_MODEL`(기본 `text-embedding-3-small`). 키가 비면 결정적 stub. 본 테이블 `vector(1536)`은 `embeddings`로 분리하고 `model`/`version`으로 세대 구분. P8 추론은 LangChain `create_agent`가 같은 엔드포인트를 쓴다 |
+| 운영계 MCP | 테넌트 URL / 인프로세스 stub | **결정됨 — 테넌트 `mcp_servers.url`(https Streamable HTTP).** 서버가 없으면 in-process FastMCP stub(현재 lookup/refund JSON). Aura 서비스 사이 MCP는 두지 않는다 |
+| Agent Skills 저장 | 리포만 / 테넌트 덮어쓰기 | **결정됨 — 리포 `SKILL.md` 기본 + `agent_skills` 테넌트 last-wins** |
 | NATS 격리 | account 대 subject prefix `helpdesk.events.<account_id>.>` | **결정됨 — 출시는 subject prefix.** NATS account 격리는 출시 후 |
 | 첨부 버킷 | 테넌트 prefix vs 버킷 분리 | P3는 SeaweedFS 필러 단일 트리 + `account_id/` prefix |
 

@@ -63,6 +63,13 @@ const (
 	SubjectOntologyEgo          = "helpdesk.rpc.ontology.ego"
 	SubjectToolsApprove         = "helpdesk.rpc.tools.approve"
 	SubjectContactPurge         = "helpdesk.rpc.contacts.purge"
+	SubjectMCPList              = "helpdesk.rpc.mcp.list"
+	SubjectMCPUpsert            = "helpdesk.rpc.mcp.upsert"
+	SubjectMCPDelete            = "helpdesk.rpc.mcp.delete"
+	SubjectMCPRotate            = "helpdesk.rpc.mcp.rotate"
+	SubjectAgentSkillList       = "helpdesk.rpc.agent_skills.list"
+	SubjectAgentSkillUpsert     = "helpdesk.rpc.agent_skills.upsert"
+	SubjectAgentSkillDelete     = "helpdesk.rpc.agent_skills.delete"
 	QueueGroup                  = "svc-core"
 )
 

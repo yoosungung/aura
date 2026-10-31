@@ -6,7 +6,9 @@ from typing import Any, Callable
 
 import httpx
 
-from aura_ai.tools import TOOLS, is_high_risk, run_low_risk
+from aura_ai.harness import reason as harness_reason
+from aura_ai.skills import Skill
+from aura_ai.tools import TOOLS
 
 
 class LLM:
@@ -19,56 +21,24 @@ class LLM:
             return cls(complete=openai_complete)
         return cls()
 
-    def reason(self, prompt: str, ego: list[dict], articles: list[dict] | None = None) -> dict:
-        messages = [
-            {"role": "system", "content": "Helpdesk AI. Low-risk tools auto-run. High-risk tools need approval."},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {"message": prompt, "ego": ego, "articles": articles or []},
-                    ensure_ascii=False,
-                ),
-            },
-        ]
-        seen: set[str] = set()
-        steps: list[dict] = []
-        for _ in range(8):
-            resp = self.complete(messages, TOOLS)
-            calls = resp.get("tool_calls") or []
-            if not calls:
-                return {"action": "reply", "content": resp.get("content") or "", "steps": steps}
-            call = calls[0]
-            fn = call.get("function") or {}
-            name = fn.get("name") or ""
-            args = fn.get("arguments") or {}
-            if isinstance(args, str):
-                args = json.loads(args or "{}")
-            fingerprint = f"{name}:{json.dumps(args, sort_keys=True)}"
-            if fingerprint in seen:
-                return {"action": "reply", "content": "반복 도구 호출을 중단했습니다.", "steps": steps}
-            seen.add(fingerprint)
-            if is_high_risk(name):
-                return {"action": "approve", "tool_name": name, "args": args, "steps": steps}
-            result = run_low_risk(name, args)
-            steps.append({"tool_name": name, "args": args, "result": result})
-            messages.append({"role": "assistant", "content": None, "tool_calls": calls})
-            messages.append(
-                {
-                    "role": "tool",
-                    "name": name,
-                    "tool_call_id": call.get("id") or name,
-                    "content": json.dumps(result, ensure_ascii=False),
-                }
-            )
-            if name == "send_status":
-                return {
-                    "action": "reply",
-                    "content": args.get("content") or "확인했습니다.",
-                    "tool_name": name,
-                    "args": args,
-                    "steps": steps,
-                }
-        return {"action": "reply", "content": "지금은 상담원이 이어서 도와드리겠습니다.", "steps": steps}
+    def reason(
+        self,
+        prompt: str,
+        ego: list[dict],
+        articles: list[dict] | None = None,
+        ops_tools: list | None = None,
+        skills: dict[str, Skill] | None = None,
+        extra_high_risk: set[str] | None = None,
+    ) -> dict:
+        return harness_reason(
+            self.complete,
+            prompt,
+            ego,
+            articles,
+            ops_tools=ops_tools,
+            skills=skills,
+            extra_high_risk=extra_high_risk,
+        )
 
 
 def stub_complete(messages: list[dict], _tools: list[dict]) -> dict:

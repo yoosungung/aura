@@ -104,6 +104,8 @@ type Service struct {
 	Articles    ArticleStore
 	ContactAPI  ContactCatalog
 	AI          AI
+	MCP         MCPStore
+	Skills      SkillStore
 	Guard       *limit.Guard
 }
 

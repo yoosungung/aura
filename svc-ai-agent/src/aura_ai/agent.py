@@ -9,6 +9,8 @@ from typing import Any, Callable
 
 from aura_ai.limit import ChannelGuard, CircuitOpen, RateLimited
 from aura_ai.llm import LLM, stub_embed, stub_extract
+from aura_ai.mcp_ops import config_from_rows, invoke_tool, load_ops_tools
+from aura_ai.skills import load_builtin_skills, merge_skills
 from aura_ai.tools import is_high_risk, run_low_risk
 
 
@@ -56,14 +58,26 @@ class Agent:
         self.read_messages: Callable[[str, str], str] = lambda _account, _conv: ""
         self.read_article: Callable[[str, str], str] = lambda _account, _id: ""
         self.read_rag: Callable[[str, list[float]], list[dict]] = lambda _account, _vec: []
+        self.read_skills: Callable[[str], list[dict]] = lambda _account: []
+        self.read_mcp_servers: Callable[[str], list[dict]] = lambda _account: []
+        self.ops_tools: list | None = None
+        self.skills_root = None
 
     def handle_reason(self, task: dict) -> dict:
         if int(task.get("hop_count") or 0) > 5:
             return {"skipped": True, "reason": "hop"}
         prompt = task.get("content") or ""
-        ego = self.read_ego(task.get("account_id", ""), task.get("contact_id", ""))
-        articles = self.read_rag(task.get("account_id", ""), self.embed(prompt))
-        decision = self.llm.reason(prompt, ego, articles)
+        account = task.get("account_id", "")
+        ego = self.read_ego(account, task.get("contact_id", ""))
+        articles = self.read_rag(account, self.embed(prompt))
+        skills = merge_skills(load_builtin_skills(self.skills_root), self.read_skills(account))
+        servers = self.read_mcp_servers(account)
+        extra = set()
+        for row in servers:
+            extra.update(row.get("high_risk_tools") or [])
+        ops_tools = self.ops_tools if self.ops_tools is not None else load_ops_tools(config=config_from_rows(servers))
+        self.ops_tools = ops_tools
+        decision = self.llm.reason(prompt, ego, articles, ops_tools=ops_tools, skills=skills, extra_high_risk=extra)
         for step in decision.get("steps") or []:
             name = step.get("tool_name") or ""
             if name and name != decision.get("tool_name"):
@@ -75,7 +89,14 @@ class Agent:
     def handle_execute(self, task: dict) -> dict:
         name = task.get("tool_name") or ""
         args = task.get("input_args") or {}
-        result = run_low_risk(name, args) if not is_high_risk(name) else {"executed": True, **args}
+        if name == "send_status":
+            result = run_low_risk(name, args)
+        else:
+            ops_tools = self.ops_tools if self.ops_tools is not None else load_ops_tools(
+                config=config_from_rows(self.read_mcp_servers(task.get("account_id", "")))
+            )
+            self.ops_tools = ops_tools
+            result = invoke_tool(ops_tools, name, args)
         content = args.get("content") or f"{name} 처리했습니다."
         if is_high_risk(name):
             content = f"{name} 승인이 반영되었습니다."

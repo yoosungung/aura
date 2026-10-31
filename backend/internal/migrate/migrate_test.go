@@ -157,6 +157,31 @@ func TestUp_EmbeddingsSeparatedAndTemporalEdges(t *testing.T) {
 	}
 }
 
+func TestUp_MCPAndAgentSkills(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	var forced bool
+	if err := admin.QueryRow(ctx, `SELECT relforcerowsecurity FROM pg_class WHERE relname = 'mcp_servers'`).Scan(&forced); err != nil {
+		t.Fatal(err)
+	}
+	if !forced {
+		t.Fatal("expected FORCE RLS on mcp_servers")
+	}
+	if err := admin.QueryRow(ctx, `SELECT relforcerowsecurity FROM pg_class WHERE relname = 'agent_skills'`).Scan(&forced); err != nil {
+		t.Fatal(err)
+	}
+	if !forced {
+		t.Fatal("expected FORCE RLS on agent_skills")
+	}
+	var n int
+	if err := app.QueryRow(ctx, `SELECT count(*) FROM mcp_servers`).Scan(&n); err != nil {
+		t.Fatalf("app mcp_servers: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0 visible mcp_servers without guc, got %d", n)
+	}
+}
+
 func TestUp_AppCannotBypassRLS(t *testing.T) {
 	ctx := context.Background()
 	_, app := testutil.Postgres(t)

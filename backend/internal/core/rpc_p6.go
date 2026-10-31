@@ -29,6 +29,13 @@ func (s *Service) subscribeP6(nc *nats.Conn) error {
 		{SubjectOntologyEgo, s.handleOntologyEgo},
 		{SubjectToolsApprove, s.handleToolsApprove},
 		{SubjectContactPurge, s.handleContactPurge},
+		{SubjectMCPList, s.handleMCPList},
+		{SubjectMCPUpsert, s.handleMCPUpsert},
+		{SubjectMCPDelete, s.handleMCPDelete},
+		{SubjectMCPRotate, s.handleMCPRotate},
+		{SubjectAgentSkillList, s.handleAgentSkillList},
+		{SubjectAgentSkillUpsert, s.handleAgentSkillUpsert},
+		{SubjectAgentSkillDelete, s.handleAgentSkillDelete},
 	}
 	for _, item := range subs {
 		if _, err := nc.QueueSubscribe(item.subject, QueueGroup, item.handler); err != nil {

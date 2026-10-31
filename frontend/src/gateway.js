@@ -544,6 +544,81 @@ export async function listArticles(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function listMCP(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("mcp list failed");
+  }
+  return res.json();
+}
+
+export async function upsertMCP(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, name, url, auth_header, allowed_tools, high_risk_tools } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, url, auth_header, allowed_tools, high_risk_tools }),
+  });
+  if (!res.ok) {
+    throw new Error("mcp create failed");
+  }
+  return res.json();
+}
+
+export async function rotateMCP(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, mcp_server_id, auth_header } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers/${mcp_server_id}/auth/rotate`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ auth_header }),
+  });
+  if (!res.ok) {
+    throw new Error("mcp rotate failed");
+  }
+  return res.json();
+}
+
+export async function listSkills(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/agent_skills`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("skill list failed");
+  }
+  return res.json();
+}
+
+export async function upsertSkill(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, name, description, body } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/agent_skills`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, description, body }),
+  });
+  if (!res.ok) {
+    throw new Error("skill create failed");
+  }
+  return res.json();
+}
+
 export async function createArticle(req, fetchImpl = fetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, title, slug, body, published } = req;
@@ -615,4 +690,9 @@ export const liveClient = {
   createWebhook,
   listArticles,
   createArticle,
+  listMCP,
+  upsertMCP,
+  rotateMCP,
+  listSkills,
+  upsertSkill,
 };

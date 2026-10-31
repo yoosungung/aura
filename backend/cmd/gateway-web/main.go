@@ -67,6 +67,8 @@ func main() {
 			Articles:    n,
 			ContactAPI:  n,
 			AI:          n,
+			MCP:         n,
+			Skills:      n,
 			Guard:       limit.DefaultGuard(),
 			Bus:         gateway.NewBus(nc, js),
 			Blobs:       &gateway.FilerStore{Endpoint: filer, Public: public},

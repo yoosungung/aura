@@ -141,3 +141,41 @@ def bind_agent(agent, conn) -> None:
     agent.read_messages = lambda account, conv: with_account(account, lambda: read_messages(conn, conv))
     agent.read_article = lambda account, article: with_account(account, lambda: read_article(conn, article))
     agent.read_rag = lambda account, vec: with_account(account, lambda: search_articles(conn, vec))
+    agent.read_skills = lambda account: with_account(account, lambda: list_agent_skills(conn))
+    agent.read_mcp_servers = lambda account: with_account(account, lambda: list_mcp_servers(conn))
+
+
+def list_agent_skills(conn) -> list[dict]:
+    try:
+        rows = conn.execute(
+            "SELECT name, description, body, enabled FROM agent_skills WHERE enabled ORDER BY name"
+        ).fetchall()
+    except Exception:
+        return []
+    return [
+        {"name": r[0], "description": r[1] or "", "body": r[2] or "", "enabled": r[3]}
+        for r in rows
+    ]
+
+
+def list_mcp_servers(conn) -> list[dict]:
+    try:
+        rows = conn.execute(
+            """
+            SELECT name, url, auth_header, allowed_tools, high_risk_tools, enabled
+            FROM mcp_servers WHERE enabled ORDER BY name
+            """
+        ).fetchall()
+    except Exception:
+        return []
+    return [
+        {
+            "name": r[0],
+            "url": r[1],
+            "auth_header": r[2] or "",
+            "allowed_tools": list(r[3] or []),
+            "high_risk_tools": list(r[4] or []),
+            "enabled": r[5],
+        }
+        for r in rows
+    ]
