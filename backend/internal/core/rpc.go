@@ -50,6 +50,9 @@ const (
 	SubjectInboxResolveEmail     = "helpdesk.rpc.inboxes.resolve_email"
 	SubjectInboxResolveKakao     = "helpdesk.rpc.inboxes.resolve_kakao"
 	SubjectInboxGet              = "helpdesk.rpc.inboxes.get"
+	SubjectInboxList             = "helpdesk.rpc.inboxes.list"
+	SubjectInboxCreate           = "helpdesk.rpc.inboxes.create"
+	SubjectInboxDelete           = "helpdesk.rpc.inboxes.delete"
 	SubjectInboxRotateHMAC       = "helpdesk.rpc.inboxes.rotate_hmac"
 	SubjectResolveThread         = "helpdesk.rpc.conversations.resolve_thread"
 	SubjectResolveKakao          = "helpdesk.rpc.conversations.resolve_kakao"
@@ -765,6 +768,7 @@ func inboxHMACBody(got InboxHMAC) []byte {
 		"channel_type": got.ChannelType, "hmac_secret": got.HMACSecret,
 		"greeting_message": got.GreetingMessage, "business_hours_enabled": got.BusinessHoursEnabled,
 		"business_hours": json.RawMessage(hours),
+		"email_address": got.EmailAddress, "kakao_sender_key": got.KakaoSenderKey,
 	})
 	return body
 }

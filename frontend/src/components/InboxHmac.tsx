@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
@@ -11,8 +11,11 @@ type InboxHmacProps = {
   client: Partial<HelpdeskClient>;
 };
 
+type InboxChoice = { id: string; name?: string };
+
 export function InboxHmac({ session, client }: InboxHmacProps) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
+  const [boxes, setBoxes] = useState<InboxChoice[]>([]);
   const [secret, setSecret] = useState("");
   const [greeting, setGreeting] = useState("");
   const [hoursOn, setHoursOn] = useState(false);
@@ -21,6 +24,33 @@ export function InboxHmac({ session, client }: InboxHmacProps) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!client.listInboxes) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listInboxes({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+      })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        const next = (data?.inboxes || [])
+          .filter((row: { id?: string }) => row.id)
+          .map((row: { id: string; name?: string }) => ({ id: row.id, name: row.name }));
+        setBoxes(next);
+        setInboxId((cur) => cur || next[0]?.id || "");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [client, session]);
 
   function applyInbox(data: any) {
     setSecret(data?.hmac_secret || "");
@@ -93,22 +123,25 @@ export function InboxHmac({ session, client }: InboxHmacProps) {
     }
   }
 
+  const inboxChoices =
+    boxes.length > 0 ? boxes : (session.inboxIds || []).map((id) => ({ id, name: id }));
+
   return (
     <section className="hmac" aria-label="HMAC 시크릿">
       <h2>HMAC 시크릿</h2>
-      {session.inboxIds?.length ? (
+      {inboxChoices.length ? (
         <Label>
           인박스
           <select aria-label="인박스" value={inboxId} onChange={(e) => setInboxId(e.target.value)}>
-            {session.inboxIds.map((id) => (
-              <option key={id} value={id}>
-                {id}
+            {inboxChoices.map((box) => (
+              <option key={box.id} value={box.id}>
+                {box.name || box.id}
               </option>
             ))}
           </select>
         </Label>
       ) : null}
-      <Label className={session.inboxIds?.length ? "field-fallback" : undefined}>
+      <Label className={inboxChoices.length ? "field-fallback" : undefined}>
         인박스 ID
         <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
       </Label>

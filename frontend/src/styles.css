@@ -52,6 +52,18 @@ body,
   gap: 8px;
 }
 
+.rail-btn {
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: normal;
+}
+
 .rail-avatar {
   position: relative;
   display: grid;

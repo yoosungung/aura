@@ -10,6 +10,7 @@ data:
   AURA_HTTP_ADDR: ":8080"
   AURA_SMTP_ADDR: ":25"
   AURA_KAKAO_ADDR: ":8081"
+  AURA_ENABLED_CHANNELS: web,email,kakao
   AURA_LLM_BASE_URL: https://api.openai.com/v1
   AURA_LLM_MODEL: gpt-4o-mini
   AURA_EMBEDDING_MODEL: text-embedding-3-small

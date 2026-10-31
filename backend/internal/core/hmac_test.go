@@ -135,17 +135,22 @@ func TestUpdateInbox_GreetingAndHours(t *testing.T) {
 	svc := &core.Service{DB: app}
 	hours := json.RawMessage(`{"timezone":"Asia/Seoul","week":{"mon":[["09:00","18:00"]]}}`)
 
+	greeting := "hi"
+	hoursOn := true
 	if _, err := svc.UpdateInbox(ctx, core.InboxUpdate{
-		MemberInput: core.MemberInput{ActorUserID: agentID, AccountID: accountID, InboxID: inboxID},
-		GreetingMessage: "hi", BusinessHoursEnabled: true, BusinessHours: hours,
+		MemberInput:          core.MemberInput{ActorUserID: agentID, AccountID: accountID, InboxID: inboxID},
+		GreetingMessage:      &greeting,
+		BusinessHoursEnabled: &hoursOn,
+		BusinessHours:        hours,
 	}); err != core.ErrDenied {
 		t.Fatalf("agent update got %v", err)
 	}
 
+	saved := "부재중입니다"
 	got, err := svc.UpdateInbox(ctx, core.InboxUpdate{
 		MemberInput:          core.MemberInput{ActorUserID: adminID, AccountID: accountID, InboxID: inboxID},
-		GreetingMessage:      "부재중입니다",
-		BusinessHoursEnabled: true,
+		GreetingMessage:      &saved,
+		BusinessHoursEnabled: &hoursOn,
 		BusinessHours:        hours,
 	})
 	if err != nil {

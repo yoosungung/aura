@@ -22,6 +22,9 @@ func (s *Service) subscribeP9(nc *nats.Conn) error {
 		{SubjectAuthPresence, s.handlePresence},
 		{SubjectGreet, s.handleGreet},
 		{SubjectInboxUpdate, s.handleInboxUpdate},
+		{SubjectInboxList, s.handleInboxList},
+		{SubjectInboxCreate, s.handleInboxCreate},
+		{SubjectInboxDelete, s.handleInboxDelete},
 	}
 	for _, item := range subs {
 		if _, err := nc.QueueSubscribe(item.subject, QueueGroup, item.handler); err != nil {
@@ -93,12 +96,16 @@ func (s *Service) handleGreet(msg *nats.Msg) {
 
 func (s *Service) handleInboxUpdate(msg *nats.Msg) {
 	var req struct {
-		ActorUserID            string          `json:"actor_user_id"`
-		AccountID              string          `json:"account_id"`
-		InboxID                string          `json:"inbox_id"`
-		GreetingMessage        string          `json:"greeting_message"`
-		BusinessHoursEnabled   bool            `json:"business_hours_enabled"`
-		BusinessHours          json.RawMessage `json:"business_hours"`
+		ActorUserID          string          `json:"actor_user_id"`
+		AccountID            string          `json:"account_id"`
+		InboxID              string          `json:"inbox_id"`
+		Name                 *string         `json:"name"`
+		ChannelType          *string         `json:"channel_type"`
+		EmailAddress         *string         `json:"email_address"`
+		KakaoSenderKey       *string         `json:"kakao_sender_key"`
+		GreetingMessage      *string         `json:"greeting_message"`
+		BusinessHoursEnabled *bool           `json:"business_hours_enabled"`
+		BusinessHours        json.RawMessage `json:"business_hours"`
 	}
 	if err := json.Unmarshal(msg.Data, &req); err != nil {
 		_ = msg.Respond(rpcErr(err))
@@ -111,6 +118,10 @@ func (s *Service) handleInboxUpdate(msg *nats.Msg) {
 	}
 	got, err := s.UpdateInbox(context.Background(), InboxUpdate{
 		MemberInput:          in,
+		Name:                 req.Name,
+		ChannelType:          req.ChannelType,
+		EmailAddress:         req.EmailAddress,
+		KakaoSenderKey:       req.KakaoSenderKey,
 		GreetingMessage:      req.GreetingMessage,
 		BusinessHoursEnabled: req.BusinessHoursEnabled,
 		BusinessHours:        req.BusinessHours,
@@ -120,6 +131,104 @@ func (s *Service) handleInboxUpdate(msg *nats.Msg) {
 		return
 	}
 	_ = msg.Respond(inboxHMACBody(got))
+}
+
+func (s *Service) handleInboxList(msg *nats.Msg) {
+	var req struct {
+		ActorUserID string `json:"actor_user_id"`
+		AccountID   string `json:"account_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(ErrInvalid))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(ErrInvalid))
+		return
+	}
+	list, err := s.ListInboxes(context.Background(), actor, accountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, row := range list {
+		hours := row.BusinessHours
+		if len(hours) == 0 {
+			hours = []byte("{}")
+		}
+		rows = append(rows, map[string]any{
+			"id": row.ID.String(), "name": row.Name, "channel_type": row.ChannelType,
+			"greeting_message": row.GreetingMessage, "business_hours_enabled": row.BusinessHoursEnabled,
+			"business_hours": json.RawMessage(hours),
+			"email_address": row.EmailAddress, "kakao_sender_key": row.KakaoSenderKey,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "inboxes": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleInboxCreate(msg *nats.Msg) {
+	var req struct {
+		ActorUserID    string `json:"actor_user_id"`
+		AccountID      string `json:"account_id"`
+		Name           string `json:"name"`
+		ChannelType    string `json:"channel_type"`
+		EmailAddress   string `json:"email_address"`
+		KakaoSenderKey string `json:"kakao_sender_key"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(ErrInvalid))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(ErrInvalid))
+		return
+	}
+	got, err := s.CreateInbox(context.Background(), InboxCreate{
+		ActorUserID: actor, AccountID: accountID, Name: req.Name, ChannelType: req.ChannelType,
+		EmailAddress: req.EmailAddress, KakaoSenderKey: req.KakaoSenderKey,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	_ = msg.Respond(inboxHMACBody(got))
+}
+
+func (s *Service) handleInboxDelete(msg *nats.Msg) {
+	var req struct {
+		ActorUserID string `json:"actor_user_id"`
+		AccountID   string `json:"account_id"`
+		InboxID     string `json:"inbox_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	in, err := memberFromIDs(req.ActorUserID, req.AccountID, req.InboxID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.DeleteInbox(context.Background(), in); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
+	_ = msg.Respond(body)
 }
 
 func memberFromIDs(actor, account, inbox string) (MemberInput, error) {

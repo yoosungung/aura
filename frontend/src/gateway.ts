@@ -46,6 +46,9 @@ export type ClientReq = AuthedReq & {
   greetingMessage?: string;
   businessHoursEnabled?: boolean;
   businessHours?: Record<string, unknown>;
+  channelType?: string;
+  emailAddress?: string;
+  kakaoSenderKey?: string;
   shortCode?: string;
   visibility?: string;
   actions?: unknown;
@@ -514,20 +517,95 @@ export async function rotateHmac(req: ClientReq, fetchImpl: FetchImpl = asFetch)
   return res.json();
 }
 
+export async function listChannels(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/channels`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("channels failed");
+  }
+  return res.json();
+}
+
+export async function listInboxes(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("inbox list failed");
+  }
+  return res.json();
+}
+
+export async function createInbox(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, name, channelType, emailAddress, kakaoSenderKey } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      channel_type: channelType,
+      email_address: emailAddress || "",
+      kakao_sender_key: kakaoSenderKey || "",
+    }),
+  });
+  if (!res.ok) {
+    throw new Error("inbox create failed");
+  }
+  return res.json();
+}
+
+export async function deleteInbox(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, inboxId } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("inbox delete failed");
+  }
+}
+
 export async function updateInbox(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
-  const { gatewayUrl, accountId, token, inboxId, greetingMessage, businessHoursEnabled, businessHours } = req;
+  const {
+    gatewayUrl, accountId, token, inboxId, greetingMessage, businessHoursEnabled, businessHours,
+    name, channelType, emailAddress, kakaoSenderKey,
+  } = req;
+  const body: Record<string, unknown> = {};
+  if (name != null) {
+    body.name = name;
+  }
+  if (channelType != null) {
+    body.channel_type = channelType;
+  }
+  if (emailAddress != null) {
+    body.email_address = emailAddress;
+  }
+  if (kakaoSenderKey != null) {
+    body.kakao_sender_key = kakaoSenderKey;
+  }
+  if (greetingMessage != null || businessHoursEnabled != null || businessHours != null) {
+    body.greeting_message = greetingMessage || "";
+    body.business_hours_enabled = !!businessHoursEnabled;
+    body.business_hours = businessHours || {};
+  }
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      greeting_message: greetingMessage || "",
-      business_hours_enabled: !!businessHoursEnabled,
-      business_hours: businessHours || {},
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     throw new Error("inbox update failed");
@@ -988,6 +1066,10 @@ export const liveClient = {
   listInboxMembers,
   getInbox,
   rotateHmac,
+  listChannels,
+  listInboxes,
+  createInbox,
+  deleteInbox,
   updateInbox,
   assignConversation,
   sendNote,

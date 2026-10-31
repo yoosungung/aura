@@ -99,6 +99,10 @@ func (s *Server) writeMemberErr(w http.ResponseWriter, err error) {
 		code = http.StatusForbidden
 	} else if errors.Is(err, core.ErrNotFound) || err.Error() == "not_found" {
 		code = http.StatusNotFound
+	} else if errors.Is(err, core.ErrInvalid) || err.Error() == "invalid" {
+		code = http.StatusBadRequest
+	} else if errors.Is(err, core.ErrConflict) || err.Error() == "conflict" {
+		code = http.StatusConflict
 	}
 	http.Error(w, err.Error(), code)
 }
@@ -183,6 +187,10 @@ func memberRPCErr(code string) error {
 		return core.ErrDenied
 	case core.ErrNotFound.Error():
 		return core.ErrNotFound
+	case core.ErrInvalid.Error():
+		return core.ErrInvalid
+	case core.ErrConflict.Error():
+		return core.ErrConflict
 	case "":
 		return fmt.Errorf("rpc_failed")
 	default:

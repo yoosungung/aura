@@ -21,6 +21,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 13. **ingestion은 독성 이벤트 때문에 배치를 무한 NACK하지 않는다.** 플러시 순서는 `contacts` → `contact_inboxes` → `conversations` → `messages` → `attachments` → 상태/배정이다. 배치 트랜잭션이 실패하면 단건(또는 `SAVEPOINT`)으로 폴백하고, 영구 실패는 `helpdesk.dlq.ingestion`으로 보낸 뒤 ACK한다.
 14. **상담원 인증은 자체 세션이다.** 이메일+비밀번호. P3에 OIDC를 두지 않는다. 비밀번호는 Argon2id로만 저장한다. 세션 행은 `svc-core`가 PG에 커밋하고, `gateway-web`이 접근 토큰을 서명한다. 게이트웨이는 `users`를 읽지 않는다.
 15. **인박스 HMAC 시크릿은 administrator만 본다.** 호스트 서버가 identifier를 서명하고, 위젯·Client API·상담원에게 시크릿을 주지 않는다. 회전은 `inboxes.hmac_secret`을 즉시 덮어쓰며 이전 키를 남기지 않는다.
+16. **채널은 게이트웨이 능력, 인박스는 계정 자원이다.** `channel_type`은 `web` \| `kakao` \| `email`(`social`은 출시 후)이고 `channels` 테이블은 없다. 이 설치에서 고를 수 있는 타입은 `gateway-web` env `AURA_ENABLED_CHANNELS`(ConfigMap, 기본 `web,email,kakao`)다. administrator가 인박스를 만들고 고치고 지운다. 멤버는 그 인박스에 붙인다.
 
 ## 2. 토폴로지와 서비스 경계
 
@@ -124,7 +125,10 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.auth.contact` | `inbox_id`, `pubsub_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.presence` | `user_id`, `account_id`, `status` (`online`/`offline`) | gateway-web (User WS) | svc-core |
 | Core | `helpdesk.rpc.conversations.greet` | `account_id`, `conversation_id` | sla-routing | svc-core |
-| Core | `helpdesk.rpc.inboxes.update` | `actor_user_id`, `inbox_id`, `greeting_message`, `business_hours_enabled`, `business_hours` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inboxes.update` | `actor_user_id`, `inbox_id`. greeting/hours와 `name`/`channel_type`/`email_address`/`kakao_sender_key`는 있는 키만 | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inboxes.list` | `actor_user_id`, `account_id`. administrator. 시크릿 없음 | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inboxes.create` | `actor_user_id`, `account_id`, `name`, `channel_type`, `email_address`, `kakao_sender_key`. actor를 멤버로 넣음 | gateway-web | svc-core |
+| Core | `helpdesk.rpc.inboxes.delete` | `actor_user_id`, `account_id`, `inbox_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.accounts.create` | `name`, `locale`, `user`(`name`/`email`/`password`) | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.accounts.list` | (없음) | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.accounts.update` | `account_id`, `name`, `locale` | gateway-web | svc-core |
@@ -384,10 +388,14 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `PATCH /api/v1/accounts/{account_id}/macros/{macro_id}`
 - `DELETE /api/v1/accounts/{account_id}/macros/{macro_id}`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/macros/{macro_id}/execute`
+- `GET /api/v1/accounts/{account_id}/channels` (`channel_types`. `AURA_ENABLED_CHANNELS`, 기본 `web,email,kakao`. User)
+- `GET /api/v1/accounts/{account_id}/inboxes` (계정 전체. 시크릿 없음. administrator)
+- `POST /api/v1/accounts/{account_id}/inboxes` `{ name, channel_type, email_address?, kakao_sender_key? }`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
-- `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`hmac_secret` administrator, `greeting_message`, `business_hours_enabled`, `business_hours`)
-- `PATCH /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`greeting_message`, `business_hours_enabled`, `business_hours`. administrator)
+- `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`hmac_secret` administrator, `greeting_message`, `business_hours_enabled`, `business_hours`, `email_address`, `kakao_sender_key`)
+- `PATCH /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (있는 키만. greeting/hours 또는 `name`/`channel_type`/`email_address`/`kakao_sender_key`. administrator)
+- `DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}`
 - `POST /api/v1/accounts/{account_id}/inboxes/{inbox_id}/hmac/rotate`
 - `GET /api/v1/accounts/{account_id}/conversations` (기본 작업 큐, `resolved` 제외. 담당자 쿼리 없음)
 - `GET /api/v1/accounts/{account_id}/conversations/{id}/messages`

@@ -16,19 +16,49 @@ type InboxMembersProps = {
   client: Partial<HelpdeskClient>;
 };
 
+type InboxChoice = { id: string; name?: string };
+
 export function InboxMembers({ session, client }: InboxMembersProps) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
   const [userId, setUserId] = useState("");
   const [members, setMembers] = useState<InboxMember[]>([]);
   const [directory, setDirectory] = useState<InboxMember[]>([]);
+  const [boxes, setBoxes] = useState<InboxChoice[]>([]);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!client.listInboxes) {
+      return undefined;
+    }
+    let cancelled = false;
+    client
+      .listInboxes({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+      })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        const next = (data?.inboxes || [])
+          .filter((row: { id?: string }) => row.id)
+          .map((row: { id: string; name?: string }) => ({ id: row.id, name: row.name }));
+        setBoxes(next);
+        setInboxId((cur) => cur || next[0]?.id || "");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [client, session]);
 
   useEffect(() => {
     const listInboxMembers = client.listInboxMembers;
     if (!listInboxMembers) {
       return undefined;
     }
-    const ids = [...new Set([...(session.inboxIds || []), inboxId].filter(Boolean))];
+    const ids = [...new Set([...(session.inboxIds || []), ...boxes.map((b) => b.id), inboxId].filter(Boolean))];
     if (ids.length === 0) {
       return undefined;
     }
@@ -64,7 +94,7 @@ export function InboxMembers({ session, client }: InboxMembersProps) {
     return () => {
       cancelled = true;
     };
-  }, [client, inboxId, session]);
+  }, [client, inboxId, session, boxes]);
 
   async function onAdd(e: FormEvent) {
     e.preventDefault();
@@ -116,24 +146,26 @@ export function InboxMembers({ session, client }: InboxMembersProps) {
 
   const taken = new Set(members.map((m) => m.user_id));
   const agentChoices = directory.filter((m) => !taken.has(m.user_id));
+  const inboxChoices =
+    boxes.length > 0 ? boxes : (session.inboxIds || []).map((id) => ({ id, name: id }));
 
   return (
     <section className="members" aria-label="인박스 멤버">
       <h2>인박스 멤버</h2>
       <form onSubmit={onAdd} className="flex flex-col gap-2">
-        {session.inboxIds?.length ? (
+        {inboxChoices.length ? (
           <Label>
             인박스
             <select aria-label="인박스" value={inboxId} onChange={(e) => setInboxId(e.target.value)}>
-              {session.inboxIds.map((id) => (
-                <option key={id} value={id}>
-                  {id}
+              {inboxChoices.map((box) => (
+                <option key={box.id} value={box.id}>
+                  {box.name || box.id}
                 </option>
               ))}
             </select>
           </Label>
         ) : null}
-        <Label className={session.inboxIds?.length ? "field-fallback" : undefined}>
+        <Label className={inboxChoices.length ? "field-fallback" : undefined}>
           인박스 ID
           <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
         </Label>

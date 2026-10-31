@@ -108,8 +108,12 @@ test("administrator settings live behind the rail", async () => {
     />,
   );
   expect(screen.getByRole("navigation", { name: "대기열" })).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "인박스" })).toBeNull();
   expect(screen.queryByRole("region", { name: "인박스 멤버" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(screen.getByRole("region", { name: "인박스" })).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "인박스 멤버" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
   expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
 });
 
@@ -131,6 +135,7 @@ test("administrator removes an inbox member", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
   expect(await screen.findByText("ada@acme.test")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "삭제" }));
   expect(removed[0].userId).toBe("user-1");
@@ -156,6 +161,7 @@ test("administrator can add an inbox member", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
   expect(screen.getByRole("region", { name: "인박스 멤버" })).toBeTruthy();
   await user.type(screen.getByLabelText("상담원 ID"), "user-1");
   await user.click(screen.getByRole("button", { name: "추가" }));
@@ -184,6 +190,7 @@ test("administrator picks an agent from other inbox members", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "상담원" }), "user-2");
   expect(screen.getByLabelText("상담원 ID").value).toBe("user-2");
   expect(screen.getByLabelText("상담원 ID").closest("label").className).toMatch(/field-fallback/);
@@ -215,6 +222,7 @@ test("administrator picks inbox from a session select", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "인박스" }), "i2");
   expect(screen.getByLabelText("인박스 ID").value).toBe("i2");
   expect(screen.getByLabelText("인박스 ID").closest("label").className).toMatch(/field-fallback/);
@@ -310,6 +318,141 @@ test("administrator saves inbox greeting and hours", async () => {
   expect(saved[0].greetingMessage).toBe("부재중입니다");
   expect(saved[0].businessHoursEnabled).toBe(true);
   expect(screen.getByText("저장됨")).toBeTruthy();
+});
+
+test("administrator creates inboxes and switches channel fields", async () => {
+  const user = userEvent.setup();
+  const created: ClientReq[] = [];
+  const refreshed: ClientReq[] = [];
+  const boxes: Array<Record<string, unknown>> = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listChannels() {
+          return { channel_types: ["web", "email", "kakao"] };
+        },
+        async listInboxes() {
+          return { inboxes: [...boxes] };
+        },
+        async createInbox(req) {
+          created.push(req);
+          const row = {
+            id: "i2",
+            name: req.name,
+            channel_type: req.channelType,
+            email_address: req.emailAddress,
+            kakao_sender_key: req.kakaoSenderKey,
+          };
+          boxes.push(row);
+          return row;
+        },
+        async refresh(req) {
+          refreshed.push(req);
+          return { access_token: "tok", user: { inbox_ids: ["i1", "i2"] } };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(screen.getByRole("region", { name: "인박스" })).toBeTruthy();
+  expect(screen.queryByLabelText("이메일")).toBeNull();
+  expect(screen.queryByLabelText("카카오 발신 키")).toBeNull();
+  await user.selectOptions(screen.getByRole("combobox", { name: "채널" }), "email");
+  expect(screen.getByLabelText("이메일")).toBeTruthy();
+  expect(screen.queryByLabelText("카카오 발신 키")).toBeNull();
+  await user.selectOptions(screen.getByRole("combobox", { name: "채널" }), "kakao");
+  expect(screen.getByLabelText("카카오 발신 키")).toBeTruthy();
+  expect(screen.queryByLabelText("이메일")).toBeNull();
+  await user.selectOptions(screen.getByRole("combobox", { name: "채널" }), "email");
+  await user.type(screen.getByLabelText("이름"), "메일함");
+  await user.type(screen.getByLabelText("이메일"), "help@acme.test");
+  await user.click(screen.getByRole("button", { name: "인박스 추가" }));
+  expect(created[0].name).toBe("메일함");
+  expect(created[0].channelType).toBe("email");
+  expect(created[0].emailAddress).toBe("help@acme.test");
+  expect(refreshed.length).toBe(1);
+  expect(screen.getByRole("region", { name: "인박스" }).textContent).toContain("메일함 · Email");
+});
+
+test("administrator patches and deletes an inbox", async () => {
+  const user = userEvent.setup();
+  const saved: ClientReq[] = [];
+  const deleted: ClientReq[] = [];
+  const boxes: Array<Record<string, unknown>> = [{ id: "i1", name: "웹", channel_type: "web" }];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxes() {
+          return { inboxes: [...boxes] };
+        },
+        async updateInbox(req) {
+          saved.push(req);
+          const row = { id: "i1", name: req.name, channel_type: req.channelType };
+          boxes.splice(0, boxes.length, row);
+          return row;
+        },
+        async deleteInbox(req) {
+          deleted.push(req);
+          const i = boxes.findIndex((b) => b.id === req.inboxId);
+          if (i >= 0) {
+            boxes.splice(i, 1);
+          }
+        },
+        async refresh() {
+          return { access_token: "tok", user: { inbox_ids: [] } };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(await screen.findByRole("button", { name: "웹 · Web" }));
+  expect((screen.getByLabelText("이름") as HTMLInputElement).value).toBe("웹");
+  await user.clear(screen.getByLabelText("이름"));
+  await user.type(screen.getByLabelText("이름"), "웹 상담");
+  await user.click(screen.getByRole("button", { name: "인박스 저장" }));
+  expect(saved[0].inboxId).toBe("i1");
+  expect(saved[0].name).toBe("웹 상담");
+  expect(screen.getByRole("region", { name: "인박스" }).textContent).toContain("웹 상담 · Web");
+  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(deleted[0].inboxId).toBe("i1");
+  expect(screen.getByRole("region", { name: "인박스" }).textContent).not.toContain("웹 상담");
+  expect(screen.queryByRole("button", { name: "웹 상담 · Web" })).toBeNull();
+});
+
+test("inbox member and hmac selects use inbox names", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1", "i2"] }}
+      client={{
+        connect() {},
+        async listInboxes() {
+          return {
+            inboxes: [
+              { id: "i1", name: "웹" },
+              { id: "i2", name: "메일함" },
+            ],
+          };
+        },
+        async listInboxMembers() {
+          return { members: [] };
+        },
+        async getInbox() {
+          return { hmac_secret: "secret" };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
+  expect(await screen.findByRole("option", { name: "메일함" })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "웹" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
+  expect(await screen.findByRole("option", { name: "메일함" })).toBeTruthy();
 });
 
 test("ticket view assigns to an inbox agent", async () => {
@@ -1486,12 +1629,18 @@ test("shows typing indicator for the other party", async () => {
   expect(screen.getByText("입력 중")).toBeTruthy();
 });
 
-test("rail shows unread availability shortcuts and signs out", async () => {
+test("rail shows unread availability and signs out", async () => {
   const user = userEvent.setup();
   const left = [];
   render(
     <App
-      session={{ ...session, availabilityStatus: "online", name: "Ada", email: "ada@acme.test" }}
+      session={{
+        ...session,
+        availabilityStatus: "online",
+        name: "Ada",
+        email: "ada@acme.test",
+        role: "administrator",
+      }}
       client={{
         connect() {},
         async signOut(req) {
@@ -1504,12 +1653,56 @@ test("rail shows unread availability shortcuts and signs out", async () => {
   const avatar = screen.getByLabelText("가용 상태");
   expect(avatar.getAttribute("data-availability")).toBe("online");
   expect(avatar.textContent).toMatch(/A/);
-  expect(screen.getByRole("button", { name: "대기열" }).textContent).toContain("1");
-  await user.click(screen.getByRole("button", { name: "단축키" }));
-  expect(screen.getByRole("dialog", { name: "단축키" }).textContent).toMatch(/J|K|R|N|E/);
+  const inbox = screen.getByRole("button", { name: "대기열" });
+  expect(inbox.textContent).toContain("대기열");
+  expect(inbox.textContent).not.toContain("큐");
+  expect(inbox.textContent).toContain("1");
+  const railButtons = ["대기열", "설정", "로그아웃"].map((name) => screen.getByRole("button", { name }));
+  for (const button of railButtons) {
+    expect(button.className).toContain("rail-btn");
+  }
+  expect(screen.queryByRole("button", { name: "단축키" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "로그아웃" }));
   expect(left).toHaveLength(1);
   expect(screen.getByRole("form", { name: "로그인" })).toBeTruthy();
+});
+
+test("shortcut help appears after selecting a conversation", async () => {
+  const user = userEvent.setup();
+  render(
+    <App session={session} client={{ connect() {} }} initialState={fixtureState()} />,
+  );
+  expect(screen.queryByRole("button", { name: "단축키" })).toBeNull();
+  fireEvent.keyDown(window, { key: "?" });
+  expect(screen.queryByRole("dialog", { name: "단축키" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  const help = screen.getByRole("button", { name: "단축키" });
+  expect(help.closest("section.thread")).toBeTruthy();
+  expect(help.closest("aside.rail")).toBeNull();
+  await user.click(help);
+  expect(screen.getByRole("dialog", { name: "단축키" }).textContent).toMatch(/J|K|R|N|E/);
+});
+
+test("shortcut help hides when leaving the selected conversation", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [] };
+        },
+      }}
+      initialState={fixtureState()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: /결제 오류/ }));
+  await user.click(screen.getByRole("button", { name: "단축키" }));
+  expect(screen.getByRole("dialog", { name: "단축키" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(screen.queryByRole("dialog", { name: "단축키" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "단축키" })).toBeNull();
 });
 
 test("queue card shows contact name relative time and sla tint", () => {
@@ -1915,6 +2108,9 @@ test("settings save buttons are compact and right aligned", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
+  const inboxSave = screen.getByRole("button", { name: "인박스 추가" });
+  expect(inboxSave.className).toMatch(/\bh-8\b/);
+  expect(inboxSave.closest(".settings-form-actions")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "라벨", exact: true }));
   const labelSave = screen.getByRole("button", { name: "라벨 추가" });
   expect(labelSave.className).toMatch(/\bh-8\b/);
@@ -1938,7 +2134,9 @@ test("administrator settings nav groups inbox content integration and reports", 
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  expect(screen.getByRole("heading", { name: "인박스" })).toBeTruthy();
+  const menu = screen.getByRole("navigation", { name: "설정 메뉴" });
+  expect(within(menu).getByRole("heading", { name: "인박스" })).toBeTruthy();
+  expect(within(menu).getByRole("button", { name: "인박스 멤버" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "콘텐츠" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "연동" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "분석" })).toBeTruthy();

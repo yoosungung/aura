@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteAccountLabel, deleteArticle, deleteCanned, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, removeInboxMember, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateAccountLabel, updateArticle, updateCanned, updateInbox, updateMacro, updateWebhook, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, createInbox, deleteAccountLabel, deleteArticle, deleteCanned, deleteInbox, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listChannels, listConversations, listContacts, listInboxes, removeConversationLabel, removeInboxMember, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateAccountLabel, updateArticle, updateCanned, updateInbox, updateMacro, updateWebhook, uploadAttachment, wsUrl } from "./gateway.js";
 import type { FetchImpl, SessionUpdate } from "./gateway.js";
 
 type FakeSock = {
@@ -285,6 +285,75 @@ describe("gateway client", () => {
     assert.equal(calls[0].opts.method, "PATCH");
     assert.equal(JSON.parse(calls[0].opts.body).greeting_message, "부재중");
     assert.equal(got.greeting_message, "부재중");
+  });
+
+  it("lists channels and inboxes then creates and deletes", async () => {
+    const channels = await listChannels(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok" },
+      async () => ({ ok: true, json: async () => ({ channel_types: ["web", "email", "kakao"] }) }),
+    );
+    assert.deepEqual(channels.channel_types, ["web", "email", "kakao"]);
+    const listed = await listInboxes(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok" },
+      async (url: string) => {
+        assert.equal(url, "http://gw/api/v1/accounts/acc/inboxes");
+        return { ok: true, json: async () => ({ inboxes: [{ id: "i1", name: "웹" }] }) };
+      },
+    );
+    assert.equal(listed.inboxes[0].name, "웹");
+    const calls: any[] = [];
+    const created = await createInbox(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        name: "메일함",
+        channelType: "email",
+        emailAddress: "help@acme.test",
+      },
+      async (url: string, opts?: any) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ id: "i2", name: "메일함" }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes");
+    assert.equal(calls[0].opts.method, "POST");
+    assert.equal(JSON.parse(calls[0].opts.body).channel_type, "email");
+    assert.equal(created.name, "메일함");
+    const deleted: any[] = [];
+    await deleteInbox(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", inboxId: "i2" },
+      async (url: string, opts?: any) => {
+        deleted.push({ url, opts });
+        return { ok: true, status: 204, json: async () => ({}) };
+      },
+    );
+    assert.equal(deleted[0].url, "http://gw/api/v1/accounts/acc/inboxes/i2");
+    assert.equal(deleted[0].opts.method, "DELETE");
+  });
+
+  it("patches inbox identity without greeting fields", async () => {
+    const calls: any[] = [];
+    await updateInbox(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        inboxId: "i1",
+        name: "웹 상담",
+        channelType: "web",
+        emailAddress: "",
+        kakaoSenderKey: "",
+      },
+      async (url: string, opts?: any) => {
+        calls.push({ url, opts });
+        return { ok: true, status: 200, json: async () => ({ name: "웹 상담" }) };
+      },
+    );
+    const body = JSON.parse(calls[0].opts.body);
+    assert.equal(body.name, "웹 상담");
+    assert.equal(body.channel_type, "web");
+    assert.equal(body.greeting_message, undefined);
   });
 
   it("puts conversation assignee", async () => {

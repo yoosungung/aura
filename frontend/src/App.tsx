@@ -8,6 +8,7 @@ import { ArticleSettings } from "./components/ArticleSettings.jsx";
 import { CatalogSettings } from "./components/CatalogSettings.jsx";
 import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
+import { InboxSettings } from "./components/InboxSettings.jsx";
 import { ReportSettings } from "./components/ReportSettings.jsx";
 import { MCPSettings } from "./components/MCPSettings.jsx";
 import { SettingsNav } from "./components/SettingsNav.jsx";
@@ -56,7 +57,7 @@ export function App({ session: initialSession, client, initialState = emptyState
   const [contextOpen, setContextOpen] = useState(false);
   const [composerFocus, setComposerFocus] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState("members");
+  const [settingsTab, setSettingsTab] = useState("inboxes");
   const [width, setWidth] = useState(() =>
     viewportWidth != null ? viewportWidth : typeof window !== "undefined" ? window.innerWidth : 1280,
   );
@@ -346,13 +347,19 @@ export function App({ session: initialSession, client, initialState = emptyState
       if (e.key === "e" || e.key === "E") {
         document.querySelector<HTMLButtonElement>('.resolve button:last-of-type')?.click();
       }
-      if (e.key === "?") {
+      if (e.key === "?" && state.selectedId && view === "inbox") {
         setHelpOpen(true);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [queue, state.selectedId, composeMode]);
+  }, [queue, state.selectedId, composeMode, view]);
+
+  useEffect(() => {
+    if (!state.selectedId || view !== "inbox") {
+      setHelpOpen(false);
+    }
+  }, [state.selectedId, view]);
 
   useEffect(() => {
     if (!composerFocus) {
@@ -610,18 +617,18 @@ export function App({ session: initialSession, client, initialState = emptyState
           </span>
           <Button
             variant={view === "inbox" ? "secondary" : "ghost"}
-            size="icon"
+            className="rail-btn"
             aria-label="대기열"
             aria-current={view === "inbox" ? "page" : undefined}
             onClick={() => setView("inbox")}
           >
-            큐
-            {unreadTotal > 0 ? <Badge>{unreadTotal}</Badge> : null}
+            대기열
+            {unreadTotal > 0 ? <Badge className="min-w-4 justify-center px-1">{unreadTotal}</Badge> : null}
           </Button>
           {admin ? (
             <Button
               variant={view === "settings" ? "secondary" : "ghost"}
-              size="icon"
+              className="rail-btn"
               aria-label="설정"
               aria-current={view === "settings" ? "page" : undefined}
               onClick={() => setView("settings")}
@@ -631,15 +638,12 @@ export function App({ session: initialSession, client, initialState = emptyState
           ) : null}
         </div>
         <div className="rail-bottom">
-          <Button variant="ghost" size="icon" aria-label="단축키" onClick={() => setHelpOpen(true)}>
-            ?
-          </Button>
-          <Button variant="ghost" size="sm" aria-label="로그아웃" onClick={onSignOut}>
+          <Button variant="ghost" className="rail-btn" aria-label="로그아웃" onClick={onSignOut}>
             로그아웃
           </Button>
         </div>
       </aside>
-      {helpOpen ? (
+      {helpOpen && selected && view === "inbox" ? (
         <div className="shortcuts" role="dialog" aria-label="단축키">
           <p>J 다음 · K 이전 · R 답장 · N 메모 · E 해결 · ⌘Enter 전송 · ⌘K 매크로</p>
           <Button size="sm" onClick={() => setHelpOpen(false)}>
@@ -651,6 +655,9 @@ export function App({ session: initialSession, client, initialState = emptyState
         <section className="settings-pane" role="region" aria-label="워크스페이스 관리">
           <SettingsNav tab={settingsTab} onChange={setSettingsTab} />
           <div className="settings-body">
+            {settingsTab === "inboxes" ? (
+              <InboxSettings session={session} client={client} onSession={applySession} />
+            ) : null}
             {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
             {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
             {settingsTab === "canned" ? <CatalogSettings pane="canned" session={session} client={client} /> : null}
@@ -735,6 +742,9 @@ export function App({ session: initialSession, client, initialState = emptyState
                     {selected.status ? statusBadge(selected.status) : null}
                   </div>
                   <div className="thread-header-actions">
+                    <Button variant="ghost" size="icon" aria-label="단축키" onClick={() => setHelpOpen(true)}>
+                      ?
+                    </Button>
                     {layout === "laptop" && selected ? (
                       <Button
                         type="button"

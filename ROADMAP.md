@@ -127,6 +127,16 @@
 
 성공: 상담원 WS 연결 후 미배정 티켓이 자동 배정되고, 끊으면 풀에서 빠진다. 영업시간 밖 인입은 미배정 + greeting 1회 + FRT due가 다음 오픈 이후로 밀린다. 타이핑 인디케이터가 상대에게 보이고 `messages` 행은 없다. **완료.**
 
+## P10 인박스 설정
+
+목표: 채널 타입은 게이트웨이 능력이고, 계정 administrator가 설정에서 인박스를 만든 뒤 멤버를 붙인다. `channels` 테이블은 없다.
+
+- `AURA_ENABLED_CHANNELS`(ConfigMap `aura-config`, 기본 `web,email,kakao`). `GET /api/v1/accounts/{id}/channels`. `social`·알 수 없는 값은 버린다. 비면 기본값.
+- 인박스 CRUD: `inboxes.list` / `create` / `delete`, `inboxes.update`는 있는 키만. 생성은 actor를 멤버로 넣고 HMAC을 만든다. `email`은 `email_address`, `kakao`는 `kakao_sender_key`.
+- 설정 내비: 인박스 → 인박스 멤버 → HMAC. 멤버·HMAC Select는 인박스 이름.
+
+성공: 관리자가 웹·메일·카카오 인박스를 만들고 이름을 고치고 지운 뒤, 그 인박스에 멤버를 넣는다. 계정 시드 웹 인박스는 그대로다. **완료.**
+
 ## 출시 후
 
 - 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
