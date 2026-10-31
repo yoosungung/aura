@@ -165,7 +165,7 @@ jobs:
             pkg="${REPO_NAME}/${name}"
             enc="$(jq -nr --arg p "${pkg}" '$p|@uri')"
             ref="ghcr.io/${REPO}/${name}:current"
-            index="$(docker buildx imagetools inspect --format '{{.Digest}}' "${ref}")"
+            index="$(docker buildx imagetools inspect "${ref}" | awk '/^Digest:/{print $2; exit}')"
             children="$(docker buildx imagetools inspect --raw "${ref}" | jq -r '.manifests[]?.digest // empty')"
             keep="$(printf '%s\n%s\n' "${index}" "${children}" | awk 'NF' | sort -u)"
             echo "prune ${pkg} keep=$(echo "${keep}" | tr '\n' ' ')"
