@@ -15,6 +15,7 @@ import (
 type MacroStore interface {
 	ListMacros(ctx context.Context, actor, account uuid.UUID) ([]MacroOut, error)
 	CreateMacro(ctx context.Context, actor, account uuid.UUID, name, visibility string, actions []core.MacroAction) (MacroOut, error)
+	DeleteMacro(ctx context.Context, actor, account, macroID uuid.UUID) error
 	ExecuteMacro(ctx context.Context, actor, account, conversation, macroID uuid.UUID) (ExecuteOut, error)
 }
 
@@ -86,6 +87,18 @@ func (s *Server) handleMacros(w http.ResponseWriter, r *http.Request) {
 			"id": out.ID.String(), "name": out.Name, "actions": out.Actions,
 			"visibility": out.Visibility, "created_by": out.CreatedBy.String(),
 		})
+	case http.MethodDelete:
+		id, err := uuid.Parse(r.PathValue("macro_id"))
+		if err != nil {
+			http.Error(w, "invalid macro", http.StatusBadRequest)
+			return
+		}
+		if err := s.Service.Macros.DeleteMacro(r.Context(), tok.UserID, accountID, id); err != nil {
+			writeMacroErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	default:
 		http.Error(w, "method", http.StatusMethodNotAllowed)
 	}
@@ -246,6 +259,30 @@ func (r *natsRPC) CreateMacro(ctx context.Context, actor, account uuid.UUID, nam
 	return MacroOut{
 		ID: id, Name: out.Name, Actions: out.Actions, Visibility: out.Visibility, CreatedBy: parseUUID(out.CreatedBy),
 	}, nil
+}
+
+func (r *natsRPC) DeleteMacro(ctx context.Context, actor, account, macroID uuid.UUID) error {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "macro_id": macroID.String(),
+	})
+	if err != nil {
+		return err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectMacroDelete, body)
+	if err != nil {
+		return err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return err
+	}
+	if !out.OK {
+		return macroRPCErr(out.Error)
+	}
+	return nil
 }
 
 func (r *natsRPC) ExecuteMacro(ctx context.Context, actor, account, conversation, macroID uuid.UUID) (ExecuteOut, error) {

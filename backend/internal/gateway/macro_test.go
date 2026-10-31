@@ -28,6 +28,9 @@ func (f *fakeMacros) CreateMacro(_ context.Context, _, _ uuid.UUID, name, _ stri
 	f.created = append(f.created, name)
 	return f.out, f.err
 }
+func (f *fakeMacros) DeleteMacro(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return f.err
+}
 func (f *fakeMacros) ExecuteMacro(_ context.Context, _, _, _, macroID uuid.UUID) (gateway.ExecuteOut, error) {
 	f.ran = append(f.ran, macroID)
 	return f.exec, f.err

@@ -24,6 +24,9 @@ func (f *fakeCanned) ListCanned(context.Context, uuid.UUID, uuid.UUID) ([]gatewa
 func (f *fakeCanned) CreateCanned(context.Context, uuid.UUID, uuid.UUID, string, string) (gateway.CannedOut, error) {
 	return f.out, f.err
 }
+func (f *fakeCanned) DeleteCanned(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return f.err
+}
 
 func TestHTTP_CreateCanned(t *testing.T) {
 	accountID, actorID, id := mustV7(t), mustV7(t), mustV7(t)

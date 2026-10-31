@@ -128,6 +128,60 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
     }
   }
 
+  async function onDeleteLabel(label: TicketLabel) {
+    if (!client.deleteAccountLabel || !label?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteAccountLabel({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        labelId: label.id,
+      });
+      setLabels((prev) => prev.filter((row) => row.id !== label.id));
+    } catch {
+      setError("라벨을 삭제하지 못했습니다");
+    }
+  }
+
+  async function onDeleteCanned(row: Canned) {
+    if (!client.deleteCanned || !row?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteCanned({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        canned_id: row.id,
+      });
+      setCanned((prev) => prev.filter((item) => item.id !== row.id));
+    } catch {
+      setError("저장응답을 삭제하지 못했습니다");
+    }
+  }
+
+  async function onDeleteMacro(macro: Macro) {
+    if (!client.deleteMacro || !macro?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteMacro({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        macroId: macro.id,
+      });
+      setMacros((prev) => prev.filter((item) => item.id !== macro.id));
+    } catch {
+      setError("매크로를 삭제하지 못했습니다");
+    }
+  }
+
   return (
     <section className="settings-resource" aria-label="카탈로그">
       <h2>라벨·저장응답·매크로</h2>
@@ -137,6 +191,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           {labels.map((l) => (
             <li key={l.id || l.name}>
               <span className="settings-item-main">{l.name}</span>
+              {client.deleteAccountLabel && l.id ? (
+                <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteLabel(l)}>
+                  삭제
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -154,6 +213,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           {canned.map((c) => (
             <li key={c.id || c.short_code}>
               <span className="settings-item-main">/{c.short_code}</span>
+              {client.deleteCanned && c.id ? (
+                <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteCanned(c)}>
+                  삭제
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -175,6 +239,11 @@ export function CatalogSettings({ session, client }: CatalogSettingsProps) {
           {macros.map((m) => (
             <li key={m.id || m.name}>
               <span className="settings-item-main">{m.name}</span>
+              {client.deleteMacro && m.id ? (
+                <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteMacro(m)}>
+                  삭제
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>

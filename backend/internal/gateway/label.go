@@ -17,6 +17,7 @@ type Labeler interface {
 	ListConversationLabels(ctx context.Context, actor, account, conversation uuid.UUID) ([]LabelOut, error)
 	ListAccountLabels(ctx context.Context, actor, account uuid.UUID) ([]LabelOut, error)
 	CreateAccountLabel(ctx context.Context, actor, account uuid.UUID, name string) (LabelOut, error)
+	DeleteAccountLabel(ctx context.Context, actor, account, labelID uuid.UUID) error
 }
 
 type LabelOut struct {
@@ -61,6 +62,18 @@ func (s *Server) handleAccountLabels(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id": out.ID.String(), "name": out.Name, "color": out.Color,
 		})
+	case http.MethodDelete:
+		id, err := uuid.Parse(r.PathValue("label_id"))
+		if err != nil {
+			http.Error(w, "invalid label", http.StatusBadRequest)
+			return
+		}
+		if err := s.Service.Labels.DeleteAccountLabel(r.Context(), tok.UserID, accountID, id); err != nil {
+			s.writeLabelErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	default:
 		http.Error(w, "method", http.StatusMethodNotAllowed)
 	}
@@ -264,6 +277,30 @@ func (r *natsRPC) CreateAccountLabel(ctx context.Context, actor, account uuid.UU
 		return LabelOut{}, err
 	}
 	return LabelOut{ID: id, Name: out.Name, Color: out.Color}, nil
+}
+
+func (r *natsRPC) DeleteAccountLabel(ctx context.Context, actor, account, labelID uuid.UUID) error {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "label_id": labelID.String(),
+	})
+	if err != nil {
+		return err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectLabelCatalogDelete, body)
+	if err != nil {
+		return err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return err
+	}
+	if !out.OK {
+		return labelRPCErr(out.Error)
+	}
+	return nil
 }
 
 func parseLabelList(data []byte) ([]LabelOut, error) {

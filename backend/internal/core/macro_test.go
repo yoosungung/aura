@@ -83,6 +83,21 @@ func TestMacro_AgentForcedPersonalAndExecute(t *testing.T) {
 	if len(out.Labels) != 1 || out.Labels[0].Name != "환불" {
 		t.Fatalf("labels %+v", out.Labels)
 	}
+	if err := svc.DeleteMacro(ctx, core.MacroInput{ActorUserID: agentID, AccountID: accountID, MacroID: shared.ID}); err != core.ErrDenied {
+		t.Fatalf("agent delete got %v", err)
+	}
+	if err := svc.DeleteMacro(ctx, core.MacroInput{ActorUserID: adminID, AccountID: accountID, MacroID: shared.ID}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListMacros(ctx, core.MacroInput{ActorUserID: adminID, AccountID: accountID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range list {
+		if m.ID == shared.ID {
+			t.Fatalf("deleted macro leaked %+v", list)
+		}
+	}
 }
 
 func TestMacro_RejectsUnknownAction(t *testing.T) {

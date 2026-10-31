@@ -47,4 +47,14 @@ func TestCanned_AdminCreatesAgentLists(t *testing.T) {
 	if len(list) != 1 || list[0].ShortCode != "인사" {
 		t.Fatalf("%+v", list)
 	}
+	if err := svc.DeleteCanned(ctx, core.CannedInput{ActorUserID: agentID, AccountID: accountID, CannedID: created.ID}); err != core.ErrDenied {
+		t.Fatalf("agent delete got %v", err)
+	}
+	if err := svc.DeleteCanned(ctx, core.CannedInput{ActorUserID: adminID, AccountID: accountID, CannedID: created.ID}); err != nil {
+		t.Fatal(err)
+	}
+	list, err = svc.ListCanned(ctx, core.CannedInput{ActorUserID: agentID, AccountID: accountID})
+	if err != nil || len(list) != 0 {
+		t.Fatalf("deleted canned leaked %+v %v", list, err)
+	}
 }

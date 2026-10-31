@@ -103,10 +103,13 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.conversations.label.list` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.labels.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.labels.create` | `actor_user_id`, `account_id`, `name` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.labels.delete` | `actor_user_id`, `account_id`, `label_id`. administrator. 조인은 CASCADE | gateway-web | svc-core |
 | Core | `helpdesk.rpc.canned.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.canned.create` | `actor_user_id`, `account_id`, `short_code`, `content` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.canned.delete` | `actor_user_id`, `account_id`, `canned_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.create` | `actor_user_id`, `account_id`, `name`, `actions`, `visibility` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.macros.delete` | `actor_user_id`, `account_id`, `macro_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.macros.execute` | `actor_user_id`, `account_id`, `conversation_id`, `macro_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.list` | `actor_user_id`, `account_id`, `inbox_ids`. 기본 `status <> 'resolved'`. 행에 `sla_breached`, `display_id`, `channel_type`, `contact_name`, `contact_email`, `last_activity_at`, `applied_slas` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.messages` | `actor_user_id`, `conversation_id` | gateway-web | svc-core |
@@ -359,10 +362,13 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `DELETE /api/v1/accounts/{account_id}/conversations/{id}/labels/{label_id}`
 - `GET /api/v1/accounts/{account_id}/labels`
 - `POST /api/v1/accounts/{account_id}/labels`
+- `DELETE /api/v1/accounts/{account_id}/labels/{label_id}`
 - `GET /api/v1/accounts/{account_id}/canned_responses`
 - `POST /api/v1/accounts/{account_id}/canned_responses`
+- `DELETE /api/v1/accounts/{account_id}/canned_responses/{canned_id}`
 - `GET /api/v1/accounts/{account_id}/macros`
 - `POST /api/v1/accounts/{account_id}/macros`
+- `DELETE /api/v1/accounts/{account_id}/macros/{macro_id}`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/macros/{macro_id}/execute`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`hmac_secret` administrator, `greeting_message`, `business_hours_enabled`, `business_hours`)

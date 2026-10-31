@@ -32,10 +32,13 @@ const (
 	SubjectLabelList            = "helpdesk.rpc.conversations.label.list"
 	SubjectLabelCatalogList     = "helpdesk.rpc.labels.list"
 	SubjectLabelCatalogCreate   = "helpdesk.rpc.labels.create"
+	SubjectLabelCatalogDelete   = "helpdesk.rpc.labels.delete"
 	SubjectCannedList           = "helpdesk.rpc.canned.list"
 	SubjectCannedCreate         = "helpdesk.rpc.canned.create"
+	SubjectCannedDelete         = "helpdesk.rpc.canned.delete"
 	SubjectMacroList            = "helpdesk.rpc.macros.list"
 	SubjectMacroCreate          = "helpdesk.rpc.macros.create"
+	SubjectMacroDelete          = "helpdesk.rpc.macros.delete"
 	SubjectMacroExecute         = "helpdesk.rpc.macros.execute"
 	SubjectConversationsList    = "helpdesk.rpc.conversations.list"
 	SubjectMessagesList         = "helpdesk.rpc.conversations.messages"
@@ -269,6 +272,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subLabelCatalogCreate.Unsubscribe()
+	subLabelCatalogDelete, err := nc.QueueSubscribe(SubjectLabelCatalogDelete, QueueGroup, s.handleLabelCatalogDelete)
+	if err != nil {
+		return err
+	}
+	defer subLabelCatalogDelete.Unsubscribe()
 	subCannedList, err := nc.QueueSubscribe(SubjectCannedList, QueueGroup, s.handleCannedList)
 	if err != nil {
 		return err
@@ -279,6 +287,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subCannedCreate.Unsubscribe()
+	subCannedDelete, err := nc.QueueSubscribe(SubjectCannedDelete, QueueGroup, s.handleCannedDelete)
+	if err != nil {
+		return err
+	}
+	defer subCannedDelete.Unsubscribe()
 	subMacroList, err := nc.QueueSubscribe(SubjectMacroList, QueueGroup, s.handleMacroList)
 	if err != nil {
 		return err
@@ -289,6 +302,11 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subMacroCreate.Unsubscribe()
+	subMacroDelete, err := nc.QueueSubscribe(SubjectMacroDelete, QueueGroup, s.handleMacroDelete)
+	if err != nil {
+		return err
+	}
+	defer subMacroDelete.Unsubscribe()
 	subMacroExecute, err := nc.QueueSubscribe(SubjectMacroExecute, QueueGroup, s.handleMacroExecute)
 	if err != nil {
 		return err

@@ -14,6 +14,7 @@ import (
 type CannedStore interface {
 	ListCanned(ctx context.Context, actor, account uuid.UUID) ([]CannedOut, error)
 	CreateCanned(ctx context.Context, actor, account uuid.UUID, shortCode, content string) (CannedOut, error)
+	DeleteCanned(ctx context.Context, actor, account, cannedID uuid.UUID) error
 }
 
 type CannedOut struct {
@@ -70,6 +71,18 @@ func (s *Server) handleCanned(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id": out.ID.String(), "short_code": out.ShortCode, "content": out.Content,
 		})
+	case http.MethodDelete:
+		id, err := uuid.Parse(r.PathValue("canned_id"))
+		if err != nil {
+			http.Error(w, "invalid canned", http.StatusBadRequest)
+			return
+		}
+		if err := s.Service.Canned.DeleteCanned(r.Context(), tok.UserID, accountID, id); err != nil {
+			writeCannedErr(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	default:
 		http.Error(w, "method", http.StatusMethodNotAllowed)
 	}
@@ -83,6 +96,8 @@ func writeCannedErr(w http.ResponseWriter, err error) {
 		code = http.StatusBadRequest
 	} else if errors.Is(err, core.ErrConflict) || err.Error() == "conflict" {
 		code = http.StatusConflict
+	} else if errors.Is(err, core.ErrNotFound) || err.Error() == "not_found" {
+		code = http.StatusNotFound
 	}
 	http.Error(w, err.Error(), code)
 }
@@ -156,6 +171,30 @@ func (r *natsRPC) CreateCanned(ctx context.Context, actor, account uuid.UUID, sh
 	return CannedOut{ID: id, ShortCode: out.ShortCode, Content: out.Content}, nil
 }
 
+func (r *natsRPC) DeleteCanned(ctx context.Context, actor, account, cannedID uuid.UUID) error {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "canned_id": cannedID.String(),
+	})
+	if err != nil {
+		return err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectCannedDelete, body)
+	if err != nil {
+		return err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return err
+	}
+	if !out.OK {
+		return cannedRPCErr(out.Error)
+	}
+	return nil
+}
+
 func cannedRPCErr(code string) error {
 	switch code {
 	case core.ErrDenied.Error():
@@ -164,6 +203,8 @@ func cannedRPCErr(code string) error {
 		return core.ErrInvalid
 	case core.ErrConflict.Error():
 		return core.ErrConflict
+	case core.ErrNotFound.Error():
+		return core.ErrNotFound
 	case "":
 		return fmt.Errorf("rpc_failed")
 	default:

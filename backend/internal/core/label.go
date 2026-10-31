@@ -138,6 +138,22 @@ func (s *Service) ListAccountLabels(ctx context.Context, in LabelInput) ([]Label
 	return out, err
 }
 
+func (s *Service) DeleteAccountLabel(ctx context.Context, in LabelInput) error {
+	if in.LabelID == uuid.Nil {
+		return ErrNotFound
+	}
+	return s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM labels WHERE id = $1`, in.LabelID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 func insertAccountLabel(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, name string) (Label, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -306,6 +322,20 @@ func (s *Service) handleLabelCatalogCreate(msg *nats.Msg) {
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "id": out.ID.String(), "name": out.Name, "color": out.Color,
 	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleLabelCatalogDelete(msg *nats.Msg) {
+	in, err := parseLabelInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.DeleteAccountLabel(context.Background(), in); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
 	_ = msg.Respond(body)
 }
 

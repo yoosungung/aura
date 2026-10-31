@@ -64,6 +64,7 @@ export type ClientReq = AuthedReq & {
   slug?: string;
   published?: boolean;
   article_id?: string;
+  canned_id?: string;
 };
 
 export type StopHandle = (() => void) & { send: (payload: unknown) => void };
@@ -531,6 +532,19 @@ export async function listAccountLabels(req: ClientReq, fetchImpl: FetchImpl = a
   return res.json();
 }
 
+export async function deleteAccountLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, labelId } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels/${labelId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("label catalog delete failed");
+  }
+  return res.json();
+}
+
 export async function createAccountLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name } = req;
@@ -556,6 +570,19 @@ export async function listCanned(req: ClientReq, fetchImpl: FetchImpl = asFetch)
   });
   if (!res.ok) {
     throw new Error("canned list failed");
+  }
+  return res.json();
+}
+
+export async function deleteCanned(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, canned_id } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses/${canned_id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("canned delete failed");
   }
   return res.json();
 }
@@ -602,6 +629,19 @@ export async function createMacro(req: ClientReq, fetchImpl: FetchImpl = asFetch
   });
   if (!res.ok) {
     throw new Error("macro create failed");
+  }
+  return res.json();
+}
+
+export async function deleteMacro(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, macroId } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros/${macroId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("macro delete failed");
   }
   return res.json();
 }
@@ -855,10 +895,13 @@ export const liveClient = {
   removeConversationLabel,
   listAccountLabels,
   createAccountLabel,
+  deleteAccountLabel,
   listCanned,
   createCanned,
+  deleteCanned,
   listMacros,
   createMacro,
+  deleteMacro,
   executeMacro,
   listConversations,
   listMessages,

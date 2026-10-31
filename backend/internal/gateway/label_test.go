@@ -42,6 +42,9 @@ func (f *fakeLabels) CreateAccountLabel(_ context.Context, _, _ uuid.UUID, name 
 	f.added = append(f.added, name)
 	return f.out, f.err
 }
+func (f *fakeLabels) DeleteAccountLabel(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return f.err
+}
 
 func TestHTTP_AttachConversationLabel(t *testing.T) {
 	accountID, actorID, convID, labelID := mustV7(t), mustV7(t), mustV7(t), mustV7(t)

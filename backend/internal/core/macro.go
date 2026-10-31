@@ -142,6 +142,22 @@ func (s *Service) ListMacros(ctx context.Context, in MacroInput) ([]Macro, error
 	return out, err
 }
 
+func (s *Service) DeleteMacro(ctx context.Context, in MacroInput) error {
+	if in.MacroID == uuid.Nil {
+		return ErrNotFound
+	}
+	return s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM macros WHERE id = $1`, in.MacroID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 func (s *Service) ExecuteMacro(ctx context.Context, in MacroInput) (ExecuteResult, error) {
 	if in.MacroID == uuid.Nil || in.ConversationID == uuid.Nil {
 		return ExecuteResult{}, ErrNotFound
@@ -351,6 +367,20 @@ func (s *Service) handleMacroList(msg *nats.Msg) {
 		})
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "macros": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handleMacroDelete(msg *nats.Msg) {
+	in, err := parseMacroInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.DeleteMacro(context.Background(), in); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
 	_ = msg.Respond(body)
 }
 

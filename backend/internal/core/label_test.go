@@ -122,6 +122,16 @@ func TestLabel_AgentCannotCreateMissingName(t *testing.T) {
 	if err != nil || len(list) != 1 {
 		t.Fatalf("%+v %v", list, err)
 	}
+	if err := svc.DeleteAccountLabel(ctx, core.LabelInput{ActorUserID: agentID, AccountID: accountID, LabelID: cat.ID}); err != core.ErrDenied {
+		t.Fatalf("agent delete got %v", err)
+	}
+	if err := svc.DeleteAccountLabel(ctx, core.LabelInput{ActorUserID: adminID, AccountID: accountID, LabelID: cat.ID}); err != nil {
+		t.Fatal(err)
+	}
+	list, err = svc.ListAccountLabels(ctx, core.LabelInput{ActorUserID: agentID, AccountID: accountID})
+	if err != nil || len(list) != 0 {
+		t.Fatalf("deleted label leaked %+v %v", list, err)
+	}
 }
 
 func TestLabel_RejectsBlankAndOutsider(t *testing.T) {
