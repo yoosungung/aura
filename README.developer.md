@@ -19,4 +19,4 @@ go run ./cmd/svc-core
 
 ## 기여
 
-TDD(스켈레톤 → 테스트 → 구현). 계획 변경은 `ROADMAP.md`, 계약은 `ARCHITECTURE.md`, 컴포넌트 내부는 `<comp>/DESIGN.md`, 워크플로는 `AGENTS.md`. 한 문서에 같은 내용을 중복하지 않는다. PR/push CI는 `.github/workflows/ci.yml`. main에서 CI가 통과하면 `.github/workflows/cd.yml`이 이미지를 빌드해 GHCR에 올리고, `KUBECONFIG`가 있으면 클러스터에 적용한다.
+TDD(스켈레톤 → 테스트 → 구현). 계획 변경은 `ROADMAP.md`, 계약은 `ARCHITECTURE.md`, 컴포넌트 내부는 `<comp>/DESIGN.md`, 워크플로는 `AGENTS.md`. 한 문서에 같은 내용을 중복하지 않는다. PR/push CI는 `.github/workflows/ci.yml`. main에서 CI가 통과하면 `.github/workflows/cd.yml`이 이미지를 빌드해 GHCR `:current`와 릴리즈 `current`를 덮어쓰고, `KUBECONFIG`가 있으면 클러스터에 적용한다.

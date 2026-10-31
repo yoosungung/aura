@@ -5,37 +5,37 @@ resources:
 images:
   - name: aura/svc-core
     newName: ghcr.io/yoosungung/aura/svc-core
-    newTag: main
+    newTag: current
   - name: aura/ingestion-worker
     newName: ghcr.io/yoosungung/aura/ingestion-worker
-    newTag: main
+    newTag: current
   - name: aura/gateway-web
     newName: ghcr.io/yoosungung/aura/gateway-web
-    newTag: main
+    newTag: current
   - name: aura/gateway-email
     newName: ghcr.io/yoosungung/aura/gateway-email
-    newTag: main
+    newTag: current
   - name: aura/gateway-kakao
     newName: ghcr.io/yoosungung/aura/gateway-kakao
-    newTag: main
+    newTag: current
   - name: aura/svc-sla-routing
     newName: ghcr.io/yoosungung/aura/svc-sla-routing
-    newTag: main
+    newTag: current
   - name: aura/svc-automation
     newName: ghcr.io/yoosungung/aura/svc-automation
-    newTag: main
+    newTag: current
   - name: aura/event-archive
     newName: ghcr.io/yoosungung/aura/event-archive
-    newTag: main
+    newTag: current
   - name: aura/seed
     newName: ghcr.io/yoosungung/aura/seed
-    newTag: main
+    newTag: current
   - name: aura/svc-ai-agent
     newName: ghcr.io/yoosungung/aura/svc-ai-agent
-    newTag: main
+    newTag: current
   - name: aura/frontend
     newName: ghcr.io/yoosungung/aura/frontend
-    newTag: main
+    newTag: current
 patches:
   - target:
       kind: Deployment

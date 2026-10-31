@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -124,7 +124,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Point :main at this SHA
+      - name: Point :main and :current at this SHA
         env:
           REPO: ${{ needs.meta.outputs.repo }}
           TAG: ${{ needs.meta.outputs.short }}
@@ -133,8 +133,60 @@ jobs:
           for name in ${IMAGE_NAMES}; do
             docker buildx imagetools create \
               -t "ghcr.io/${REPO}/${name}:main" \
+              -t "ghcr.io/${REPO}/${name}:current" \
               "ghcr.io/${REPO}/${name}:${TAG}"
           done
+
+  release:
+    needs: [meta, promote]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Overwrite current release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ needs.meta.outputs.repo }}
+          SHA: ${{ needs.meta.outputs.sha }}
+          TAG: ${{ needs.meta.outputs.short }}
+        run: |
+          set -euo pipefail
+          {
+            echo "CD가 통과한 현재 이미지다. 성공 빌드마다 이 릴리즈를 덮어쓴다."
+            echo
+            echo "- commit: \`${SHA}\`"
+            echo "- immutable: \`${TAG}\`"
+            echo
+            echo "| image | current | sha |"
+            echo "|---|---|---|"
+            for name in ${IMAGE_NAMES}; do
+              echo "| ${name} | \`ghcr.io/${REPO}/${name}:current\` | \`ghcr.io/${REPO}/${name}:${TAG}\` |"
+            done
+          } > "${RUNNER_TEMP}/notes.md"
+          {
+            echo "commit ${SHA}"
+            echo "sha ${TAG}"
+            for name in ${IMAGE_NAMES}; do
+              echo "ghcr.io/${REPO}/${name}:current"
+              echo "ghcr.io/${REPO}/${name}:${TAG}"
+            done
+          } > "${RUNNER_TEMP}/images.txt"
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/current" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/current" \
+              -f sha="${SHA}" -F force=true
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/current" -f sha="${SHA}"
+          fi
+
+          if gh release view current >/dev/null 2>&1; then
+            gh release delete current --yes
+          fi
+          gh release create current \
+            --title current \
+            --latest \
+            --target "${SHA}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            "${RUNNER_TEMP}/images.txt"
 
   deploy:
     needs: [meta, promote]
@@ -167,5 +219,5 @@ jobs:
           mkdir -p "${HOME}/.kube"
           printf '%s\n' "${KUBECONFIG_DATA}" > "${HOME}/.kube/config"
           chmod 600 "${HOME}/.kube/config"
-          sed -i "s/newTag: main/newTag: ${TAG}/" deploy/k8s/ghcr/kustomization.yaml
+          sed -i "s/newTag: current/newTag: ${TAG}/" deploy/k8s/ghcr/kustomization.yaml
           kubectl apply -k deploy/k8s/ghcr
