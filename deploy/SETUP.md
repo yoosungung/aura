@@ -53,7 +53,7 @@ docker build -t aura/svc-ai-agent:main svc-ai-agent
 docker build -t aura/frontend:main frontend
 ```
 
-같은 Dockerfiles를 CD(`.github/workflows/cd.yml`)가 main에서 CI가 통과한 뒤에 빌드한다. 11개 모두 성공하면 `:current`만 그 커밋으로 옮기고, `current` 태그가 없는 GHCR 버전은 지운다. GitHub 릴리즈 `current`도 덮어쓴다. 레지스트리 경로는 저장소 소문자(`ghcr.io/<owner>/<repo>/<name>`).
+같은 Dockerfiles를 CD(`.github/workflows/cd.yml`)가 main에서 CI가 통과한 뒤에 `linux/amd64`·`linux/arm64`로 빌드한다. 11개 모두 성공하면 `:current`만 그 커밋으로 옮기고, 그 매니페스트에 없는 GHCR 버전은 지운다. GitHub 릴리즈 `current`도 덮어쓴다. 레지스트리 경로는 저장소 소문자(`ghcr.io/<owner>/<repo>/<name>`).
 
 ## CD
 
