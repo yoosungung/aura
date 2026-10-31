@@ -161,7 +161,7 @@ export function App({ session: initialSession, client, initialState = emptyState
       wsRef.current = null;
       stop?.();
     };
-  }, [session, client]);
+  }, [session.token, session.gatewayUrl, session.userId, client]);
 
   useEffect(() => {
     if (!session.token || session.fixture || !client.listConversations) {
@@ -183,7 +183,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     return () => {
       cancelled = true;
     };
-  }, [session, client]);
+  }, [session.token, session.accountId, session.gatewayUrl, session.fixture, client]);
 
   useEffect(() => {
     if (!session.token || session.fixture || !client.listContacts) {
@@ -210,7 +210,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     return () => {
       cancelled = true;
     };
-  }, [session, client]);
+  }, [session.token, session.accountId, session.gatewayUrl, session.fixture, client]);
 
   useEffect(() => {
     if (!session.token || !client.listCanned) {
@@ -232,7 +232,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     return () => {
       cancelled = true;
     };
-  }, [session, client]);
+  }, [session.token, session.accountId, session.gatewayUrl, client]);
 
   useEffect(() => {
     const selectedId = state.selectedId;
@@ -259,7 +259,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     return () => {
       cancelled = true;
     };
-  }, [state.selectedId, session, client]);
+  }, [state.selectedId, session.token, session.accountId, session.gatewayUrl, client]);
 
   useEffect(() => {
     if (!selected?.contactId || !session.token || !client.listEgo) {
@@ -287,7 +287,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     return () => {
       cancelled = true;
     };
-  }, [selected?.contactId, session, client]);
+  }, [selected?.contactId, session.token, session.accountId, session.gatewayUrl, client]);
 
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {

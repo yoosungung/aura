@@ -1428,24 +1428,35 @@ test("mod enter submits the composer", async () => {
   expect(sent[0].content).toBe("확인했습니다");
 });
 
-test("presence event updates rail availability without online fallback", async () => {
+test("presence event updates rail availability without reconnecting websocket", async () => {
   let emit;
+  let connects = 0;
+  let lists = 0;
   render(
     <App
       session={{ ...session, userId: "u1", name: "Ada" }}
       client={{
         connect(_s, onEvent) {
+          connects += 1;
           emit = onEvent;
           return () => {};
+        },
+        async listConversations() {
+          lists += 1;
+          return { conversations: [] };
         },
       }}
     />,
   );
+  expect(connects).toBe(1);
+  expect(lists).toBe(1);
   expect(screen.getByLabelText("가용 상태").getAttribute("data-availability")).not.toBe("online");
   await act(async () => {
     emit({ type: "event", event: "presence", user_id: "u1", status: "online" });
   });
   expect(screen.getByLabelText("가용 상태").getAttribute("data-availability")).toBe("online");
+  expect(connects).toBe(1);
+  expect(lists).toBe(1);
 });
 
 test("shows typing indicator for the other party", async () => {
