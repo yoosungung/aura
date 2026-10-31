@@ -22,7 +22,7 @@ npm test
 npm run build
 ```
 
-iframe 엔트리는 `{helpdeskOrigin}/widget.html`(게이트웨이 `AURA_WIDGET_DIR`). `npm run build`가 호스트 IIFE `aura-loader.min.js`(5KB 미만, 런타임 의존성 없음)와 iframe `widget.min.js`를 만든다.
+iframe 엔트리는 `{helpdeskOrigin}/widget.html`(게이트웨이 `AURA_WIDGET_DIR`). `npm run build`가 호스트 IIFE `aura-loader.min.js`(5KB 미만, 런타임 의존성 없음)와 iframe `widget.min.js`를 만든다. `gateway-web` 이미지는 이 산출물을 `/widget`에 넣고 같은 경로로 서빙한다.
 
 호스트 예 (`</body>` 직전):
 

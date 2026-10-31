@@ -12,7 +12,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 |------|------|------|
 | `AGENTS.md` (이 파일, 정본) ← `CLAUDE.md`, `GEMINI.md` 심볼릭 | 수행 방법 + 문서 레이아웃 + 현황 | 루트 |
 | `ARCHITECTURE.md` | **계약사항(불변 규칙)** + 컴포넌트 *간* 인터페이스 형태(스키마·레이아웃·이벤트) | 루트 |
-| `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
+| `README.md` | 운영자·배포자용 소개 + 설치/클러스터 | 루트 |
+| `README.developer.md` | 기여자 온보딩(로컬 개발·테스트·기여) | 루트 |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `contracts/` | 이벤트·RPC JSON Schema. Go 생성 타입은 `backend/internal/contracts` | `contracts/` |
 | `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
@@ -25,7 +26,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 - **ARCHITECTURE.md §1 (계약) vs §2 이후 (형태).** §1은 "지켜야 하는 규칙(왜)" — 짧고 단정적. §2 이후는 "그 규칙을 구현하는 모양(어떻게)" — 스키마·필드·이벤트 목록. 규칙이 바뀌면 §1을 먼저 고치고 §2 이후를 따라 고친다. 두 부분을 다른 파일로 쪼개면 동기화 부담만 늘어 단일 문서로 둔다.
 - **ARCHITECTURE.md vs `<comp>/DESIGN.md`.** ARCHITECTURE는 컴포넌트 *간*, 서브폴더 DESIGN은 해당 컴포넌트 *내부*. 두 쪽에 같은 내용을 적지 않는다.
-- **README.md vs ARCHITECTURE.md / DESIGN.md.** README는 **인간 독자**(저장소 방문자·기여자)용이다. 계약·내부 설계는 README에 복사하지 않고 [ARCHITECTURE.md](ARCHITECTURE.md)·`<comp>/DESIGN.md`로 **링크만** 한다. 
+- **README.md vs README.developer.md.** README는 운영자·배포자, `README.developer.md`는 기여자. 계약·내부 설계는 둘 다에 복사하지 않고 [ARCHITECTURE.md](ARCHITECTURE.md)·`<comp>/DESIGN.md`로 **링크만** 한다. 
 - **배포 가능한 패키지·실행 하네스**에는 README를 둘 수 있다 — 해당 디렉터리 **로컬 사용법만**.
 - 파일이 새로 생기거나 용도가 바뀌면 위 표를 즉시 갱신한다.
 - 배포 런북은 `deploy/SETUP.md`, Kustomize 베이스는 `deploy/k8s/base/`, PR/push CI는 `.github/workflows/ci.yml`. 빈 stub을 만들지 않는다.

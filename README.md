@@ -2,15 +2,31 @@
 
 옴니채널 헬프데스크와 고객 Ego-Graph AI 에이전트를 한 PostgreSQL·NATS 백본 위에 둔 CRM이다. 상담원은 Rail + 3-Pane 워크스페이스에서 웹·이메일·카카오 티켓을 처리하고, AI는 저위험 응답을 자동으로 보내거나 고위험 액션을 승인 카드로 넘긴다.
 
-기획 원본은 [docs/설계서.md](docs/설계서.md), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md). 지켜야 할 계약은 [ARCHITECTURE.md](ARCHITECTURE.md), 마일스톤은 [ROADMAP.md](ROADMAP.md), 에이전트 워크플로는 [AGENTS.md](AGENTS.md).
+이 문서는 **설치·운영·배포**용이다. 소스 수정·테스트·기여는 [README.developer.md](README.developer.md). 런북 정본은 [deploy/SETUP.md](deploy/SETUP.md).
 
-## 로컬 실행
+## 의존성
+
+앱 프로세스 밖에 PostgreSQL 16+pgvector, NATS JetStream, SeaweedFS가 있어야 한다. 로컬은 Compose, 클러스터는 외부 또는 별도 차트다.
+
+필수 시크릿: `AURA_TOKEN_SECRET`, `AURA_PLATFORM_TOKEN`. 선택: `AURA_LLM_API_KEY`, `AURA_KAKAO_API_URL`, `AURA_KAKAO_API_KEY`. LLM 키가 비면 `svc-ai-agent`는 결정적 stub이다.
+
+## 로컬 백본
 
 ```sh
 docker compose -f deploy/compose/docker-compose.yml up -d
-cd backend && go test ./...
-go run ./cmd/ingestion-worker
-go run ./cmd/svc-core
 ```
 
-명령의 정본은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`. 스택은 Go 코어, Python `svc-ai-agent`, React 상담원 SPA다. 배포는 [deploy/SETUP.md](deploy/SETUP.md).
+포트: Postgres `5432`, NATS `4222`, SeaweedFS 필러 `8888`. 상세는 [deploy/compose/README.md](deploy/compose/README.md).
+
+## 이미지와 클러스터
+
+이미지 빌드와 `kubectl apply -k deploy/k8s/base`는 [deploy/SETUP.md](deploy/SETUP.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 베이스를 적용한다.
+
+클러스터 안은 HTTP다. `frontend` nginx `:80`, `gateway-web` `:8080`. TLS는 고객 인그레스 또는 L4/L7 로드밸런서에서 종료한다. 서비스를 고객망에 직접 열지 않는다. 상세는 [deploy/SETUP.md](deploy/SETUP.md) 클러스터. 베이스에 Ingress·NodePort는 없다. 호스트에서 보려면 포트포워드한다.
+
+```sh
+kubectl port-forward -n aura svc/frontend 8080:80
+kubectl port-forward -n aura svc/gateway-web 8081:8080
+```
+
+파일럿 계정은 Platform API(`AURA_PLATFORM_TOKEN`)로 만든다. 예는 [deploy/SETUP.md](deploy/SETUP.md).

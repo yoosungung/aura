@@ -21,6 +21,8 @@ spec:
             - configMapRef:
                 name: aura-config
           env:
+            - name: AURA_WIDGET_DIR
+              value: /widget
             - name: AURA_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:

@@ -10,7 +10,7 @@
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) §1 계약과 §2 이후 형태가 있다.
 - 이 파일에 P0~P7·P5.5와 미결정이 있다.
-- [README.md](README.md)는 소개와 문서 링크만 한다.
+- [README.md](README.md)는 운영자·배포자, [README.developer.md](README.developer.md)는 기여자. 계약은 링크만 한다.
 
 성공: 제품 범위가 코드가 아닌 문서에만 있다.
 

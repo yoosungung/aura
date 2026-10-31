@@ -40,7 +40,7 @@ LLM 키가 비면 `svc-ai-agent`는 결정적 stub이다. 실모델은 `AURA_LLM
 ```sh
 docker build -t aura/svc-core:main --build-arg CMD=svc-core backend
 docker build -t aura/ingestion-worker:main --build-arg CMD=ingestion-worker backend
-docker build -t aura/gateway-web:main --build-arg CMD=gateway-web backend
+docker build -t aura/gateway-web:main --build-arg CMD=gateway-web --target gateway-web --build-context widget=packages/widget-sdk -f backend/Dockerfile backend
 docker build -t aura/gateway-email:main --build-arg CMD=gateway-email backend
 docker build -t aura/gateway-kakao:main --build-arg CMD=gateway-kakao backend
 docker build -t aura/svc-sla-routing:main --build-arg CMD=svc-sla-routing backend
@@ -51,6 +51,8 @@ docker build -t aura/frontend:main frontend
 ```
 
 ## 클러스터
+
+베이스 Service는 ClusterIP다. `frontend` nginx는 클러스터 안 **HTTP `:80`**만 듣는다. TLS/HTTPS는 패키지가 종료하지 않는다. 고객이 앞단에 두는 자체 L4/L7 로드밸런서 또는 Ingress에서 종료한다. Kubernetes Service(NodePort·LoadBalancer 포함)를 고객망에 직접 노출하지 않는다. HTTPS를 붙여도 서비스를 바깥에 여는 구성은 권장하지 않는다.
 
 PostgreSQL(pgvector)·NATS JetStream·SeaweedFS는 클러스터 밖 또는 별도 차트다. `deploy/k8s/base/configmap.yaml` DSN을 맞춘 뒤:
 
