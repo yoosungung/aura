@@ -162,6 +162,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.inbox_members.add` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.remove` | `actor_user_id`, `inbox_id`, `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inbox_members.list` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.account_users.list` | `actor_user_id`, `account_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inboxes.get` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.inboxes.rotate_hmac` | `actor_user_id`, `inbox_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.conversations.email_reply` | `actor_user_id`, `account_id`, `conversation_id`. 이메일 인박스면 `from`/`to`/`display_id`/`in_reply_to`, 아니면 `skip` | gateway-web | svc-core |
@@ -391,6 +392,8 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `GET /api/v1/accounts/{account_id}/channels` (`channel_types`. `AURA_ENABLED_CHANNELS`, 기본 `web,email,kakao`. User)
 - `GET /api/v1/accounts/{account_id}/inboxes` (계정 전체. 시크릿 없음. administrator)
 - `POST /api/v1/accounts/{account_id}/inboxes` `{ name, channel_type, email_address?, kakao_sender_key? }`
+- `GET /api/v1/accounts/{account_id}/users` (`{ users: [{ id, name, email, role }] }`. administrator)
+- `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
 - `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`hmac_secret` administrator, `greeting_message`, `business_hours_enabled`, `business_hours`, `email_address`, `kakao_sender_key`)

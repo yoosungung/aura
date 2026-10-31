@@ -6,7 +6,6 @@ import { ApprovalCard } from "./components/ApprovalCard.jsx";
 import { AssignTicket } from "./components/AssignTicket.jsx";
 import { ArticleSettings } from "./components/ArticleSettings.jsx";
 import { CatalogSettings } from "./components/CatalogSettings.jsx";
-import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { InboxSettings } from "./components/InboxSettings.jsx";
 import { ReportSettings } from "./components/ReportSettings.jsx";
@@ -659,7 +658,6 @@ export function App({ session: initialSession, client, initialState = emptyState
               <InboxSettings session={session} client={client} onSession={applySession} />
             ) : null}
             {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
-            {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
             {settingsTab === "canned" ? <CatalogSettings pane="canned" session={session} client={client} /> : null}
             {settingsTab === "labels" ? <CatalogSettings pane="labels" session={session} client={client} /> : null}
             {settingsTab === "macros" ? <CatalogSettings pane="macros" session={session} client={client} /> : null}

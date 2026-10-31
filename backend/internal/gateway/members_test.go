@@ -17,6 +17,8 @@ type fakeMembers struct {
 	addErr  error
 	list    []gateway.MemberRow
 	listErr error
+	users   []gateway.UserRow
+	userErr error
 }
 
 func (f *fakeMembers) AddInboxMember(_ context.Context, _, _, _, user uuid.UUID) error {
@@ -28,6 +30,9 @@ func (f *fakeMembers) RemoveInboxMember(context.Context, uuid.UUID, uuid.UUID, u
 }
 func (f *fakeMembers) ListInboxMembers(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) ([]gateway.MemberRow, error) {
 	return f.list, f.listErr
+}
+func (f *fakeMembers) ListAccountUsers(context.Context, uuid.UUID, uuid.UUID) ([]gateway.UserRow, error) {
+	return f.users, f.userErr
 }
 
 func userToken(t *testing.T, accountID, userID uuid.UUID) string {
@@ -122,5 +127,66 @@ func TestHTTP_ListInboxMembers(t *testing.T) {
 	}
 	if len(got.Members) != 1 || got.Members[0].UserID != agentID.String() {
 		t.Fatalf("%+v", got)
+	}
+}
+
+func TestHTTP_ListAccountUsers(t *testing.T) {
+	accountID, actorID, agentID := mustV7(t), mustV7(t), mustV7(t)
+	mem := &fakeMembers{users: []gateway.UserRow{{ID: agentID, Name: "Ada", Email: "ada@acme.test", Role: "agent"}}}
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Members: mem},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	req, err := http.NewRequest(http.MethodGet,
+		srv.URL+"/api/v1/accounts/"+accountID.String()+"/users",
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+userToken(t, accountID, actorID))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	var got struct {
+		Users []struct {
+			ID    string `json:"id"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
+		} `json:"users"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Users) != 1 || got.Users[0].ID != agentID.String() || got.Users[0].Role != "agent" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestHTTP_AgentDeniedAccountUsers(t *testing.T) {
+	accountID, actorID := mustV7(t), mustV7(t)
+	mem := &fakeMembers{userErr: core.ErrDenied}
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Members: mem},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	req, err := http.NewRequest(http.MethodGet,
+		srv.URL+"/api/v1/accounts/"+accountID.String()+"/users",
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+userToken(t, accountID, actorID))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status %d", res.StatusCode)
 	}
 }

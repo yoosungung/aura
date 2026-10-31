@@ -133,7 +133,7 @@
 
 - `AURA_ENABLED_CHANNELS`(ConfigMap `aura-config`, 기본 `web,email,kakao`). `GET /api/v1/accounts/{id}/channels`. `social`·알 수 없는 값은 버린다. 비면 기본값.
 - 인박스 CRUD: `inboxes.list` / `create` / `delete`, `inboxes.update`는 있는 키만. 생성은 actor를 멤버로 넣고 HMAC을 만든다. `email`은 `email_address`, `kakao`는 `kakao_sender_key`.
-- 설정 내비: 인박스 → 인박스 멤버 → HMAC. 멤버·HMAC Select는 인박스 이름.
+- 설정 내비: 인박스 → 인박스 멤버. 웹 인박스 수정에서 HMAC 읽기 전용 박스·보기/복사/재발급과 부재중 인사·요일 시간 입력. `인박스 저장`이 greeting/hours를 같이 보낸다.
 
 성공: 관리자가 웹·메일·카카오 인박스를 만들고 이름을 고치고 지운 뒤, 그 인박스에 멤버를 넣는다. 계정 시드 웹 인박스는 그대로다. **완료.**
 

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { App } from "./App.js";
@@ -214,6 +214,14 @@ test("administrator picks inbox from a session select", async () => {
         async addInboxMember(req) {
           added.push(req);
         },
+        async listInboxes() {
+          return {
+            inboxes: [
+              { id: "i1", name: "웹", channel_type: "web" },
+              { id: "i2", name: "웹2", channel_type: "web" },
+            ],
+          };
+        },
         async getInbox(req) {
           seen.push(req.inboxId);
           return { hmac_secret: "secret" };
@@ -229,8 +237,8 @@ test("administrator picks inbox from a session select", async () => {
   await user.type(screen.getByLabelText("상담원 ID"), "user-1");
   await user.click(screen.getByRole("button", { name: "추가" }));
   expect(added[0].inboxId).toBe("i2");
-  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
-  await user.selectOptions(screen.getByRole("combobox", { name: "인박스" }), "i2");
+  await user.click(screen.getByRole("button", { name: "인박스", exact: true }));
+  await user.click(await screen.findByRole("button", { name: "웹2 · Web" }));
   await user.click(screen.getByRole("button", { name: "보기" }));
   expect(seen[0]).toBe("i2");
 });
@@ -251,8 +259,8 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
       session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
       client={{
         connect() {},
-        async listInboxMembers() {
-          return { members: [] };
+        async listInboxes() {
+          return { inboxes: [{ id: "i1", name: "웹", channel_type: "web" }] };
         },
         async getInbox() {
           return { hmac_secret: "secret" };
@@ -265,15 +273,20 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
-  expect(screen.getByRole("region", { name: "HMAC 시크릿" })).toBeTruthy();
-  expect(screen.getByText("••••••••")).toBeTruthy();
-  expect(screen.queryByText("secret")).toBeNull();
+  expect(screen.queryByRole("region", { name: "HMAC 시크릿" })).toBeNull();
+  await user.click(await screen.findByRole("button", { name: "웹 · Web" }));
+  const hmac = screen.getByRole("region", { name: "HMAC 시크릿" });
+  expect(hmac).toBeTruthy();
+  expect(within(hmac).queryByRole("heading", { name: "HMAC 시크릿" })).toBeNull();
+  const secret = screen.getByRole("textbox", { name: "HMAC 시크릿" }) as HTMLInputElement;
+  expect(secret.readOnly).toBe(true);
+  expect(secret.value).toBe("••••••••");
+  expect(screen.queryByDisplayValue("secret")).toBeNull();
   await user.click(screen.getByRole("button", { name: "보기" }));
-  expect(screen.getByText("secret")).toBeTruthy();
+  expect(secret.value).toBe("secret");
   await user.click(screen.getByRole("button", { name: "재발급" }));
   expect(rotated[0].inboxId).toBe("i1");
-  expect(screen.getByText("newsecret")).toBeTruthy();
+  expect(secret.value).toBe("newsecret");
   const copied = [];
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -292,8 +305,8 @@ test("administrator saves inbox greeting and hours", async () => {
       session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
       client={{
         connect() {},
-        async listInboxMembers() {
-          return { members: [] };
+        async listInboxes() {
+          return { inboxes: [{ id: "i1", name: "웹", channel_type: "web" }] };
         },
         async getInbox() {
           return { hmac_secret: "secret", greeting_message: "", business_hours_enabled: false, business_hours: {} };
@@ -311,13 +324,57 @@ test("administrator saves inbox greeting and hours", async () => {
     />,
   );
   await user.click(screen.getByRole("button", { name: "설정" }));
-  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
+  await user.click(await screen.findByRole("button", { name: "웹 · Web" }));
+  await waitFor(() => {
+    expect((screen.getByRole("button", { name: "복사" }) as HTMLButtonElement).disabled).toBe(false);
+  });
   await user.type(screen.getByLabelText("부재중 인사"), "부재중입니다");
+  expect(screen.queryByLabelText("월 시작")).toBeNull();
   await user.click(screen.getByLabelText("영업시간 사용"));
-  await user.click(screen.getByRole("button", { name: "저장" }));
+  fireEvent.change(screen.getByLabelText("월 시작"), { target: { value: "10:00" } });
+  fireEvent.change(screen.getByLabelText("월 종료"), { target: { value: "19:00" } });
+  expect(screen.queryByRole("button", { name: "저장", exact: true })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "인박스 저장" }));
   expect(saved[0].greetingMessage).toBe("부재중입니다");
   expect(saved[0].businessHoursEnabled).toBe(true);
-  expect(screen.getByText("저장됨")).toBeTruthy();
+  expect(saved[0].name).toBe("웹");
+  expect(saved[0].businessHours).toEqual({
+    timezone: "Asia/Seoul",
+    week: {
+      mon: [["10:00", "19:00"]],
+      tue: [["09:00", "18:00"]],
+      wed: [["09:00", "18:00"]],
+      thu: [["09:00", "18:00"]],
+      fri: [["09:00", "18:00"]],
+      sat: [],
+      sun: [],
+    },
+  });
+});
+
+test("email inbox edit does not show hmac secret", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxes() {
+          return {
+            inboxes: [{ id: "i1", name: "메일함", channel_type: "email", email_address: "help@acme.test" }],
+          };
+        },
+        async getInbox() {
+          return { hmac_secret: "secret" };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(await screen.findByRole("button", { name: "메일함 · Email" }));
+  expect(screen.queryByRole("region", { name: "HMAC 시크릿" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "보기" })).toBeNull();
+  expect(screen.queryByLabelText("부재중 인사")).toBeNull();
 });
 
 test("administrator creates inboxes and switches channel fields", async () => {
@@ -483,7 +540,7 @@ test("administrator can cancel settings edit without saving", async () => {
   expect(saved).toEqual([]);
 });
 
-test("inbox member and hmac selects use inbox names", async () => {
+test("inbox member select uses inbox names", async () => {
   const user = userEvent.setup();
   render(
     <App
@@ -501,9 +558,6 @@ test("inbox member and hmac selects use inbox names", async () => {
         async listInboxMembers() {
           return { members: [] };
         },
-        async getInbox() {
-          return { hmac_secret: "secret" };
-        },
       }}
     />,
   );
@@ -511,8 +565,6 @@ test("inbox member and hmac selects use inbox names", async () => {
   await user.click(screen.getByRole("button", { name: "인박스 멤버" }));
   expect(await screen.findByRole("option", { name: "메일함" })).toBeTruthy();
   expect(screen.getByRole("option", { name: "웹" })).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
-  expect(await screen.findByRole("option", { name: "메일함" })).toBeTruthy();
 });
 
 test("ticket view assigns to an inbox agent", async () => {
@@ -2197,7 +2249,9 @@ test("administrator settings nav groups inbox content integration and reports", 
   await user.click(screen.getByRole("button", { name: "설정" }));
   const menu = screen.getByRole("navigation", { name: "설정 메뉴" });
   expect(within(menu).getByRole("heading", { name: "인박스" })).toBeTruthy();
+  expect(within(menu).getByRole("button", { name: "인박스", exact: true })).toBeTruthy();
   expect(within(menu).getByRole("button", { name: "인박스 멤버" })).toBeTruthy();
+  expect(within(menu).queryByRole("button", { name: "HMAC 시크릿" })).toBeNull();
   expect(screen.getByRole("heading", { name: "콘텐츠" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "연동" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "분석" })).toBeTruthy();

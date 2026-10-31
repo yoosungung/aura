@@ -306,6 +306,18 @@ export async function removeInboxMember(req: ClientReq, fetchImpl: FetchImpl = a
   }
 }
 
+export async function listAccountUsers(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/users`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("list users failed");
+  }
+  return res.json();
+}
+
 export async function listInboxMembers(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
@@ -1064,6 +1076,7 @@ export const liveClient = {
   addInboxMember,
   removeInboxMember,
   listInboxMembers,
+  listAccountUsers,
   getInbox,
   rotateHmac,
   listChannels,

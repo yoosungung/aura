@@ -15,12 +15,43 @@ type Members interface {
 	AddInboxMember(ctx context.Context, actor, account, inbox, user uuid.UUID) error
 	RemoveInboxMember(ctx context.Context, actor, account, inbox, user uuid.UUID) error
 	ListInboxMembers(ctx context.Context, actor, account, inbox uuid.UUID) ([]MemberRow, error)
+	ListAccountUsers(ctx context.Context, actor, account uuid.UUID) ([]UserRow, error)
 }
 
 type MemberRow struct {
 	UserID uuid.UUID
 	Email  string
 	Name   string
+}
+
+func (s *Server) handleAccountUsers(w http.ResponseWriter, r *http.Request) {
+	if s.Service.Members == nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	tok, err := s.bearer(r)
+	if err != nil || tok.Kind != KindUser {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	accountID, err := uuid.Parse(r.PathValue("account_id"))
+	if err != nil || accountID != tok.AccountID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	list, err := s.Service.Members.ListAccountUsers(r.Context(), tok.UserID, accountID)
+	if err != nil {
+		s.writeMemberErr(w, err)
+		return
+	}
+	rows := make([]map[string]string, 0, len(list))
+	for _, u := range list {
+		rows = append(rows, map[string]string{
+			"id": u.ID.String(), "name": u.Name, "email": u.Email, "role": u.Role,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"users": rows})
 }
 
 func (s *Server) handleInboxMembers(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +144,45 @@ func (r *natsRPC) AddInboxMember(ctx context.Context, actor, account, inbox, use
 
 func (r *natsRPC) RemoveInboxMember(ctx context.Context, actor, account, inbox, user uuid.UUID) error {
 	return r.memberMutate(ctx, core.SubjectInboxMemberRemove, actor, account, inbox, user)
+}
+
+func (r *natsRPC) ListAccountUsers(ctx context.Context, actor, account uuid.UUID) ([]UserRow, error) {
+	body, err := json.Marshal(map[string]any{
+		"actor_user_id": actor.String(),
+		"account_id":    account.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectAccountUserList, body)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+		Users []struct {
+			ID    string `json:"id"`
+			Name  string `json:"name"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, memberRPCErr(out.Error)
+	}
+	rows := make([]UserRow, 0, len(out.Users))
+	for _, u := range out.Users {
+		id, err := uuid.Parse(u.ID)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, UserRow{ID: id, AccountID: account, Name: u.Name, Email: u.Email, Role: u.Role})
+	}
+	return rows, nil
 }
 
 func (r *natsRPC) ListInboxMembers(ctx context.Context, actor, account, inbox uuid.UUID) ([]MemberRow, error) {

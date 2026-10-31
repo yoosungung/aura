@@ -24,6 +24,7 @@ const (
 	SubjectInboxMemberAdd        = "helpdesk.rpc.inbox_members.add"
 	SubjectInboxMemberRemove     = "helpdesk.rpc.inbox_members.remove"
 	SubjectInboxMemberList       = "helpdesk.rpc.inbox_members.list"
+	SubjectAccountUserList       = "helpdesk.rpc.account_users.list"
 	SubjectAssign                = "helpdesk.rpc.conversations.assign"
 	SubjectNote                  = "helpdesk.rpc.conversations.note"
 	SubjectSnooze                = "helpdesk.rpc.conversations.snooze"
@@ -162,6 +163,13 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 		return err
 	}
 	defer subList.Unsubscribe()
+	subAccountUsers, err := nc.QueueSubscribe(SubjectAccountUserList, QueueGroup, func(msg *nats.Msg) {
+		s.handleAccountUserList(msg)
+	})
+	if err != nil {
+		return err
+	}
+	defer subAccountUsers.Unsubscribe()
 	subAssign, err := nc.QueueSubscribe(SubjectAssign, QueueGroup, func(msg *nats.Msg) {
 		s.handleAssign(msg)
 	})
@@ -794,6 +802,43 @@ func (s *Service) handleMemberList(msg *nats.Msg) {
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "members": members})
 	_ = msg.Respond(body)
+}
+
+func (s *Service) handleAccountUserList(msg *nats.Msg) {
+	in, err := parseAccountUserInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListAccountUsers(context.Background(), in)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	users := make([]map[string]any, 0, len(list))
+	for _, u := range list {
+		users = append(users, map[string]any{
+			"id": u.ID.String(), "name": u.Name, "email": u.Email, "role": u.Role,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "users": users})
+	_ = msg.Respond(body)
+}
+
+func parseAccountUserInput(msg *nats.Msg) (MemberInput, error) {
+	var req memberReq
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		return MemberInput{}, err
+	}
+	actor, err := uuid.Parse(req.ActorUserID)
+	if err != nil {
+		return MemberInput{}, err
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		return MemberInput{}, err
+	}
+	return MemberInput{ActorUserID: actor, AccountID: accountID}, nil
 }
 
 func parseListInput(msg *nats.Msg) (ListInput, error) {

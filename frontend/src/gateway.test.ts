@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, createInbox, deleteAccountLabel, deleteArticle, deleteCanned, deleteInbox, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listChannels, listConversations, listContacts, listInboxes, removeConversationLabel, removeInboxMember, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateAccountLabel, updateArticle, updateCanned, updateInbox, updateMacro, updateWebhook, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, createInbox, deleteAccountLabel, deleteArticle, deleteCanned, deleteInbox, deleteMacro, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listAccountUsers, listCanned, listChannels, listConversations, listContacts, listInboxes, removeConversationLabel, removeInboxMember, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateAccountLabel, updateArticle, updateCanned, updateInbox, updateMacro, updateWebhook, uploadAttachment, wsUrl } from "./gateway.js";
 import type { FetchImpl, SessionUpdate } from "./gateway.js";
 
 type FakeSock = {
@@ -205,6 +205,19 @@ describe("gateway client", () => {
       async () => ({ ok: true, json: async () => ({ contacts: [{ id: "p1", name: "홍길동" }] }) }),
     );
     assert.equal(listed.contacts[0].name, "홍길동");
+  });
+
+  it("lists account users as admin", async () => {
+    const calls: any[] = [];
+    const listed = await listAccountUsers(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok" },
+      async (url: string, opts?: any) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ users: [{ id: "u1", name: "Ada" }] }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/users");
+    assert.equal(listed.users[0].name, "Ada");
   });
 
   it("puts inbox members as admin", async () => {

@@ -6,7 +6,6 @@ export const SETTINGS_GROUPS = [
     items: [
       { id: "inboxes", label: "인박스" },
       { id: "members", label: "인박스 멤버" },
-      { id: "hmac", label: "HMAC 시크릿" },
     ],
   },
   {

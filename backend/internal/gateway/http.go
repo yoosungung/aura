@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/v1/accounts/{account_id}/macros/{macro_id}", s.handleMacros)
 	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/macros/{macro_id}", s.handleMacros)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/macros/{macro_id}/execute", s.handleMacroExecute)
+	mux.HandleFunc("GET /api/v1/accounts/{account_id}/users", s.handleAccountUsers)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members", s.handleInboxMembers)
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)
 	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)

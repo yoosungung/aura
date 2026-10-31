@@ -1,72 +1,103 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { defaultHours, HOUR_DAYS, parseBusinessHours, type HoursForm } from "../hours.js";
+import type { ClientReq, HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
-import type { ClientReq, HelpdeskClient } from "../gateway.js";
-import type { Session } from "../store.js";
+
+export type InboxOps = {
+  greeting: string;
+  hoursOn: boolean;
+  hours: HoursForm;
+};
 
 type InboxHmacProps = {
   session: Session;
   client: Partial<HelpdeskClient>;
+  inboxId: string;
+  ops: InboxOps;
+  onOps: (next: InboxOps) => void;
 };
 
-type InboxChoice = { id: string; name?: string };
+export const emptyInboxOps = (): InboxOps => ({
+  greeting: "",
+  hoursOn: false,
+  hours: defaultHours(),
+});
 
-export function InboxHmac({ session, client }: InboxHmacProps) {
-  const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
-  const [boxes, setBoxes] = useState<InboxChoice[]>([]);
+export function InboxHmac({ session, client, inboxId, ops, onOps }: InboxHmacProps) {
   const [secret, setSecret] = useState("");
-  const [greeting, setGreeting] = useState("");
-  const [hoursOn, setHoursOn] = useState(false);
-  const [hours, setHours] = useState("{}");
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const onOpsRef = useRef(onOps);
+  const dirtyRef = useRef(false);
+  onOpsRef.current = onOps;
+
+  function applySecret(data: { hmac_secret?: string }, revealSecret: boolean) {
+    setSecret(data?.hmac_secret || "");
+    if (revealSecret) {
+      setRevealed(true);
+    }
+  }
+
+  function applyOps(data: {
+    greeting_message?: string;
+    business_hours_enabled?: boolean;
+    business_hours?: unknown;
+  }) {
+    if (dirtyRef.current) {
+      return;
+    }
+    onOpsRef.current({
+      greeting: data?.greeting_message || "",
+      hoursOn: !!data?.business_hours_enabled,
+      hours: parseBusinessHours(data?.business_hours),
+    });
+  }
+
+  function setOps(next: InboxOps) {
+    dirtyRef.current = true;
+    onOps(next);
+  }
 
   useEffect(() => {
-    if (!client.listInboxes) {
+    dirtyRef.current = false;
+    setSecret("");
+    setRevealed(false);
+    setCopied(false);
+    setError("");
+    if (!inboxId.trim() || !client.getInbox) {
       return undefined;
     }
     let cancelled = false;
     client
-      .listInboxes({
+      .getInbox({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
         token: session.token,
+        inboxId: inboxId.trim(),
       })
       .then((data) => {
         if (cancelled) {
           return;
         }
-        const next = (data?.inboxes || [])
-          .filter((row: { id?: string }) => row.id)
-          .map((row: { id: string; name?: string }) => ({ id: row.id, name: row.name }));
-        setBoxes(next);
-        setInboxId((cur) => cur || next[0]?.id || "");
+        applySecret(data, false);
+        applyOps(data);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [client, session]);
+  }, [client, inboxId, session]);
 
-  function applyInbox(data: any) {
-    setSecret(data?.hmac_secret || "");
-    setGreeting(data?.greeting_message || "");
-    setHoursOn(!!data?.business_hours_enabled);
-    const raw = data?.business_hours;
-    setHours(typeof raw === "string" ? raw : JSON.stringify(raw || {}, null, 2));
-    setRevealed(true);
-  }
-
-  async function load(fn?: (req: ClientReq) => Promise<any>) {
+  async function load(fn?: (req: ClientReq) => Promise<any>, revealSecret = true) {
     if (!inboxId.trim() || !fn) {
       return;
     }
     setError("");
-    setSaved(false);
     try {
       const data = await fn({
         gatewayUrl: session.gatewayUrl,
@@ -74,7 +105,8 @@ export function InboxHmac({ session, client }: InboxHmacProps) {
         token: session.token,
         inboxId: inboxId.trim(),
       });
-      applyInbox(data);
+      applySecret(data, revealSecret);
+      applyOps(data);
     } catch {
       setError("시크릿을 불러오지 못했습니다");
     }
@@ -93,93 +125,92 @@ export function InboxHmac({ session, client }: InboxHmacProps) {
     }
   }
 
-  async function onSave() {
-    if (!inboxId.trim() || !client.updateInbox) {
-      return;
-    }
-    setError("");
-    setSaved(false);
-    let parsed: Record<string, unknown> = {};
-    try {
-      parsed = hours.trim() ? JSON.parse(hours) : {};
-    } catch {
-      setError("영업시간 JSON이 올바르지 않습니다");
-      return;
-    }
-    try {
-      const data = await client.updateInbox({
-        gatewayUrl: session.gatewayUrl,
-        accountId: session.accountId,
-        token: session.token,
-        inboxId: inboxId.trim(),
-        greetingMessage: greeting,
-        businessHoursEnabled: hoursOn,
-        businessHours: parsed,
-      });
-      applyInbox(data);
-      setSaved(true);
-    } catch {
-      setError("인박스 설정을 저장하지 못했습니다");
-    }
+  function patchDay(key: string, patch: Partial<HoursForm["week"][keyof HoursForm["week"]]>) {
+    setOps({
+      ...ops,
+      hours: {
+        ...ops.hours,
+        week: {
+          ...ops.hours.week,
+          [key]: { ...ops.hours.week[key as keyof HoursForm["week"]], ...patch },
+        },
+      },
+    });
   }
 
-  const inboxChoices =
-    boxes.length > 0 ? boxes : (session.inboxIds || []).map((id) => ({ id, name: id }));
-
   return (
-    <section className="hmac" aria-label="HMAC 시크릿">
-      <h2>HMAC 시크릿</h2>
-      {inboxChoices.length ? (
-        <Label>
-          인박스
-          <select aria-label="인박스" value={inboxId} onChange={(e) => setInboxId(e.target.value)}>
-            {inboxChoices.map((box) => (
-              <option key={box.id} value={box.id}>
-                {box.name || box.id}
-              </option>
-            ))}
-          </select>
-        </Label>
-      ) : null}
-      <Label className={inboxChoices.length ? "field-fallback" : undefined}>
-        인박스 ID
-        <Input value={inboxId} onChange={(e) => setInboxId(e.target.value)} required />
-      </Label>
-      {revealed && secret ? <p>{secret}</p> : <p>••••••••</p>}
-      <div className="flex gap-2">
-        <Button type="button" onClick={() => load(client.getInbox)}>
-          보기
-        </Button>
-        <Button type="button" variant="secondary" onClick={onCopy} disabled={!secret}>
-          복사
-        </Button>
-        <Button type="button" variant="secondary" onClick={() => load(client.rotateHmac)}>
-          재발급
-        </Button>
-      </div>
+    <section className="hmac flex flex-col" aria-label="HMAC 시크릿">
       <Label>
+        HMAC 시크릿
+        <div className="flex items-center gap-2">
+          <Input
+            readOnly
+            aria-label="HMAC 시크릿"
+            value={revealed && secret ? secret : "••••••••"}
+          />
+          <Button type="button" size="sm" onClick={() => load(client.getInbox)}>
+            보기
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onCopy} disabled={!secret}>
+            복사
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => load(client.rotateHmac)}>
+            재발급
+          </Button>
+        </div>
+      </Label>
+      {copied ? <p>복사됨</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
+      <Label className="mt-4">
         부재중 인사
-        <Textarea aria-label="부재중 인사" value={greeting} onChange={(e) => setGreeting(e.target.value)} />
+        <Textarea
+          aria-label="부재중 인사"
+          value={ops.greeting}
+          onChange={(e) => setOps({ ...ops, greeting: e.target.value })}
+        />
       </Label>
-      <Label>
-        <Input
+      <Label className="mt-4 flex-row items-center gap-2">
+        <input
           type="checkbox"
-          checked={hoursOn}
-          onChange={(e) => setHoursOn(e.target.checked)}
-          aria-label="영업시간 사용"
+          className="size-4 shrink-0"
+          checked={ops.hoursOn}
+          onChange={(e) => setOps({ ...ops, hoursOn: e.target.checked })}
         />
         영업시간 사용
       </Label>
-      <Label>
-        영업시간
-        <Textarea aria-label="영업시간" value={hours} onChange={(e) => setHours(e.target.value)} />
-      </Label>
-      <Button type="button" onClick={onSave}>
-        저장
-      </Button>
-      {copied ? <p>복사됨</p> : null}
-      {saved ? <p>저장됨</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {ops.hoursOn
+        ? HOUR_DAYS.map((day) => {
+            const row = ops.hours.week[day.key];
+            return (
+              <div key={day.key} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0"
+                  checked={row.open}
+                  aria-label={`${day.label} 영업`}
+                  onChange={(e) => patchDay(day.key, { open: e.target.checked })}
+                />
+                <span className="w-4 text-sm">{day.label}</span>
+                <Input
+                  type="time"
+                  className="h-8 w-40"
+                  aria-label={`${day.label} 시작`}
+                  value={row.start}
+                  disabled={!row.open}
+                  onChange={(e) => patchDay(day.key, { start: e.target.value })}
+                />
+                <Input
+                  type="time"
+                  className="h-8 w-40"
+                  aria-label={`${day.label} 종료`}
+                  value={row.end}
+                  disabled={!row.open}
+                  onChange={(e) => patchDay(day.key, { end: e.target.value })}
+                />
+              </div>
+            );
+          })
+        : null}
     </section>
   );
 }

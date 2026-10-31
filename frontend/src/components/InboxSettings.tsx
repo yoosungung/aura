@@ -4,7 +4,9 @@ import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import type { HelpdeskClient } from "../gateway.js";
 import type { Session } from "../store.js";
+import { serializeBusinessHours } from "../hours.js";
 import { channelLabel } from "../store.js";
+import { emptyInboxOps, InboxHmac, type InboxOps } from "./InboxHmac.jsx";
 
 type InboxRow = {
   id?: string;
@@ -28,6 +30,7 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
   const [email, setEmail] = useState("");
   const [kakao, setKakao] = useState("");
   const [editingId, setEditingId] = useState("");
+  const [ops, setOps] = useState<InboxOps>(emptyInboxOps);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -62,6 +65,7 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
     setChannel(channels[0] || "web");
     setEmail("");
     setKakao("");
+    setOps(emptyInboxOps());
     setError("");
   }
 
@@ -71,6 +75,7 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
     setChannel(box.channel_type || "web");
     setEmail(box.email_address || "");
     setKakao(box.kakao_sender_key || "");
+    setOps(emptyInboxOps());
   }
 
   async function refreshSession() {
@@ -97,6 +102,13 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
       channelType: channel,
       emailAddress: channel === "email" ? email.trim() : "",
       kakaoSenderKey: channel === "kakao" ? kakao.trim() : "",
+      ...(editingId && channel === "web"
+        ? {
+            greetingMessage: ops.greeting,
+            businessHoursEnabled: ops.hoursOn,
+            businessHours: serializeBusinessHours(ops.hours),
+          }
+        : {}),
     };
     try {
       if (editingId && client.updateInbox) {
@@ -197,6 +209,15 @@ export function InboxSettings({ session, client, onSession }: InboxSettingsProps
             카카오 발신 키
             <Input value={kakao} onChange={(e) => setKakao(e.target.value)} required />
           </Label>
+        ) : null}
+        {editingId && channel === "web" ? (
+          <InboxHmac
+            session={session}
+            client={client}
+            inboxId={editingId}
+            ops={ops}
+            onOps={setOps}
+          />
         ) : null}
         <div className="settings-form-actions">
           {editingId ? (

@@ -104,6 +104,37 @@ func TestRemoveAndListInboxMembers(t *testing.T) {
 	}
 }
 
+func TestListAccountUsers_AdminOnly(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, _ := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+
+	list, err := svc.ListAccountUsers(ctx, core.MemberInput{ActorUserID: adminID, AccountID: accountID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("users=%d", len(list))
+	}
+	got := map[uuid.UUID]core.UserRow{}
+	for _, row := range list {
+		got[row.ID] = row
+	}
+	if got[agentID].Email != "ada@acme.test" || got[agentID].Role != "agent" {
+		t.Fatalf("%+v", got[agentID])
+	}
+	if got[adminID].Role != "administrator" {
+		t.Fatalf("%+v", got[adminID])
+	}
+
+	if _, err := svc.ListAccountUsers(ctx, core.MemberInput{ActorUserID: agentID, AccountID: accountID}); err != core.ErrDenied {
+		t.Fatalf("agent list got %v", err)
+	}
+}
+
 func TestRPC_InboxMembersAdd(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -138,6 +169,55 @@ func TestRPC_InboxMembersAdd(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !out.OK {
+		t.Fatalf("%s", reply.Data)
+	}
+}
+
+func TestRPC_AccountUsersList(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	admin, app := testutil.Postgres(t)
+	nc, js := testutil.NATSConn(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	accountID, _ := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	go func() {
+		_ = core.Serve(ctx, nc, js, appPool(t, app))
+	}()
+	time.Sleep(200 * time.Millisecond)
+
+	req, _ := json.Marshal(map[string]string{
+		"actor_user_id": adminID.String(),
+		"account_id":    accountID.String(),
+	})
+	reply, err := nc.Request(core.SubjectAccountUserList, req, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		OK    bool `json:"ok"`
+		Users []struct {
+			ID    string `json:"id"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(reply.Data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !out.OK || len(out.Users) != 2 {
+		t.Fatalf("%s", reply.Data)
+	}
+	found := false
+	for _, u := range out.Users {
+		if u.ID == agentID.String() && u.Email == "ada@acme.test" && u.Role == "agent" {
+			found = true
+		}
+	}
+	if !found {
 		t.Fatalf("%s", reply.Data)
 	}
 }

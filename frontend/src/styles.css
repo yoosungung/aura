@@ -553,6 +553,51 @@ select {
   gap: 16px;
 }
 
+.settings-resource.members {
+  max-width: none;
+}
+
+.members-table-wrap {
+  overflow-x: auto;
+}
+
+.members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.members-table th,
+.members-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.members-table th:first-child,
+.members-table td:first-child,
+.members-table tbody th {
+  text-align: left;
+}
+
+.members-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.members-user-spacer {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+}
+
+.members-user-name {
+  display: block;
+  font-weight: 600;
+}
+
 .settings-resource h2,
 .settings-block h3 {
   margin: 0;

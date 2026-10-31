@@ -54,6 +54,34 @@ func (s *Service) RemoveInboxMember(ctx context.Context, in MemberInput) error {
 	})
 }
 
+func (s *Service) ListAccountUsers(ctx context.Context, in MemberInput) ([]UserRow, error) {
+	var out []UserRow
+	err := s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		rows, err := tx.Query(ctx, `
+			SELECT u.id, au.account_id, u.name, u.email, au.role
+			FROM users u
+			JOIN account_users au ON au.user_id = u.id
+			WHERE au.account_id = $1
+			ORDER BY u.name, u.email`, in.AccountID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var row UserRow
+			if err := rows.Scan(&row.ID, &row.AccountID, &row.Name, &row.Email, &row.Role); err != nil {
+				return err
+			}
+			out = append(out, row)
+		}
+		return rows.Err()
+	})
+	if out == nil {
+		out = []UserRow{}
+	}
+	return out, err
+}
+
 func (s *Service) ListInboxMembers(ctx context.Context, in MemberInput) ([]InboxMember, error) {
 	var out []InboxMember
 	err := s.withAdminInbox(ctx, in, func(tx pgx.Tx) error {
