@@ -367,6 +367,33 @@ func (r *natsRPC) AuthContact(ctx context.Context, inboxID uuid.UUID, pubsubToke
 	}, nil
 }
 
+func (r *natsRPC) SetPresence(ctx context.Context, userID, accountID uuid.UUID, status string) error {
+	body, err := json.Marshal(map[string]any{
+		"user_id": userID.String(), "account_id": accountID.String(), "status": status,
+	})
+	if err != nil {
+		return err
+	}
+	msg, err := r.nc.RequestWithContext(ctx, core.SubjectAuthPresence, body)
+	if err != nil {
+		return err
+	}
+	var out struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(msg.Data, &out); err != nil {
+		return err
+	}
+	if !out.OK {
+		if out.Error == "" {
+			out.Error = "rpc_failed"
+		}
+		return fmt.Errorf("%s", out.Error)
+	}
+	return nil
+}
+
 func (r *natsRPC) Login(ctx context.Context, email, password string) (AuthOut, error) {
 	return r.authRPC(ctx, core.SubjectAuthLogin, map[string]any{"email": email, "password": password})
 }

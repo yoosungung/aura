@@ -64,7 +64,7 @@ func (s *Service) publishCSATRealtime(env []byte) {
 		return
 	}
 	var e contracts.MessageCreated
-	if err := json.Unmarshal(env, &e); err != nil || e.Type != "message_created" || e.Payload.ContentType != "input_csat" {
+	if err := json.Unmarshal(env, &e); err != nil || e.Type != "message_created" {
 		return
 	}
 	rt, err := json.Marshal(map[string]any{

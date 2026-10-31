@@ -55,6 +55,8 @@ export function App({ session: initialSession, client, initialState = emptyState
   const [draft, setDraft] = useState("");
   const [cannedIndex, setCannedIndex] = useState(0);
   const logRef = useRef(null);
+  const wsRef = useRef(null);
+  const typingTimer = useRef(null);
   const queue = state.conversations.filter((c) => visibleInQueue(c));
   const selected = queue.find((c) => c.id === state.selectedId);
   const unreadTotal = queue.reduce((n, c) => n + (c.unread || 0), 0);
@@ -128,10 +130,25 @@ export function App({ session: initialSession, client, initialState = emptyState
     if (!session.token || !client.connect) {
       return undefined;
     }
-    return client.connect(session, (event) => dispatch({ type: "realtime", event }), {
-      refresh: client.refresh,
-      onSessionUpdate: applySession,
-    });
+    const stop = client.connect(
+      session,
+      (event) => {
+        if (event.event === "presence" && event.user_id === session.userId) {
+          setSession((s) => ({ ...s, availabilityStatus: event.status }));
+          return;
+        }
+        dispatch({ type: "realtime", event });
+      },
+      {
+        refresh: client.refresh,
+        onSessionUpdate: applySession,
+      },
+    );
+    wsRef.current = stop;
+    return () => {
+      wsRef.current = null;
+      stop?.();
+    };
   }, [session, client]);
 
   useEffect(() => {
@@ -369,12 +386,40 @@ export function App({ session: initialSession, client, initialState = emptyState
     }
   }
 
+  function bumpTyping() {
+    if (!selected) {
+      return;
+    }
+    wsRef.current?.send?.({
+      type: "typing",
+      conversation_id: selected.id,
+      inbox_id: selected.inboxId,
+      is_typing: true,
+    });
+    clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => {
+      wsRef.current?.send?.({
+        type: "typing",
+        conversation_id: selected.id,
+        inbox_id: selected.inboxId,
+        is_typing: false,
+      });
+    }, 400);
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     const content = draft.trim();
     if (!content || !selected || !client.sendReply) {
       return;
     }
+    clearTimeout(typingTimer.current);
+    wsRef.current?.send?.({
+      type: "typing",
+      conversation_id: selected.id,
+      inbox_id: selected.inboxId,
+      is_typing: false,
+    });
     const localId = `pending-${Date.now()}`;
     dispatch({
       type: "send",
@@ -533,11 +578,11 @@ export function App({ session: initialSession, client, initialState = emptyState
         <div className="rail-top">
           <span
             className="rail-avatar"
-            data-availability={session.availabilityStatus || "online"}
+            data-availability={session.availabilityStatus}
             aria-label="가용 상태"
           >
             {agentInitials(session)}
-            <span className="availability" data-availability={session.availabilityStatus || "online"} />
+            <span className="availability" data-availability={session.availabilityStatus} />
           </span>
           <Button
             variant={view === "inbox" ? "secondary" : "ghost"}
@@ -843,6 +888,9 @@ export function App({ session: initialSession, client, initialState = emptyState
                       ) : null}
                     </li>
                   ))}
+                  {state.typing?.[selected.id] && state.typing[selected.id].userId !== session.userId ? (
+                    <li data-typing="true">입력 중</li>
+                  ) : null}
                 </ol>
                 <div className={`composer-dock ${composeMode === "note" ? "composer-note" : ""}`}>
                   <div className="composer-tabs">
@@ -920,7 +968,10 @@ export function App({ session: initialSession, client, initialState = emptyState
                           cannedHits.length ? cannedOptionId(cannedHits[activeCanned]) : undefined
                         }
                         value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
+                        onChange={(e) => {
+                          setDraft(e.target.value);
+                          bumpTyping();
+                        }}
                         onKeyDown={(e) => {
                           if (!cannedHits.length) {
                             return;

@@ -56,7 +56,7 @@ func (s *Service) OnMessage(ctx context.Context, accountID, conversationID uuid.
 			return err
 		}
 		if nrt != nil && firstReply != nil && status != core.StatusPending {
-			due := s.now().Add(time.Duration(*nrt) * time.Second)
+			due := slaDue(ctx, tx, conversationID, s.now(), *nrt)
 			if _, err := tx.Exec(ctx, `UPDATE applied_slas SET nrt_due_at = $2 WHERE conversation_id = $1`, conversationID, due); err != nil {
 				return err
 			}
@@ -104,10 +104,17 @@ func applySLA(ctx context.Context, tx pgx.Tx, accountID, conversationID uuid.UUI
 	}
 	var policyID uuid.UUID
 	var frt, nrt, rt *int
+	var onlyBH, hoursOn bool
+	var hours []byte
 	err := tx.QueryRow(ctx, `
-		SELECT id, frt_threshold_seconds, nrt_threshold_seconds, rt_threshold_seconds
-		FROM sla_policies WHERE account_id = $1 ORDER BY name LIMIT 1`, accountID,
-	).Scan(&policyID, &frt, &nrt, &rt)
+		SELECT p.id, p.frt_threshold_seconds, p.nrt_threshold_seconds, p.rt_threshold_seconds, p.only_business_hours,
+			i.business_hours_enabled, i.business_hours
+		FROM sla_policies p
+		JOIN conversations c ON c.id = $2
+		JOIN inboxes i ON i.id = c.inbox_id
+		WHERE p.account_id = $1
+		ORDER BY p.name LIMIT 1`, accountID, conversationID,
+	).Scan(&policyID, &frt, &nrt, &rt, &onlyBH, &hoursOn, &hours)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil
@@ -120,14 +127,37 @@ func applySLA(ctx context.Context, tx pgx.Tx, accountID, conversationID uuid.UUI
 	}
 	var frtDue, rtDue any
 	if frt != nil {
-		frtDue = now.Add(time.Duration(*frt) * time.Second)
+		frtDue = dueAt(now, *frt, onlyBH, hoursOn, hours)
 	}
 	if rt != nil {
-		rtDue = now.Add(time.Duration(*rt) * time.Second)
+		rtDue = dueAt(now, *rt, onlyBH, hoursOn, hours)
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO applied_slas (id, account_id, conversation_id, sla_policy_id, frt_due_at, rt_due_at)
 		VALUES ($1,$2,$3,$4,$5,$6)`,
 		id, accountID, conversationID, policyID, frtDue, rtDue)
 	return err
+}
+
+func dueAt(now time.Time, seconds int, onlyBH, hoursOn bool, raw []byte) time.Time {
+	if onlyBH && hoursOn {
+		return AddBusinessDuration(now, seconds, raw)
+	}
+	return now.Add(time.Duration(seconds) * time.Second)
+}
+
+func slaDue(ctx context.Context, tx pgx.Tx, conversationID uuid.UUID, now time.Time, seconds int) time.Time {
+	var onlyBH, hoursOn bool
+	var hours []byte
+	err := tx.QueryRow(ctx, `
+		SELECT COALESCE(p.only_business_hours, false), i.business_hours_enabled, i.business_hours
+		FROM conversations c
+		JOIN inboxes i ON i.id = c.inbox_id
+		LEFT JOIN applied_slas a ON a.conversation_id = c.id
+		LEFT JOIN sla_policies p ON p.id = a.sla_policy_id
+		WHERE c.id = $1`, conversationID).Scan(&onlyBH, &hoursOn, &hours)
+	if err != nil {
+		return now.Add(time.Duration(seconds) * time.Second)
+	}
+	return dueAt(now, seconds, onlyBH, hoursOn, hours)
 }

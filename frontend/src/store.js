@@ -2,6 +2,7 @@ export const emptyState = {
   conversations: [],
   selectedId: null,
   messages: {},
+  typing: {},
 };
 
 export function fixtureState() {
@@ -19,6 +20,7 @@ export function fixtureState() {
       },
     ],
     selectedId: null,
+    typing: {},
     messages: {
       c1: [
         {
@@ -311,6 +313,19 @@ export function reduce(state, action) {
 function applyRealtime(state, event) {
   if (!event) {
     return state;
+  }
+  if (event.event === "typing") {
+    const convId = event.conversation_id;
+    if (!convId) {
+      return state;
+    }
+    const typing = { ...(state.typing || {}) };
+    if (event.is_typing) {
+      typing[convId] = { userType: event.user_type, userId: event.user_id };
+    } else {
+      delete typing[convId];
+    }
+    return { ...state, typing };
   }
   if (event.event === "conversation.status_changed" || event.event === "status_changed") {
     const convId = event.conversation_id;

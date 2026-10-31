@@ -40,5 +40,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P8 LangChain `create_agent`·Agent Skills·운영계 MCP 완료. P7 AI-Native 출시 완료(svc-ai-agent Ego-Graph·ReAct/승인 카드, embeddings 분리, Cold Archive, k8s/CI). P6 플랫폼 완료. P5.5 상담 워크스페이스 완료. P5 운영 자동화 완료. P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`.
+P9 운영 공백(presence·영업시간·부재중 greeting·typing) 완료. P8 LangChain `create_agent`·Agent Skills·운영계 MCP 완료. P7 AI-Native 출시 완료(svc-ai-agent Ego-Graph·ReAct/승인 카드, embeddings 분리, Cold Archive, k8s/CI). P6 플랫폼 완료. P5.5 상담 워크스페이스 완료. P5 운영 자동화 완료. P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`.
 

@@ -43,6 +43,45 @@ func TestSLA_FRTBreachShowsInQueue(t *testing.T) {
 	}
 }
 
+func TestSLA_BusinessHoursShiftsFRT(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	if _, err := admin.Exec(ctx, `
+		UPDATE inboxes SET business_hours_enabled = true, business_hours = $2::jsonb WHERE id = $1`,
+		inboxID, weekdayHours()); err != nil {
+		t.Fatal(err)
+	}
+	id := mustV7(t)
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO sla_policies (id, account_id, name, frt_threshold_seconds, nrt_threshold_seconds, rt_threshold_seconds, only_business_hours)
+		VALUES ($1,$2,'hours',$3,$4,$5,true)`, id, accountID, 2*3600, 60, 3600); err != nil {
+		t.Fatal(err)
+	}
+	loc, err := time.LoadLocation("Asia/Seoul")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 1, 2, 17, 0, 0, 0, loc)
+	coreSvc := &core.Service{DB: app}
+	svc := &routing.Service{DB: app, Now: func() time.Time { return now }}
+	created, err := coreSvc.Create(ctx, core.CreateInput{AccountID: accountID, InboxID: inboxID, SourceID: "w1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.OnMessage(ctx, accountID, created.ConversationID, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	var due time.Time
+	if err := admin.QueryRow(ctx, `SELECT frt_due_at FROM applied_slas WHERE conversation_id = $1`, created.ConversationID).Scan(&due); err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 1, 5, 10, 0, 0, 0, loc)
+	if !due.Equal(want) {
+		t.Fatalf("due %s want %s", due, want)
+	}
+}
+
 func TestSLA_PendingPausesNRT(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)

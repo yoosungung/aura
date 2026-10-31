@@ -81,6 +81,7 @@ type Service struct {
 	RPC         Creator
 	Email       EmailResolver
 	Auth        Authenticator
+	Presence    Presencer
 	Members     Members
 	Inboxes     Inboxes
 	Assign      Assigner

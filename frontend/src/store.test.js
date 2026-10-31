@@ -30,6 +30,19 @@ function created({ id, conv, content, contact = "p1", inbox = "i1" }) {
 }
 
 describe("reduce realtime", () => {
+  it("tracks typing for a conversation", () => {
+    let s = reduce(emptyState, {
+      type: "realtime",
+      event: { event: "typing", conversation_id: "c1", is_typing: true, user_id: "u1", user_type: "User" },
+    });
+    assert.equal(s.typing.c1.userId, "u1");
+    s = reduce(s, {
+      type: "realtime",
+      event: { event: "typing", conversation_id: "c1", is_typing: false, user_id: "u1" },
+    });
+    assert.equal(s.typing.c1, undefined);
+  });
+
   it("upserts a queue card and appends the thread", () => {
     const s = reduce(emptyState, {
       type: "realtime",

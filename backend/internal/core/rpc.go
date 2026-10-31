@@ -301,6 +301,9 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 	if err := s.subscribeP6(nc); err != nil {
 		return err
 	}
+	if err := s.subscribeP9(nc); err != nil {
+		return err
+	}
 	fanout, err := s.consumeWebhookEvents(ctx)
 	if err != nil {
 		return err
@@ -704,11 +707,21 @@ func (s *Service) respondInboxHMAC(msg *nats.Msg, fn func(context.Context, Membe
 		_ = msg.Respond(rpcErr(err))
 		return
 	}
+	_ = msg.Respond(inboxHMACBody(got))
+}
+
+func inboxHMACBody(got InboxHMAC) []byte {
+	hours := got.BusinessHours
+	if len(hours) == 0 {
+		hours = []byte("{}")
+	}
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "id": got.ID.String(), "name": got.Name,
 		"channel_type": got.ChannelType, "hmac_secret": got.HMACSecret,
+		"greeting_message": got.GreetingMessage, "business_hours_enabled": got.BusinessHoursEnabled,
+		"business_hours": json.RawMessage(hours),
 	})
-	_ = msg.Respond(body)
+	return body
 }
 
 func (s *Service) handleMemberList(msg *nats.Msg) {

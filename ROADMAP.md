@@ -65,8 +65,8 @@
 
 ## P5 운영 자동화
 
-- `svc-sla-routing`: 온라인 + `C_current < C_max` 라운드로빈, 영업시간, 부재중 greeting. `C_current`는 NATS JetStream KV 원자 증감, PG는 대사.
-- `svc-automation`: Event → Conditions → Actions (팀/우선순위/라벨/웹훅 트리거). `hop_count > 5`면 드롭.
+- `svc-sla-routing`: 온라인 + `C_current < C_max` 라운드로빈. `C_current`는 NATS JetStream KV 원자 증감, PG는 대사. 영업시간·부재중 greeting은 P9.
+- `svc-automation`: Event → Conditions → Actions (`add_label`/`change_priority`/`send_webhook`). `hop_count > 5`면 드롭.
 - SLA FRT/NRT/RT, `applied_slas`, breach 시 큐 플래그.
 - resolved 시 CSAT (`content_type=input_csat`).
 
@@ -115,6 +115,18 @@
 
 성공: 기존 P7 행위 테스트(hop, 저위험 outbound, 환불 승인 카드, Ego/RAG, 키 없음 stub)가 통과한다. 환불은 승인 후에만 운영계 MCP를 친다. 테넌트 스킬이 리포 스킬을 덮어쓴다. **완료.**
 
+## P9 운영 공백
+
+목표: P5가 완료로 적었지만 비어 있던 presence·영업시간·부재중 greeting과, 계약만 있던 typing을 채운다. 셸·브레이크포인트·FSM은 바꾸지 않는다.
+
+- Presence: User WS connect → `helpdesk.rpc.auth.presence` `online`, disconnect → `offline`. `users.availability_status` last-write-wins. `helpdesk.realtime.<account_id>.agent.presence`. Contact는 호출하지 않는다. 멀티탭 카운트는 출시 후.
+- 영업시간: `inboxes.business_hours` `{timezone, week:{mon:[["09:00","18:00"]], …}}`. `enabled=false` 또는 `{}`는 24/7. 키 없음/빈 배열은 그날 휴무. 영업시간 밖이면 자동배정하지 않는다. `sla_policies.only_business_hours`면 FRT/NRT/RT due는 인박스 영업시간만 가산.
+- 부재중 greeting: 영업시간 밖이거나 온라인 풀이 비면 `helpdesk.rpc.conversations.greet`. `greeting_message`를 AgentBot outgoing 1회. 같은 대화·같은 본문이 있으면 no-op.
+- Typing: WS `{type:"typing",conversation_id,is_typing}` → NATS Core `helpdesk.realtime.<account_id>.<conversation_id>.typing`. PG에 쓰지 않는다. SPA·위젯 debounce ~400ms.
+- 관리자: `GET` 인박스에 greeting/hours, `PATCH /api/v1/accounts/{id}/inboxes/{inbox_id}` → `helpdesk.rpc.inboxes.update`. HMAC 패널을 인박스 설정으로 확장.
+
+성공: 상담원 WS 연결 후 미배정 티켓이 자동 배정되고, 끊으면 풀에서 빠진다. 영업시간 밖 인입은 미배정 + greeting 1회 + FRT due가 다음 오픈 이후로 밀린다. 타이핑 인디케이터가 상대에게 보이고 `messages` 행은 없다. **완료.**
+
 ## 출시 후
 
 - 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
@@ -124,6 +136,7 @@
 - 멀티리전 첨부 버킷
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
 - Task Fair Queuing(테넌트 쿼터)
+- presence 연결 카운트 (멀티탭·멀티 레플리카). last-write-wins를 KV 증감으로 교체
 - 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰. 티켓 딥링크.
 - 큐/메시지 가상 스크롤.
 - `contracts/` JSON Schema → TypeScript (`frontend/`, `packages/widget-sdk`). 게이트웨이가 `helpdesk.realtime`에 넣는 WS 래퍼의 `message` 필드는 이미 `message_created` envelope이므로, 그 envelope·payload만 생성 타입으로 읽는다. NATS RPC(`conversations.create` 등)는 게이트웨이↔코어 전용이다. REST 응답·UI 상태·위젯 호스트 `postMessage`(`source: "aura-widget"`)는 이 스키마에 합치지 않는다. Go 생성은 지금처럼 `backend/internal/contracts`다.

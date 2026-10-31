@@ -64,6 +64,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)
 	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}", s.handleInboxMembers)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}", s.handleInboxHMAC)
+	mux.HandleFunc("PATCH /api/v1/accounts/{account_id}/inboxes/{inbox_id}", s.handleInboxHMAC)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/inboxes/{inbox_id}/hmac/rotate", s.handleInboxHMAC)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/webhooks", s.handleWebhooks)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/webhooks", s.handleWebhooks)

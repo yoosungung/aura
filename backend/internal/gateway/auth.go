@@ -18,6 +18,10 @@ type Authenticator interface {
 	Logout(ctx context.Context, sessionToken string) error
 }
 
+type Presencer interface {
+	SetPresence(ctx context.Context, userID, accountID uuid.UUID, status string) error
+}
+
 type ContactAuthenticator interface {
 	AuthContact(ctx context.Context, inboxID uuid.UUID, pubsubToken string) (ContactAuthOut, error)
 }

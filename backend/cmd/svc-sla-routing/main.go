@@ -59,10 +59,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	coreSvc := &core.Service{DB: app, JS: js, NC: nc}
 	svc := &routing.Service{
 		DB:       app,
 		Capacity: routing.Store{KV: kv},
-		Assigner: &core.Service{DB: app, JS: js},
+		Assigner: coreSvc,
+		Greeter:  coreSvc,
 	}
 	log.Print("svc-sla-routing running")
 	if err := svc.Consume(ctx, js); err != nil && !errors.Is(err, context.Canceled) {

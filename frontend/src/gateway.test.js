@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -86,6 +86,31 @@ describe("gateway client", () => {
       socks[0].onclose();
       await new Promise((r) => setTimeout(r, 0));
       assert.equal(sessions[0].token, "t2");
+      stop();
+    } finally {
+      globalThis.WebSocket = prev;
+    }
+  });
+
+  it("sends typing frames on the live socket", () => {
+    const socks = [];
+    const prev = globalThis.WebSocket;
+    globalThis.WebSocket = class {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 1;
+        this.sent = [];
+        socks.push(this);
+      }
+      send(data) {
+        this.sent.push(data);
+      }
+      close() {}
+    };
+    try {
+      const stop = connect({ token: "t1", gatewayUrl: "http://gw" }, () => {});
+      stop.send({ type: "typing", conversation_id: "c1", is_typing: true });
+      assert.equal(JSON.parse(socks[0].sent[0]).type, "typing");
       stop();
     } finally {
       globalThis.WebSocket = prev;
@@ -198,6 +223,29 @@ describe("gateway client", () => {
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1/hmac/rotate");
     assert.equal(calls[0].opts.method, "POST");
     assert.equal(rotated.hmac_secret, "newsecret");
+  });
+
+  it("patches inbox greeting and hours", async () => {
+    const calls = [];
+    const got = await updateInbox(
+      {
+        gatewayUrl: "http://gw",
+        accountId: "acc",
+        token: "tok",
+        inboxId: "i1",
+        greetingMessage: "부재중",
+        businessHoursEnabled: true,
+        businessHours: { timezone: "Asia/Seoul" },
+      },
+      async (url, opts) => {
+        calls.push({ url, opts });
+        return { ok: true, json: async () => ({ greeting_message: "부재중" }) };
+      },
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/inboxes/i1");
+    assert.equal(calls[0].opts.method, "PATCH");
+    assert.equal(JSON.parse(calls[0].opts.body).greeting_message, "부재중");
+    assert.equal(got.greeting_message, "부재중");
   });
 
   it("puts conversation assignee", async () => {

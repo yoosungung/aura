@@ -50,6 +50,7 @@ func main() {
 			Email:       n,
 			Kakao:       n,
 			Auth:        n,
+			Presence:    n,
 			Members:     n,
 			Inboxes:     n,
 			Assign:      n,

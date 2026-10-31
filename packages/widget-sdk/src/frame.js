@@ -29,6 +29,8 @@ export function createFrame(win, deps = {}) {
   let exchanging;
   let unread = 0;
   let open = false;
+  let conversationId = "";
+  let typingTimer;
 
   const apiBase = win.location.origin;
 
@@ -177,7 +179,17 @@ export function createFrame(win, deps = {}) {
       } catch {
         return;
       }
-      if (payload.type !== "event" || payload.event !== "message.created") {
+      if (payload.type !== "event") {
+        return;
+      }
+      if (payload.event === "typing") {
+        if (payload.user_type === "Contact") {
+          return;
+        }
+        showTyping(payload.is_typing === true);
+        return;
+      }
+      if (payload.event !== "message.created") {
         return;
       }
       if (payload.message?.payload?.private) {
@@ -197,6 +209,58 @@ export function createFrame(win, deps = {}) {
         }
       }
     };
+  }
+
+  function showTyping(on) {
+    const list = win.document.getElementById("messages");
+    if (!list) {
+      return;
+    }
+    const existing = list.querySelector?.("[data-typing='true']") || list.querySelector?.("[data-typing]");
+    if (!on) {
+      existing?.remove?.();
+      if (existing && list.removeChild && !existing.remove) {
+        list.removeChild(existing);
+      }
+      return;
+    }
+    if (existing) {
+      return;
+    }
+    const item = win.document.createElement ? win.document.createElement("li") : { textContent: "", dataset: {} };
+    item.dataset.typing = "true";
+    item.textContent = "입력 중";
+    if (typeof list.appendChild === "function") {
+      list.appendChild(item);
+    }
+  }
+
+  function sendTyping(isTyping) {
+    if (!socket || typeof socket.send !== "function") {
+      return;
+    }
+    if (socket.readyState != null && socket.readyState !== 1) {
+      return;
+    }
+    socket.send(
+      JSON.stringify({
+        type: "typing",
+        conversation_id: conversationId,
+        inbox_id: inboxId,
+        is_typing: isTyping,
+      }),
+    );
+  }
+
+  function watchComposer(input) {
+    if (!input || typeof input.addEventListener !== "function") {
+      return;
+    }
+    input.addEventListener("input", () => {
+      sendTyping(true);
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => sendTyping(false), 400);
+    });
   }
 
   function append(content, senderType) {
@@ -301,15 +365,24 @@ export function createFrame(win, deps = {}) {
     if (body.access_token || body.token) {
       token = body.access_token || body.token;
     }
+    if (body.conversation_id) {
+      conversationId = body.conversation_id;
+    }
     append(content, "Contact");
     connectWS();
     await bindUser();
     return body;
   }
 
+  watchComposer(
+    win.document.getElementById("composer")?.elements?.namedItem("content") ||
+      win.document.querySelector?.("#composer input"),
+  );
+
   return {
     send,
     searchHelp,
+    watchComposer,
     token: () => token,
     identifier: () => boundIdentifier,
   };

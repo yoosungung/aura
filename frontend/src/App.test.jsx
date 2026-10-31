@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { App } from "./App.jsx";
@@ -248,6 +248,42 @@ test("administrator reveals and rotates inbox hmac secret", async () => {
   await user.click(screen.getByRole("button", { name: "복사" }));
   expect(copied[0]).toBe("newsecret");
   expect(screen.getByText("복사됨")).toBeTruthy();
+});
+
+test("administrator saves inbox greeting and hours", async () => {
+  const user = userEvent.setup();
+  const saved = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator", inboxIds: ["i1"] }}
+      client={{
+        connect() {},
+        async listInboxMembers() {
+          return { members: [] };
+        },
+        async getInbox() {
+          return { hmac_secret: "secret", greeting_message: "", business_hours_enabled: false, business_hours: {} };
+        },
+        async updateInbox(req) {
+          saved.push(req);
+          return {
+            hmac_secret: "secret",
+            greeting_message: req.greetingMessage,
+            business_hours_enabled: req.businessHoursEnabled,
+            business_hours: req.businessHours,
+          };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "HMAC 시크릿" }));
+  await user.type(screen.getByLabelText("부재중 인사"), "부재중입니다");
+  await user.click(screen.getByLabelText("영업시간 사용"));
+  await user.click(screen.getByRole("button", { name: "저장" }));
+  expect(saved[0].greetingMessage).toBe("부재중입니다");
+  expect(saved[0].businessHoursEnabled).toBe(true);
+  expect(screen.getByText("저장됨")).toBeTruthy();
 });
 
 test("ticket view assigns to an inbox agent", async () => {
@@ -1248,6 +1284,53 @@ test("mod enter submits the composer", async () => {
   await user.type(screen.getByLabelText("답장"), "확인했습니다");
   await user.keyboard("{Meta>}{Enter}{/Meta}");
   expect(sent[0].content).toBe("확인했습니다");
+});
+
+test("presence event updates rail availability without online fallback", async () => {
+  let emit;
+  render(
+    <App
+      session={{ ...session, userId: "u1", name: "Ada" }}
+      client={{
+        connect(_s, onEvent) {
+          emit = onEvent;
+          return () => {};
+        },
+      }}
+    />,
+  );
+  expect(screen.getByLabelText("가용 상태").getAttribute("data-availability")).not.toBe("online");
+  await act(async () => {
+    emit({ type: "event", event: "presence", user_id: "u1", status: "online" });
+  });
+  expect(screen.getByLabelText("가용 상태").getAttribute("data-availability")).toBe("online");
+});
+
+test("shows typing indicator for the other party", async () => {
+  let emit;
+  render(
+    <App
+      session={{ ...session, userId: "agent-1" }}
+      client={{
+        connect(_s, onEvent) {
+          emit = onEvent;
+          return () => {};
+        },
+      }}
+      initialState={{ ...fixtureState(), selectedId: "c1" }}
+    />,
+  );
+  await act(async () => {
+    emit({
+      type: "event",
+      event: "typing",
+      conversation_id: "c1",
+      user_id: "p1",
+      user_type: "Contact",
+      is_typing: true,
+    });
+  });
+  expect(screen.getByText("입력 중")).toBeTruthy();
 });
 
 test("rail shows unread availability shortcuts and signs out", async () => {

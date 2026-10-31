@@ -116,6 +116,9 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.auth.refresh` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.logout` | `session_token` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.auth.contact` | `inbox_id`, `pubsub_token` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.auth.presence` | `user_id`, `account_id`, `status` (`online`/`offline`) | gateway-web (User WS) | svc-core |
+| Core | `helpdesk.rpc.conversations.greet` | `account_id`, `conversation_id` | sla-routing | svc-core |
+| Core | `helpdesk.rpc.inboxes.update` | `actor_user_id`, `inbox_id`, `greeting_message`, `business_hours_enabled`, `business_hours` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.accounts.create` | `name`, `locale`, `user`(`name`/`email`/`password`) | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.users.create` | `account_id`, `name`, `email`, `password`, `role` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
@@ -315,7 +318,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 
 | 상태 | 진입 | 부수 효과 | 다음 |
 |---|---|---|---|
-| `unassigned` | 고객 첫 인입, 담당자 없음 | 인박스 큐, 자동배정 큐, greeting | `open`, `pending`, `snoozed`, `resolved` |
+| `unassigned` | 고객 첫 인입, 담당자 없음 | 인박스 큐, 자동배정 큐. 영업시간 밖이거나 온라인 풀이 비면 `greeting_message` 1회 | `open`, `pending`, `snoozed`, `resolved` |
 | `open` | 배정 또는 수동 접수, reopen | FRT/NRT 타이머 | `pending`, `snoozed`, `resolved`, `unassigned` |
 | `pending` | 상담원이 고객 확인 요청 | NRT 일시정지 | `open`, `resolved` |
 | `snoozed` | `snoozed_until` 지정 | 큐 숨김. 시각 도래는 NATS 스케줄 → svc-core `WakeDue` FSM으로 `open`. 고객 메시지 시에도 `open` | `open`, `resolved` |
@@ -361,7 +364,8 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `POST /api/v1/accounts/{account_id}/macros`
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/macros/{macro_id}/execute`
 - `PUT /api/v1/accounts/{account_id}/inboxes/{inbox_id}/members/{user_id}`
-- `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}`
+- `GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`hmac_secret` administrator, `greeting_message`, `business_hours_enabled`, `business_hours`)
+- `PATCH /api/v1/accounts/{account_id}/inboxes/{inbox_id}` (`greeting_message`, `business_hours_enabled`, `business_hours`. administrator)
 - `POST /api/v1/accounts/{account_id}/inboxes/{inbox_id}/hmac/rotate`
 - `GET /api/v1/accounts/{account_id}/conversations` (기본 작업 큐, `resolved` 제외. 담당자 쿼리 없음)
 - `GET /api/v1/accounts/{account_id}/conversations/{id}/messages`
@@ -554,6 +558,8 @@ CREATE TABLE inboxes (
     greeting_message TEXT,
     business_hours_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     business_hours JSONB DEFAULT '{}'::jsonb NOT NULL,
+    -- business_hours 예: {"timezone":"Asia/Seoul","week":{"mon":[["09:00","18:00"]],"sat":[]}}
+    -- enabled=false 또는 {} → 24/7. 키 없음/빈 배열 → 그날 휴무.
     hmac_secret VARCHAR(255) NOT NULL,
     email_address VARCHAR(255),
     kakao_sender_key VARCHAR(255),

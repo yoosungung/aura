@@ -48,6 +48,12 @@ export function connect(session, onEvent, deps = {}) {
   let socket;
   let token = session.token;
   const refresh = deps.refresh || session.refresh;
+  function send(payload) {
+    if (!socket || (socket.readyState !== 1 && socket.readyState != null)) {
+      return;
+    }
+    socket.send(typeof payload === "string" ? payload : JSON.stringify(payload));
+  }
   function open(nextToken) {
     if (closed || !nextToken) {
       return;
@@ -83,10 +89,12 @@ export function connect(session, onEvent, deps = {}) {
     };
   }
   open(token);
-  return () => {
+  function stop() {
     closed = true;
     socket?.close();
-  };
+  }
+  stop.send = send;
+  return stop;
 }
 
 export async function sendReply(req, fetchImpl = fetch) {
@@ -391,6 +399,27 @@ export async function rotateHmac(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function updateInbox(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, inboxId, greetingMessage, businessHoursEnabled, businessHours } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      greeting_message: greetingMessage || "",
+      business_hours_enabled: !!businessHoursEnabled,
+      business_hours: businessHours || {},
+    }),
+  });
+  if (!res.ok) {
+    throw new Error("inbox update failed");
+  }
+  return res.json();
+}
+
 export async function listAccountLabels(req, fetchImpl = fetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
@@ -667,6 +696,7 @@ export const liveClient = {
   listInboxMembers,
   getInbox,
   rotateHmac,
+  updateInbox,
   assignConversation,
   sendNote,
   snoozeConversation,

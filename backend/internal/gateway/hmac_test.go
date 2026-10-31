@@ -1,6 +1,7 @@
 package gateway_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -15,9 +16,11 @@ import (
 type fakeInboxes struct {
 	got     gateway.InboxHMAC
 	rotated gateway.InboxHMAC
+	updated gateway.InboxHMAC
 	err     error
 	gets    int
 	rotates int
+	updates int
 }
 
 func (f *fakeInboxes) GetInbox(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (gateway.InboxHMAC, error) {
@@ -27,6 +30,14 @@ func (f *fakeInboxes) GetInbox(context.Context, uuid.UUID, uuid.UUID, uuid.UUID)
 func (f *fakeInboxes) RotateHMAC(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (gateway.InboxHMAC, error) {
 	f.rotates++
 	return f.rotated, f.err
+}
+func (f *fakeInboxes) UpdateInbox(_ context.Context, _, _, _ uuid.UUID, greeting string, hoursOn bool, hours json.RawMessage) (gateway.InboxHMAC, error) {
+	f.updates++
+	f.updated = gateway.InboxHMAC{
+		ID: f.got.ID, Name: f.got.Name, ChannelType: f.got.ChannelType, HMACSecret: f.got.HMACSecret,
+		GreetingMessage: greeting, BusinessHoursEnabled: hoursOn, BusinessHours: hours,
+	}
+	return f.updated, f.err
 }
 
 func TestHTTP_AdminGetsAndRotatesInboxHMAC(t *testing.T) {
@@ -107,5 +118,43 @@ func TestHTTP_AgentDeniedInboxHMAC(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != http.StatusForbidden {
 		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_AdminPatchesInboxGreeting(t *testing.T) {
+	accountID, actorID, inboxID := mustV7(t), mustV7(t), mustV7(t)
+	box := &fakeInboxes{got: gateway.InboxHMAC{ID: inboxID, Name: "web", ChannelType: "web", HMACSecret: "secret"}}
+	srv := httptest.NewServer((&gateway.Server{
+		Service: &gateway.Service{Secret: secret, Inboxes: box},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	body, _ := json.Marshal(map[string]any{
+		"greeting_message": "부재중", "business_hours_enabled": true,
+		"business_hours": map[string]any{"timezone": "Asia/Seoul"},
+	})
+	req, err := http.NewRequest(http.MethodPatch,
+		srv.URL+"/api/v1/accounts/"+accountID.String()+"/inboxes/"+inboxID.String(), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+userToken(t, accountID, actorID))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	var got struct {
+		Greeting string `json:"greeting_message"`
+		HoursOn  bool   `json:"business_hours_enabled"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Greeting != "부재중" || !got.HoursOn || box.updates != 1 {
+		t.Fatalf("%+v updates=%d", got, box.updates)
 	}
 }

@@ -125,3 +125,40 @@ func TestRPC_InboxGetAndRotateHMAC(t *testing.T) {
 		t.Fatalf("%s", reply.Data)
 	}
 }
+
+func TestUpdateInbox_GreetingAndHours(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss@acme.test", "administrator", "s3cret")
+	agentID := seedUser(t, admin, accountID, "ada@acme.test", "agent", "s3cret")
+	svc := &core.Service{DB: app}
+	hours := json.RawMessage(`{"timezone":"Asia/Seoul","week":{"mon":[["09:00","18:00"]]}}`)
+
+	if _, err := svc.UpdateInbox(ctx, core.InboxUpdate{
+		MemberInput: core.MemberInput{ActorUserID: agentID, AccountID: accountID, InboxID: inboxID},
+		GreetingMessage: "hi", BusinessHoursEnabled: true, BusinessHours: hours,
+	}); err != core.ErrDenied {
+		t.Fatalf("agent update got %v", err)
+	}
+
+	got, err := svc.UpdateInbox(ctx, core.InboxUpdate{
+		MemberInput:          core.MemberInput{ActorUserID: adminID, AccountID: accountID, InboxID: inboxID},
+		GreetingMessage:      "부재중입니다",
+		BusinessHoursEnabled: true,
+		BusinessHours:        hours,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GreetingMessage != "부재중입니다" || !got.BusinessHoursEnabled {
+		t.Fatalf("%+v", got)
+	}
+	stored, err := svc.GetInbox(ctx, core.MemberInput{ActorUserID: adminID, AccountID: accountID, InboxID: inboxID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.GreetingMessage != "부재중입니다" || !stored.BusinessHoursEnabled {
+		t.Fatalf("%+v", stored)
+	}
+}

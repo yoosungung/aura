@@ -549,3 +549,62 @@ test("setUser without identifier_hash does not bind identity", async () => {
   });
   assert.equal(frame.identifier(), "");
 });
+
+test("frame sends debounced typing and paints agent indicator", async () => {
+  const win = fakeFrame();
+  const log = messageLog();
+  const sent = [];
+  let sock;
+  win.document = {
+    ...log.document,
+    getElementById(id) {
+      if (id === "messages") {
+        return log.document.getElementById(id);
+      }
+      return null;
+    },
+  };
+  const frame = createFrame(win, {
+    async fetch(url) {
+      if (String(url).endsWith("/auth")) {
+        return { ok: true, json: async () => ({ access_token: "access" }) };
+      }
+      return { ok: true, json: async () => ({ conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor() {
+        this.readyState = 1;
+        sock = this;
+      }
+      send(data) {
+        sent.push(data);
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("hi");
+  const input = {
+    listeners: {},
+    addEventListener(type, fn) {
+      this.listeners[type] = fn;
+    },
+  };
+  frame.watchComposer(input);
+  input.listeners.input();
+  assert.equal(JSON.parse(sent.at(-1)).type, "typing");
+  assert.equal(JSON.parse(sent.at(-1)).is_typing, true);
+  sock.onmessage({
+    data: JSON.stringify({
+      type: "event",
+      event: "typing",
+      user_type: "User",
+      is_typing: true,
+    }),
+  });
+  assert.equal(log.items.at(-1).textContent, "입력 중");
+  assert.equal(log.items.at(-1).dataset.typing, "true");
+});
+

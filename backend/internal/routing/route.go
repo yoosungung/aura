@@ -17,10 +17,15 @@ type Assigner interface {
 	Assign(ctx context.Context, in core.AssignInput) (core.AssignResult, error)
 }
 
+type Greeter interface {
+	Greet(ctx context.Context, in core.GreetInput) error
+}
+
 type Service struct {
 	DB       DB
 	Capacity Store
 	Assigner Assigner
+	Greeter  Greeter
 	Now      func() time.Time
 }
 
@@ -41,12 +46,14 @@ func (s *Service) Route(ctx context.Context, accountID, inboxID, conversationID 
 	var assignee uuid.UUID
 	var enabled bool
 	var capacity int
+	var hoursOn bool
+	var hours []byte
 	err = tx.QueryRow(ctx, `
 		SELECT c.status, c.version, COALESCE(c.assignee_id, '00000000-0000-0000-0000-000000000000'::uuid),
-			i.enable_auto_assignment, i.auto_assignment_capacity
+			i.enable_auto_assignment, i.auto_assignment_capacity, i.business_hours_enabled, i.business_hours
 		FROM conversations c JOIN inboxes i ON i.id = c.inbox_id
 		WHERE c.id = $1`, conversationID,
-	).Scan(&status, &version, &assignee, &enabled, &capacity)
+	).Scan(&status, &version, &assignee, &enabled, &capacity, &hoursOn, &hours)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil
@@ -55,6 +62,12 @@ func (s *Service) Route(ctx context.Context, accountID, inboxID, conversationID 
 	}
 	if !enabled || status != core.StatusUnassigned || assignee != uuid.Nil {
 		return tx.Commit(ctx)
+	}
+	if !OpenNow(s.now(), hoursOn, hours) {
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
+		return s.greet(ctx, accountID, conversationID, traceID)
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT u.id FROM inbox_members m
@@ -81,7 +94,7 @@ func (s *Service) Route(ctx context.Context, accountID, inboxID, conversationID 
 		return err
 	}
 	if len(agents) == 0 {
-		return nil
+		return s.greet(ctx, accountID, conversationID, traceID)
 	}
 	start, err := s.Capacity.NextCursor(ctx, accountID, inboxID, len(agents))
 	if err != nil {
@@ -108,5 +121,14 @@ func (s *Service) Route(ctx context.Context, accountID, inboxID, conversationID 
 		}
 		return nil
 	}
-	return nil
+	return s.greet(ctx, accountID, conversationID, traceID)
+}
+
+func (s *Service) greet(ctx context.Context, accountID, conversationID uuid.UUID, traceID string) error {
+	if s.Greeter == nil {
+		return nil
+	}
+	return s.Greeter.Greet(ctx, core.GreetInput{
+		AccountID: accountID, ConversationID: conversationID, TraceID: traceID,
+	})
 }
