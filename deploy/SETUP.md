@@ -31,6 +31,8 @@ curl -H "Authorization: Bearer $AURA_PLATFORM_TOKEN" -H 'Content-Type: applicati
   http://127.0.0.1:8080/platform/api/v1/accounts
 ```
 
+계정·유저 목록·수정·삭제는 [operator/README.md](operator/README.md) (`node deploy/operator/aura.mjs`).
+
 LLM 키가 비면 `svc-ai-agent`는 결정적 stub이다. 실모델은 `AURA_LLM_API_KEY`와 `AURA_LLM_BASE_URL`.
 
 필수 시크릿: `AURA_TOKEN_SECRET`, `AURA_PLATFORM_TOKEN`. 선택: `AURA_LLM_API_KEY`, `AURA_KAKAO_API_URL`, `AURA_KAKAO_API_KEY`.

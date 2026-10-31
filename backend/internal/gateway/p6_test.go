@@ -14,8 +14,12 @@ import (
 )
 
 type fakePlatform struct {
-	out gateway.PlatformOut
-	err error
+	out      gateway.PlatformOut
+	err      error
+	accounts []gateway.AccountRow
+	users    []gateway.UserRow
+	account  gateway.AccountRow
+	user     gateway.UserRow
 }
 
 func (f *fakePlatform) ProvisionAccount(context.Context, string, string, string, string, string) (gateway.PlatformOut, error) {
@@ -23,6 +27,24 @@ func (f *fakePlatform) ProvisionAccount(context.Context, string, string, string,
 }
 func (f *fakePlatform) ProvisionUser(context.Context, uuid.UUID, string, string, string, string) (gateway.PlatformOut, error) {
 	return f.out, f.err
+}
+func (f *fakePlatform) ListAccounts(context.Context) ([]gateway.AccountRow, error) {
+	return f.accounts, f.err
+}
+func (f *fakePlatform) UpdateAccount(_ context.Context, _ uuid.UUID, _, _ string) (gateway.AccountRow, error) {
+	return f.account, f.err
+}
+func (f *fakePlatform) DeleteAccount(context.Context, uuid.UUID) error {
+	return f.err
+}
+func (f *fakePlatform) ListUsers(context.Context, uuid.UUID) ([]gateway.UserRow, error) {
+	return f.users, f.err
+}
+func (f *fakePlatform) UpdateUser(context.Context, gateway.UpdateUserIn) (gateway.UserRow, error) {
+	return f.user, f.err
+}
+func (f *fakePlatform) DeleteUser(context.Context, uuid.UUID) error {
+	return f.err
 }
 
 type fakeWebhooks struct {
@@ -116,6 +138,56 @@ func TestHTTP_PlatformAccountRequiresToken(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/platform/api/v1/accounts", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer plat")
 	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_PlatformAccountListRequiresToken(t *testing.T) {
+	accountID := mustV7(t)
+	srv := httptest.NewServer((&gateway.Server{
+		PlatformToken: "plat",
+		Service: &gateway.Service{Platform: &fakePlatform{accounts: []gateway.AccountRow{{
+			ID: accountID, Name: "Acme", Locale: "ko",
+		}}}},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Get(srv.URL + "/platform/api/v1/accounts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/platform/api/v1/accounts", nil)
+	req.Header.Set("Authorization", "Bearer plat")
+	res, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestHTTP_PlatformUserListRequiresToken(t *testing.T) {
+	accountID, userID := mustV7(t), mustV7(t)
+	srv := httptest.NewServer((&gateway.Server{
+		PlatformToken: "plat",
+		Service: &gateway.Service{Platform: &fakePlatform{users: []gateway.UserRow{{
+			ID: userID, AccountID: accountID, Name: "Ada", Email: "ada@acme.test", Role: "administrator",
+		}}}},
+	}).Handler())
+	t.Cleanup(srv.Close)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/platform/api/v1/users?account_id="+accountID.String(), nil)
+	req.Header.Set("Authorization", "Bearer plat")
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

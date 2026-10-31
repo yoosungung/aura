@@ -16,7 +16,13 @@ func (s *Service) subscribeP6(nc *nats.Conn) error {
 	}
 	subs := []sub{
 		{SubjectPlatformAccount, s.handlePlatformAccount},
+		{SubjectPlatformAccountList, s.handlePlatformAccountList},
+		{SubjectPlatformAccountUpdate, s.handlePlatformAccountUpdate},
+		{SubjectPlatformAccountDelete, s.handlePlatformAccountDelete},
 		{SubjectPlatformUser, s.handlePlatformUser},
+		{SubjectPlatformUserList, s.handlePlatformUserList},
+		{SubjectPlatformUserUpdate, s.handlePlatformUserUpdate},
+		{SubjectPlatformUserDelete, s.handlePlatformUserDelete},
 		{SubjectWebhookList, s.handleWebhookList},
 		{SubjectWebhookCreate, s.handleWebhookCreate},
 		{SubjectWebhookUpdate, s.handleWebhookUpdate},
@@ -104,6 +110,151 @@ func (s *Service) handlePlatformUser(msg *nats.Msg) {
 	body, _ := json.Marshal(map[string]any{
 		"ok": true, "account_id": out.AccountID.String(), "user_id": out.UserID.String(), "role": out.Role,
 	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handlePlatformAccountList(msg *nats.Msg) {
+	list, err := s.ListAccounts(context.Background())
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, a := range list {
+		rows = append(rows, map[string]any{"id": a.ID.String(), "name": a.Name, "locale": a.Locale})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "accounts": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handlePlatformAccountUpdate(msg *nats.Msg) {
+	var req struct {
+		AccountID string `json:"account_id"`
+		Name      string `json:"name"`
+		Locale    string `json:"locale"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	id, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateAccount(context.Background(), id, req.Name, req.Locale)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"ok": true, "account": map[string]any{"id": out.ID.String(), "name": out.Name, "locale": out.Locale},
+	})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handlePlatformAccountDelete(msg *nats.Msg) {
+	var req struct {
+		AccountID string `json:"account_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	id, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.DeleteAccount(context.Background(), id); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handlePlatformUserList(msg *nats.Msg) {
+	var req struct {
+		AccountID string `json:"account_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	accountID, err := uuid.Parse(req.AccountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	list, err := s.ListUsers(context.Background(), accountID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, u := range list {
+		rows = append(rows, map[string]any{
+			"id": u.ID.String(), "account_id": u.AccountID.String(),
+			"name": u.Name, "email": u.Email, "role": u.Role,
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "users": rows})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handlePlatformUserUpdate(msg *nats.Msg) {
+	var req struct {
+		UserID    string `json:"user_id"`
+		AccountID string `json:"account_id"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		Role      string `json:"role"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	id, err := uuid.Parse(req.UserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	out, err := s.UpdateUser(context.Background(), UpdateUserInput{
+		ID: id, AccountID: parseUUID(req.AccountID), Name: req.Name,
+		Email: req.Email, Password: req.Password, Role: req.Role,
+	})
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	user := map[string]any{"id": out.ID.String(), "name": out.Name, "email": out.Email, "role": out.Role}
+	if out.AccountID != uuid.Nil {
+		user["account_id"] = out.AccountID.String()
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true, "user": user})
+	_ = msg.Respond(body)
+}
+
+func (s *Service) handlePlatformUserDelete(msg *nats.Msg) {
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.Unmarshal(msg.Data, &req); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	id, err := uuid.Parse(req.UserID)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.DeleteUser(context.Background(), id); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
 	_ = msg.Respond(body)
 }
 

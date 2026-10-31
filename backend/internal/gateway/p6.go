@@ -20,9 +20,38 @@ type PlatformOut struct {
 	Role       string
 }
 
+type AccountRow struct {
+	ID     uuid.UUID
+	Name   string
+	Locale string
+}
+
+type UserRow struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+	Name      string
+	Email     string
+	Role      string
+}
+
+type UpdateUserIn struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+	Name      string
+	Email     string
+	Password  string
+	Role      string
+}
+
 type Platform interface {
 	ProvisionAccount(ctx context.Context, name, locale, userName, email, password string) (PlatformOut, error)
 	ProvisionUser(ctx context.Context, account uuid.UUID, name, email, password, role string) (PlatformOut, error)
+	ListAccounts(ctx context.Context) ([]AccountRow, error)
+	UpdateAccount(ctx context.Context, id uuid.UUID, name, locale string) (AccountRow, error)
+	DeleteAccount(ctx context.Context, id uuid.UUID) error
+	ListUsers(ctx context.Context, account uuid.UUID) ([]UserRow, error)
+	UpdateUser(ctx context.Context, in UpdateUserIn) (UserRow, error)
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
 type WebhookOut struct {
@@ -138,6 +167,148 @@ func (s *Server) handlePlatformUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"account_id": out.AccountID.String(), "user_id": out.UserID.String(), "role": out.Role,
 	})
+}
+
+func (s *Server) handlePlatformAccountList(w http.ResponseWriter, r *http.Request) {
+	if !s.platformOK(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if s.Service.Platform == nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	list, err := s.Service.Platform.ListAccounts(r.Context())
+	if err != nil {
+		writeCatalogErr(w, err)
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, a := range list {
+		rows = append(rows, map[string]any{"id": a.ID.String(), "name": a.Name, "locale": a.Locale})
+	}
+	writeJSON(w, map[string]any{"accounts": rows})
+}
+
+func (s *Server) handlePlatformAccountMutate(w http.ResponseWriter, r *http.Request) {
+	if !s.platformOK(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if s.Service.Platform == nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("account_id"))
+	if err != nil {
+		http.Error(w, "invalid account", http.StatusBadRequest)
+		return
+	}
+	switch r.Method {
+	case http.MethodPatch:
+		var body struct {
+			Name   string `json:"name"`
+			Locale string `json:"locale"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		got, err := s.Service.Platform.UpdateAccount(r.Context(), id, body.Name, body.Locale)
+		if err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]any{"id": got.ID.String(), "name": got.Name, "locale": got.Locale})
+	case http.MethodDelete:
+		if err := s.Service.Platform.DeleteAccount(r.Context(), id); err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		http.Error(w, "method", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handlePlatformUserList(w http.ResponseWriter, r *http.Request) {
+	if !s.platformOK(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if s.Service.Platform == nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	accountID, err := uuid.Parse(r.URL.Query().Get("account_id"))
+	if err != nil {
+		http.Error(w, "invalid account", http.StatusBadRequest)
+		return
+	}
+	list, err := s.Service.Platform.ListUsers(r.Context(), accountID)
+	if err != nil {
+		writeCatalogErr(w, err)
+		return
+	}
+	rows := make([]map[string]any, 0, len(list))
+	for _, u := range list {
+		rows = append(rows, map[string]any{
+			"id": u.ID.String(), "account_id": u.AccountID.String(),
+			"name": u.Name, "email": u.Email, "role": u.Role,
+		})
+	}
+	writeJSON(w, map[string]any{"users": rows})
+}
+
+func (s *Server) handlePlatformUserMutate(w http.ResponseWriter, r *http.Request) {
+	if !s.platformOK(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if s.Service.Platform == nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("user_id"))
+	if err != nil {
+		http.Error(w, "invalid user", http.StatusBadRequest)
+		return
+	}
+	switch r.Method {
+	case http.MethodPatch:
+		var body struct {
+			AccountID string `json:"account_id"`
+			Name      string `json:"name"`
+			Email     string `json:"email"`
+			Password  string `json:"password"`
+			Role      string `json:"role"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		got, err := s.Service.Platform.UpdateUser(r.Context(), UpdateUserIn{
+			ID: id, AccountID: parseUUID(body.AccountID), Name: body.Name,
+			Email: body.Email, Password: body.Password, Role: body.Role,
+		})
+		if err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		out := map[string]any{"id": got.ID.String(), "name": got.Name, "email": got.Email, "role": got.Role}
+		if got.AccountID != uuid.Nil {
+			out["account_id"] = got.AccountID.String()
+		}
+		writeJSON(w, out)
+	case http.MethodDelete:
+		if err := s.Service.Platform.DeleteUser(r.Context(), id); err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		http.Error(w, "method", http.StatusMethodNotAllowed)
+	}
 }
 
 func (s *Server) handleWebhooks(w http.ResponseWriter, r *http.Request) {
@@ -463,6 +634,97 @@ func (r *natsRPC) ProvisionUser(ctx context.Context, account uuid.UUID, name, em
 	return PlatformOut{
 		AccountID: parseUUID(asString(raw["account_id"])), UserID: parseUUID(asString(raw["user_id"])), Role: asString(raw["role"]),
 	}, nil
+}
+
+func (r *natsRPC) ListAccounts(ctx context.Context) ([]AccountRow, error) {
+	raw, err := r.call(ctx, core.SubjectPlatformAccountList, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	return decodeAccountRows(raw["accounts"]), nil
+}
+
+func (r *natsRPC) UpdateAccount(ctx context.Context, id uuid.UUID, name, locale string) (AccountRow, error) {
+	raw, err := r.call(ctx, core.SubjectPlatformAccountUpdate, map[string]any{
+		"account_id": id.String(), "name": name, "locale": locale,
+	})
+	if err != nil {
+		return AccountRow{}, err
+	}
+	return decodeAccountRow(asMap(raw["account"])), nil
+}
+
+func (r *natsRPC) DeleteAccount(ctx context.Context, id uuid.UUID) error {
+	_, err := r.call(ctx, core.SubjectPlatformAccountDelete, map[string]any{"account_id": id.String()})
+	return err
+}
+
+func (r *natsRPC) ListUsers(ctx context.Context, account uuid.UUID) ([]UserRow, error) {
+	raw, err := r.call(ctx, core.SubjectPlatformUserList, map[string]any{"account_id": account.String()})
+	if err != nil {
+		return nil, err
+	}
+	return decodeUserRows(raw["users"]), nil
+}
+
+func (r *natsRPC) UpdateUser(ctx context.Context, in UpdateUserIn) (UserRow, error) {
+	raw, err := r.call(ctx, core.SubjectPlatformUserUpdate, map[string]any{
+		"user_id": in.ID.String(), "account_id": in.AccountID.String(),
+		"name": in.Name, "email": in.Email, "password": in.Password, "role": in.Role,
+	})
+	if err != nil {
+		return UserRow{}, err
+	}
+	return decodeUserRow(asMap(raw["user"])), nil
+}
+
+func (r *natsRPC) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := r.call(ctx, core.SubjectPlatformUserDelete, map[string]any{"user_id": id.String()})
+	return err
+}
+
+func asMap(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}
+
+func decodeAccountRow(m map[string]any) AccountRow {
+	if m == nil {
+		return AccountRow{}
+	}
+	return AccountRow{ID: parseUUID(asString(m["id"])), Name: asString(m["name"]), Locale: asString(m["locale"])}
+}
+
+func decodeAccountRows(v any) []AccountRow {
+	raw, _ := v.([]any)
+	out := make([]AccountRow, 0, len(raw))
+	for _, item := range raw {
+		if m, ok := item.(map[string]any); ok {
+			out = append(out, decodeAccountRow(m))
+		}
+	}
+	return out
+}
+
+func decodeUserRow(m map[string]any) UserRow {
+	if m == nil {
+		return UserRow{}
+	}
+	return UserRow{
+		ID: parseUUID(asString(m["id"])), AccountID: parseUUID(asString(m["account_id"])),
+		Name: asString(m["name"]), Email: asString(m["email"]), Role: asString(m["role"]),
+	}
+}
+
+func decodeUserRows(v any) []UserRow {
+	raw, _ := v.([]any)
+	out := make([]UserRow, 0, len(raw))
+	for _, item := range raw {
+		if m, ok := item.(map[string]any); ok {
+			out = append(out, decodeUserRow(m))
+		}
+	}
+	return out
 }
 
 func (r *natsRPC) ListWebhooks(ctx context.Context, actor, account uuid.UUID) ([]WebhookOut, error) {

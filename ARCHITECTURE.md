@@ -126,7 +126,13 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.conversations.greet` | `account_id`, `conversation_id` | sla-routing | svc-core |
 | Core | `helpdesk.rpc.inboxes.update` | `actor_user_id`, `inbox_id`, `greeting_message`, `business_hours_enabled`, `business_hours` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.accounts.create` | `name`, `locale`, `user`(`name`/`email`/`password`) | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.accounts.list` | (없음) | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.accounts.update` | `account_id`, `name`, `locale` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.accounts.delete` | `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.platform.users.create` | `account_id`, `name`, `email`, `password`, `role` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.users.list` | `account_id` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.users.update` | `user_id`, `name`, `email`, `password`, `role`, `account_id`(role 변경 시) | gateway-web | svc-core |
+| Core | `helpdesk.rpc.platform.users.delete` | `user_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.create` | `actor_user_id`, `account_id`, `url`, `subscriptions` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.webhooks.update` | `actor_user_id`, `account_id`, `webhook_id`, `url`, `subscriptions`. administrator. 시크릿은 유지 | gateway-web | svc-core |
@@ -343,7 +349,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 |---|---|---|---|---|
 | Application API | 상담원·관리자·SPA | User Bearer (짧은 만료 HMAC) | `/api/v1/accounts/{account_id}` | 배속 인박스의 대화·설정 |
 | Client API | 위젯·모바일 | Contact Bearer (짧은 만료 HMAC) | `/public/api/v1/inboxes/{inbox_id}` | 자기 대화만 |
-| Platform API | 슈퍼어드민·프로비저너 | platform token | `/platform/api/v1` | 테넌트·유저 생성 |
+| Platform API | 슈퍼어드민·프로비저너 | platform token | `/platform/api/v1` | 테넌트·유저 CRUD |
 
 인증 경로 (계정 경로 밖):
 
@@ -393,7 +399,13 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `POST /public/api/v1/inboxes/{inbox_id}/csat` (`rating` 1–5, `feedback` optional. Contact 토큰, 자기 대화)
 - `GET /public/api/v1/inboxes/{inbox_id}/articles?q=` 게시된 Help Center. Contact 토큰 없음
 - `POST /platform/api/v1/accounts` `{ name, locale, user: { name, email, password } }` → 계정·administrator·기본 웹 인박스
+- `GET /platform/api/v1/accounts` → `{ accounts: [{ id, name, locale }] }`
+- `PATCH /platform/api/v1/accounts/{account_id}` `{ name, locale }`
+- `DELETE /platform/api/v1/accounts/{account_id}`
 - `POST /platform/api/v1/users` `{ account_id, name, email, password, role }`
+- `GET /platform/api/v1/users?account_id=` → `{ users: [{ id, account_id, name, email, role }] }`
+- `PATCH /platform/api/v1/users/{user_id}` `{ name, email, password, role, account_id }` (`role`은 `account_id` 필요)
+- `DELETE /platform/api/v1/users/{user_id}`
 - `GET`/`POST /api/v1/accounts/{account_id}/webhooks`
 - `PATCH /api/v1/accounts/{account_id}/webhooks/{webhook_id}`
 - `DELETE /api/v1/accounts/{account_id}/webhooks/{webhook_id}`

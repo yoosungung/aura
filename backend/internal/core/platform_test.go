@@ -86,3 +86,153 @@ func TestProvisionUser_AddsAgent(t *testing.T) {
 		t.Fatalf("role %s", role)
 	}
 }
+
+func TestListAccounts_ReturnsProvisioned(t *testing.T) {
+	ctx := context.Background()
+	_, app := testutil.Postgres(t)
+	svc := &core.Service{DB: app}
+	acct, err := svc.ProvisionAccount(ctx, core.ProvisionAccountInput{
+		Name: "Acme", Locale: "ko",
+		User: core.ProvisionUserInput{Name: "Ada", Email: "ada@acme.test", Password: "s3cret-pass"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListAccounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, row := range list {
+		if row.ID == acct.AccountID && row.Name == "Acme" && row.Locale == "ko" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("%+v", list)
+	}
+}
+
+func TestUpdateAccount_Renames(t *testing.T) {
+	ctx := context.Background()
+	_, app := testutil.Postgres(t)
+	svc := &core.Service{DB: app}
+	acct, err := svc.ProvisionAccount(ctx, core.ProvisionAccountInput{
+		Name: "Acme", Locale: "ko",
+		User: core.ProvisionUserInput{Name: "Ada", Email: "ada@acme.test", Password: "s3cret-pass"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.UpdateAccount(ctx, acct.AccountID, "Renamed", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Renamed" || got.Locale != "en" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestDeleteAccount_RemovesRow(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	svc := &core.Service{DB: app}
+	acct, err := svc.ProvisionAccount(ctx, core.ProvisionAccountInput{
+		Name: "Acme", Locale: "ko",
+		User: core.ProvisionUserInput{Name: "Ada", Email: "ada@acme.test", Password: "s3cret-pass"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteAccount(ctx, acct.AccountID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM accounts WHERE id = $1`, acct.AccountID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("count %d", n)
+	}
+}
+
+func TestListUsers_ByAccount(t *testing.T) {
+	ctx := context.Background()
+	_, app := testutil.Postgres(t)
+	svc := &core.Service{DB: app}
+	acct, err := svc.ProvisionAccount(ctx, core.ProvisionAccountInput{
+		Name: "Acme",
+		User: core.ProvisionUserInput{Name: "Ada", Email: "ada@acme.test", Password: "s3cret-pass"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ProvisionUser(ctx, core.ProvisionUserInput{
+		AccountID: acct.AccountID, Name: "Bob", Email: "bob@acme.test", Password: "s3cret-pass", Role: "agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListUsers(ctx, acct.AccountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("%+v", list)
+	}
+}
+
+func TestUpdateUser_Name(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	svc := &core.Service{DB: app}
+	acct, err := svc.ProvisionAccount(ctx, core.ProvisionAccountInput{
+		Name: "Acme",
+		User: core.ProvisionUserInput{Name: "Ada", Email: "ada@acme.test", Password: "s3cret-pass"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.UpdateUser(ctx, core.UpdateUserInput{ID: acct.UserID, Name: "Ada Lovelace"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Ada Lovelace" {
+		t.Fatalf("%+v", got)
+	}
+	var name string
+	if err := admin.QueryRow(ctx, `SELECT name FROM users WHERE id = $1`, acct.UserID).Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Ada Lovelace" {
+		t.Fatalf("name %s", name)
+	}
+}
+
+func TestDeleteUser_RemovesRow(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	svc := &core.Service{DB: app}
+	acct, err := svc.ProvisionAccount(ctx, core.ProvisionAccountInput{
+		Name: "Acme",
+		User: core.ProvisionUserInput{Name: "Ada", Email: "ada@acme.test", Password: "s3cret-pass"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob, err := svc.ProvisionUser(ctx, core.ProvisionUserInput{
+		AccountID: acct.AccountID, Name: "Bob", Email: "bob@acme.test", Password: "s3cret-pass", Role: "agent",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteUser(ctx, bob.UserID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, bob.UserID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("count %d", n)
+	}
+}

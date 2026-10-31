@@ -31,4 +31,4 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 kubectl get svc -n aura frontend gateway-email gateway-kakao
 ```
 
-로컬 compose 기본 로그인은 [deploy/compose/README.md](deploy/compose/README.md). 추가 테넌트는 Platform API(`AURA_PLATFORM_TOKEN`), 예는 [deploy/SETUP.md](deploy/SETUP.md).
+로컬 compose 기본 로그인은 [deploy/compose/README.md](deploy/compose/README.md). 추가 테넌트는 Platform API(`AURA_PLATFORM_TOKEN`), 예는 [deploy/SETUP.md](deploy/SETUP.md). 계정·유저 CRUD 스크립트는 [deploy/operator/README.md](deploy/operator/README.md).
