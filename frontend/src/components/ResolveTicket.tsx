@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { Button } from "./ui/button.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Conversation, Session } from "../store.js";
 
-export function ResolveTicket({ session, conversation, client, onResolved }) {
+type ResolveTicketProps = {
+  session: Session;
+  conversation: Conversation;
+  client: Partial<HelpdeskClient>;
+  onResolved?: (next: { conversationId: string; status?: string; version?: number }) => void;
+};
+
+export function ResolveTicket({ session, conversation, client, onResolved }: ResolveTicketProps) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
-  async function onStatus(newStatus) {
+  async function onStatus(newStatus: string) {
     if (!client.resolveConversation) {
       return;
     }

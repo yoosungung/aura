@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
-import { App } from "./App.jsx";
+import { App } from "./App.js";
 import { fixtureState } from "./store.js";
 
 if (typeof window !== "undefined") {

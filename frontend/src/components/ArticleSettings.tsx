@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function ArticleSettings({ session, client }) {
-  const [articles, setArticles] = useState([]);
+type Article = { id?: string; slug?: string; title?: string };
+
+type ArticleSettingsProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function ArticleSettings({ session, client }: ArticleSettingsProps) {
+  const [articles, setArticles] = useState<Article[]>([]);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [body, setBody] = useState("");
@@ -33,7 +42,7 @@ export function ArticleSettings({ session, client }) {
     };
   }, [client, session]);
 
-  async function onCreate(e) {
+  async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (!client.createArticle || !title.trim() || !slug.trim() || !body.trim()) {
       return;
@@ -58,7 +67,7 @@ export function ArticleSettings({ session, client }) {
     }
   }
 
-  async function onDelete(article) {
+  async function onDelete(article: Article) {
     if (!client.deleteArticle || !article?.id) {
       return;
     }

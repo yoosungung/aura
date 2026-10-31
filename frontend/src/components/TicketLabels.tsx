@@ -1,14 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Badge } from "./ui/badge.jsx";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Conversation, Session, TicketLabel } from "../store.js";
 
-export function TicketLabels({ session, conversation, client, onLabeled, onUnlabeled }) {
+type TicketLabelsProps = {
+  session: Session;
+  conversation: Conversation;
+  client: Partial<HelpdeskClient>;
+  onLabeled?: (next: { conversationId: string; label?: TicketLabel }) => void;
+  onUnlabeled?: (next: { conversationId: string; labelId: string }) => void;
+};
+
+export function TicketLabels({ session, conversation, client, onLabeled, onUnlabeled }: TicketLabelsProps) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [catalog, setCatalog] = useState([]);
+  const [catalog, setCatalog] = useState<TicketLabel[]>([]);
   const labels = conversation.labels || [];
 
   useEffect(() => {
@@ -33,7 +43,7 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
     };
   }, [client, session]);
 
-  async function attachName(value) {
+  async function attachName(value: string) {
     const next = value.trim();
     if (!next || !client.addConversationLabel) {
       return;
@@ -57,7 +67,7 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
     }
   }
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     await attachName(name);
   }
@@ -79,7 +89,7 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
                   size="sm"
                   onClick={async () => {
                     try {
-                      await client.removeConversationLabel({
+                      await client.removeConversationLabel?.({
                         gatewayUrl: session.gatewayUrl,
                         accountId: session.accountId,
                         token: session.token,
@@ -108,7 +118,7 @@ export function TicketLabels({ session, conversation, client, onLabeled, onUnlab
               variant="outline"
               size="sm"
               disabled={pending}
-              onClick={() => attachName(l.name)}
+              onClick={() => attachName(l.name || "")}
             >
               {l.name}
             </Button>

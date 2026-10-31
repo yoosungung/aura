@@ -1,11 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Conversation, Session } from "../store.js";
 
-export function TicketMacros({ session, conversation, client, onRan, allowCreate }) {
-  const [macros, setMacros] = useState([]);
+type Macro = {
+  id: string;
+  name?: string;
+};
+
+type TicketMacrosProps = {
+  session: Session;
+  conversation: Conversation;
+  client: Partial<HelpdeskClient>;
+  onRan?: (data: any) => void;
+  allowCreate?: boolean;
+};
+
+export function TicketMacros({ session, conversation, client, onRan, allowCreate }: TicketMacrosProps) {
+  const [macros, setMacros] = useState<Macro[]>([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState("");
   const [name, setName] = useState("");
@@ -29,8 +44,8 @@ export function TicketMacros({ session, conversation, client, onRan, allowCreate
         if (!cancelled) {
           setMacros(data?.macros || []);
           const menu = document.querySelector("details.macros-menu");
-          if (menu?.open) {
-            queueMicrotask(() => menu.querySelector("section.macros button")?.focus());
+          if (menu instanceof HTMLDetailsElement && menu.open) {
+            queueMicrotask(() => menu.querySelector<HTMLButtonElement>("section.macros button")?.focus());
           }
         }
       })
@@ -40,7 +55,7 @@ export function TicketMacros({ session, conversation, client, onRan, allowCreate
     };
   }, [client, session]);
 
-  async function run(macroId) {
+  async function run(macroId: string) {
     if (!client.executeMacro) {
       return;
     }
@@ -62,7 +77,7 @@ export function TicketMacros({ session, conversation, client, onRan, allowCreate
     }
   }
 
-  async function onCreate(e) {
+  async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (!client.createMacro || !name.trim()) {
       return;

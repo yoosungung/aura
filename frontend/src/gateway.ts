@@ -1,12 +1,105 @@
-export function wsUrl(gatewayUrl, token) {
+import type { Conversation, RealtimeEvent } from "./store.js";
+
+export type FetchImpl = (
+  input: string,
+  init?: RequestInit,
+) => Promise<{ ok: boolean; status: number; json: () => Promise<any> }>;
+
+export type RefreshResult = {
+  access_token?: string;
+  user?: any;
+};
+
+export type SessionUpdate = {
+  token: string;
+  access_token: string;
+  user?: any;
+};
+
+export type RefreshFn = (req: { gatewayUrl?: string }) => Promise<RefreshResult | null | undefined>;
+
+export type AuthedReq = {
+  gatewayUrl?: string;
+  accountId?: string;
+  token?: string;
+  refresh?: RefreshFn;
+  onSessionUpdate?: (next: SessionUpdate) => void;
+};
+
+export type ClientReq = AuthedReq & {
+  conversation?: Conversation;
+  conversationId?: string;
+  content?: string;
+  email?: string;
+  password?: string;
+  inboxId?: string;
+  userId?: string;
+  assigneeId?: string;
+  expectedVersion?: number;
+  labelId?: string;
+  contactId?: string;
+  executionId?: string;
+  newStatus?: string;
+  name?: string;
+  snoozedUntil?: string;
+  file?: Blob;
+  greetingMessage?: string;
+  businessHoursEnabled?: boolean;
+  businessHours?: Record<string, unknown>;
+  shortCode?: string;
+  visibility?: string;
+  actions?: unknown;
+  macroId?: string;
+  url?: string;
+  subscriptions?: string[];
+  webhook_id?: string;
+  auth_header?: string;
+  allowed_tools?: unknown;
+  high_risk_tools?: unknown;
+  mcp_server_id?: string;
+  description?: string;
+  body?: string;
+  skill_id?: string;
+  title?: string;
+  slug?: string;
+  published?: boolean;
+  article_id?: string;
+};
+
+export type StopHandle = (() => void) & { send: (payload: unknown) => void };
+
+type AuthHooks = {
+  refresh?: RefreshFn;
+  onSessionUpdate?: (next: SessionUpdate) => void;
+};
+
+type ConnectSession = {
+  token?: string;
+  gatewayUrl?: string;
+  refresh?: RefreshFn;
+};
+
+type ConnectDeps = {
+  refresh?: RefreshFn;
+  onSessionUpdate?: (next: SessionUpdate) => void;
+};
+
+const asFetch = fetch as FetchImpl;
+
+export function wsUrl(gatewayUrl: string | undefined, token: string) {
   const http = gatewayUrl || (typeof location === "undefined" ? "" : location.origin);
   return `${http.replace(/^http/, "ws")}/ws?token=${encodeURIComponent(token)}`;
 }
 
-let refreshInFlight = null;
+let refreshInFlight: Promise<RefreshResult | null | undefined> | null = null;
 
-export async function requestWithAuth(req, url, init = {}, fetchImpl = fetch) {
-  const headers = { ...(init.headers || {}) };
+export async function requestWithAuth(
+  req: AuthedReq | undefined,
+  url: string,
+  init: RequestInit = {},
+  fetchImpl: FetchImpl = asFetch,
+) {
+  const headers: Record<string, string> = { ...((init.headers as Record<string, string> | undefined) || {}) };
   if (req?.token && !headers.Authorization) {
     headers.Authorization = `Bearer ${req.token}`;
   }
@@ -17,7 +110,7 @@ export async function requestWithAuth(req, url, init = {}, fetchImpl = fetch) {
     return res;
   }
   if (!refreshInFlight) {
-    refreshInFlight = Promise.resolve(refresh({ gatewayUrl: req.gatewayUrl })).finally(() => {
+    refreshInFlight = Promise.resolve(refresh({ gatewayUrl: req?.gatewayUrl })).finally(() => {
       refreshInFlight = null;
     });
   }
@@ -26,35 +119,41 @@ export async function requestWithAuth(req, url, init = {}, fetchImpl = fetch) {
   if (!next) {
     return res;
   }
-  onSessionUpdate?.({ token: next, access_token: next, user: data.user });
+  onSessionUpdate?.({ token: next, access_token: next, user: data?.user });
   return fetchImpl(url, { ...init, headers: { ...headers, Authorization: `Bearer ${next}` } });
 }
 
-function authed(req, fetchImpl) {
+function authed(req: AuthedReq, fetchImpl: FetchImpl): FetchImpl {
   return (url, init) => requestWithAuth(req, url, init || {}, fetchImpl);
 }
 
-let authHooks = {};
+let authHooks: AuthHooks = {};
 
-export function bindAuth(hooks) {
+export function bindAuth(hooks?: AuthHooks | null) {
   authHooks = hooks || {};
 }
 
-export function connect(session, onEvent, deps = {}) {
+export function connect(
+  session: ConnectSession,
+  onEvent: (event: RealtimeEvent) => void,
+  deps: ConnectDeps = {},
+): StopHandle {
   if (!session.token || typeof WebSocket === "undefined") {
-    return () => {};
+    const noop = (() => {}) as StopHandle;
+    noop.send = () => {};
+    return noop;
   }
   let closed = false;
-  let socket;
+  let socket: WebSocket | undefined;
   let token = session.token;
   const refresh = deps.refresh || session.refresh;
-  function send(payload) {
+  function send(payload: unknown) {
     if (!socket || (socket.readyState !== 1 && socket.readyState != null)) {
       return;
     }
     socket.send(typeof payload === "string" ? payload : JSON.stringify(payload));
   }
-  function open(nextToken) {
+  function open(nextToken: string) {
     if (closed || !nextToken) {
       return;
     }
@@ -62,9 +161,9 @@ export function connect(session, onEvent, deps = {}) {
     const ws = new WebSocket(wsUrl(session.gatewayUrl, nextToken));
     socket = ws;
     ws.onmessage = (ev) => {
-      let data;
+      let data: RealtimeEvent;
       try {
-        data = JSON.parse(ev.data);
+        data = JSON.parse(String(ev.data)) as RealtimeEvent;
       } catch {
         return;
       }
@@ -89,19 +188,19 @@ export function connect(session, onEvent, deps = {}) {
     };
   }
   open(token);
-  function stop() {
+  const stop = (() => {
     closed = true;
     socket?.close();
-  }
+  }) as StopHandle;
   stop.send = send;
   return stop;
 }
 
-export async function sendReply(req, fetchImpl = fetch) {
+export async function sendReply(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversation, content } = req;
   const res = await fetchImpl(
-    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversation.id}/messages`,
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversation?.id}/messages`,
     {
       method: "POST",
       headers: {
@@ -110,9 +209,9 @@ export async function sendReply(req, fetchImpl = fetch) {
       },
       body: JSON.stringify({
         content,
-        inbox_id: conversation.inboxId,
-        contact_id: conversation.contactId,
-        contact_inbox_id: conversation.contactInboxId,
+        inbox_id: conversation?.inboxId,
+        contact_id: conversation?.contactId,
+        contact_inbox_id: conversation?.contactInboxId,
       }),
     },
   );
@@ -122,7 +221,7 @@ export async function sendReply(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function signIn({ gatewayUrl, email, password }, fetchImpl = fetch) {
+export async function signIn({ gatewayUrl, email, password }: ClientReq, fetchImpl: FetchImpl = asFetch) {
   const base = gatewayUrl || "";
   const res = await fetchImpl(`${base}/auth/sign_in`, {
     method: "POST",
@@ -136,7 +235,7 @@ export async function signIn({ gatewayUrl, email, password }, fetchImpl = fetch)
   return res.json();
 }
 
-export async function signOut({ gatewayUrl }, fetchImpl = fetch) {
+export async function signOut({ gatewayUrl }: ClientReq, fetchImpl: FetchImpl = asFetch) {
   const base = gatewayUrl || "";
   await fetchImpl(`${base}/auth/sign_out`, {
     method: "DELETE",
@@ -144,7 +243,7 @@ export async function signOut({ gatewayUrl }, fetchImpl = fetch) {
   });
 }
 
-export async function listContacts(req, fetchImpl = fetch) {
+export async function listContacts(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/contacts`, {
@@ -156,7 +255,7 @@ export async function listContacts(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function refreshSession({ gatewayUrl }, fetchImpl = fetch) {
+export async function refreshSession({ gatewayUrl }: ClientReq, fetchImpl: FetchImpl = asFetch) {
   const base = gatewayUrl || "";
   try {
     const res = await fetchImpl(`${base}/auth/refresh`, {
@@ -173,7 +272,7 @@ export async function refreshSession({ gatewayUrl }, fetchImpl = fetch) {
   }
 }
 
-export async function addInboxMember(req, fetchImpl = fetch) {
+export async function addInboxMember(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId, userId } = req;
   const res = await fetchImpl(
@@ -188,7 +287,7 @@ export async function addInboxMember(req, fetchImpl = fetch) {
   }
 }
 
-export async function listInboxMembers(req, fetchImpl = fetch) {
+export async function listInboxMembers(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
   const res = await fetchImpl(
@@ -201,7 +300,7 @@ export async function listInboxMembers(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function assignConversation(req, fetchImpl = fetch) {
+export async function assignConversation(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, assigneeId, expectedVersion } = req;
   const res = await fetchImpl(
@@ -224,7 +323,7 @@ export async function assignConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function removeConversationLabel(req, fetchImpl = fetch) {
+export async function removeConversationLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, labelId } = req;
   const res = await fetchImpl(
@@ -236,7 +335,7 @@ export async function removeConversationLabel(req, fetchImpl = fetch) {
   }
 }
 
-export async function listConversations(req, fetchImpl = fetch) {
+export async function listConversations(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/conversations`, {
@@ -248,7 +347,7 @@ export async function listConversations(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listEgo(req, fetchImpl = fetch) {
+export async function listEgo(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, contactId } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/contacts/${contactId}/ego`, {
@@ -260,7 +359,7 @@ export async function listEgo(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function approveTool(req, fetchImpl = fetch) {
+export async function approveTool(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, executionId } = req;
   const res = await fetchImpl(
@@ -273,7 +372,7 @@ export async function approveTool(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listMessages(req, fetchImpl = fetch) {
+export async function listMessages(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId } = req;
   const res = await fetchImpl(
@@ -286,7 +385,7 @@ export async function listMessages(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function resolveConversation(req, fetchImpl = fetch) {
+export async function resolveConversation(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, expectedVersion, newStatus } = req;
   const res = await fetchImpl(
@@ -309,7 +408,7 @@ export async function resolveConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function addConversationLabel(req, fetchImpl = fetch) {
+export async function addConversationLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, name } = req;
   const res = await fetchImpl(
@@ -329,7 +428,7 @@ export async function addConversationLabel(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function snoozeConversation(req, fetchImpl = fetch) {
+export async function snoozeConversation(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, snoozedUntil, expectedVersion } = req;
   const res = await fetchImpl(
@@ -352,16 +451,16 @@ export async function snoozeConversation(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function uploadAttachment(req, fetchImpl = fetch) {
+export async function uploadAttachment(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversation, file } = req;
   const body = new FormData();
-  body.append("file", file);
-  body.append("inbox_id", conversation.inboxId);
-  body.append("contact_id", conversation.contactId);
-  body.append("contact_inbox_id", conversation.contactInboxId);
+  body.append("file", file as Blob);
+  body.append("inbox_id", conversation?.inboxId as string);
+  body.append("contact_id", conversation?.contactId as string);
+  body.append("contact_inbox_id", conversation?.contactInboxId as string);
   const res = await fetchImpl(
-    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversation.id}/attachments`,
+    `${gatewayUrl}/api/v1/accounts/${accountId}/conversations/${conversation?.id}/attachments`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -374,7 +473,7 @@ export async function uploadAttachment(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function getInbox(req, fetchImpl = fetch) {
+export async function getInbox(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
@@ -386,7 +485,7 @@ export async function getInbox(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function rotateHmac(req, fetchImpl = fetch) {
+export async function rotateHmac(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}/hmac/rotate`, {
@@ -399,7 +498,7 @@ export async function rotateHmac(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function updateInbox(req, fetchImpl = fetch) {
+export async function updateInbox(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, inboxId, greetingMessage, businessHoursEnabled, businessHours } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/inboxes/${inboxId}`, {
@@ -420,7 +519,7 @@ export async function updateInbox(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listAccountLabels(req, fetchImpl = fetch) {
+export async function listAccountLabels(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
@@ -432,7 +531,7 @@ export async function listAccountLabels(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function createAccountLabel(req, fetchImpl = fetch) {
+export async function createAccountLabel(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/labels`, {
@@ -449,7 +548,7 @@ export async function createAccountLabel(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listCanned(req, fetchImpl = fetch) {
+export async function listCanned(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses`, {
@@ -461,7 +560,7 @@ export async function listCanned(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function createCanned(req, fetchImpl = fetch) {
+export async function createCanned(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, shortCode, content } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/canned_responses`, {
@@ -478,7 +577,7 @@ export async function createCanned(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listMacros(req, fetchImpl = fetch) {
+export async function listMacros(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros`, {
@@ -490,7 +589,7 @@ export async function listMacros(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function createMacro(req, fetchImpl = fetch) {
+export async function createMacro(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name, visibility, actions } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/macros`, {
@@ -507,7 +606,7 @@ export async function createMacro(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function executeMacro(req, fetchImpl = fetch) {
+export async function executeMacro(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, macroId } = req;
   const res = await fetchImpl(
@@ -520,7 +619,7 @@ export async function executeMacro(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function getReport(req, fetchImpl = fetch) {
+export async function getReport(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/reports`, {
@@ -532,7 +631,7 @@ export async function getReport(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listWebhooks(req, fetchImpl = fetch) {
+export async function listWebhooks(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/webhooks`, {
@@ -544,7 +643,7 @@ export async function listWebhooks(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function createWebhook(req, fetchImpl = fetch) {
+export async function createWebhook(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, url, subscriptions } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/webhooks`, {
@@ -561,7 +660,7 @@ export async function createWebhook(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function deleteWebhook(req, fetchImpl = fetch) {
+export async function deleteWebhook(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, webhook_id } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/webhooks/${webhook_id}`, {
@@ -574,7 +673,7 @@ export async function deleteWebhook(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listArticles(req, fetchImpl = fetch) {
+export async function listArticles(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles`, {
@@ -586,7 +685,7 @@ export async function listArticles(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listMCP(req, fetchImpl = fetch) {
+export async function listMCP(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers`, {
@@ -598,7 +697,7 @@ export async function listMCP(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function upsertMCP(req, fetchImpl = fetch) {
+export async function upsertMCP(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name, url, auth_header, allowed_tools, high_risk_tools } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers`, {
@@ -615,7 +714,7 @@ export async function upsertMCP(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function rotateMCP(req, fetchImpl = fetch) {
+export async function rotateMCP(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, mcp_server_id, auth_header } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers/${mcp_server_id}/auth/rotate`, {
@@ -632,7 +731,7 @@ export async function rotateMCP(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function deleteMCP(req, fetchImpl = fetch) {
+export async function deleteMCP(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, mcp_server_id } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/mcp_servers/${mcp_server_id}`, {
@@ -645,7 +744,7 @@ export async function deleteMCP(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function listSkills(req, fetchImpl = fetch) {
+export async function listSkills(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/agent_skills`, {
@@ -657,7 +756,7 @@ export async function listSkills(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function upsertSkill(req, fetchImpl = fetch) {
+export async function upsertSkill(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, name, description, body } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/agent_skills`, {
@@ -674,7 +773,7 @@ export async function upsertSkill(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function deleteSkill(req, fetchImpl = fetch) {
+export async function deleteSkill(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, skill_id } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/agent_skills/${skill_id}`, {
@@ -687,7 +786,7 @@ export async function deleteSkill(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function deleteArticle(req, fetchImpl = fetch) {
+export async function deleteArticle(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, article_id } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles/${article_id}`, {
@@ -700,7 +799,7 @@ export async function deleteArticle(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function createArticle(req, fetchImpl = fetch) {
+export async function createArticle(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, title, slug, body, published } = req;
   const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles`, {
@@ -717,7 +816,7 @@ export async function createArticle(req, fetchImpl = fetch) {
   return res.json();
 }
 
-export async function sendNote(req, fetchImpl = fetch) {
+export async function sendNote(req: ClientReq, fetchImpl: FetchImpl = asFetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, conversationId, content } = req;
   const res = await fetchImpl(
@@ -782,3 +881,5 @@ export const liveClient = {
   upsertSkill,
   deleteSkill,
 };
+
+export type HelpdeskClient = typeof liveClient;

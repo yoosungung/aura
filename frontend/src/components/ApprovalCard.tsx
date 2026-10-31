@@ -1,7 +1,12 @@
 import { Button } from "./ui/button.jsx";
-import { parseApproval } from "../store.js";
+import { parseApproval, type Message, type ToolApproval } from "../store.js";
 
-export function ApprovalCard({ message, onApprove }) {
+type ApprovalCardProps = {
+  message: Message;
+  onApprove: (card: ToolApproval) => void;
+};
+
+export function ApprovalCard({ message, onApprove }: ApprovalCardProps) {
   const card = parseApproval(message.content);
   if (!card) {
     return null;

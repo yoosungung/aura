@@ -3,8 +3,15 @@ import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
+import type { ClientReq, HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function InboxHmac({ session, client }) {
+type InboxHmacProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function InboxHmac({ session, client }: InboxHmacProps) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
   const [secret, setSecret] = useState("");
   const [greeting, setGreeting] = useState("");
@@ -15,7 +22,7 @@ export function InboxHmac({ session, client }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
-  function applyInbox(data) {
+  function applyInbox(data: any) {
     setSecret(data?.hmac_secret || "");
     setGreeting(data?.greeting_message || "");
     setHoursOn(!!data?.business_hours_enabled);
@@ -24,7 +31,7 @@ export function InboxHmac({ session, client }) {
     setRevealed(true);
   }
 
-  async function load(fn) {
+  async function load(fn?: (req: ClientReq) => Promise<any>) {
     if (!inboxId.trim() || !fn) {
       return;
     }
@@ -62,7 +69,7 @@ export function InboxHmac({ session, client }) {
     }
     setError("");
     setSaved(false);
-    let parsed = {};
+    let parsed: Record<string, unknown> = {};
     try {
       parsed = hours.trim() ? JSON.parse(hours) : {};
     } catch {

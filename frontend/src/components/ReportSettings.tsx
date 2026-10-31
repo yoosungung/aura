@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function ReportSettings({ session, client }) {
-  const [report, setReport] = useState(null);
+type Report = {
+  csat_percent?: number;
+  sla_hit_rate?: number;
+  conversations?: { total?: number; resolved?: number };
+};
+
+type ReportSettingsProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function ReportSettings({ session, client }: ReportSettingsProps) {
+  const [report, setReport] = useState<Report | null>(null);
 
   useEffect(() => {
     if (!client.getReport) {

@@ -29,7 +29,12 @@ export const SETTINGS_GROUPS = [
   },
 ];
 
-export function SettingsNav({ tab, onChange }) {
+type SettingsNavProps = {
+  tab: string;
+  onChange: (id: string) => void;
+};
+
+export function SettingsNav({ tab, onChange }: SettingsNavProps) {
   return (
     <nav className="settings-nav" aria-label="설정 메뉴">
       {SETTINGS_GROUPS.map((g) => (

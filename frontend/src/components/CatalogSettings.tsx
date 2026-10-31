@@ -1,16 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session, TicketLabel } from "../store.js";
 
-export function CatalogSettings({ session, client }) {
-  const [labels, setLabels] = useState([]);
-  const [canned, setCanned] = useState([]);
+type Canned = { id?: string; short_code?: string };
+type Macro = { id?: string; name?: string };
+
+type CatalogSettingsProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function CatalogSettings({ session, client }: CatalogSettingsProps) {
+  const [labels, setLabels] = useState<TicketLabel[]>([]);
+  const [canned, setCanned] = useState<Canned[]>([]);
   const [labelName, setLabelName] = useState("");
   const [shortCode, setShortCode] = useState("");
   const [content, setContent] = useState("");
-  const [macros, setMacros] = useState([]);
+  const [macros, setMacros] = useState<Macro[]>([]);
   const [macroName, setMacroName] = useState("");
   const [macroMessage, setMacroMessage] = useState("");
   const [error, setError] = useState("");
@@ -53,7 +63,7 @@ export function CatalogSettings({ session, client }) {
     };
   }, [client, session]);
 
-  async function onCreateLabel(e) {
+  async function onCreateLabel(e: FormEvent) {
     e.preventDefault();
     if (!client.createAccountLabel || !labelName.trim()) {
       return;
@@ -73,7 +83,7 @@ export function CatalogSettings({ session, client }) {
     }
   }
 
-  async function onCreateCanned(e) {
+  async function onCreateCanned(e: FormEvent) {
     e.preventDefault();
     if (!client.createCanned || !shortCode.trim() || !content.trim()) {
       return;
@@ -95,7 +105,7 @@ export function CatalogSettings({ session, client }) {
     }
   }
 
-  async function onCreateMacro(e) {
+  async function onCreateMacro(e: FormEvent) {
     e.preventDefault();
     if (!client.createMacro || !macroName.trim() || !macroMessage.trim()) {
       return;

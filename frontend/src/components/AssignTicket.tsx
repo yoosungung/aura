@@ -1,13 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Conversation, Session } from "../store.js";
 
-export function AssignTicket({ session, conversation, client, onAssigned }) {
+type InboxMember = {
+  user_id: string;
+  name?: string;
+  email?: string;
+};
+
+type AssignTicketProps = {
+  session: Session;
+  conversation: Conversation;
+  client: Partial<HelpdeskClient>;
+  onAssigned?: (next: { conversationId: string; assigneeId?: string; status?: string; version?: number }) => void;
+};
+
+export function AssignTicket({ session, conversation, client, onAssigned }: AssignTicketProps) {
   const [assigneeId, setAssigneeId] = useState(conversation.assigneeId || "");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState<InboxMember[]>([]);
 
   useEffect(() => {
     const inboxId = conversation.inboxId || session.inboxIds?.[0];
@@ -33,7 +48,7 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
     };
   }, [client, conversation.inboxId, session]);
 
-  async function assignTo(id) {
+  async function assignTo(id: string) {
     setError("");
     if (!id || !client.assignConversation) {
       return;
@@ -61,7 +76,7 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
     }
   }
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     await assignTo(assigneeId.trim());
   }
@@ -114,8 +129,8 @@ export function AssignTicket({ session, conversation, client, onAssigned }) {
           variant="outline"
           size="sm"
           onClick={() => {
-            setAssigneeId(session.userId);
-            assignTo(session.userId);
+            setAssigneeId(session.userId || "");
+            assignTo(session.userId || "");
           }}
         >
           나에게 배정

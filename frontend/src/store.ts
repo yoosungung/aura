@@ -1,11 +1,184 @@
-export const emptyState = {
+export type TicketLabel = {
+  id: string;
+  name?: string;
+};
+
+export type AppliedSlas = {
+  frtDueAt?: string;
+  nrtDueAt?: string;
+  rtDueAt?: string;
+};
+
+export type Attachment = {
+  id?: string;
+  file_type?: string;
+  file_name?: string;
+  filename?: string;
+  content_type?: string;
+  external_url?: string;
+  file_size?: number;
+};
+
+export type Conversation = {
+  id: string;
+  inboxId?: string;
+  contactId?: string;
+  contactInboxId?: string;
+  assigneeId?: string;
+  status?: string;
+  version?: number;
+  snoozedUntil?: string;
+  lastContent?: string;
+  unread?: number;
+  labels?: TicketLabel[];
+  slaBreached?: boolean;
+  displayId?: number | string;
+  channel?: string;
+  contactName?: string;
+  contactEmail?: string;
+  lastActivityAt?: string;
+  appliedSlas?: AppliedSlas;
+};
+
+export type Message = {
+  id?: string;
+  content?: string;
+  senderType?: string;
+  contentType?: string;
+  private?: boolean;
+  createdAt?: string;
+  attachments?: Attachment[];
+  status?: "sending" | "failed";
+};
+
+export type TypingState = {
+  userType?: string;
+  userId?: string;
+};
+
+export type WorkspaceState = {
+  conversations: Conversation[];
+  selectedId: string | null;
+  messages: Record<string, Message[]>;
+  typing: Record<string, TypingState>;
+};
+
+export type Session = {
+  accountId: string;
+  token: string;
+  gatewayUrl: string;
+  fixture?: boolean;
+  role?: string;
+  inboxIds?: string[];
+  userId?: string;
+  name?: string;
+  email?: string;
+  availabilityStatus?: string;
+};
+
+export type ToolApproval = {
+  kind: "tool_approval";
+  execution_id: string;
+  tool_name?: string;
+  summary?: string;
+};
+
+export type ConversationRow = {
+  id: string;
+  inbox_id?: string;
+  contact_id?: string;
+  contact_inbox_id?: string;
+  assignee_id?: string;
+  status?: string;
+  version?: number;
+  snoozed_until?: string;
+  last_content?: string;
+  labels?: TicketLabel[];
+  sla_breached?: boolean;
+  display_id?: number | string;
+  channel_type?: string;
+  channel?: string;
+  contact_name?: string;
+  contact_email?: string;
+  last_activity_at?: string;
+  applied_slas?: {
+    frt_due_at?: string;
+    nrt_due_at?: string;
+    rt_due_at?: string;
+  };
+};
+
+export type MessageRow = {
+  id?: string;
+  content?: string;
+  sender_type?: string;
+  content_type?: string;
+  private?: boolean;
+  created_at?: string;
+  attachments?: Attachment[];
+};
+
+export type RealtimeEvent = {
+  type?: string;
+  event?: string;
+  conversation_id?: string;
+  inbox_id?: string;
+  is_typing?: boolean;
+  user_id?: string;
+  user_type?: string;
+  status?: string;
+  version?: number;
+  payload?: { new_status?: string };
+  message?: {
+    id?: string;
+    created_at?: string;
+    payload?: {
+      content?: string;
+      sender_type?: string;
+      private?: boolean;
+      content_type?: string;
+      created_at?: string;
+      contact_id?: string;
+      contact_inbox_id?: string;
+      attachments?: Attachment[];
+    };
+  };
+};
+
+export type ContactHint = {
+  name?: string;
+  email?: string;
+};
+
+export type Action =
+  | { type: "select"; id: string | null }
+  | { type: "assigned"; conversationId: string; assigneeId?: string; status?: string; version?: number }
+  | { type: "labeled"; conversationId: string; label?: TicketLabel }
+  | { type: "snoozed"; conversationId: string; status?: string; snoozedUntil?: string; version?: number }
+  | { type: "unlabeled"; conversationId: string; labelId: string }
+  | { type: "resolved"; conversationId: string; status?: string; version?: number }
+  | { type: "send"; conversationId: string; message: Message }
+  | { type: "sent"; conversationId: string; id: string; messageId?: string }
+  | { type: "sendFailed"; conversationId: string; id: string }
+  | { type: "retry"; conversationId: string; id: string }
+  | { type: "hydrate"; conversations?: Conversation[]; messages?: Record<string, Message[]> }
+  | { type: "contacts"; contacts?: Record<string, ContactHint> }
+  | { type: "realtime"; event?: RealtimeEvent };
+
+export type SessionEnv = {
+  VITE_ACCOUNT_ID?: string;
+  VITE_TOKEN?: string;
+  VITE_GATEWAY_URL?: string;
+};
+
+export const emptyState: WorkspaceState = {
   conversations: [],
   selectedId: null,
   messages: {},
   typing: {},
 };
 
-export function fixtureState() {
+export function fixtureState(): WorkspaceState {
   return {
     conversations: [
       {
@@ -43,18 +216,18 @@ export function fixtureState() {
   };
 }
 
-export const CHANNEL_LABELS = {
+export const CHANNEL_LABELS: Record<string, string> = {
   web: "Web",
   kakao: "Kakao",
   email: "Email",
   social: "Social",
 };
 
-export function channelLabel(channel) {
-  return CHANNEL_LABELS[channel] || channel || "";
+export function channelLabel(channel?: string | null) {
+  return CHANNEL_LABELS[channel || ""] || channel || "";
 }
 
-export function conversationsFromAPI(rows) {
+export function conversationsFromAPI(rows?: ConversationRow[] | null): Conversation[] {
   return (rows || []).map((c) => ({
     id: c.id,
     inboxId: c.inbox_id,
@@ -83,7 +256,7 @@ export function conversationsFromAPI(rows) {
   }));
 }
 
-export function messagesFromAPI(rows) {
+export function messagesFromAPI(rows?: MessageRow[] | null): Message[] {
   return (rows || []).map((m) => ({
     id: m.id,
     content: m.content,
@@ -95,11 +268,18 @@ export function messagesFromAPI(rows) {
   }));
 }
 
-export function parseApproval(content) {
+export function parseApproval(content?: string | null): ToolApproval | null {
   try {
-    const data = JSON.parse(content || "");
-    if (data?.kind === "tool_approval" && data.execution_id) {
-      return data;
+    const data: unknown = JSON.parse(content || "");
+    if (
+      data &&
+      typeof data === "object" &&
+      "kind" in data &&
+      data.kind === "tool_approval" &&
+      "execution_id" in data &&
+      data.execution_id
+    ) {
+      return data as ToolApproval;
     }
   } catch {
     return null;
@@ -107,7 +287,7 @@ export function parseApproval(content) {
   return null;
 }
 
-export function relativeTime(iso, now = Date.now()) {
+export function relativeTime(iso?: string | null, now = Date.now()) {
   const t = Date.parse(iso || "");
   if (!Number.isFinite(t)) {
     return "";
@@ -126,7 +306,7 @@ export function relativeTime(iso, now = Date.now()) {
   return `${Math.round(hours / 24)}일 전`;
 }
 
-export function formatClock(iso) {
+export function formatClock(iso?: string | null) {
   const d = new Date(iso || "");
   if (Number.isNaN(d.getTime())) {
     return "";
@@ -134,7 +314,7 @@ export function formatClock(iso) {
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-export function slaRemain(iso, now = Date.now()) {
+export function slaRemain(iso?: string | null, now = Date.now()) {
   const t = Date.parse(iso || "");
   if (!Number.isFinite(t)) {
     return "";
@@ -150,7 +330,7 @@ export function slaRemain(iso, now = Date.now()) {
   return `${Math.round(mins / 60)}시간 남음`;
 }
 
-export function kakaoSessionLabel(iso, now = Date.now()) {
+export function kakaoSessionLabel(iso?: string | null, now = Date.now()) {
   const t = Date.parse(iso || "");
   if (!Number.isFinite(t)) {
     return "";
@@ -162,7 +342,7 @@ export function kakaoSessionLabel(iso, now = Date.now()) {
   return `세션 ${Math.max(1, Math.ceil(left / 86_400_000))}일 남음`;
 }
 
-export function parseSession(search, env = {}) {
+export function parseSession(search: string, env: SessionEnv = {}): Session {
   const p = new URLSearchParams(search);
   const fixture = p.get("fixture") === "1";
   return {
@@ -176,7 +356,7 @@ export function parseSession(search, env = {}) {
   };
 }
 
-export function visibleInQueue(c, now = Date.now()) {
+export function visibleInQueue(c: Pick<Conversation, "status" | "snoozedUntil">, now = Date.now()) {
   if (c.status === "resolved") {
     return false;
   }
@@ -187,7 +367,7 @@ export function visibleInQueue(c, now = Date.now()) {
   return Number.isFinite(until) && until <= now;
 }
 
-export function reduce(state, action) {
+export function reduce(state: WorkspaceState, action: Action): WorkspaceState {
   if (action.type === "select") {
     return {
       ...state,
@@ -219,7 +399,7 @@ export function reduce(state, action) {
         if (next?.id && labels.some((l) => l.id === next.id)) {
           return c;
         }
-        return { ...c, labels: [...labels, next] };
+        return next ? { ...c, labels: [...labels, next] } : c;
       }),
     };
   }
@@ -292,7 +472,7 @@ export function reduce(state, action) {
     return {
       ...state,
       conversations: state.conversations.map((c) => {
-        const p = book[c.contactId];
+        const p = c.contactId ? book[c.contactId] : undefined;
         if (!p) {
           return c;
         }
@@ -310,7 +490,7 @@ export function reduce(state, action) {
   return state;
 }
 
-function applyRealtime(state, event) {
+function applyRealtime(state: WorkspaceState, event?: RealtimeEvent): WorkspaceState {
   if (!event) {
     return state;
   }
@@ -342,7 +522,7 @@ function applyRealtime(state, event) {
   if (event.event !== "message.created") {
     return state;
   }
-  const convId = event.conversation_id;
+  const convId = event.conversation_id ?? "";
   const env = event.message || {};
   const payload = env.payload || {};
   const msgId = env.id;
@@ -352,7 +532,7 @@ function applyRealtime(state, event) {
   }
   const content = payload.content ?? "";
   const isPrivate = payload.private === true;
-  const msg = {
+  const msg: Message = {
     id: msgId,
     content,
     senderType: payload.sender_type,
@@ -380,7 +560,7 @@ function applyRealtime(state, event) {
       messages: { ...state.messages, [convId]: thread },
     };
   }
-  const nextConv = {
+  const nextConv: Conversation = {
     ...prev,
     id: convId,
     inboxId: event.inbox_id || prev?.inboxId,
@@ -398,11 +578,11 @@ function applyRealtime(state, event) {
   };
 }
 
-function isLocalMessage(m) {
-  return typeof m?.id === "string" && m.id.startsWith("pending-");
+function isLocalMessage(m: Message) {
+  return typeof m.id === "string" && m.id.startsWith("pending-");
 }
 
-function patchMessage(state, conversationId, id, patch) {
+function patchMessage(state: WorkspaceState, conversationId: string, id: string, patch: Partial<Message>) {
   const existing = state.messages[conversationId] || [];
   return {
     ...state,

@@ -1,10 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function WebhookSettings({ session, client }) {
-  const [hooks, setHooks] = useState([]);
+type Webhook = { id?: string; url?: string };
+
+type WebhookSettingsProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function WebhookSettings({ session, client }: WebhookSettingsProps) {
+  const [hooks, setHooks] = useState<Webhook[]>([]);
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
 
@@ -30,7 +39,7 @@ export function WebhookSettings({ session, client }) {
     };
   }, [client, session]);
 
-  async function onCreate(e) {
+  async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (!client.createWebhook || !url.trim()) {
       return;
@@ -51,7 +60,7 @@ export function WebhookSettings({ session, client }) {
     }
   }
 
-  async function onDelete(hook) {
+  async function onDelete(hook: Webhook) {
     if (!client.deleteWebhook || !hook?.id) {
       return;
     }

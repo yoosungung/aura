@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
 import { Textarea } from "./ui/textarea.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function SkillSettings({ session, client }) {
-  const [skills, setSkills] = useState([]);
+type Skill = { id?: string; name?: string; description?: string; body?: string };
+
+type SkillSettingsProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function SkillSettings({ session, client }: SkillSettingsProps) {
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
@@ -33,13 +42,13 @@ export function SkillSettings({ session, client }) {
     };
   }, [client, session]);
 
-  function loadSkill(s) {
+  function loadSkill(s: Skill) {
     setName(s.name || "");
     setDescription(s.description || "");
     setBody(s.body || "");
   }
 
-  async function onCreate(e) {
+  async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (!client.upsertSkill || !name.trim() || !body.trim()) {
       return;
@@ -63,7 +72,7 @@ export function SkillSettings({ session, client }) {
     }
   }
 
-  async function onDelete(skill) {
+  async function onDelete(skill: Skill) {
     if (!client.deleteSkill || !skill?.id) {
       return;
     }

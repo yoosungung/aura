@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Textarea } from "./ui/textarea.jsx";
 
-export function InternalNote({ onSend }) {
+type InternalNoteProps = {
+  onSend?: (content: string) => Promise<unknown> | unknown;
+};
+
+export function InternalNote({ onSend }: InternalNoteProps) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const content = draft.trim();
     if (!content || !onSend) {

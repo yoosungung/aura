@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Conversation, Session } from "../store.js";
 
-export function TicketAttachments({ session, conversation, client, onAttached }) {
-  const [file, setFile] = useState(null);
+type TicketAttachmentsProps = {
+  session: Session;
+  conversation: Conversation;
+  client: Partial<HelpdeskClient>;
+  onAttached?: (data: any) => void;
+};
+
+export function TicketAttachments({ session, conversation, client, onAttached }: TicketAttachmentsProps) {
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function uploadPicked(picked, form) {
+  async function uploadPicked(picked: File | null, form?: HTMLFormElement | null) {
     if (!picked || !client.uploadAttachment) {
       return;
     }
@@ -36,18 +45,18 @@ export function TicketAttachments({ session, conversation, client, onAttached })
     if (!dock) {
       return undefined;
     }
-    function pickedFile(bag) {
+    function pickedFile(bag: DataTransfer | null | undefined) {
       return bag?.files?.[0] || null;
     }
-    function onDragOver(e) {
+    function onDragOver(e: Event) {
       e.preventDefault();
     }
-    function onDrop(e) {
+    function onDrop(e: Event) {
       e.preventDefault();
-      uploadPicked(pickedFile(e.dataTransfer));
+      uploadPicked(pickedFile((e as DragEvent).dataTransfer));
     }
-    function onPaste(e) {
-      const picked = pickedFile(e.clipboardData);
+    function onPaste(e: Event) {
+      const picked = pickedFile((e as ClipboardEvent).clipboardData);
       if (!picked) {
         return;
       }
@@ -64,10 +73,11 @@ export function TicketAttachments({ session, conversation, client, onAttached })
     };
   }, [session, conversation, client]);
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const picked = file || e.currentTarget.querySelector('input[type="file"]')?.files?.[0];
-    await uploadPicked(picked, e.currentTarget);
+    const form = e.currentTarget;
+    const picked = file || form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0] || null;
+    await uploadPicked(picked, form);
   }
 
   return (

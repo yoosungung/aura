@@ -1,14 +1,28 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Conversation, Session } from "../store.js";
 
-export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
+type SnoozeTicketProps = {
+  session: Session;
+  conversation: Conversation;
+  client: Partial<HelpdeskClient>;
+  onSnoozed?: (next: {
+    conversationId: string;
+    status?: string;
+    version?: number;
+    snoozedUntil?: string;
+  }) => void;
+};
+
+export function SnoozeTicket({ session, conversation, client, onSnoozed }: SnoozeTicketProps) {
   const [until, setUntil] = useState(conversation.snoozedUntil || "");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function snoozeTo(localValue) {
+  async function snoozeTo(localValue?: string) {
     setError("");
     const value = toRFC3339((localValue ?? until).trim());
     if (!value || !client.snoozeConversation) {
@@ -37,17 +51,17 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
     }
   }
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     await snoozeTo(until);
   }
 
-  function applyPreset(localValue) {
+  function applyPreset(localValue: string) {
     setUntil(localValue);
     snoozeTo(localValue);
   }
 
-  function presetHours(hours) {
+  function presetHours(hours: number) {
     applyPreset(toLocalInput(new Date(Date.now() + hours * 3600_000)));
   }
 
@@ -101,12 +115,12 @@ export function SnoozeTicket({ session, conversation, client, onSnoozed }) {
   );
 }
 
-function toLocalInput(d) {
-  const pad = (n) => String(n).padStart(2, "0");
+function toLocalInput(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function toRFC3339(value) {
+function toRFC3339(value: string) {
   if (!value) {
     return "";
   }

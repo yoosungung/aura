@@ -1,21 +1,40 @@
-import { useState } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
 
-export function LoginForm({ client, gatewayUrl, onSuccess }) {
+type LoginFormProps = {
+  client: Partial<HelpdeskClient>;
+  gatewayUrl?: string;
+  onSuccess: (session: {
+    token: string;
+    accountId: string;
+    role?: string;
+    inboxIds?: string[];
+    userId?: string;
+    name?: string;
+    email?: string;
+  }) => void;
+};
+
+export function LoginForm({ client, gatewayUrl, onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setPending(true);
     try {
-      const data = await client.signIn({ gatewayUrl, email, password });
+      const signIn = client.signIn;
+      if (!signIn) {
+        throw new Error("signIn missing");
+      }
+      const data = await signIn({ gatewayUrl, email, password });
       onSuccess({
         token: data.access_token,
         accountId: data.user.account_id,
@@ -46,7 +65,7 @@ export function LoginForm({ client, gatewayUrl, onSuccess }) {
               name="email"
               autoComplete="username"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               required
             />
           </Label>
@@ -57,7 +76,7 @@ export function LoginForm({ client, gatewayUrl, onSuccess }) {
               name="password"
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
               required
             />
           </Label>

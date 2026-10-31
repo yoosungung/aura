@@ -1,4 +1,7 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
+import type { EgoNode } from "./components/LivingProfile.jsx";
+import type { HelpdeskClient, StopHandle } from "./gateway.js";
+import type { Attachment, Conversation, Message, Session, WorkspaceState } from "./store.js";
 import { ApprovalCard } from "./components/ApprovalCard.jsx";
 import { AssignTicket } from "./components/AssignTicket.jsx";
 import { ArticleSettings } from "./components/ArticleSettings.jsx";
@@ -35,10 +38,19 @@ import {
   visibleInQueue,
 } from "./store.js";
 
-export function App({ session: initialSession, client, initialState = emptyState, viewportWidth }) {
-  const [session, setSession] = useState(initialSession);
-  const [canned, setCanned] = useState([]);
-  const [ego, setEgo] = useState([]);
+type CannedItem = { id?: string; short_code?: string; content?: string };
+
+type AppProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+  initialState?: WorkspaceState;
+  viewportWidth?: number;
+};
+
+export function App({ session: initialSession, client, initialState = emptyState, viewportWidth = undefined }: AppProps) {
+  const [session, setSession] = useState<Session>(initialSession);
+  const [canned, setCanned] = useState<CannedItem[]>([]);
+  const [ego, setEgo] = useState<EgoNode[]>([]);
   const [view, setView] = useState("inbox");
   const [composeMode, setComposeMode] = useState("reply");
   const [contextOpen, setContextOpen] = useState(false);
@@ -55,14 +67,14 @@ export function App({ session: initialSession, client, initialState = emptyState
   const [state, dispatch] = useReducer(reduce, initialState);
   const [draft, setDraft] = useState("");
   const [cannedIndex, setCannedIndex] = useState(0);
-  const logRef = useRef(null);
-  const wsRef = useRef(null);
-  const typingTimer = useRef(null);
+  const logRef = useRef<HTMLOListElement | null>(null);
+  const wsRef = useRef<StopHandle | null>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queue = state.conversations.filter((c) => visibleInQueue(c));
   const selected = queue.find((c) => c.id === state.selectedId);
   const unreadTotal = queue.reduce((n, c) => n + (c.unread || 0), 0);
 
-  function applySession(next) {
+  function applySession(next: any) {
     setSession((prev) => ({
       ...prev,
       token: next.token || next.access_token || prev.token,
@@ -99,9 +111,8 @@ export function App({ session: initialSession, client, initialState = emptyState
       return undefined;
     }
     let cancelled = false;
-    client
-      .refresh({ gatewayUrl: initialSession.gatewayUrl })
-      .then((data) => {
+    void client.refresh?.({ gatewayUrl: initialSession.gatewayUrl })
+      ?.then((data) => {
         if (cancelled) {
           return;
         }
@@ -189,7 +200,7 @@ export function App({ session: initialSession, client, initialState = emptyState
         if (cancelled) {
           return;
         }
-        const contacts = {};
+        const contacts: Record<string, { name?: string; email?: string }> = {};
         for (const p of data?.contacts || []) {
           contacts[p.id] = p;
         }
@@ -224,7 +235,8 @@ export function App({ session: initialSession, client, initialState = emptyState
   }, [session, client]);
 
   useEffect(() => {
-    if (!state.selectedId || !session.token || !client.listMessages) {
+    const selectedId = state.selectedId;
+    if (!selectedId || !session.token || !client.listMessages) {
       return undefined;
     }
     let cancelled = false;
@@ -233,13 +245,13 @@ export function App({ session: initialSession, client, initialState = emptyState
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
         token: session.token,
-        conversationId: state.selectedId,
+        conversationId: selectedId,
       })
       .then((data) => {
         if (!cancelled) {
           dispatch({
             type: "hydrate",
-            messages: { [state.selectedId]: messagesFromAPI(data.messages) },
+            messages: { [selectedId]: messagesFromAPI(data.messages) },
           });
         }
       })
@@ -278,30 +290,31 @@ export function App({ session: initialSession, client, initialState = emptyState
   }, [selected?.contactId, session, client]);
 
   useEffect(() => {
-    function onKey(e) {
+    function onKey(e: globalThis.KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
       const typing =
-        e.target.tagName === "INPUT" ||
-        e.target.tagName === "TEXTAREA" ||
-        e.target.isContentEditable;
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        !!target?.isContentEditable;
       if (e.key === "Escape") {
         for (const el of document.querySelectorAll("details.header-menu")) {
-          el.open = false;
+          (el as HTMLDetailsElement).open = false;
         }
         setHelpOpen(false);
         return;
       }
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
-        const menu = document.querySelector("details.macros-menu");
+        const menu = document.querySelector("details.macros-menu") as HTMLDetailsElement | null;
         if (menu) {
           menu.open = true;
-          queueMicrotask(() => menu.querySelector("section.macros button")?.focus());
+          queueMicrotask(() => menu.querySelector<HTMLButtonElement>("section.macros button")?.focus());
         }
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        const form = document.querySelector(composeMode === "note" ? "form.note" : "form.composer");
+        const form = document.querySelector(composeMode === "note" ? "form.note" : "form.composer") as HTMLFormElement | null;
         form?.requestSubmit?.();
         return;
       }
@@ -331,7 +344,7 @@ export function App({ session: initialSession, client, initialState = emptyState
         setComposerFocus("note");
       }
       if (e.key === "e" || e.key === "E") {
-        document.querySelector('.resolve button:last-of-type')?.click();
+        document.querySelector<HTMLButtonElement>('.resolve button:last-of-type')?.click();
       }
       if (e.key === "?") {
         setHelpOpen(true);
@@ -346,7 +359,7 @@ export function App({ session: initialSession, client, initialState = emptyState
       return undefined;
     }
     const sel = composerFocus === "note" ? '[aria-label="메모"]' : '[aria-label="답장"]';
-    document.querySelector(sel)?.focus();
+    document.querySelector<HTMLElement>(sel)?.focus();
     setComposerFocus("");
     return undefined;
   }, [composerFocus, composeMode]);
@@ -367,9 +380,9 @@ export function App({ session: initialSession, client, initialState = emptyState
     setSession({ ...session, token: "" });
   }
 
-  async function postReply(conversation, content, localId) {
+  async function postReply(conversation: Conversation, content: string, localId: string) {
     try {
-      const data = await client.sendReply({
+      const data = await client.sendReply?.({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
         token: session.token,
@@ -397,7 +410,9 @@ export function App({ session: initialSession, client, initialState = emptyState
       inbox_id: selected.inboxId,
       is_typing: true,
     });
-    clearTimeout(typingTimer.current);
+    if (typingTimer.current) {
+      clearTimeout(typingTimer.current);
+    }
     typingTimer.current = setTimeout(() => {
       wsRef.current?.send?.({
         type: "typing",
@@ -408,13 +423,15 @@ export function App({ session: initialSession, client, initialState = emptyState
     }, 400);
   }
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const content = draft.trim();
     if (!content || !selected || !client.sendReply) {
       return;
     }
-    clearTimeout(typingTimer.current);
+    if (typingTimer.current) {
+      clearTimeout(typingTimer.current);
+    }
     wsRef.current?.send?.({
       type: "typing",
       conversation_id: selected.id,
@@ -437,9 +454,9 @@ export function App({ session: initialSession, client, initialState = emptyState
     await postReply(selected, content, localId);
   }
 
-  async function postNote(conversation, content, localId) {
+  async function postNote(conversation: Conversation, content: string, localId: string) {
     try {
-      const data = await client.sendNote({
+      const data = await client.sendNote?.({
         gatewayUrl: session.gatewayUrl,
         accountId: session.accountId,
         token: session.token,
@@ -457,7 +474,7 @@ export function App({ session: initialSession, client, initialState = emptyState
     }
   }
 
-  async function queueNote(content) {
+  async function queueNote(content: string) {
     if (!selected || !client.sendNote) {
       return;
     }
@@ -477,19 +494,24 @@ export function App({ session: initialSession, client, initialState = emptyState
     await postNote(selected, content, localId);
   }
 
-  async function retrySend(conversation, message) {
-    dispatch({ type: "retry", conversationId: conversation.id, id: message.id });
+  async function retrySend(conversation: Conversation, message: Message) {
+    const id = message.id;
+    const content = message.content ?? "";
+    if (!id) {
+      return;
+    }
+    dispatch({ type: "retry", conversationId: conversation.id, id });
     if (message.private) {
       if (!client.sendNote) {
         return;
       }
-      await postNote(conversation, message.content, message.id);
+      await postNote(conversation, content, id);
       return;
     }
     if (!client.sendReply) {
       return;
     }
-    await postReply(conversation, message.content, message.id);
+    await postReply(conversation, content, id);
   }
 
   const slash = draft.match(/(?:^|\s)(\/[^\s]*)$/);
@@ -503,12 +525,13 @@ export function App({ session: initialSession, client, initialState = emptyState
     setCannedIndex(0);
   }, [slashCode]);
 
-  function insertCanned(item) {
-    const next = slash ? draft.slice(0, slash.index) + (slash.index > 0 ? " " : "") + item.content : item.content;
+  function insertCanned(item: CannedItem) {
+    const idx = slash?.index ?? 0;
+    const next = slash ? draft.slice(0, idx) + (idx > 0 ? " " : "") + (item.content ?? "") : (item.content ?? "");
     setDraft(next.trimStart());
   }
 
-  function applyMacro(out) {
+  function applyMacro(out: any) {
     if (!selected) {
       return;
     }
@@ -671,7 +694,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                             {l.name}
                           </Badge>
                         ))}
-                        {c.unread > 0 ? <Badge>{c.unread}</Badge> : null}
+                        {(c.unread || 0) > 0 ? <Badge>{c.unread}</Badge> : null}
                       </span>
                     </Button>
                   </li>
@@ -715,7 +738,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         type="button"
                         variant="outline"
                         size="sm"
-                        aria-expanded={showContext}
+                        aria-expanded={!!showContext}
                         onClick={() => setContextOpen((open) => !open)}
                       >
                         고객 정보
@@ -793,7 +816,7 @@ export function App({ session: initialSession, client, initialState = emptyState
                         m.content
                       )}
                       {(m.attachments || []).map((a) => {
-                        const name = a.file_name || a.filename || fileName(a.external_url);
+                        const name = a.file_name || a.filename || fileName(a.external_url) || "첨부";
                         return (
                           <a
                             key={a.id || a.external_url}
@@ -1006,7 +1029,7 @@ export function App({ session: initialSession, client, initialState = emptyState
   );
 }
 
-function agentInitials(session) {
+function agentInitials(session: Session) {
   const name = (session.name || "").trim();
   if (name) {
     const parts = name.split(/\s+/);
@@ -1016,7 +1039,7 @@ function agentInitials(session) {
   return email ? email[0].toUpperCase() : "A";
 }
 
-function layoutFor(width) {
+function layoutFor(width: number) {
   if (width >= 1280) {
     return "desktop";
   }
@@ -1026,7 +1049,7 @@ function layoutFor(width) {
   return "mobile";
 }
 
-function statusBadge(status) {
+function statusBadge(status?: string) {
   if (status === "open" || status === "unassigned") {
     return <Badge className="bg-emerald-50 text-emerald-700">{status}</Badge>;
   }
@@ -1039,7 +1062,7 @@ function statusBadge(status) {
   return <Badge variant="secondary">{status}</Badge>;
 }
 
-function kakaoSessionLine(messages) {
+function kakaoSessionLine(messages: Message[]) {
   const last = [...messages].reverse().find((m) => m.senderType === "Contact" && m.createdAt);
   if (!last) {
     return null;
@@ -1052,7 +1075,7 @@ function kakaoSessionLine(messages) {
   return <Badge variant={warn ? "destructive" : "secondary"}>{label}</Badge>;
 }
 
-function closeOtherMenus(e) {
+function closeOtherMenus(e: { currentTarget: HTMLDetailsElement }) {
   if (!e.currentTarget.open) {
     return;
   }
@@ -1062,12 +1085,12 @@ function closeOtherMenus(e) {
   }
   for (const el of root.querySelectorAll("details.header-menu")) {
     if (el !== e.currentTarget) {
-      el.open = false;
+      (el as HTMLDetailsElement).open = false;
     }
   }
 }
 
-function bubbleClass(m) {
+function bubbleClass(m: Message) {
   const sending = m.status === "sending" ? " bubble-sending opacity-70" : "";
   if (m.private) {
     return `bubble bubble-note${sending}`;
@@ -1078,18 +1101,18 @@ function bubbleClass(m) {
   return `bubble bubble-out${sending}`;
 }
 
-function cannedOptionId(item) {
+function cannedOptionId(item: CannedItem) {
   return `canned-${item.id || item.short_code}`;
 }
 
-function formatFileSize(n) {
+function formatFileSize(n: number) {
   if (n < 1024) {
     return `${n} B`;
   }
   return `${Math.round(n / 1024)} KB`;
 }
 
-function isImageAttachment(a) {
+function isImageAttachment(a: Attachment & { content_type?: string; filename?: string }) {
   const type = `${a.file_type || a.content_type || ""}`.toLowerCase();
   if (type.startsWith("image")) {
     return true;
@@ -1098,7 +1121,7 @@ function isImageAttachment(a) {
   return /\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(name);
 }
 
-function fileName(url) {
+function fileName(url?: string) {
   if (!url) {
     return "첨부";
   }

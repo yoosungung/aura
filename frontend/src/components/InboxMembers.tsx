@@ -1,17 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function InboxMembers({ session, client }) {
+type InboxMember = {
+  user_id: string;
+  name?: string;
+  email?: string;
+};
+
+type InboxMembersProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function InboxMembers({ session, client }: InboxMembersProps) {
   const [inboxId, setInboxId] = useState(session.inboxIds?.[0] || "");
   const [userId, setUserId] = useState("");
-  const [members, setMembers] = useState([]);
-  const [directory, setDirectory] = useState([]);
+  const [members, setMembers] = useState<InboxMember[]>([]);
+  const [directory, setDirectory] = useState<InboxMember[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!client.listInboxMembers) {
+    const listInboxMembers = client.listInboxMembers;
+    if (!listInboxMembers) {
       return undefined;
     }
     const ids = [...new Set([...(session.inboxIds || []), inboxId].filter(Boolean))];
@@ -21,23 +35,22 @@ export function InboxMembers({ session, client }) {
     let cancelled = false;
     Promise.all(
       ids.map((id) =>
-        client
-          .listInboxMembers({
+        listInboxMembers({
             gatewayUrl: session.gatewayUrl,
             accountId: session.accountId,
             token: session.token,
             inboxId: id,
           })
-          .then((data) => ({ id, members: data?.members || [] }))
-          .catch(() => ({ id, members: [] })),
+          .then((data) => ({ id, members: (data?.members || []) as InboxMember[] }))
+          .catch(() => ({ id, members: [] as InboxMember[] })),
       ),
     ).then((rows) => {
       if (cancelled) {
         return;
       }
       setMembers(rows.find((row) => row.id === inboxId)?.members || []);
-      const seen = new Set();
-      const next = [];
+      const seen = new Set<string>();
+      const next: InboxMember[] = [];
       for (const row of rows) {
         for (const m of row.members) {
           if (m.user_id && !seen.has(m.user_id)) {
@@ -53,7 +66,7 @@ export function InboxMembers({ session, client }) {
     };
   }, [client, inboxId, session]);
 
-  async function onAdd(e) {
+  async function onAdd(e: FormEvent) {
     e.preventDefault();
     setError("");
     if (!inboxId.trim() || !userId.trim() || !client.addInboxMember) {

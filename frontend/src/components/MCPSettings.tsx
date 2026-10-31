@@ -1,10 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Label } from "./ui/label.jsx";
+import type { HelpdeskClient } from "../gateway.js";
+import type { Session } from "../store.js";
 
-export function MCPSettings({ session, client }) {
-  const [servers, setServers] = useState([]);
+type MCPServer = {
+  id?: string;
+  name?: string;
+  url?: string;
+  auth_header?: string;
+};
+
+type MCPSettingsProps = {
+  session: Session;
+  client: Partial<HelpdeskClient>;
+};
+
+export function MCPSettings({ session, client }: MCPSettingsProps) {
+  const [servers, setServers] = useState<MCPServer[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -36,13 +50,13 @@ export function MCPSettings({ session, client }) {
     };
   }, [client, session]);
 
-  function selectServer(s) {
+  function selectServer(s: MCPServer) {
     setSelectedId(s.id || "");
     setName(s.name || "");
     setUrl(s.url || "");
   }
 
-  async function onCreate(e) {
+  async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (!client.upsertMCP || !name.trim() || !url.trim()) {
       return;
@@ -88,7 +102,7 @@ export function MCPSettings({ session, client }) {
     }
   }
 
-  async function onDelete(server) {
+  async function onDelete(server: MCPServer) {
     if (!client.deleteMCP || !server?.id) {
       return;
     }
