@@ -53,11 +53,11 @@ docker build -t aura/svc-ai-agent:main svc-ai-agent
 docker build -t aura/frontend:main frontend
 ```
 
-같은 Dockerfiles를 CD(`.github/workflows/cd.yml`)가 main에서 CI가 통과한 뒤에 빌드한다. 태그는 `ghcr.io/yoosungung/aura/<name>:sha-<7글자>`이고, 11개 모두 성공하면 `:main`과 `:current`를 그 SHA로 옮긴 뒤 GitHub 릴리즈 `current`를 덮어쓴다. 레지스트리 경로는 저장소 소문자(`ghcr.io/<owner>/<repo>/<name>`).
+같은 Dockerfiles를 CD(`.github/workflows/cd.yml`)가 main에서 CI가 통과한 뒤에 빌드한다. 11개 모두 성공하면 `:current`만 그 커밋으로 옮기고, `current` 태그가 없는 GHCR 버전은 지운다. GitHub 릴리즈 `current`도 덮어쓴다. 레지스트리 경로는 저장소 소문자(`ghcr.io/<owner>/<repo>/<name>`).
 
 ## CD
 
-흐름: PR/push → `.github/workflows/ci.yml`(테스트) → main에서 성공이면 `workflow_run`으로 `.github/workflows/cd.yml` → 이미지 빌드·GHCR push → `:main`·`:current` promote → 릴리즈 `current` 덮어쓰기 → `KUBECONFIG` 시크릿이 있으면 `deploy/k8s/ghcr` 적용.
+흐름: PR/push → `.github/workflows/ci.yml`(테스트) → main에서 성공이면 `workflow_run`으로 `.github/workflows/cd.yml` → 이미지 빌드 → `:current` promote → 이전 GHCR 버전 삭제 → 릴리즈 `current` 덮어쓰기 → `KUBECONFIG` 시크릿이 있으면 `deploy/k8s/ghcr` 적용.
 
 클러스터 자동 적용은 저장소 시크릿 `KUBECONFIG`(kubeconfig YAML 원문)가 있을 때만 돈다. 없으면 이미지만 GHCR에 남고, 운영자가 오버레이를 적용한다.
 

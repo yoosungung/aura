@@ -124,7 +124,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Point :main and :current at this SHA
+      - name: Point :current at this SHA
         env:
           REPO: ${{ needs.meta.outputs.repo }}
           TAG: ${{ needs.meta.outputs.short }}
@@ -132,9 +132,32 @@ jobs:
           set -euo pipefail
           for name in ${IMAGE_NAMES}; do
             docker buildx imagetools create \
-              -t "ghcr.io/${REPO}/${name}:main" \
               -t "ghcr.io/${REPO}/${name}:current" \
               "ghcr.io/${REPO}/${name}:${TAG}"
+          done
+      - name: Delete GHCR versions without :current
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ "${OWNER_TYPE}" = "Organization" ]; then
+            scope="orgs/${OWNER}"
+          else
+            scope="users/${OWNER}"
+          fi
+          for name in ${IMAGE_NAMES}; do
+            pkg="${REPO_NAME}/${name}"
+            enc="$(jq -nr --arg p "${pkg}" '$p|@uri')"
+            echo "prune ${pkg}"
+            ids="$(gh api --paginate "${scope}/packages/container/${enc}/versions" -f per_page=100 \
+              --jq '.[] | select((.metadata.container.tags // []) | index("current") | not) | .id')"
+            for id in ${ids}; do
+              echo "delete ${pkg} version ${id}"
+              gh api --method DELETE "${scope}/packages/container/${enc}/versions/${id}"
+            done
           done
 
   release:
@@ -159,10 +182,10 @@ jobs:
             echo "- commit: \`${SHA}\`"
             echo "- immutable: \`${TAG}\`"
             echo
-            echo "| image | current | sha |"
-            echo "|---|---|---|"
+            echo "| image | current |"
+            echo "|---|---|"
             for name in ${IMAGE_NAMES}; do
-              echo "| ${name} | \`ghcr.io/${REPO}/${name}:current\` | \`ghcr.io/${REPO}/${name}:${TAG}\` |"
+              echo "| ${name} | \`ghcr.io/${REPO}/${name}:current\` |"
             done
           } > "${RUNNER_TEMP}/notes.md"
           {
@@ -170,7 +193,6 @@ jobs:
             echo "sha ${TAG}"
             for name in ${IMAGE_NAMES}; do
               echo "ghcr.io/${REPO}/${name}:current"
-              echo "ghcr.io/${REPO}/${name}:${TAG}"
             done
           } > "${RUNNER_TEMP}/images.txt"
 
@@ -217,11 +239,9 @@ jobs:
         if: steps.kube.outputs.present == 'true'
         env:
           KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
-          TAG: ${{ needs.meta.outputs.short }}
         run: |
           set -euo pipefail
           mkdir -p "${HOME}/.kube"
           printf '%s\n' "${KUBECONFIG_DATA}" > "${HOME}/.kube/config"
           chmod 600 "${HOME}/.kube/config"
-          sed -i "s/newTag: current/newTag: ${TAG}/" deploy/k8s/ghcr/kustomization.yaml
           kubectl apply -k deploy/k8s/ghcr
