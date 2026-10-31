@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -439,5 +439,31 @@ describe("gateway client", () => {
     assert.ok(calls[0].opts.body instanceof FormData);
     assert.equal(calls[0].opts.body.get("inbox_id"), "i1");
     assert.equal(calls[0].opts.body.get("file").name, "receipt.png");
+  });
+
+  it("deletes webhooks, mcp servers, and agent skills", async () => {
+    const calls = [];
+    const fetchImpl = async (url, opts) => {
+      calls.push({ url, opts });
+      return { ok: true, json: async () => ({ ok: true }) };
+    };
+    await deleteWebhook(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", webhook_id: "wh1" },
+      fetchImpl,
+    );
+    await deleteMCP(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", mcp_server_id: "m1" },
+      fetchImpl,
+    );
+    await deleteSkill(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", skill_id: "s1" },
+      fetchImpl,
+    );
+    assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/webhooks/wh1");
+    assert.equal(calls[0].opts.method, "DELETE");
+    assert.equal(calls[1].url, "http://gw/api/v1/accounts/acc/mcp_servers/m1");
+    assert.equal(calls[1].opts.method, "DELETE");
+    assert.equal(calls[2].url, "http://gw/api/v1/accounts/acc/agent_skills/s1");
+    assert.equal(calls[2].opts.method, "DELETE");
   });
 });

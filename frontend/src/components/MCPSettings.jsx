@@ -5,6 +5,7 @@ import { Label } from "./ui/label.jsx";
 
 export function MCPSettings({ session, client }) {
   const [servers, setServers] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [auth, setAuth] = useState("");
@@ -24,7 +25,9 @@ export function MCPSettings({ session, client }) {
       })
       .then((data) => {
         if (!cancelled) {
-          setServers(data?.mcp_servers || []);
+          const rows = data?.mcp_servers || [];
+          setServers(rows);
+          setSelectedId((prev) => prev || rows[0]?.id || "");
         }
       })
       .catch(() => {});
@@ -32,6 +35,12 @@ export function MCPSettings({ session, client }) {
       cancelled = true;
     };
   }, [client, session]);
+
+  function selectServer(s) {
+    setSelectedId(s.id || "");
+    setName(s.name || "");
+    setUrl(s.url || "");
+  }
 
   async function onCreate(e) {
     e.preventDefault();
@@ -49,6 +58,7 @@ export function MCPSettings({ session, client }) {
         auth_header: auth.trim(),
       });
       setServers((prev) => [...prev.filter((s) => s.name !== created.name), created]);
+      setSelectedId(created.id || "");
       setName("");
       setUrl("");
       setAuth("");
@@ -58,7 +68,7 @@ export function MCPSettings({ session, client }) {
   }
 
   async function onRotate() {
-    const target = servers[0];
+    const target = servers.find((s) => s.id === selectedId) || servers[0];
     if (!client.rotateMCP || !target?.id || !auth.trim()) {
       return;
     }
@@ -78,13 +88,49 @@ export function MCPSettings({ session, client }) {
     }
   }
 
+  async function onDelete(server) {
+    if (!client.deleteMCP || !server?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteMCP({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        mcp_server_id: server.id,
+      });
+      setServers((prev) => {
+        const next = prev.filter((s) => s.id !== server.id);
+        setSelectedId((cur) => (cur === server.id ? next[0]?.id || "" : cur));
+        return next;
+      });
+    } catch {
+      setError("MCP 서버를 삭제하지 못했습니다");
+    }
+  }
+
   return (
-    <section className="catalog" aria-label="MCP">
+    <section className="settings-resource" aria-label="MCP">
       <h2>운영계 MCP</h2>
-      <ul>
+      <ul className="settings-list">
         {servers.map((s) => (
           <li key={s.id || s.name}>
-            {s.name} {s.url} {revealed && s.auth_header ? s.auth_header : "••••••••"}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="settings-item-main justify-start"
+              aria-current={s.id && s.id === selectedId ? "true" : undefined}
+              onClick={() => selectServer(s)}
+            >
+              {s.name} {s.url} {revealed && s.auth_header ? s.auth_header : "••••••••"}
+            </Button>
+            {client.deleteMCP && s.id ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(s)}>
+                삭제
+              </Button>
+            ) : null}
           </li>
         ))}
       </ul>

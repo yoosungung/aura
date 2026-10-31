@@ -7,6 +7,7 @@ import { InboxHmac } from "./components/InboxHmac.jsx";
 import { InboxMembers } from "./components/InboxMembers.jsx";
 import { ReportSettings } from "./components/ReportSettings.jsx";
 import { MCPSettings } from "./components/MCPSettings.jsx";
+import { SettingsNav } from "./components/SettingsNav.jsx";
 import { SkillSettings } from "./components/SkillSettings.jsx";
 import { WebhookSettings } from "./components/WebhookSettings.jsx";
 import { LivingProfile } from "./components/LivingProfile.jsx";
@@ -625,72 +626,17 @@ export function App({ session: initialSession, client, initialState = emptyState
       ) : null}
       {settings ? (
         <section className="settings-pane" role="region" aria-label="워크스페이스 관리">
-          <div className="settings-tabs">
-            <Button
-              size="sm"
-              variant={settingsTab === "members" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("members")}
-            >
-              인박스 멤버
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "hmac" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("hmac")}
-            >
-              HMAC 시크릿
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "catalog" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("catalog")}
-            >
-              카탈로그
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "webhooks" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("webhooks")}
-            >
-              웹훅
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "reports" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("reports")}
-            >
-              리포트
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "articles" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("articles")}
-            >
-              도움말
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "mcp" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("mcp")}
-            >
-              MCP
-            </Button>
-            <Button
-              size="sm"
-              variant={settingsTab === "skills" ? "secondary" : "ghost"}
-              onClick={() => setSettingsTab("skills")}
-            >
-              Agent Skills
-            </Button>
+          <SettingsNav tab={settingsTab} onChange={setSettingsTab} />
+          <div className="settings-body">
+            {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
+            {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
+            {settingsTab === "catalog" ? <CatalogSettings session={session} client={client} /> : null}
+            {settingsTab === "webhooks" ? <WebhookSettings session={session} client={client} /> : null}
+            {settingsTab === "reports" ? <ReportSettings session={session} client={client} /> : null}
+            {settingsTab === "articles" ? <ArticleSettings session={session} client={client} /> : null}
+            {settingsTab === "mcp" ? <MCPSettings session={session} client={client} /> : null}
+            {settingsTab === "skills" ? <SkillSettings session={session} client={client} /> : null}
           </div>
-          {settingsTab === "members" ? <InboxMembers session={session} client={client} /> : null}
-          {settingsTab === "hmac" ? <InboxHmac session={session} client={client} /> : null}
-          {settingsTab === "catalog" ? <CatalogSettings session={session} client={client} /> : null}
-          {settingsTab === "webhooks" ? <WebhookSettings session={session} client={client} /> : null}
-          {settingsTab === "reports" ? <ReportSettings session={session} client={client} /> : null}
-          {settingsTab === "articles" ? <ArticleSettings session={session} client={client} /> : null}
-          {settingsTab === "mcp" ? <MCPSettings session={session} client={client} /> : null}
-          {settingsTab === "skills" ? <SkillSettings session={session} client={client} /> : null}
         </section>
       ) : (
         <>

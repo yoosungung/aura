@@ -33,6 +33,12 @@ export function SkillSettings({ session, client }) {
     };
   }, [client, session]);
 
+  function loadSkill(s) {
+    setName(s.name || "");
+    setDescription(s.description || "");
+    setBody(s.body || "");
+  }
+
   async function onCreate(e) {
     e.preventDefault();
     if (!client.upsertSkill || !name.trim() || !body.trim()) {
@@ -57,12 +63,51 @@ export function SkillSettings({ session, client }) {
     }
   }
 
+  async function onDelete(skill) {
+    if (!client.deleteSkill || !skill?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteSkill({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        skill_id: skill.id,
+      });
+      setSkills((prev) => prev.filter((s) => s.id !== skill.id));
+      if (name === skill.name) {
+        setName("");
+        setDescription("");
+        setBody("");
+      }
+    } catch {
+      setError("스킬을 삭제하지 못했습니다");
+    }
+  }
+
   return (
-    <section className="catalog" aria-label="Agent Skills">
+    <section className="settings-resource" aria-label="Agent Skills">
       <h2>Agent Skills</h2>
-      <ul>
+      <ul className="settings-list">
         {skills.map((s) => (
-          <li key={s.id || s.name}>{s.name}</li>
+          <li key={s.id || s.name}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="settings-item-main justify-start"
+              onClick={() => loadSkill(s)}
+            >
+              {s.name}
+            </Button>
+            {s.description ? <span className="settings-item-meta">{s.description}</span> : null}
+            {client.deleteSkill && s.id ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(s)}>
+                삭제
+              </Button>
+            ) : null}
+          </li>
         ))}
       </ul>
       <form onSubmit={onCreate} className="flex flex-col gap-2">

@@ -59,11 +59,14 @@ export function ArticleSettings({ session, client }) {
   }
 
   return (
-    <section className="catalog" aria-label="도움말">
+    <section className="settings-resource" aria-label="도움말">
       <h2>Help Center</h2>
-      <ul>
+      <ul className="settings-list">
         {articles.map((a) => (
-          <li key={a.id || a.slug}>{a.title}</li>
+          <li key={a.id || a.slug}>
+            <span className="settings-item-main">{a.title}</span>
+            {a.slug ? <span className="settings-item-meta">{a.slug}</span> : null}
+          </li>
         ))}
       </ul>
       <form onSubmit={onCreate} className="flex flex-col gap-2">

@@ -119,56 +119,69 @@ export function CatalogSettings({ session, client }) {
   }
 
   return (
-    <section className="catalog" aria-label="카탈로그">
+    <section className="settings-resource" aria-label="카탈로그">
       <h2>라벨·저장응답·매크로</h2>
-      <ul>
-        {labels.map((l) => (
-          <li key={l.id || l.name}>{l.name}</li>
-        ))}
-      </ul>
-      <form onSubmit={onCreateLabel} className="flex flex-col gap-2">
-        <Label>
-          카탈로그 라벨
-          <Input value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
-        </Label>
-        <Button type="submit">라벨 추가</Button>
-      </form>
-      <ul>
-        {canned.map((c) => (
-          <li key={c.id || c.short_code}>/{c.short_code}</li>
-        ))}
-      </ul>
-      <form onSubmit={onCreateCanned} className="flex flex-col gap-2">
-        <Label>
-          short_code
-          <Input value={shortCode} onChange={(e) => setShortCode(e.target.value)} required />
-        </Label>
-        <Label>
-          저장응답
-          <Textarea value={content} onChange={(e) => setContent(e.target.value)} required />
-        </Label>
-        <Button type="submit">저장응답 추가</Button>
-      </form>
-      {macros.length > 0 ? (
-        <ul>
-          {macros.map((m) => (
-            <li key={m.id || m.name}>{m.name}</li>
+      <div className="settings-block">
+        <h3>라벨</h3>
+        <ul className="settings-list">
+          {labels.map((l) => (
+            <li key={l.id || l.name}>
+              <span className="settings-item-main">{l.name}</span>
+            </li>
           ))}
         </ul>
-      ) : null}
-      {client.createMacro ? (
-        <form onSubmit={onCreateMacro} className="flex flex-col gap-2">
+        <form onSubmit={onCreateLabel} className="flex flex-col gap-2">
           <Label>
-            매크로 이름
-            <Input value={macroName} onChange={(e) => setMacroName(e.target.value)} required />
+            카탈로그 라벨
+            <Input value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
           </Label>
-          <Label>
-            공개 메시지
-            <Textarea value={macroMessage} onChange={(e) => setMacroMessage(e.target.value)} required />
-          </Label>
-          <Button type="submit">매크로 저장</Button>
+          <Button type="submit">라벨 추가</Button>
         </form>
-      ) : null}
+      </div>
+      <div className="settings-block">
+        <h3>저장응답</h3>
+        <ul className="settings-list">
+          {canned.map((c) => (
+            <li key={c.id || c.short_code}>
+              <span className="settings-item-main">/{c.short_code}</span>
+            </li>
+          ))}
+        </ul>
+        <form onSubmit={onCreateCanned} className="flex flex-col gap-2">
+          <Label>
+            short_code
+            <Input value={shortCode} onChange={(e) => setShortCode(e.target.value)} required />
+          </Label>
+          <Label>
+            저장응답
+            <Textarea value={content} onChange={(e) => setContent(e.target.value)} required />
+          </Label>
+          <Button type="submit">저장응답 추가</Button>
+        </form>
+      </div>
+      <div className="settings-block">
+        <h3>매크로</h3>
+        <ul className="settings-list">
+          {macros.map((m) => (
+            <li key={m.id || m.name}>
+              <span className="settings-item-main">{m.name}</span>
+            </li>
+          ))}
+        </ul>
+        {client.createMacro ? (
+          <form onSubmit={onCreateMacro} className="flex flex-col gap-2">
+            <Label>
+              매크로 이름
+              <Input value={macroName} onChange={(e) => setMacroName(e.target.value)} required />
+            </Label>
+            <Label>
+              공개 메시지
+              <Textarea value={macroMessage} onChange={(e) => setMacroMessage(e.target.value)} required />
+            </Label>
+            <Button type="submit">매크로 저장</Button>
+          </form>
+        ) : null}
+      </div>
       {error ? <p role="alert">{error}</p> : null}
     </section>
   );

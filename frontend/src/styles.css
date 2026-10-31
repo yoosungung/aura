@@ -381,14 +381,28 @@ body,
   cursor: pointer;
 }
 
-.composer {
+.composer,
+.note {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-end;
 }
 
-.composer [data-slot="textarea"] {
+.composer [data-slot="textarea"],
+.note [data-slot="textarea"] {
+  min-width: 12rem;
   flex: 1;
+}
+
+.note [data-slot="textarea"] {
+  border-color: rgb(253 186 116 / 0.9);
+  background: #fffbeb;
+}
+
+.note [role="alert"] {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 .canned-pop {
@@ -479,26 +493,101 @@ select {
 .context-card,
 .settings-pane {
   display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.settings-nav {
+  display: flex;
+  width: 176px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  padding: 16px 8px;
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-nav-group > h2 {
+  margin: 0 8px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.settings-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
   flex-direction: column;
   gap: 12px;
-}
-
-.settings-pane {
-  flex: 1;
   overflow: auto;
-  background: var(--surface);
-  padding: 16px;
+  padding: 16px 24px;
 }
 
-.settings-tabs {
+.settings-resource {
   display: flex;
-  flex-wrap: wrap;
+  max-width: 40rem;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-resource h2,
+.settings-block h3 {
+  margin: 0;
+}
+
+.settings-resource h2 {
+  font-size: 18px;
+}
+
+.settings-block {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.settings-block h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+.settings-item-main {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.settings-item-meta {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .assign,
 .snooze,
-.note,
 .attach,
 .resolve,
 .macros {

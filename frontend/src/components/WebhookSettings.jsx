@@ -51,12 +51,37 @@ export function WebhookSettings({ session, client }) {
     }
   }
 
+  async function onDelete(hook) {
+    if (!client.deleteWebhook || !hook?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteWebhook({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        webhook_id: hook.id,
+      });
+      setHooks((prev) => prev.filter((h) => h.id !== hook.id));
+    } catch {
+      setError("웹훅을 삭제하지 못했습니다");
+    }
+  }
+
   return (
-    <section className="catalog" aria-label="웹훅">
+    <section className="settings-resource" aria-label="웹훅">
       <h2>아웃바운드 웹훅</h2>
-      <ul>
+      <ul className="settings-list">
         {hooks.map((h) => (
-          <li key={h.id || h.url}>{h.url}</li>
+          <li key={h.id || h.url}>
+            <span className="settings-item-main">{h.url}</span>
+            {client.deleteWebhook && h.id ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(h)}>
+                삭제
+              </Button>
+            ) : null}
+          </li>
         ))}
       </ul>
       <form onSubmit={onCreate} className="flex flex-col gap-2">

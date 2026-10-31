@@ -29,7 +29,7 @@ export function ReportSettings({ session, client }) {
   const sla = report?.sla_hit_rate ?? 0;
 
   return (
-    <section className="catalog" aria-label="리포트">
+    <section className="settings-resource" aria-label="리포트">
       <h2>운영 리포트</h2>
       <p>
         CSAT% <span data-testid="csat-percent">{csat}</span>

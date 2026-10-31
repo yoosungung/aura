@@ -1494,6 +1494,8 @@ test("note composer uses amber send and kakao session warning", async () => {
   expect(screen.getByRole("region", { name: "채널 상태" }).textContent).toMatch(/세션/);
   await user.click(screen.getByRole("button", { name: "내부 메모" }));
   expect(screen.getByRole("button", { name: "메모" }).className).toMatch(/amber/);
+  expect(document.querySelector("form.note label")).toBeNull();
+  expect(document.querySelector("form.note [data-slot='textarea']")).toBeTruthy();
 });
 
 test("administrator sees CSAT percent and SLA hit rate", async () => {
@@ -1651,6 +1653,127 @@ test("administrator publishes a help article", async () => {
   expect(created[0].title).toBe("결제 오류");
   expect(created[0].published).toBe(true);
   expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 오류");
+});
+
+test("administrator settings nav groups inbox content integration and reports", async () => {
+  const user = userEvent.setup();
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{ connect() {} }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  expect(screen.getByRole("heading", { name: "인박스" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "콘텐츠" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "연동" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "분석" })).toBeTruthy();
+});
+
+test("administrator deletes a webhook", async () => {
+  const user = userEvent.setup();
+  const deleted = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listWebhooks() {
+          return { webhooks: [{ id: "wh1", url: "https://crm.example/hook" }] };
+        },
+        async deleteWebhook(req) {
+          deleted.push(req);
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "웹훅" }));
+  expect(await screen.findByText("https://crm.example/hook")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(deleted[0].webhook_id).toBe("wh1");
+  expect(screen.getByRole("region", { name: "웹훅" }).textContent).not.toContain("https://crm.example/hook");
+});
+
+test("administrator deletes an ops MCP server", async () => {
+  const user = userEvent.setup();
+  const deleted = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listMCP() {
+          return {
+            mcp_servers: [{ id: "m1", name: "shop", url: "https://ops.example/mcp", auth_header: "Bearer old" }],
+          };
+        },
+        async deleteMCP(req) {
+          deleted.push(req);
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "MCP" }));
+  expect((await screen.findByRole("region", { name: "MCP" })).textContent).toContain("https://ops.example/mcp");
+  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(deleted[0].mcp_server_id).toBe("m1");
+  expect(screen.getByRole("region", { name: "MCP" }).textContent).not.toContain("https://ops.example/mcp");
+});
+
+test("administrator deletes an agent skill", async () => {
+  const user = userEvent.setup();
+  const deleted = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listSkills() {
+          return { agent_skills: [{ id: "s1", name: "refund-policy", description: "환불", body: "TENANT_BODY" }] };
+        },
+        async deleteSkill(req) {
+          deleted.push(req);
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "Agent Skills" }));
+  expect(await screen.findByText("refund-policy")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(deleted[0].skill_id).toBe("s1");
+  expect(screen.getByRole("region", { name: "Agent Skills" }).textContent).not.toContain("refund-policy");
+});
+
+test("administrator edits an agent skill from the list", async () => {
+  const user = userEvent.setup();
+  const saved = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listSkills() {
+          return { agent_skills: [{ id: "s1", name: "refund-policy", description: "환불", body: "OLD" }] };
+        },
+        async upsertSkill(req) {
+          saved.push(req);
+          return { id: "s1", name: req.name, description: req.description, body: req.body };
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "Agent Skills" }));
+  await user.click(await screen.findByRole("button", { name: "refund-policy" }));
+  expect(screen.getByLabelText("스킬 본문").value).toBe("OLD");
+  await user.clear(screen.getByLabelText("스킬 본문"));
+  await user.type(screen.getByLabelText("스킬 본문"), "NEW");
+  await user.click(screen.getByRole("button", { name: "스킬 저장" }));
+  expect(saved[0].name).toBe("refund-policy");
+  expect(saved[0].body).toBe("NEW");
 });
 
 test("context panel shows living profile chips without changing layout", async () => {
