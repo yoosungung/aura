@@ -148,15 +148,23 @@ jobs:
           else
             scope="users/${OWNER}"
           fi
+          ghcr() {
+            local method="$1" path="$2"
+            curl -sS -f -X "${method}" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/${path}"
+          }
           for name in ${IMAGE_NAMES}; do
             pkg="${REPO_NAME}/${name}"
             enc="$(jq -nr --arg p "${pkg}" '$p|@uri')"
             echo "prune ${pkg}"
-            ids="$(gh api --paginate "${scope}/packages/container/${enc}/versions" -f per_page=100 \
-              --jq '.[] | select((.metadata.container.tags // []) | index("current") | not) | .id')"
+            ids="$(ghcr GET "${scope}/packages/container/${enc}/versions?per_page=100" \
+              | jq -r '.[] | select((.metadata.container.tags // []) | index("current") | not) | .id')"
             for id in ${ids}; do
               echo "delete ${pkg} version ${id}"
-              gh api --method DELETE "${scope}/packages/container/${enc}/versions/${id}"
+              ghcr DELETE "${scope}/packages/container/${enc}/versions/${id}" >/dev/null
             done
           done
 
