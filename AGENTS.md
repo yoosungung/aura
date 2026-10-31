@@ -22,7 +22,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/README.md` | 클러스터 로컬 사용법(적용·NodePort·TLS·위젯) | `deploy/k8s/` |
 | `deploy/k8s/base/` | Kustomize 베이스(로컬 태그 `aura/*:main`) | `deploy/k8s/base/` |
 | `deploy/k8s/ghcr/` | 클러스터 기본 오버레이(GHCR `:current`) | `deploy/k8s/ghcr/` |
-| `docs/` | 기획 원본(설계서·헬프데스크 분석). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
+| `docs/` | 기획 원본(설계서·헬프데스크 분석·테넌트 버킷/Fair Queue). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/` |
  
 규칙:

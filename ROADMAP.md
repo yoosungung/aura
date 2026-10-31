@@ -1,6 +1,6 @@
 # ROADMAP.md
 
-수행 순서와 성공 기준만 적는다. 계약·스키마·이벤트는 [ARCHITECTURE.md](ARCHITECTURE.md). 기획 원본은 [docs/설계서.md](docs/설계서.md), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md), [docs/아키텍처_개선.md](docs/아키텍처_개선.md), [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md), [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md).
+수행 순서와 성공 기준만 적는다. 계약·스키마·이벤트는 [ARCHITECTURE.md](ARCHITECTURE.md). 기획 원본은 [docs/설계서.md](docs/설계서.md), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md), [docs/아키텍처_개선.md](docs/아키텍처_개선.md), [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md), [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md), [docs/테넌트_버킷_Fair_Queuing.md](docs/테넌트_버킷_Fair_Queuing.md).
 
 스택: Go 코어 + Python `svc-ai-agent`, 프론트 React + Vite. 개발은 TDD (스켈레톤 → 테스트 → 구현). 빈 컴포넌트 stub·빈 `deploy/`·빈 CI 워크플로는 만들지 않는다. 코드가 처음 들어가는 폴더에만 `DESIGN.md`와 `## Commands`를 추가한다.
 
@@ -149,8 +149,6 @@
 - presence 연결 카운트 (멀티탭·멀티 레플리카). last-write-wins를 KV 증감으로 교체
 - 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰. 티켓 딥링크.
 - 큐/메시지 가상 스크롤.
-- 상담원 SPA TypeScript: `frontend/` 소스·테스트·Vite 설정은 `.ts/.tsx`다. `packages/widget-sdk` 코드젠·TS 전환은 출시 후.
-- `contracts/` JSON Schema → TypeScript (`frontend/`, `packages/widget-sdk`). 게이트웨이가 `helpdesk.realtime`에 넣는 WS 래퍼의 `message` 필드는 이미 `message_created` envelope이므로, 그 envelope·payload만 생성 타입으로 읽는다. NATS RPC(`conversations.create` 등)는 게이트웨이↔코어 전용이다. REST 응답·UI 상태·위젯 호스트 `postMessage`(`source: "aura-widget"`)는 이 스키마에 합치지 않는다. Go 생성은 지금처럼 `backend/internal/contracts`다. 이 코드젠은 `store`/`gateway`가 `.ts`인 뒤에 WS 경계에만 붙인다.
 
 ## 미결정
 
@@ -171,6 +169,10 @@
 **NATS 격리.** account 대 subject prefix `helpdesk.events.<account_id>.>` → 출시는 subject prefix. NATS account 격리는 출시 후.
 
 **첨부 버킷.** 테넌트 prefix vs 버킷 분리 → P3는 SeaweedFS 필러 단일 트리 + `account_id/` prefix. 버킷 분리·멀티리전은 출시 후.
+
+**위젯 SDK 언어.** TypeScript 전환 / JS 유지 → JS 유지. 호스트 로더·iframe은 런타임 의존성 없는 IIFE다.
+
+**SPA contracts 코드젠.** `contracts/` JSON Schema → TypeScript / 안 함 → 안 함. Go 생성만 `backend/internal/contracts`. 상담원 SPA 타입은 손수 둔다.
 
 **Auth.** 자체 세션 vs OIDC → 자체 세션(이메일+비밀번호). Argon2id. 세션 쿠키(7일, HttpOnly) + HMAC 접근 토큰(15분, `exp`·`sid`). `pubsub_token`은 시드. OIDC는 P6 이후 검토.
 

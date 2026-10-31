@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이스 형태**다. 기획 원본은 [docs/설계서.md](docs/설계서.md)(NATS 백본·온톨로지·AI), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)(티켓 FSM·옴니채널·SLA·CSAT·위젯·API), [docs/아키텍처_개선.md](docs/아키텍처_개선.md)(장기 운영 점검), [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md)(상담원 셸·위젯 공간), [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md)(프론트·위젯 결함)다. 일정은 [ROADMAP.md](ROADMAP.md). 컴포넌트 내부 설계는 해당 폴더의 `DESIGN.md`.
+Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이스 형태**다. 기획 원본은 [docs/설계서.md](docs/설계서.md)(NATS 백본·온톨로지·AI), [docs/헬프데스크 솔루션 구현 분석.md](docs/헬프데스크%20솔루션%20구현%20분석.md)(티켓 FSM·옴니채널·SLA·CSAT·위젯·API), [docs/아키텍처_개선.md](docs/아키텍처_개선.md)(장기 운영 점검), [docs/UI_UX_레이아웃_설계안.md](docs/UI_UX_레이아웃_설계안.md)(상담원 셸·위젯 공간), [docs/프론트엔드_위젯_검토.md](docs/프론트엔드_위젯_검토.md)(프론트·위젯 결함), [docs/테넌트_버킷_Fair_Queuing.md](docs/테넌트_버킷_Fair_Queuing.md)(테넌트 버킷·Fair Queue)다. 일정은 [ROADMAP.md](ROADMAP.md). 컴포넌트 내부 설계는 해당 폴더의 `DESIGN.md`.
 
 §1은 규칙(왜). §2 이후는 형태(어떻게). 규칙이 바뀌면 §1을 먼저 고친다.
 
@@ -190,7 +190,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 
 ## 4. 이벤트 JSON
 
-모든 `helpdesk.events.>` 페이로드는 이 envelope다. 언어별 모델은 [contracts/](contracts/) JSON Schema에서 생성한다. Go는 `backend/internal/contracts`다. TypeScript는 출시 후 `frontend/`·`packages/widget-sdk`가 같은 스키마에서 envelope·payload만 생성한다(일정·범위는 [ROADMAP.md](ROADMAP.md) 출시 후). RPC 스키마는 브라우저가 쓰지 않는다.
+모든 `helpdesk.events.>` 페이로드는 이 envelope다. 언어별 모델은 [contracts/](contracts/) JSON Schema에서 생성한다. Go는 `backend/internal/contracts`다. 상담원 SPA·위젯 SDK는 이 스키마에서 타입을 생성하지 않는다. RPC 스키마는 브라우저가 쓰지 않는다.
 
 ```json
 {
