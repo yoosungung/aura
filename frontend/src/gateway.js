@@ -687,6 +687,19 @@ export async function deleteSkill(req, fetchImpl = fetch) {
   return res.json();
 }
 
+export async function deleteArticle(req, fetchImpl = fetch) {
+  fetchImpl = authed(req, fetchImpl);
+  const { gatewayUrl, accountId, token, article_id } = req;
+  const res = await fetchImpl(`${gatewayUrl}/api/v1/accounts/${accountId}/articles/${article_id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("article delete failed");
+  }
+  return res.json();
+}
+
 export async function createArticle(req, fetchImpl = fetch) {
   fetchImpl = authed(req, fetchImpl);
   const { gatewayUrl, accountId, token, title, slug, body, published } = req;
@@ -760,6 +773,7 @@ export const liveClient = {
   deleteWebhook,
   listArticles,
   createArticle,
+  deleteArticle,
   listMCP,
   upsertMCP,
   rotateMCP,

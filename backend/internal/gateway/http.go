@@ -72,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/reports", s.handleReports)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/articles", s.handleArticles)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/articles", s.handleArticles)
+	mux.HandleFunc("DELETE /api/v1/accounts/{account_id}/articles/{article_id}", s.handleArticles)
 	mux.HandleFunc("GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego", s.handleEgo)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/tools/{execution_id}/approve", s.handleToolApprove)
 	mux.HandleFunc("POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge", s.handleContactPurge)

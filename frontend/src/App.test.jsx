@@ -1655,6 +1655,31 @@ test("administrator publishes a help article", async () => {
   expect(screen.getByRole("region", { name: "도움말" }).textContent).toContain("결제 오류");
 });
 
+test("administrator deletes a help article", async () => {
+  const user = userEvent.setup();
+  const deleted = [];
+  render(
+    <App
+      session={{ ...session, role: "administrator" }}
+      client={{
+        connect() {},
+        async listArticles() {
+          return { articles: [{ id: "a1", title: "결제 오류", slug: "pay-error" }] };
+        },
+        async deleteArticle(req) {
+          deleted.push(req);
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "설정" }));
+  await user.click(screen.getByRole("button", { name: "도움말" }));
+  expect(await screen.findByText("결제 오류")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "삭제" }));
+  expect(deleted[0].article_id).toBe("a1");
+  expect(screen.getByRole("region", { name: "도움말" }).textContent).not.toContain("결제 오류");
+});
+
 test("administrator settings nav groups inbox content integration and reports", async () => {
   const user = userEvent.setup();
   render(

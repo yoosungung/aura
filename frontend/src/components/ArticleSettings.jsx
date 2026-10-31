@@ -58,6 +58,24 @@ export function ArticleSettings({ session, client }) {
     }
   }
 
+  async function onDelete(article) {
+    if (!client.deleteArticle || !article?.id) {
+      return;
+    }
+    setError("");
+    try {
+      await client.deleteArticle({
+        gatewayUrl: session.gatewayUrl,
+        accountId: session.accountId,
+        token: session.token,
+        article_id: article.id,
+      });
+      setArticles((prev) => prev.filter((a) => a.id !== article.id));
+    } catch {
+      setError("문서를 삭제하지 못했습니다");
+    }
+  }
+
   return (
     <section className="settings-resource" aria-label="도움말">
       <h2>Help Center</h2>
@@ -66,6 +84,11 @@ export function ArticleSettings({ session, client }) {
           <li key={a.id || a.slug}>
             <span className="settings-item-main">{a.title}</span>
             {a.slug ? <span className="settings-item-meta">{a.slug}</span> : null}
+            {client.deleteArticle && a.id ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(a)}>
+                삭제
+              </Button>
+            ) : null}
           </li>
         ))}
       </ul>

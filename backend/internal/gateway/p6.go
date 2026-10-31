@@ -61,6 +61,7 @@ type ArticleOut struct {
 type ArticleStore interface {
 	ListArticles(ctx context.Context, actor, account uuid.UUID) ([]ArticleOut, error)
 	CreateArticle(ctx context.Context, actor, account uuid.UUID, title, slug, body string, published bool) (ArticleOut, error)
+	DeleteArticle(ctx context.Context, actor, account, article uuid.UUID) error
 	SearchArticles(ctx context.Context, inbox uuid.UUID, query string) ([]ArticleOut, error)
 }
 
@@ -261,6 +262,17 @@ func (s *Server) handleArticles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, encodeArticleHTTP(got))
+	case http.MethodDelete:
+		id, err := uuid.Parse(r.PathValue("article_id"))
+		if err != nil {
+			http.Error(w, "invalid article", http.StatusBadRequest)
+			return
+		}
+		if err := s.Service.Articles.DeleteArticle(r.Context(), tok.UserID, accountID, id); err != nil {
+			writeCatalogErr(w, err)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
 	default:
 		http.Error(w, "method", http.StatusMethodNotAllowed)
 	}
@@ -473,6 +485,13 @@ func (r *natsRPC) CreateArticle(ctx context.Context, actor, account uuid.UUID, t
 	}
 	art, _ := raw["article"].(map[string]any)
 	return decodeArticle(art), nil
+}
+
+func (r *natsRPC) DeleteArticle(ctx context.Context, actor, account, article uuid.UUID) error {
+	_, err := r.call(ctx, core.SubjectArticleDelete, map[string]any{
+		"actor_user_id": actor.String(), "account_id": account.String(), "article_id": article.String(),
+	})
+	return err
 }
 
 func (r *natsRPC) SearchArticles(ctx context.Context, inbox uuid.UUID, query string) ([]ArticleOut, error) {

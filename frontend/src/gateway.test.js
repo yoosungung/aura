@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
+import { addConversationLabel, addInboxMember, assignConversation, connect, createCanned, deleteArticle, deleteMCP, deleteSkill, deleteWebhook, executeMacro, getInbox, listCanned, listConversations, listContacts, removeConversationLabel, resolveConversation, rotateHmac, sendNote, sendReply, signIn, signOut, snoozeConversation, updateInbox, uploadAttachment, wsUrl } from "./gateway.js";
 
 describe("gateway client", () => {
   it("reconnects websocket with a refreshed access token", async () => {
@@ -441,7 +441,7 @@ describe("gateway client", () => {
     assert.equal(calls[0].opts.body.get("file").name, "receipt.png");
   });
 
-  it("deletes webhooks, mcp servers, and agent skills", async () => {
+  it("deletes webhooks, mcp servers, agent skills, and articles", async () => {
     const calls = [];
     const fetchImpl = async (url, opts) => {
       calls.push({ url, opts });
@@ -459,11 +459,17 @@ describe("gateway client", () => {
       { gatewayUrl: "http://gw", accountId: "acc", token: "tok", skill_id: "s1" },
       fetchImpl,
     );
+    await deleteArticle(
+      { gatewayUrl: "http://gw", accountId: "acc", token: "tok", article_id: "a1" },
+      fetchImpl,
+    );
     assert.equal(calls[0].url, "http://gw/api/v1/accounts/acc/webhooks/wh1");
     assert.equal(calls[0].opts.method, "DELETE");
     assert.equal(calls[1].url, "http://gw/api/v1/accounts/acc/mcp_servers/m1");
     assert.equal(calls[1].opts.method, "DELETE");
     assert.equal(calls[2].url, "http://gw/api/v1/accounts/acc/agent_skills/s1");
     assert.equal(calls[2].opts.method, "DELETE");
+    assert.equal(calls[3].url, "http://gw/api/v1/accounts/acc/articles/a1");
+    assert.equal(calls[3].opts.method, "DELETE");
   });
 });

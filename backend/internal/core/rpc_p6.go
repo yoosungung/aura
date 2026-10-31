@@ -23,6 +23,7 @@ func (s *Service) subscribeP6(nc *nats.Conn) error {
 		{SubjectReportsGet, s.handleReportsGet},
 		{SubjectArticleList, s.handleArticleList},
 		{SubjectArticleCreate, s.handleArticleCreate},
+		{SubjectArticleDelete, s.handleArticleDelete},
 		{SubjectArticleSearch, s.handleArticleSearch},
 		{SubjectContactConversations, s.handleContactConversations},
 		{SubjectContactMessages, s.handleContactMessages},
@@ -211,6 +212,20 @@ func (s *Service) handleArticleCreate(msg *nats.Msg) {
 	_ = msg.Respond(body)
 }
 
+func (s *Service) handleArticleDelete(msg *nats.Msg) {
+	in, err := parseArticleInput(msg)
+	if err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	if err := s.DeleteArticle(context.Background(), in); err != nil {
+		_ = msg.Respond(rpcErr(err))
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"ok": true})
+	_ = msg.Respond(body)
+}
+
 func (s *Service) handleArticleSearch(msg *nats.Msg) {
 	var req struct {
 		InboxID string `json:"inbox_id"`
@@ -303,6 +318,7 @@ func parseArticleInput(msg *nats.Msg) (ArticleInput, error) {
 	var req struct {
 		ActorUserID string `json:"actor_user_id"`
 		AccountID   string `json:"account_id"`
+		ArticleID   string `json:"article_id"`
 		Title       string `json:"title"`
 		Slug        string `json:"slug"`
 		Body        string `json:"body"`
@@ -320,7 +336,7 @@ func parseArticleInput(msg *nats.Msg) (ArticleInput, error) {
 		return ArticleInput{}, err
 	}
 	return ArticleInput{
-		ActorUserID: actor, AccountID: accountID,
+		ActorUserID: actor, AccountID: accountID, ArticleID: parseUUID(req.ArticleID),
 		Title: req.Title, Slug: req.Slug, Body: req.Body, Published: req.Published,
 	}, nil
 }

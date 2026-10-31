@@ -127,6 +127,7 @@ JetStream KV 버킷 `AGENT_CAPACITY`: 키 `{account_id}.{user_id}`는 `C_current
 | Core | `helpdesk.rpc.reports.get` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.list` | `actor_user_id`, `account_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.create` | `actor_user_id`, `account_id`, `title`, `slug`, `body`, `published` | gateway-web | svc-core |
+| Core | `helpdesk.rpc.articles.delete` | `actor_user_id`, `account_id`, `article_id`. administrator | gateway-web | svc-core |
 | Core | `helpdesk.rpc.articles.search` | `inbox_id`, `query`. 공개 게시글. SECURITY DEFINER | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.conversations` | `account_id`, `inbox_id`, `contact_id` | gateway-web | svc-core |
 | Core | `helpdesk.rpc.contacts.messages` | `account_id`, `inbox_id`, `contact_id`, `conversation_id` | gateway-web | svc-core |
@@ -382,6 +383,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 - `DELETE /api/v1/accounts/{account_id}/webhooks/{webhook_id}`
 - `GET /api/v1/accounts/{account_id}/reports` (`conversations` 상태별, `agents`, `inboxes`, `csat_percent` 4–5점 비율, `sla_hit_rate`)
 - `GET`/`POST /api/v1/accounts/{account_id}/articles`
+- `DELETE /api/v1/accounts/{account_id}/articles/{article_id}`
 - `GET /api/v1/accounts/{account_id}/contacts/{contact_id}/ego` (Living Profile 1~2홉)
 - `POST /api/v1/accounts/{account_id}/conversations/{id}/tools/{execution_id}/approve`
 - `POST /api/v1/accounts/{account_id}/contacts/{contact_id}/purge` (administrator. PG 식별자·본문·CSAT·도구 JSON 익명화, JetStream subject, Cold Archive JSONL prefix)

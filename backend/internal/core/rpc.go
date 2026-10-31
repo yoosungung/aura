@@ -57,6 +57,7 @@ const (
 	SubjectReportsGet           = "helpdesk.rpc.reports.get"
 	SubjectArticleList          = "helpdesk.rpc.articles.list"
 	SubjectArticleCreate        = "helpdesk.rpc.articles.create"
+	SubjectArticleDelete        = "helpdesk.rpc.articles.delete"
 	SubjectArticleSearch        = "helpdesk.rpc.articles.search"
 	SubjectContactConversations = "helpdesk.rpc.contacts.conversations"
 	SubjectContactMessages      = "helpdesk.rpc.contacts.messages"

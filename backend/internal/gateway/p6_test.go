@@ -67,6 +67,9 @@ func (f *fakeArticles) CreateArticle(context.Context, uuid.UUID, uuid.UUID, stri
 func (f *fakeArticles) SearchArticles(context.Context, uuid.UUID, string) ([]gateway.ArticleOut, error) {
 	return f.list, f.err
 }
+func (f *fakeArticles) DeleteArticle(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return f.err
+}
 
 type fakeContactAPI struct {
 	conversations []gateway.ConversationRow

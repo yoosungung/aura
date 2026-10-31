@@ -14,6 +14,7 @@ import (
 type ArticleInput struct {
 	ActorUserID uuid.UUID
 	AccountID   uuid.UUID
+	ArticleID   uuid.UUID
 	Title       string
 	Slug        string
 	Body        string
@@ -79,6 +80,26 @@ func (s *Service) ListArticles(ctx context.Context, in ArticleInput) ([]Article,
 		out = []Article{}
 	}
 	return out, err
+}
+
+func (s *Service) DeleteArticle(ctx context.Context, in ArticleInput) error {
+	if in.ArticleID == uuid.Nil {
+		return ErrNotFound
+	}
+	return s.withAccountMember(ctx, in.ActorUserID, in.AccountID, true, func(tx pgx.Tx, _ string) error {
+		_, err := tx.Exec(ctx, `DELETE FROM embeddings WHERE owner_type = 'article' AND owner_id = $1`, in.ArticleID)
+		if err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, `DELETE FROM articles WHERE id = $1`, in.ArticleID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }
 
 func (s *Service) SearchArticles(ctx context.Context, inboxID uuid.UUID, query string) ([]Article, error) {
