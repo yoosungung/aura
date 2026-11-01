@@ -1,14 +1,21 @@
-from virtual_client.mcp_mock import FIXTURES, FixtureStore, lookup_order, lookup_shipping, refund, set_scenario
+import asyncio
+
+from virtual_client.mcp_mock import (
+    FixtureStore,
+    build_mcp,
+    lookup_order,
+    lookup_shipping,
+    refund,
+    set_scenario,
+)
+from virtual_client.scenarios import SCENARIOS
 
 
-def test_five_fixtures_exist():
-    assert set(FIXTURES) == {
-        "cancel-in-transit",
-        "lost-package",
-        "return-fee",
-        "damaged-exchange",
-        "coupon-retro",
-    }
+def test_fixture_store_copies_scenario_fixture():
+    spec = SCENARIOS["lost-package"]
+    store = FixtureStore("lost-package")
+    assert store.data == spec.fixture
+    assert store.data is not spec.fixture
 
 
 def test_lost_package_matches_phone_and_delivered():
@@ -43,3 +50,9 @@ def test_cancel_in_transit_and_coupon_and_damaged():
     out = refund(store, 15000, "고객 요청")
     assert out["executed"] is True
     assert out["amount"] == 15000
+
+
+def test_build_mcp_does_not_shadow_lookup_order():
+    mcp = build_mcp(FixtureStore("lost-package"))
+    names = {t.name for t in asyncio.run(mcp.list_tools())}
+    assert names == {"lookup_order", "lookup_shipping", "refund"}

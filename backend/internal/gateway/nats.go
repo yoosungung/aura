@@ -30,7 +30,7 @@ func NewBus(nc *nats.Conn, js jetstream.JetStream) Bus {
 }
 
 func (r *natsRPC) Create(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error) {
-	return r.create(ctx, accountID, inboxID, sourceID, name, traceID, false)
+	return r.create(ctx, accountID, inboxID, sourceID, name, traceID, true)
 }
 
 func (r *natsRPC) CreateEmail(ctx context.Context, accountID, inboxID uuid.UUID, sourceID, name, traceID string) (CreateOut, error) {

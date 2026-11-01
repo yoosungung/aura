@@ -20,6 +20,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/SETUP.md` | 로컬·클러스터 배포 런북 | `deploy/SETUP.md` |
 | `deploy/operator/` | 운영자 계정·유저 CRUD 노드 스크립트 | `deploy/operator/` |
 | `deploy/k8s/README.md` | 클러스터 로컬 사용법(적용·NodePort·TLS·위젯) | `deploy/k8s/` |
+| `deploy/k8s/nodeport-proxy.sh` | Docker Desktop kind 노드 NodePort → localhost socat | `deploy/k8s/` |
+| `deploy/k8s/compose-endpoints.sh` | 로컬 compose PG·NATS·Filer IP → aura Service Endpoints | `deploy/k8s/` |
 | `deploy/k8s/base/` | Kustomize 베이스(로컬 태그 `aura/*:main`) | `deploy/k8s/base/` |
 | `deploy/k8s/ghcr/` | 클러스터 기본 오버레이(GHCR `:current`) | `deploy/k8s/ghcr/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석·테넌트 버킷/Fair Queue). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |

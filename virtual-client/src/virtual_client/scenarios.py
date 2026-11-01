@@ -10,6 +10,7 @@ class ScenarioSpec:
     persona: str
     goal: str
     criteria: tuple[str, ...]
+    fixture: dict
 
 
 SCENARIOS: dict[str, ScenarioSpec] = {
@@ -23,6 +24,13 @@ SCENARIOS: dict[str, ScenarioSpec] = {
             "배송 시작 후에는 단순 취소가 불가능하고 반품 절차를 밟아야 함을 안내했는가?",
             "고객의 재촉에 정중하게 안내를 완료했는가?",
         ),
+        fixture={
+            "order_id": "ORD-CANCEL",
+            "status": "paid",
+            "customer": {"phone": "010-5555-0000", "name": "김가상"},
+            "shipping": {"status": "in_transit", "location": "in_transit"},
+            "policy": {"cancel_after_ship": False, "return_ok": True},
+        },
     ),
     "lost-package": ScenarioSpec(
         name="lost-package",
@@ -34,6 +42,13 @@ SCENARIOS: dict[str, ScenarioSpec] = {
             "시스템 상 '배송 완료' 상태임을 명확히 안내하고, 고객 미수령 주장에 맞춰 배송 기사 확인 또는 분실 사고 접수를 진행했는가?",
             "고객의 일방적인 재촉에도 절차(확인 후 처리)를 차분하고 명확하게 설명했는가?",
         ),
+        fixture={
+            "order_id": "ORD-LOST",
+            "status": "paid",
+            "customer": {"phone": "010-5555-0001", "name": "이조급"},
+            "shipping": {"status": "delivered", "location": "delivered"},
+            "policy": {"lost_claim_ok": True},
+        },
     ),
     "return-fee": ScenarioSpec(
         name="return-fee",
@@ -45,6 +60,17 @@ SCENARIOS: dict[str, ScenarioSpec] = {
             "고객의 법적 대응/신고 위협 발언에 감정적으로 맞서지 않고 공감 및 완화 화법을 구사했는가?",
             "고객이 '교환'으로 의도를 바꿨을 때 이를 정확히 포착하여 교환 배송비 및 맞교환 절차를 안내했는가?",
         ),
+        fixture={
+            "order_id": "ORD-SHOE",
+            "status": "paid",
+            "customer": {"phone": "010-5555-0002", "name": "박신발"},
+            "shipping": {"status": "delivered", "location": "delivered"},
+            "policy": {
+                "return_shipping_krw": 6000,
+                "exchange_shipping_krw": 3000,
+                "reason": "단순 변심 왕복 배송비",
+            },
+        },
     ),
     "damaged-exchange": ScenarioSpec(
         name="damaged-exchange",
@@ -56,6 +82,14 @@ SCENARIOS: dict[str, ScenarioSpec] = {
             "사진 확인 후 재고 부족(품절) 상황을 투명하게 안내하고 대체 선택지(타 향 변경 vs 전액 환불)를 제시했는가?",
             "고객의 환불 선택 시 깨진 제품의 폐기 안내(회수 생략)와 함께 결제 취소 접수를 완료했는가?",
         ),
+        fixture={
+            "order_id": "ORD-GLASS",
+            "status": "paid",
+            "customer": {"phone": "010-5555-0003", "name": "최파손"},
+            "shipping": {"status": "delivered", "location": "delivered"},
+            "sku": {"name": "유리 디퓨저", "stock": 0, "alt_scents": True},
+            "policy": {"broken_no_return": True, "refund_ok": True},
+        },
     ),
     "coupon-retro": ScenarioSpec(
         name="coupon-retro",
@@ -67,6 +101,18 @@ SCENARIOS: dict[str, ScenarioSpec] = {
             "결제 후 쿠폰 사후 적용(PG 부분 취소) 가능 여부 정책을 명확히 안내했는가?",
             "단순 거절에 그치지 않고 대안(재주문 안내 또는 적립금 수동 지급 접수)을 제시했는가?",
         ),
+        fixture={
+            "order_id": "ORD-WELCOME",
+            "status": "paid",
+            "customer": {"phone": "010-5555-0004", "name": "정쿠폰"},
+            "shipping": {"status": "preparing", "location": "warehouse"},
+            "coupon": {
+                "code": "WELCOME10",
+                "pg_partial_cancel": False,
+                "delta": 15000,
+                "payment": "card",
+            },
+        },
     ),
 }
 

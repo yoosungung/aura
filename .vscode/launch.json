@@ -7,6 +7,29 @@
       "request": "launch",
       "command": "npm run dev",
       "cwd": "${workspaceFolder}/frontend"
+    },
+    {
+      "name": "Virtual Client",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "virtual_client",
+      "python": "${workspaceFolder}/virtual-client/.venv/bin/python",
+      "cwd": "${workspaceFolder}/virtual-client",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/virtual-client/src",
+        "AURA_LLM_API_KEY": "ollama",
+        "AURA_LLM_MODEL": "gemma4:e2b-mlx",
+        "AURA_LLM_BASE_URL": "http://host.docker.internal:11434/v1"
+      },
+      "args": [
+        "--channel",
+        "web",
+        "--scenario",
+        "cancel-in-transit"
+      ]
     }
   ]
 }

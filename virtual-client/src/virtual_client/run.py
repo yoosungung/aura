@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Any, Callable, Mapping
 
 from virtual_client.adapters.email import EmailAdapter
 from virtual_client.adapters.kakao import KakaoAdapter
@@ -28,24 +29,35 @@ def wrap_adapter(adapter: Any, name: str = "aura") -> ChannelAgent:
     return ChannelAgent(adapter, name)
 
 
-def _configure_llm() -> str:
-    key = os.environ.get("AURA_LLM_API_KEY") or ""
-    if key and not os.environ.get("OPENAI_API_KEY"):
-        os.environ["OPENAI_API_KEY"] = key
-    model = os.environ.get("AURA_LLM_MODEL") or "gpt-4o-mini"
+@dataclass(frozen=True)
+class LLMConfig:
+    model: str
+    api_key: str
+    api_base: str | None
+
+
+def configure_llm(environ: Mapping[str, str] | None = None) -> LLMConfig:
+    src = os.environ if environ is None else environ
+    key = (src.get("AURA_LLM_API_KEY") or src.get("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise SystemExit(
+            "AURA_LLM_API_KEY 또는 OPENAI_API_KEY가 필요합니다. "
+            "로컬은 aura-secrets를 쓰거나 export 하세요."
+        )
+    model = src.get("AURA_LLM_MODEL") or "gpt-4o-mini"
     if "/" not in model:
         model = f"openai/{model}"
-    return model
-
+    base = src.get("AURA_LLM_BASE_URL") or None
+    if base and "host.docker.internal" in base:
+        base = base.replace("host.docker.internal", "127.0.0.1")
+    return LLMConfig(model=model, api_key=key, api_base=base)
 
 async def run_one(channel: str, spec: ScenarioSpec, adapter: Any, max_turns: int) -> Any:
     os.environ.setdefault("SCENARIO_CACHE_DIR", "/tmp/aura-scenario-cache")
     import scenario
 
-    model = _configure_llm()
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AURA_LLM_API_KEY")
-    api_base = os.environ.get("AURA_LLM_BASE_URL") or None
-    scenario.configure(default_model=model)
+    llm = configure_llm()
+    scenario.configure(default_model=llm.model)
     agent = wrap_adapter(adapter, f"aura-{channel}")
 
     class Adapter(scenario.AgentAdapter):
@@ -59,8 +71,12 @@ async def run_one(channel: str, spec: ScenarioSpec, adapter: Any, max_turns: int
         "description": f"persona: {spec.persona}\ngoal: {spec.goal}",
         "agents": [
             Adapter(),
-            scenario.UserSimulatorAgent(persona=spec.persona, model=model, api_key=api_key, api_base=api_base),
-            scenario.JudgeAgent(criteria=list(spec.criteria), model=model, api_key=api_key, api_base=api_base),
+            scenario.UserSimulatorAgent(
+                persona=spec.persona, model=llm.model, api_key=llm.api_key, api_base=llm.api_base
+            ),
+            scenario.JudgeAgent(
+                criteria=list(spec.criteria), model=llm.model, api_key=llm.api_key, api_base=llm.api_base
+            ),
         ],
         "max_turns": max_turns,
     }
@@ -85,6 +101,7 @@ def build_adapter(channel: str, ctx: Context, args: Any, on_tick: Callable[[], N
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    configure_llm()
     channels = list(CHANNELS) if args.channel == "all" else [args.channel]
     names = list(SCENARIOS) if args.scenario == "all" else [args.scenario]
 

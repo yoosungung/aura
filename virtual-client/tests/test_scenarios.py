@@ -17,6 +17,9 @@ def test_five_scenarios_have_persona_goal_criteria():
         assert item.persona
         assert item.goal
         assert len(item.criteria) == 3
+        assert item.fixture["order_id"]
+        assert item.fixture["customer"]["phone"]
+        assert item.fixture["shipping"]["status"]
 
 
 def test_cli_parses_channel_and_scenario():
@@ -64,3 +67,4 @@ def test_run_sh_fails_when_gateway_down():
     assert out.returncode != 0
     assert "응답하지 않습니다" in out.stderr
     assert "http://127.0.0.1:9" in out.stderr
+    assert "nodeport-proxy.sh" in out.stderr

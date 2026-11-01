@@ -4,7 +4,7 @@
 
 ## 전제
 
-Docker Desktop Kubernetes, 또는 `kubectl`이 가리키는 클러스터. 앱 이미지는 클러스터가 pull할 수 있어야 한다. PostgreSQL·NATS·SeaweedFS는 이 디렉터리 밖이다. 로컬은 [../compose](../compose).
+Docker Desktop Kubernetes, 또는 `kubectl`이 가리키는 클러스터. 앱 이미지는 클러스터가 pull할 수 있어야 한다. PostgreSQL·NATS·SeaweedFS는 이 디렉터리 밖이다. 로컬은 [../compose](../compose). Docker Desktop kind는 compose 컨테이너 IP를 selector 없는 Service Endpoints로 붙인다. compose를 다시 띄우면 IP가 바뀌므로 `sh deploy/k8s/compose-endpoints.sh`를 한 번 더 친다. 안 맞으면 `svc-core`가 PG에 못 붙어 `POST /auth/sign_in`이 401로 떨어진다.
 
 ## 적용
 
@@ -41,6 +41,13 @@ kubectl apply -k deploy/k8s/ghcr
 | `gateway-email` | SMTP | `30025` → `:25` |
 
 `gateway-web`과 워커는 ClusterIP. 로컬에서 SPA는 `http://localhost:30080`. nginx가 `/api`·`/auth`·`/platform`·`/public`·`/ws`를 `gateway-web`으로 넘긴다.
+
+Docker Desktop Kubernetes는 kind 노드라서 이 NodePort가 macOS `localhost`에 바로 안 열린다. 한 번 붙인다.
+
+```sh
+sh deploy/k8s/nodeport-proxy.sh
+sh deploy/k8s/compose-endpoints.sh
+```
 
 ## 위젯 SDK
 

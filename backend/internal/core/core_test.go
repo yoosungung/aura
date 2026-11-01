@@ -75,6 +75,42 @@ func TestCreate_ConversationStartsUnassigned(t *testing.T) {
 	}
 }
 
+func TestCreate_ReuseContact_PreseededInbox(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, inboxID := seedInbox(t, admin)
+	contactID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `INSERT INTO contacts (id, account_id, name, email)
+		VALUES ($1,$2,'Virtual Customer',$3)`, contactID, accountID, "virtual.customer@test.invalid"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `INSERT INTO contact_inboxes (id, account_id, contact_id, inbox_id, source_id, pubsub_token)
+		VALUES ($1,$2,$3,$4,'widget-virtual-001',$5)`, ciID, accountID, contactID, inboxID, uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+	svc := &core.Service{DB: app}
+	out, err := svc.Create(ctx, core.CreateInput{
+		AccountID: accountID, InboxID: inboxID, SourceID: "widget-virtual-001",
+		Name: "Virtual Customer", TraceID: "t1", ReuseContact: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ContactID != contactID || out.ContactInboxID != ciID {
+		t.Fatalf("want reused contact=%s ci=%s got %+v", contactID, ciID, out)
+	}
+	if out.ConversationID == uuid.Nil {
+		t.Fatal("want conversation")
+	}
+}
+
 func TestTransition_UnassignedToPending(t *testing.T) {
 	ctx := context.Background()
 	admin, app := testutil.Postgres(t)
