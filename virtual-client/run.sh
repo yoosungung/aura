@@ -22,4 +22,66 @@ if ! python -c "import virtual_client" >/dev/null 2>&1; then
   pip install -e '.[dev]'
 fi
 
+base="${AURA_GATEWAY_URL:-http://127.0.0.1:30080}"
+kakao="${AURA_KAKAO_URL:-http://127.0.0.1:30081}"
+smtp_host="${AURA_SMTP_HOST:-127.0.0.1}"
+smtp_port="${AURA_SMTP_PORT:-30025}"
+channel=web
+skip_check=0
+
+i=1
+while [[ $i -le $# ]]; do
+  arg="${!i}"
+  next=""
+  if [[ $i -lt $# ]]; then
+    j=$((i + 1))
+    next="${!j}"
+  fi
+  case "$arg" in
+    -h|--help) skip_check=1 ;;
+    --channel) channel="$next"; i=$((i + 1)) ;;
+    --channel=*) channel="${arg#*=}" ;;
+    --base) base="$next"; i=$((i + 1)) ;;
+    --base=*) base="${arg#*=}" ;;
+    --kakao-base) kakao="$next"; i=$((i + 1)) ;;
+    --kakao-base=*) kakao="${arg#*=}" ;;
+    --smtp-host) smtp_host="$next"; i=$((i + 1)) ;;
+    --smtp-host=*) smtp_host="${arg#*=}" ;;
+    --smtp-port) smtp_port="$next"; i=$((i + 1)) ;;
+    --smtp-port=*) smtp_port="${arg#*=}" ;;
+  esac
+  i=$((i + 1))
+done
+
+check_http() {
+  local url="$1"
+  local name="$2"
+  if curl -sS --connect-timeout 2 --max-time 3 -o /dev/null "$url" 2>/dev/null; then
+    return 0
+  fi
+  echo "${name}이(가) ${url} 에서 응답하지 않습니다. 클러스터 NodePort가 떠 있는지 확인하세요 (deploy/k8s/README.md)." >&2
+  exit 1
+}
+
+check_tcp() {
+  local host="$1"
+  local port="$2"
+  local name="$3"
+  if python -c "import socket; socket.create_connection(('${host}', int('${port}')), 2).close()" 2>/dev/null; then
+    return 0
+  fi
+  echo "${name}이(가) ${host}:${port} 에서 응답하지 않습니다. 클러스터 NodePort가 떠 있는지 확인하세요 (deploy/k8s/README.md)." >&2
+  exit 1
+}
+
+if [[ "$skip_check" -eq 0 ]]; then
+  check_http "$base" "gateway-web"
+  if [[ "$channel" == "kakao" || "$channel" == "all" ]]; then
+    check_http "$kakao" "gateway-kakao"
+  fi
+  if [[ "$channel" == "email" || "$channel" == "all" ]]; then
+    check_tcp "$smtp_host" "$smtp_port" "gateway-email"
+  fi
+fi
+
 exec python -m virtual_client "$@"

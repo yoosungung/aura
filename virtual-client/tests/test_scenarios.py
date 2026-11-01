@@ -52,3 +52,15 @@ def test_run_sh_help():
     out = subprocess.run([str(script), "--help"], check=True, capture_output=True, text=True)
     assert "--channel" in out.stdout
     assert "--scenario" in out.stdout
+
+
+def test_run_sh_fails_when_gateway_down():
+    script = Path(__file__).resolve().parents[1] / "run.sh"
+    out = subprocess.run(
+        [str(script), "--base", "http://127.0.0.1:9", "--channel", "web"],
+        capture_output=True,
+        text=True,
+    )
+    assert out.returncode != 0
+    assert "응답하지 않습니다" in out.stderr
+    assert "http://127.0.0.1:9" in out.stderr

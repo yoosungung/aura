@@ -22,6 +22,7 @@ pip install -e '.[dev]'
 python -m pytest
 
 # 기본은 클러스터 NodePort. 웹 http://127.0.0.1:30080, 카카오 :30081, SMTP :30025.
+# run.sh가 채널에 맞는 게이트웨이가 응답하는지 확인한 뒤 실행한다. --help는 건너뛴다.
 # 카카오 아웃바운드: 클러스터 AURA_KAKAO_API_URL이 호스트 허브(18081)를 가리켜야 한다.
 # go run 로컬 게이트웨이는 --base/--kakao-base/--smtp-port 로 덮어쓴다.
 ./virtual-client/run.sh --channel web --scenario lost-package --max-turns 8
