@@ -23,7 +23,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/base/` | Kustomize 베이스(로컬 태그 `aura/*:main`) | `deploy/k8s/base/` |
 | `deploy/k8s/ghcr/` | 클러스터 기본 오버레이(GHCR `:current`) | `deploy/k8s/ghcr/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석·테넌트 버킷/Fair Queue). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
-| `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/` |
+| `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/`, `virtual-client/` |
+| `virtual-client/` | 가상고객 채널 어댑터·모의 MCP·LangWatch Scenario 실행 | `virtual-client/` |
  
 규칙:
  
@@ -44,5 +45,5 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
  
 ## 3. Status
  
-P10 인박스 설정 CRUD 완료(채널=`AURA_ENABLED_CHANNELS`, 설정에서 인박스 만든 뒤 멤버). P9 운영 공백(presence·영업시간·부재중 greeting·typing) 완료. P8 LangChain `create_agent`·Agent Skills·운영계 MCP 완료. P7 AI-Native 출시 완료(svc-ai-agent Ego-Graph·ReAct/승인 카드, embeddings 분리, Cold Archive, k8s/CI/CD). P6 플랫폼 완료. P5.5 상담 워크스페이스 완료. P5 운영 자동화 완료. P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`.
+P10 인박스 설정 CRUD 완료(채널=`AURA_ENABLED_CHANNELS`, 설정에서 인박스 만든 뒤 멤버). P9 운영 공백(presence·영업시간·부재중 greeting·typing) 완료. P8 LangChain `create_agent`·Agent Skills·운영계 MCP 완료. P7 AI-Native 출시 완료(svc-ai-agent Ego-Graph·ReAct/승인 카드, embeddings 분리, Cold Archive, k8s/CI/CD). P6 플랫폼 완료. P5.5 상담 워크스페이스 완료. P5 운영 자동화 완료. P4 옴니채널 완료. P3 헬프데스크 MVP 완료. Auth는 자체 세션(이메일+비밀번호) + 짧은 만료 HMAC 토큰. P1 백본·P2 라이브챗 알파 완료. 실행은 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md), [virtual-client/DESIGN.md](virtual-client/DESIGN.md) `## Commands`.
 

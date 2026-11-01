@@ -15,7 +15,7 @@ go run ./cmd/ingestion-worker
 go run ./cmd/svc-core
 ```
 
-나머지 프로세스·환경변수는 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md) `## Commands`. 프론트 로컬은 Vite가 `/auth`·`/api`·`/ws`를 `gateway-web(:8080)`으로 프록시한다.
+나머지 프로세스·환경변수는 [backend/DESIGN.md](backend/DESIGN.md), [frontend/DESIGN.md](frontend/DESIGN.md), [packages/widget-sdk/DESIGN.md](packages/widget-sdk/DESIGN.md), [svc-ai-agent/DESIGN.md](svc-ai-agent/DESIGN.md), [virtual-client/DESIGN.md](virtual-client/DESIGN.md) `## Commands`. 프론트 로컬은 Vite가 `/auth`·`/api`·`/ws`를 `gateway-web(:8080)`으로 프록시한다.
 
 ## 기여
 
