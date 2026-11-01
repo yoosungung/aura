@@ -21,14 +21,12 @@ python3.12 -m venv virtual-client/.venv
 pip install -e '.[dev]'
 python -m pytest
 
-# 풀스택 전제: compose, gateway-*, svc-core, ingestion, svc-ai-agent(실 키).
-# 카카오: AURA_KAKAO_API_URL=http://127.0.0.1:18081
-# 이메일: AURA_SMTP_ADDR=:2050, Mailpit이 AURA_SMTP_RELAY를 받는다.
-mailpit --smtp 0.0.0.0:2525 --listen 0.0.0.0:8025
-
-# MCP 등록 후 svc-ai-agent를 재시작한다.
-python -m virtual_client --channel web --scenario lost-package --max-turns 8
-python -m virtual_client --channel all --scenario all
+# 기본은 클러스터 NodePort. 웹 http://127.0.0.1:30080, 카카오 :30081, SMTP :30025.
+# 카카오 아웃바운드: 클러스터 AURA_KAKAO_API_URL이 호스트 허브(18081)를 가리켜야 한다.
+# go run 로컬 게이트웨이는 --base/--kakao-base/--smtp-port 로 덮어쓴다.
+./virtual-client/run.sh --channel web --scenario lost-package --max-turns 8
+./virtual-client/run.sh --channel all --scenario all
+./virtual-client/run.sh --base http://127.0.0.1:8080 --kakao-base http://127.0.0.1:8081 --smtp-port 2050
 ```
 
-환경변수: `AURA_HTTP_ADDR`(기본 `http://127.0.0.1:8080`), `AURA_KAKAO_ADDR`, `AURA_SMTP_ADDR`/`AURA_SMTP_HOST`+포트, `AURA_DSN`(웹 시드), `AURA_LLM_API_KEY` / `AURA_LLM_MODEL`(시뮬레이터·Judge). Mailpit API는 `http://127.0.0.1:8025`.
+환경변수: `AURA_GATEWAY_URL`(기본 `http://127.0.0.1:30080`), `AURA_KAKAO_URL`(기본 `http://127.0.0.1:30081`), `AURA_SMTP_HOST`/`AURA_SMTP_PORT`(기본 `30025`), `AURA_DSN`(웹 시드), `AURA_LLM_API_KEY` / `AURA_LLM_MODEL`(시뮬레이터·Judge). Mailpit API는 `http://127.0.0.1:8025`.

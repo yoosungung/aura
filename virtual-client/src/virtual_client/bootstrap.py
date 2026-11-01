@@ -29,7 +29,7 @@ class Context:
 class Bootstrap:
     def __init__(
         self,
-        base: str = "http://127.0.0.1:8080",
+        base: str = "http://127.0.0.1:30080",
         email: str = "admin@example.com",
         password: str = "admin1234",
         dsn: str | None = None,
