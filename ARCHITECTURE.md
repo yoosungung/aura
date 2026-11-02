@@ -328,7 +328,7 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 }
 ```
 
-`owner_type`: `article` \| `ontology_node`. `embedding` 길이 1536, 저장은 `halfvec(1536)`. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다. HNSW는 cosine, `m=16`, `ef_construction=64`. article 부분 인덱스가 있다. `svc-ai-agent` RAG는 현재 `model`/`version`만 `embedding <=> $q::halfvec` 로 찾고, 트랜잭션에서 `SET LOCAL hnsw.ef_search = 40`, `hnsw.iterative_scan = relaxed_order` 를 켠다. 위젯 검색은 ILIKE.
+`owner_type`: `article` \| `ontology_node`. `embedding`은 typemod 없는 `halfvec`(길이 1..4000). 세대는 `model`/`version`이고, 같은 모델·같은 `vector_dims`만 `<=>` 한다. 다른 모델·다른 차원은 한 공간에서 비교하지 않는다. `(account_id, owner_type, owner_id, model, version)` ON CONFLICT 덮어쓴다. HNSW는 cosine, `m=16`, `ef_construction=64`, 차원별 expression/partial(`768`·`1536`)과 article 부분 인덱스가 있다. `svc-ai-agent` RAG는 현재 `AURA_EMBEDDING_MODEL`/`version`과 질의 벡터 차원만 찾고, 트랜잭션에서 `SET LOCAL hnsw.ef_search = 40`, `hnsw.iterative_scan = relaxed_order` 를 켠다. 차원이 비거나 4000을 넘으면 RAG는 빈 결과다. 위젯 검색은 ILIKE.
 
 아웃바운드 웹훅 본문은 envelope를 펼친 공개 형태다. 헤더 `X-Helpdesk-Signature: sha256=<hex>`, `X-Helpdesk-Timestamp`. 검증식은 `HMAC-SHA256(timestamp + "." + body, webhook_secret)`. 타임스탬프 오차 5분 초과는 거절.
 
@@ -840,7 +840,7 @@ CREATE TABLE embeddings (
     owner_id UUID NOT NULL,
     model VARCHAR(100) NOT NULL,
     version INT NOT NULL DEFAULT 1,
-    embedding halfvec(1536) NOT NULL,
+    embedding halfvec NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT uq_embedding_owner_model UNIQUE (account_id, owner_type, owner_id, model, version)
 );
@@ -890,9 +890,14 @@ CREATE INDEX idx_messages_conv_created ON messages(account_id, conversation_id, 
 CREATE INDEX idx_contact_inboxes_lookup ON contact_inboxes(account_id, inbox_id, source_id);
 CREATE INDEX idx_ontology_nodes_ref ON ontology_nodes(account_id, entity_type, external_ref_id);
 CREATE INDEX idx_ontology_edges_traversal ON ontology_edges(account_id, source_node_id, relation_type);
-CREATE INDEX idx_embeddings_hnsw ON embeddings USING hnsw (embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
-CREATE INDEX idx_embeddings_hnsw_article ON embeddings USING hnsw (embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
-    WHERE owner_type = 'article';
+CREATE INDEX idx_embeddings_hnsw_1536 ON embeddings USING hnsw ((embedding::halfvec(1536)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
+    WHERE vector_dims(embedding) = 1536;
+CREATE INDEX idx_embeddings_hnsw_768 ON embeddings USING hnsw ((embedding::halfvec(768)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
+    WHERE vector_dims(embedding) = 768;
+CREATE INDEX idx_embeddings_hnsw_article_1536 ON embeddings USING hnsw ((embedding::halfvec(1536)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
+    WHERE owner_type = 'article' AND vector_dims(embedding) = 1536;
+CREATE INDEX idx_embeddings_hnsw_article_768 ON embeddings USING hnsw ((embedding::halfvec(768)) halfvec_cosine_ops) WITH (m = 16, ef_construction = 64)
+    WHERE owner_type = 'article' AND vector_dims(embedding) = 768;
 ```
 
 `channel_type`: `web` \| `kakao` \| `email` \| `social`. `availability_status`: `online` \| `offline` \| `busy`. `priority`: `low` \| `medium` \| `high` \| `urgent`. `messages.status`: `sent` \| `delivered` \| `read` \| `failed`. `conversations.display_id` 는 이메일 제목 `[#REQ-{display_id}]` 토큰이다. 채번은 `account_sequences`에서 `INSERT ... ON CONFLICT (account_id) DO UPDATE SET last_conversation_display_id = account_sequences.last_conversation_display_id + 1 RETURNING last_conversation_display_id` 로만 한다. `MAX(display_id)+1` 금지.

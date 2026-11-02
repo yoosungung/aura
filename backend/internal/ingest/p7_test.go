@@ -106,3 +106,84 @@ func TestFlush_ToolOntologyEmbedding(t *testing.T) {
 		t.Fatalf("embeddings=%d", n)
 	}
 }
+
+func TestFlush_Embedding768(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	js := testutil.NATS(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	fxt := seed(t, admin)
+	embID := mustV7(t)
+	owner := mustV7(t)
+	flusher := &ingest.Flusher{DB: app, JS: js}
+	ack := func(context.Context) error { return nil }
+	vec := make([]float64, 768)
+	for i := range vec {
+		vec[i] = 0.01
+	}
+	emb, _ := json.Marshal(map[string]any{
+		"id": embID.String(), "schema_version": 1, "type": "embedding_upsert",
+		"occurred_at": time.Now().UTC().Format(time.RFC3339),
+		"account_id":  fxt.Account.String(), "inbox_id": fxt.Inbox.String(),
+		"conversation_id": fxt.Conversation.String(), "trace_id": "t", "hop_count": 0,
+		"payload": map[string]any{
+			"owner_type": "article", "owner_id": owner.String(),
+			"model": "embeddinggemma-2:270m", "version": 1, "embedding": vec,
+		},
+	})
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: emb, Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	var dim int
+	if err := admin.QueryRow(ctx, `SELECT vector_dims(embedding) FROM embeddings WHERE id=$1`, embID).Scan(&dim); err != nil {
+		t.Fatal(err)
+	}
+	if dim != 768 {
+		t.Fatalf("dim=%d", dim)
+	}
+}
+
+func TestFlush_EmbeddingRejectsEmpty(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	js := testutil.NATS(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	fxt := seed(t, admin)
+	flusher := &ingest.Flusher{DB: app, JS: js}
+	ack := func(context.Context) error { return nil }
+	emb, _ := json.Marshal(map[string]any{
+		"id": mustV7(t).String(), "schema_version": 1, "type": "embedding_upsert",
+		"occurred_at": time.Now().UTC().Format(time.RFC3339),
+		"account_id":  fxt.Account.String(), "inbox_id": fxt.Inbox.String(),
+		"conversation_id": fxt.Conversation.String(), "trace_id": "t", "hop_count": 0,
+		"payload": map[string]any{
+			"owner_type": "article", "owner_id": mustV7(t).String(),
+			"model": "embeddinggemma-2:270m", "version": 1, "embedding": []float64{},
+		},
+	})
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: emb, Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM embeddings`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("embeddings=%d", n)
+	}
+	stream, err := js.Stream(ctx, ingest.IngestionDLQ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := stream.GetLastMsgForSubject(ctx, ingest.DLQSubject)
+	if err != nil {
+		t.Fatalf("dlq: %v", err)
+	}
+	if len(got.Data) == 0 {
+		t.Fatal("empty dlq payload")
+	}
+}

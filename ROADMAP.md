@@ -163,6 +163,8 @@
 
 **LLM 벤더.** OpenAI 호환 / 기타 → OpenAI 호환 Chat Completions + native tool calling. `AURA_LLM_BASE_URL`(기본 `https://api.openai.com/v1`) · `AURA_LLM_API_KEY` · `AURA_LLM_MODEL`(기본 `gpt-4o-mini`) · `AURA_EMBEDDING_MODEL`(기본 `text-embedding-3-small`). 키가 비면 결정적 stub. 본 테이블 `vector(1536)`은 `embeddings`로 분리하고 `model`/`version`으로 세대 구분. P8 추론은 LangChain `create_agent`가 같은 엔드포인트를 쓴다.
 
+**임베딩 차원.** 컬럼 typemod 1536 고정 / 모델별 테이블 / typemod 없는 halfvec → typemod 없는 `halfvec`(1..4000). 세대는 `model`/`version`, 질의는 같은 모델·같은 `vector_dims`만 `<=>`. HNSW는 768·1536 expression/partial. 다른 모델 벡터를 한 공간에서 비교하거나 패딩하지 않는다.
+
 **운영계 MCP.** 테넌트 URL / 인프로세스 stub → 테넌트 `mcp_servers.url`(https Streamable HTTP). 서버가 없으면 in-process FastMCP stub(현재 lookup/refund JSON). Aura 서비스 사이 MCP는 두지 않는다.
 
 **Agent Skills 저장.** 리포만 / 테넌트 덮어쓰기 → 리포 `SKILL.md` 기본 + `agent_skills` 테넌트 last-wins.

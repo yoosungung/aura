@@ -22,7 +22,7 @@
         "PYTHONPATH": "${workspaceFolder}/virtual-client/src",
         "AURA_LLM_API_KEY": "ollama",
         "AURA_LLM_MODEL": "gemma4:e2b-mlx",
-        "AURA_LLM_BASE_URL": "http://host.docker.internal:11434/v1"
+        "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
       },
       "args": [
         "--channel",
@@ -30,6 +30,28 @@
         "--scenario",
         "cancel-in-transit"
       ]
+    },
+    {
+      "name": "svc-ai-agent: local debug",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "aura_ai",
+      "python": "${workspaceFolder}/svc-ai-agent/.venv/bin/python",
+      "cwd": "${workspaceFolder}/svc-ai-agent",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "preLaunchTask": "svc-ai-agent: scale down pod",
+      "postDebugTask": "svc-ai-agent: scale up pod",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/svc-ai-agent/src",
+        "AURA_NATS_URL": "nats://127.0.0.1:4222",
+        "AURA_DSN": "postgres://aura_app:aura_app@127.0.0.1:5432/aura?sslmode=disable",
+        "AURA_LLM_API_KEY": "ollama",
+        "AURA_LLM_MODEL": "gemma4:e2b-mlx",
+        "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
+        "AURA_EMBEDDING_MODEL": "embeddinggemma-2:270m"
+      }
     }
   ]
 }

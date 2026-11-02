@@ -117,9 +117,10 @@ func TestUp_EmbeddingsSeparatedAndTemporalEdges(t *testing.T) {
 		WHERE table_name = 'ontology_edges' AND column_name = 'valid_until'`).Scan(&col); err != nil {
 		t.Fatalf("valid_until: %v", err)
 	}
-	if err := admin.QueryRow(ctx, `
-		SELECT indexname FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw'`).Scan(&col); err != nil {
-		t.Fatalf("hnsw: %v", err)
+	for _, name := range []string{"idx_embeddings_hnsw_1536", "idx_embeddings_hnsw_768", "idx_embeddings_hnsw_article_1536", "idx_embeddings_hnsw_article_768"} {
+		if err := admin.QueryRow(ctx, `SELECT indexname FROM pg_indexes WHERE indexname = $1`, name).Scan(&col); err != nil {
+			t.Fatalf("hnsw %s: %v", name, err)
+		}
 	}
 	var typ, def string
 	if err := admin.QueryRow(ctx, `
@@ -127,19 +128,19 @@ func TestUp_EmbeddingsSeparatedAndTemporalEdges(t *testing.T) {
 		WHERE attrelid = 'embeddings'::regclass AND attname = 'embedding' AND NOT attisdropped`).Scan(&typ); err != nil {
 		t.Fatalf("embedding type: %v", err)
 	}
-	if typ != "halfvec(1536)" {
+	if typ != "halfvec" {
 		t.Fatalf("embedding type=%s", typ)
 	}
-	if err := admin.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw'`).Scan(&def); err != nil {
+	if err := admin.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw_1536'`).Scan(&def); err != nil {
 		t.Fatalf("hnsw def: %v", err)
 	}
-	if !strings.Contains(def, "halfvec_cosine_ops") || !strings.Contains(def, "m='16'") {
+	if !strings.Contains(def, "halfvec_cosine_ops") || !strings.Contains(def, "m='16'") || !strings.Contains(def, "halfvec(1536)") {
 		t.Fatalf("hnsw def=%s", def)
 	}
-	if err := admin.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw_article'`).Scan(&def); err != nil {
+	if err := admin.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_embeddings_hnsw_article_768'`).Scan(&def); err != nil {
 		t.Fatalf("article hnsw: %v", err)
 	}
-	if !strings.Contains(def, "owner_type") {
+	if !strings.Contains(def, "owner_type") || !strings.Contains(def, "halfvec(768)") {
 		t.Fatalf("article hnsw def=%s", def)
 	}
 	var forced bool

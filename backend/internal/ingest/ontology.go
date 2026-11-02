@@ -183,7 +183,7 @@ func insertEmbedding(ctx context.Context, tx pgx.Tx, raw []byte) error {
 	if err != nil || wrap.Payload.OwnerType == "" || wrap.Payload.Model == "" {
 		return fmt.Errorf("invalid embedding")
 	}
-	if len(wrap.Payload.Embedding) != 1536 {
+	if dim := len(wrap.Payload.Embedding); dim < 1 || dim > 4000 {
 		return fmt.Errorf("invalid embedding dim")
 	}
 	if wrap.Payload.Version < 1 {

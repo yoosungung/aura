@@ -82,8 +82,70 @@ func TestEmbeddings_CosinePrefersCurrentModel(t *testing.T) {
 	}
 }
 
+func TestEmbeddings_MixedDimsDoNotCrossCompare(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	accountID, _ := seedInbox(t, admin)
+	adminID := seedUser(t, admin, accountID, "boss-dim@acme.test", "administrator", "s3cret")
+	svc := &core.Service{DB: app}
+	gemma, err := svc.CreateArticle(ctx, core.ArticleInput{
+		ActorUserID: adminID, AccountID: accountID, Title: "젬마", Slug: "gemma", Body: "768", Published: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	openai, err := svc.CreateArticle(ctx, core.ArticleInput{
+		ActorUserID: adminID, AccountID: accountID, Title: "오픈에이아이", Slug: "openai", Body: "1536", Published: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO embeddings (id, account_id, owner_type, owner_id, model, version, embedding)
+		VALUES
+		($1,$2,'article',$3,'embeddinggemma-2:270m',1,$4::halfvec),
+		($5,$2,'article',$6,'text-embedding-3-small',1,$7::halfvec)`,
+		mustV7(t), accountID, gemma.ID, unitHalfvecN(768, 0),
+		mustV7(t), openai.ID, unitHalfvec(0),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := app.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.current_account_id', $1, true)`, accountID.String()); err != nil {
+		t.Fatal(err)
+	}
+	var title string
+	if err := tx.QueryRow(ctx, `
+		SELECT a.title
+		FROM embeddings e
+		JOIN articles a ON a.id = e.owner_id AND a.account_id = e.account_id
+		WHERE e.owner_type = 'article'
+		  AND e.model = $1
+		  AND e.version = 1
+		  AND vector_dims(e.embedding) = $2
+		  AND a.published
+		ORDER BY e.embedding::halfvec(768) <=> $3::halfvec(768)
+		LIMIT 1`,
+		"embeddinggemma-2:270m", 768, unitHalfvecN(768, 0),
+	).Scan(&title); err != nil {
+		t.Fatal(err)
+	}
+	if title != "젬마" {
+		t.Fatalf("got %s", title)
+	}
+}
+
 func unitHalfvec(on int) string {
-	parts := make([]string, 1536)
+	return unitHalfvecN(1536, on)
+}
+
+func unitHalfvecN(dim, on int) string {
+	parts := make([]string, dim)
 	for i := range parts {
 		parts[i] = "0"
 	}

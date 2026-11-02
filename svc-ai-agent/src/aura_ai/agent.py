@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from aura_ai.ego import MAX_EMBED_DIM
 from aura_ai.limit import ChannelGuard, CircuitOpen, RateLimited
 from aura_ai.llm import LLM, stub_embed, stub_extract
 from aura_ai.mcp_ops import config_from_rows, invoke_tool, load_ops_tools
@@ -142,7 +143,7 @@ class Agent:
     def handle_embed(self, task: dict) -> dict:
         text = self.read_article(task.get("account_id", ""), task.get("owner_id", ""))
         vector = self.embed(text)
-        if len(vector) != 1536:
+        if not (1 <= len(vector) <= MAX_EMBED_DIM):
             return {"skipped": True, "reason": "dim"}
         account = task.get("account_id")
         nil_id = str(uuid.UUID(int=0))
@@ -154,7 +155,7 @@ class Agent:
             {
                 "owner_type": task.get("owner_type") or "article",
                 "owner_id": task.get("owner_id"),
-                "model": "text-embedding-3-small",
+                "model": os.environ.get("AURA_EMBEDDING_MODEL", "text-embedding-3-small"),
                 "version": 1,
                 "embedding": vector,
             },

@@ -81,11 +81,31 @@ def test_extract_writes_ontology_event():
     assert any(n["entity_type"] == "PainPoint" for n in env["payload"]["nodes"])
 
 
-def test_embed_has_1536_dims():
+def test_embed_has_1536_dims(monkeypatch):
+    monkeypatch.delenv("AURA_EMBEDDING_MODEL", raising=False)
     bus = MemoryBus()
     agent = Agent(bus)
     env = agent.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
     assert len(env["payload"]["embedding"]) == 1536
+    assert env["payload"]["model"] == "text-embedding-3-small"
+
+
+def test_embed_keeps_model_dim(monkeypatch):
+    monkeypatch.setenv("AURA_EMBEDDING_MODEL", "embeddinggemma-2:270m")
+    bus = MemoryBus()
+    agent = Agent(bus, embed=lambda _text: [0.01] * 768)
+    env = agent.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
+    assert env.get("skipped") is None
+    assert len(env["payload"]["embedding"]) == 768
+    assert env["payload"]["model"] == "embeddinggemma-2:270m"
+
+
+def test_embed_drops_empty_vector():
+    bus = MemoryBus()
+    agent = Agent(bus, embed=lambda _text: [])
+    env = agent.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
+    assert env["skipped"] is True
+    assert env["reason"] == "dim"
 
 
 def test_guard_opens_circuit():
@@ -133,12 +153,49 @@ def test_search_articles_sets_hnsw_and_filters_model():
     conn = FakeConn()
     from aura_ai.ego import search_articles
 
-    search_articles(conn, [0.01] * 1536)
+    search_articles(conn, [0.01] * 1536, model="text-embedding-3-small")
     assert any("hnsw.ef_search = 40" in sql for sql, _ in conn.calls)
     assert any("hnsw.iterative_scan = relaxed_order" in sql for sql, _ in conn.calls)
-    select = next(sql for sql, _ in conn.calls if "<=>" in sql)
+    select, args = next((sql, a) for sql, a in conn.calls if sql and "<=>" in sql)
     assert "owner_type = 'article'" in select
     assert "e.model" in select
+    assert "vector_dims(e.embedding)" in select
+    assert "halfvec(1536)" in select
+    assert args[0] == "text-embedding-3-small"
+    assert args[2] == 1536
+
+
+def test_search_articles_768_uses_matching_cast():
+    class FakeConn:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, sql, args=None):
+            self.calls.append((sql, args))
+            return self
+
+        def fetchall(self):
+            return []
+
+    conn = FakeConn()
+    from aura_ai.ego import search_articles
+
+    search_articles(conn, [0.01] * 768, model="embeddinggemma-2:270m")
+    select, args = next((sql, a) for sql, a in conn.calls if sql and "<=>" in sql)
+    assert "halfvec(768)" in select
+    assert "vector_dims(e.embedding)" in select
+    assert args[0] == "embeddinggemma-2:270m"
+    assert args[2] == 768
+
+
+def test_search_articles_empty_vector_skips():
+    class FakeConn:
+        def execute(self, sql, args=None):
+            raise AssertionError("should not query")
+
+    from aura_ai.ego import search_articles
+
+    assert search_articles(FakeConn(), []) == []
 
 
 def test_reason_passes_ego_and_lookup_result():

@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "svc-ai-agent: scale down pod",
+      "type": "shell",
+      "command": "kubectl -n aura scale deploy/svc-ai-agent --replicas=0 && kubectl -n aura rollout status deploy/svc-ai-agent --timeout=60s",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "svc-ai-agent: scale up pod",
+      "type": "shell",
+      "command": "kubectl -n aura scale deploy/svc-ai-agent --replicas=1 && kubectl -n aura rollout status deploy/svc-ai-agent --timeout=90s",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false
+      }
+    }
+  ]
+}

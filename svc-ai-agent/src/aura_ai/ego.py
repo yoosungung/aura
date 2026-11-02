@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 EGO_SQL = """
 WITH center AS (
   SELECT id FROM ontology_nodes
@@ -90,6 +92,10 @@ def read_article(conn, article_id: str) -> str:
     return str(row[0]) if row else ""
 
 
+MAX_EMBED_DIM = 4000
+HNSW_DIMS = (768, 1536)
+
+
 def halfvec_literal(vector: list[float]) -> str:
     return "[" + ",".join(f"{x:.7g}" for x in vector) + "]"
 
@@ -97,24 +103,34 @@ def halfvec_literal(vector: list[float]) -> str:
 def search_articles(
     conn,
     vector: list[float],
-    model: str = "text-embedding-3-small",
+    model: str | None = None,
     version: int = 1,
 ) -> list[dict]:
+    dim = len(vector)
+    if dim < 1 or dim > MAX_EMBED_DIM:
+        return []
+    model = model or os.environ.get("AURA_EMBEDDING_MODEL", "text-embedding-3-small")
+    lit = halfvec_literal(vector)
+    if dim in HNSW_DIMS:
+        dist = f"e.embedding::halfvec({dim}) <=> %s::halfvec({dim})"
+    else:
+        dist = "e.embedding <=> %s::halfvec"
     conn.execute("SET LOCAL hnsw.ef_search = 40")
     conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
     rows = conn.execute(
-        """
+        f"""
         SELECT a.id, a.title, left(a.body, 500), e.model, e.version
         FROM embeddings e
         JOIN articles a ON a.id = e.owner_id AND a.account_id = e.account_id
         WHERE e.owner_type = 'article'
           AND e.model = %s
           AND e.version = %s
+          AND vector_dims(e.embedding) = %s
           AND a.published
-        ORDER BY e.embedding <=> %s::halfvec
+        ORDER BY {dist}
         LIMIT 5
         """,
-        (model, version, halfvec_literal(vector)),
+        (model, version, dim, lit),
     ).fetchall()
     out = []
     for row in rows:
