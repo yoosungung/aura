@@ -33,4 +33,4 @@ python -m pytest
 ./virtual-client/run.sh --base http://127.0.0.1:8080 --kakao-base http://127.0.0.1:8081 --smtp-port 2050
 ```
 
-환경변수: `AURA_GATEWAY_URL`(기본 `http://127.0.0.1:30080`), `AURA_KAKAO_URL`(기본 `http://127.0.0.1:30081`), `AURA_SMTP_HOST`/`AURA_SMTP_PORT`(기본 `30025`), `AURA_DSN`(웹 시드), `AURA_LLM_API_KEY` / `AURA_LLM_MODEL` / `AURA_LLM_BASE_URL`(시뮬레이터·Judge). `AURA_LLM_MODEL`에 `/`가 없으면 LiteLLM용으로 `openai/`를 붙인다. Mailpit API는 `http://127.0.0.1:8025`.
+환경변수: `AURA_GATEWAY_URL`(기본 `http://127.0.0.1:30080`), `AURA_KAKAO_URL`(기본 `http://127.0.0.1:30081`), `AURA_SMTP_HOST`/`AURA_SMTP_PORT`(기본 `30025`), `AURA_DSN`(웹 시드), `AURA_LLM_API_KEY` / `AURA_LLM_MODEL` / `AURA_LLM_BASE_URL`(시뮬레이터·Judge). `AURA_LLM_MODEL`에 `/`가 없으면 LiteLLM용으로 `openai/`를 붙인다. 모델 이름에 `gemma`가 있으면 Judge·시뮬레이터가 Ollama `extra_body.think=false` / `reasoning_effort=none`을 넣어 thinking을 끈다. Mailpit API는 `http://127.0.0.1:8025`.

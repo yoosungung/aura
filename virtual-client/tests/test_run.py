@@ -22,6 +22,13 @@ def test_configure_llm_uses_aura_key_model_and_rewrites_docker_host():
     assert cfg.model == "openai/gemma4:e2b-mlx"
     assert cfg.api_key == "ollama"
     assert cfg.api_base == "http://127.0.0.1:11434/v1"
+    assert cfg.extra == {"extra_body": {"think": False, "reasoning_effort": "none"}}
+
+
+def test_configure_llm_keeps_openai_extra_empty():
+    cfg = configure_llm({"AURA_LLM_API_KEY": "sk", "AURA_LLM_MODEL": "gpt-4o-mini"})
+    assert cfg.model == "openai/gpt-4o-mini"
+    assert cfg.extra == {}
 
 
 def test_configure_llm_requires_key():

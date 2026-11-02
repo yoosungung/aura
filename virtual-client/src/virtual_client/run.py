@@ -34,6 +34,7 @@ class LLMConfig:
     model: str
     api_key: str
     api_base: str | None
+    extra: dict[str, Any]
 
 
 def configure_llm(environ: Mapping[str, str] | None = None) -> LLMConfig:
@@ -50,7 +51,10 @@ def configure_llm(environ: Mapping[str, str] | None = None) -> LLMConfig:
     base = src.get("AURA_LLM_BASE_URL") or None
     if base and "host.docker.internal" in base:
         base = base.replace("host.docker.internal", "127.0.0.1")
-    return LLMConfig(model=model, api_key=key, api_base=base)
+    extra: dict[str, Any] = {}
+    if "gemma" in model.lower():
+        extra = {"extra_body": {"think": False, "reasoning_effort": "none"}}
+    return LLMConfig(model=model, api_key=key, api_base=base, extra=extra)
 
 async def run_one(channel: str, spec: ScenarioSpec, adapter: Any, max_turns: int) -> Any:
     os.environ.setdefault("SCENARIO_CACHE_DIR", "/tmp/aura-scenario-cache")
@@ -72,10 +76,18 @@ async def run_one(channel: str, spec: ScenarioSpec, adapter: Any, max_turns: int
         "agents": [
             Adapter(),
             scenario.UserSimulatorAgent(
-                persona=spec.persona, model=llm.model, api_key=llm.api_key, api_base=llm.api_base
+                persona=spec.persona,
+                model=llm.model,
+                api_key=llm.api_key,
+                api_base=llm.api_base,
+                **llm.extra,
             ),
             scenario.JudgeAgent(
-                criteria=list(spec.criteria), model=llm.model, api_key=llm.api_key, api_base=llm.api_base
+                criteria=list(spec.criteria),
+                model=llm.model,
+                api_key=llm.api_key,
+                api_base=llm.api_base,
+                **llm.extra,
             ),
         ],
         "max_turns": max_turns,
