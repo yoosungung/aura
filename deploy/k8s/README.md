@@ -4,7 +4,7 @@
 
 ## 전제
 
-Docker Desktop Kubernetes, 또는 `kubectl`이 가리키는 클러스터. 앱 이미지는 클러스터가 pull할 수 있어야 한다. PostgreSQL·NATS·SeaweedFS는 이 디렉터리 밖이다. 로컬은 [../compose](../compose). Docker Desktop kind는 compose 컨테이너 IP를 selector 없는 Service Endpoints로 붙인다. compose를 다시 띄우면 IP가 바뀌므로 `sh deploy/k8s/compose-endpoints.sh`를 한 번 더 친다. 안 맞으면 `svc-core`가 PG에 못 붙어 `POST /auth/sign_in`이 401로 떨어진다.
+Docker Desktop Kubernetes, 또는 `kubectl`이 가리키는 클러스터. 앱 이미지는 클러스터가 pull할 수 있어야 한다. PostgreSQL·NATS·SeaweedFS는 이 디렉터리 밖이다. 로컬은 [../compose](../compose). Docker Desktop kind는 compose 고정 IP를 selector 없는 Service Endpoints로 붙인다. postgres `172.28.0.10`, nats `172.28.0.11`, filer `172.28.0.14`. compose를 다시 띄워도 IP가 같아서 Endpoints를 다시 칠 필요가 없다. 처음 한 번, 또는 kind 노드가 `aura-backbone`에 없을 때만 `sh deploy/k8s/compose-endpoints.sh`. 안 맞으면 `svc-core`가 PG에 못 붙어 `POST /auth/sign_in`이 401로 떨어진다.
 
 ## 적용
 

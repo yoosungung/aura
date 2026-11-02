@@ -25,7 +25,7 @@ python -m pytest
 # run.sh가 채널에 맞는 게이트웨이가 응답하는지 확인한 뒤 실행한다. --help는 건너뛴다.
 # Docker Desktop에서 localhost가 닫혀 있으면 deploy/k8s/nodeport-proxy.sh 를 띄운 뒤 다시 친다.
 # POST /public 405면 프론트 이미지에 location /public/이 없다. nginx.conf 반영 후 kind에 import.
-# compose 재시작 뒤 sign_in 401이면 deploy/k8s/compose-endpoints.sh 로 PG/NATS Endpoints를 맞춘다.
+# kind 노드가 aura-backbone에 없거나 Endpoints가 비면 deploy/k8s/compose-endpoints.sh 로 PG/NATS를 맞춘다.
 # 카카오 아웃바운드: 클러스터 AURA_KAKAO_API_URL이 호스트 허브(18081)를 가리켜야 한다.
 # go run 로컬 게이트웨이는 --base/--kakao-base/--smtp-port 로 덮어쓴다.
 ./virtual-client/run.sh --channel web --scenario lost-package --max-turns 8

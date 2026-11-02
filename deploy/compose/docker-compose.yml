@@ -1,3 +1,10 @@
+networks:
+  default:
+    name: aura-backbone
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
 services:
   postgres:
     image: pgvector/pgvector:0.8.7-pg16
@@ -7,6 +14,9 @@ services:
       POSTGRES_USER: aura
       POSTGRES_PASSWORD: aura
       POSTGRES_DB: aura
+    networks:
+      default:
+        ipv4_address: 172.28.0.10
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aura -d aura"]
       interval: 2s
@@ -21,6 +31,9 @@ services:
     command: ["-js", "-sd", "/data", "-m", "8222"]
     volumes:
       - nats-data:/data
+    networks:
+      default:
+        ipv4_address: 172.28.0.11
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8222/healthz"]
       interval: 2s
@@ -32,6 +45,9 @@ services:
     command: master -ip=seaweedfs-master -ip.bind=0.0.0.0 -port=9333
     ports:
       - "9333:9333"
+    networks:
+      default:
+        ipv4_address: 172.28.0.12
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1"]
       interval: 2s
@@ -43,6 +59,9 @@ services:
     command: volume -ip=seaweedfs-volume -ip.bind=0.0.0.0 -port=8080 -master=seaweedfs-master:9333 -dir=/data
     volumes:
       - seaweed-data:/data
+    networks:
+      default:
+        ipv4_address: 172.28.0.13
     depends_on:
       seaweedfs-master:
         condition: service_healthy
@@ -52,6 +71,9 @@ services:
     command: filer -ip=seaweedfs-filer -ip.bind=0.0.0.0 -port=8888 -master=seaweedfs-master:9333
     ports:
       - "8888:8888"
+    networks:
+      default:
+        ipv4_address: 172.28.0.14
     depends_on:
       seaweedfs-master:
         condition: service_healthy
@@ -62,6 +84,29 @@ services:
       interval: 2s
       timeout: 5s
       retries: 20
+
+  attach-kind:
+    image: docker:27-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    network_mode: none
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        docker network connect aura-backbone desktop-control-plane 2>/dev/null || true
+        for n in $$(docker ps -a --format '{{.Names}}'); do
+          case "$$n" in
+            *control-plane) docker network connect aura-backbone "$$n" 2>/dev/null || true ;;
+          esac
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      seaweedfs-filer:
+        condition: service_healthy
 
   seed:
     image: aura/seed:main

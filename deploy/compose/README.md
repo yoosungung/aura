@@ -6,6 +6,8 @@
 docker compose -f deploy/compose/docker-compose.yml up -d
 ```
 
+네트워크 `aura-backbone`(`172.28.0.0/24`)에 고정 IP: postgres `172.28.0.10`, nats `172.28.0.11`, filer `172.28.0.14`. 재시작해도 IP가 안 바뀌므로 클러스터 Endpoints를 다시 칠 필요가 없다. `attach-kind`가 Docker Desktop kind 노드를 이 네트워크에 붙인다.
+
 - Postgres `localhost:5432` — 슈퍼유저 `aura`/`aura`, DB `aura`. 런타임 롤 `aura_app`/`aura_app`은 마이그레이션이 만든다.
 - NATS `localhost:4222`, 모니터링 `8222`. 스트림은 워커가 기동 시 생성한다.
 - SeaweedFS 마스터 `9333`, 필러 `8888`. 볼륨 서버는 컴포즈 네트워크만. 객체 경로는 `{account_id}/`.
