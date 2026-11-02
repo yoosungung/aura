@@ -27,7 +27,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `docs/` | 기획 원본(설계서·헬프데스크 분석·테넌트 버킷/Fair Queue). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/`, `virtual-client/` |
 | `virtual-client/` | 가상고객 채널 어댑터·모의 MCP·LangWatch Scenario 실행 | `virtual-client/` |
-| `.vscode/` | Cursor/VS Code 로컬 디버그(launch·tasks). `svc-ai-agent` 파드 대신 호스트 프로세스 | `.vscode/` |
+| `.vscode/` | Cursor/VS Code 로컬 디버그(launch·tasks). `svc-ai-agent` 파드 대신 호스트 프로세스, 에이전트 다음에 Virtual Client | `.vscode/` |
  
 규칙:
  

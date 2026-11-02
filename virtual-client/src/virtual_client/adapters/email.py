@@ -7,7 +7,7 @@ from typing import Callable
 
 import httpx
 
-from virtual_client.adapters.base import wait_until
+from virtual_client.adapters.base import resolve_reply_timeout, wait_until
 
 
 class EmailAdapter:
@@ -18,7 +18,7 @@ class EmailAdapter:
         helpdesk: str = "help@virtual.test",
         customer: str = "virtual.customer@test.invalid",
         mailpit: str = "http://127.0.0.1:8025/api/v1",
-        timeout: float = 15.0,
+        timeout: float | None = None,
         poll: float = 0.4,
         on_tick: Callable[[], None] | None = None,
         smtp_send: Callable | None = None,
@@ -29,7 +29,7 @@ class EmailAdapter:
         self.helpdesk = helpdesk
         self.customer = customer
         self.mailpit = mailpit.rstrip("/")
-        self.timeout = timeout
+        self.timeout = resolve_reply_timeout(timeout)
         self.poll = poll
         self.on_tick = on_tick
         self.smtp_send = smtp_send or self._smtp_send

@@ -5,7 +5,7 @@ from typing import Callable
 
 import httpx
 
-from virtual_client.adapters.base import wait_until
+from virtual_client.adapters.base import resolve_reply_timeout, wait_until
 from virtual_client.hub import KakaoHub
 
 
@@ -15,14 +15,14 @@ class KakaoAdapter:
         base: str,
         sender_key: str,
         user_key: str = "virtual-customer-001",
-        timeout: float = 15.0,
+        timeout: float | None = None,
         poll: float = 0.4,
         on_tick: Callable[[], None] | None = None,
     ) -> None:
         self.base = base.rstrip("/")
         self.sender_key = sender_key
         self.user_key = user_key
-        self.timeout = timeout
+        self.timeout = resolve_reply_timeout(timeout)
         self.poll = poll
         self.on_tick = on_tick
         self._after_send: Callable[[], None] | None = None

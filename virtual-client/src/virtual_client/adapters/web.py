@@ -4,7 +4,7 @@ from typing import Callable
 
 import httpx
 
-from virtual_client.adapters.base import is_customer_reply, wait_until
+from virtual_client.adapters.base import is_customer_reply, resolve_reply_timeout, wait_until
 
 
 class WebAdapter:
@@ -13,14 +13,14 @@ class WebAdapter:
         base: str,
         inbox_id: str,
         pubsub_token: str,
-        timeout: float = 15.0,
+        timeout: float | None = None,
         poll: float = 0.4,
         on_tick: Callable[[], None] | None = None,
     ) -> None:
         self.base = base.rstrip("/")
         self.inbox_id = inbox_id
         self.pubsub_token = pubsub_token
-        self.timeout = timeout
+        self.timeout = resolve_reply_timeout(timeout)
         self.poll = poll
         self.on_tick = on_tick
         self.token = ""

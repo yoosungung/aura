@@ -2,7 +2,9 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 
-from virtual_client.adapters.base import is_customer_reply
+from virtual_client.adapters.base import is_customer_reply, resolve_reply_timeout
+from virtual_client.adapters.email import EmailAdapter
+from virtual_client.adapters.kakao import KakaoAdapter
 from virtual_client.adapters.web import WebAdapter
 
 
@@ -70,3 +72,14 @@ def test_web_adapter_auth_post_and_polls_agentbot():
     assert FakeWeb.posted[0][1] == {"pubsub_token": "seed-token"}
     assert adapter.conversation_id == "v1"
     httpd.shutdown()
+
+
+def test_reply_timeout_is_15s_unless_debug_env(monkeypatch):
+    monkeypatch.delenv("AURA_VC_REPLY_TIMEOUT", raising=False)
+    assert resolve_reply_timeout() == 15.0
+    assert resolve_reply_timeout(2.0) == 2.0
+    monkeypatch.setenv("AURA_VC_REPLY_TIMEOUT", "600")
+    assert resolve_reply_timeout() == 600.0
+    assert WebAdapter("http://127.0.0.1", "inbox", "seed").timeout == 600.0
+    assert KakaoAdapter("http://127.0.0.1", "sender").timeout == 600.0
+    assert EmailAdapter().timeout == 600.0

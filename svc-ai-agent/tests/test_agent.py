@@ -294,3 +294,56 @@ def test_bind_agent_sets_tenant_guc():
     agent.read_ego("acc-1", "contact-1")
     assert conn.calls[0][0].startswith("SELECT set_config")
     assert conn.calls[0][1] == ("acc-1",)
+
+
+MCP_ROW = {"name": "ops", "url": "http://127.0.0.1:18082/mcp", "enabled": True}
+
+
+def test_ops_tools_reload_when_mcp_servers_appear(monkeypatch):
+    loads: list = []
+
+    def fake_load(server=None, config=None):
+        loads.append(config)
+        return []
+
+    monkeypatch.setattr("aura_ai.agent.load_ops_tools", fake_load)
+    agent = Agent(MemoryBus())
+    agent.handle_reason(task())
+    agent.read_mcp_servers = lambda *_: [MCP_ROW]
+    agent.handle_reason(task())
+    assert loads[0] is None
+    assert loads[1]["mcpServers"]["ops"]["url"] == MCP_ROW["url"]
+
+
+def test_ops_tools_retry_after_connect_fail(monkeypatch):
+    loads: list = []
+
+    def fake_load(server=None, config=None):
+        loads.append(config)
+        if config is not None and sum(1 for c in loads if c is not None) == 1:
+            raise RuntimeError("Client failed to connect")
+        return []
+
+    monkeypatch.setattr("aura_ai.agent.load_ops_tools", fake_load)
+    agent = Agent(MemoryBus())
+    agent.read_mcp_servers = lambda *_: [MCP_ROW]
+    agent.handle_reason(task())
+    agent.handle_reason(task())
+    remote = [c for c in loads if c is not None]
+    assert len(remote) == 2
+    assert any(c is None for c in loads)
+
+
+def test_load_ops_tools_fails_fast_when_mcp_down():
+    import time
+
+    from aura_ai.mcp_ops import load_ops_tools
+
+    t0 = time.monotonic()
+    try:
+        load_ops_tools(config={"mcpServers": {"ops": {"url": "http://127.0.0.1:1/mcp"}}})
+        raised = False
+    except Exception:
+        raised = True
+    assert raised
+    assert time.monotonic() - t0 < 2

@@ -5,6 +5,8 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from virtual_client.adapters.base import resolve_reply_timeout
+
 
 class KakaoHub(BaseHTTPRequestHandler):
     inbox: list = []
@@ -21,8 +23,8 @@ class KakaoHub(BaseHTTPRequestHandler):
         self.end_headers()
 
     @classmethod
-    def wait_plain(cls, user_key: str, after: int, timeout: float = 15.0, poll: float = 0.4) -> str:
-        deadline = time.time() + timeout
+    def wait_plain(cls, user_key: str, after: int, timeout: float | None = None, poll: float = 0.4) -> str:
+        deadline = time.time() + resolve_reply_timeout(timeout)
         while time.time() < deadline:
             for row in cls.inbox[after:]:
                 if row.get("userKey") == user_key:

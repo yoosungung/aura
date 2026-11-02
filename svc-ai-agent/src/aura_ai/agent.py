@@ -62,7 +62,21 @@ class Agent:
         self.read_skills: Callable[[str], list[dict]] = lambda _account: []
         self.read_mcp_servers: Callable[[str], list[dict]] = lambda _account: []
         self.ops_tools: list | None = None
+        self._ops_key: str | None = None
         self.skills_root = None
+
+    def _ops_tools_for(self, servers: list[dict]) -> list:
+        config = config_from_rows(servers)
+        key = json.dumps(config, sort_keys=True, default=str) if config else ""
+        if self.ops_tools is not None and self._ops_key == key:
+            return self.ops_tools
+        try:
+            tools = load_ops_tools(config=config)
+        except Exception:
+            return load_ops_tools(config=None)
+        self.ops_tools = tools
+        self._ops_key = key
+        return tools
 
     def handle_reason(self, task: dict) -> dict:
         if int(task.get("hop_count") or 0) > 5:
@@ -76,8 +90,7 @@ class Agent:
         extra = set()
         for row in servers:
             extra.update(row.get("high_risk_tools") or [])
-        ops_tools = self.ops_tools if self.ops_tools is not None else load_ops_tools(config=config_from_rows(servers))
-        self.ops_tools = ops_tools
+        ops_tools = self._ops_tools_for(servers)
         decision = self.llm.reason(prompt, ego, articles, ops_tools=ops_tools, skills=skills, extra_high_risk=extra)
         for step in decision.get("steps") or []:
             name = step.get("tool_name") or ""
@@ -93,10 +106,7 @@ class Agent:
         if name == "send_status":
             result = run_low_risk(name, args)
         else:
-            ops_tools = self.ops_tools if self.ops_tools is not None else load_ops_tools(
-                config=config_from_rows(self.read_mcp_servers(task.get("account_id", "")))
-            )
-            self.ops_tools = ops_tools
+            ops_tools = self._ops_tools_for(self.read_mcp_servers(task.get("account_id", "")))
             result = invoke_tool(ops_tools, name, args)
         content = args.get("content") or f"{name} 처리했습니다."
         if is_high_risk(name):

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from fastmcp import FastMCP
 
@@ -67,16 +69,43 @@ def run_sync(coro):
     result: dict[str, Any] = {}
 
     def worker() -> None:
-        result["value"] = asyncio.run(coro)
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:
+            result["error"] = exc
 
     import threading
 
     t = threading.Thread(target=worker)
     t.start()
     t.join()
+    if "error" in result:
+        raise result["error"]
     if "value" not in result:
         raise RuntimeError("async tool failed")
     return result["value"]
+
+
+def mcp_http_ready(url: str, timeout: float = 0.4) -> bool:
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        return False
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _require_mcp_ready(config: dict | None) -> None:
+    if not config:
+        return
+    for entry in (config.get("mcpServers") or {}).values():
+        url = (entry.get("url") or "").strip()
+        if url and not mcp_http_ready(url):
+            raise ConnectionError(url)
 
 
 async def list_mcp_tools(server: Any = None, config: dict | None = None) -> list:
@@ -88,6 +117,7 @@ async def list_mcp_tools(server: Any = None, config: dict | None = None) -> list
 
 
 def load_ops_tools(server: Any = None, config: dict | None = None) -> list:
+    _require_mcp_ready(config)
     return run_sync(list_mcp_tools(server, config))
 
 

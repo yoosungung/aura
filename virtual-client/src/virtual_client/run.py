@@ -14,6 +14,7 @@ from virtual_client.counselor import Counselor
 from virtual_client.mcp_mock import set_scenario, start_mcp
 from virtual_client.scenarios import SCENARIOS, ScenarioSpec, get_scenario
 from virtual_client.hub import start_kakao_hub
+from virtual_client.judge import coerce_judge_tool_calls
 
 
 class ChannelAgent:
@@ -70,6 +71,11 @@ async def run_one(channel: str, spec: ScenarioSpec, adapter: Any, max_turns: int
         async def call(self, input: scenario.AgentInput) -> scenario.AgentReturnTypes:
             return agent.reply(input.last_new_user_message_str())
 
+    class _LocalJudge(scenario.JudgeAgent):
+        def _completion(self, **kwargs: Any) -> Any:
+            resp = super()._completion(**kwargs)
+            return coerce_judge_tool_calls(resp, kwargs.get("tools") or [], kwargs.get("tool_choice"))
+
     kwargs: dict[str, Any] = {
         "name": f"[{channel}] {spec.title}",
         "description": f"persona: {spec.persona}\ngoal: {spec.goal}",
@@ -82,7 +88,7 @@ async def run_one(channel: str, spec: ScenarioSpec, adapter: Any, max_turns: int
                 api_base=llm.api_base,
                 **llm.extra,
             ),
-            scenario.JudgeAgent(
+            _LocalJudge(
                 criteria=list(spec.criteria),
                 model=llm.model,
                 api_key=llm.api_key,
@@ -120,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     start_kakao_hub()
     first = set_scenario(names[0])
     mcp = start_mcp(first)
-    print(f"mock MCP {mcp} — svc-ai-agent를 재시작하세요 (도구 캐시).")
+    print(f"mock MCP {mcp}")
 
     from virtual_client.bootstrap import Bootstrap
 
