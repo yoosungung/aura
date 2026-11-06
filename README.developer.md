@@ -9,7 +9,8 @@
 ## 로컬 개발
 
 ```sh
-docker compose -f deploy/compose/docker-compose.yml up -d
+kubectl apply -k deploy/k8s/base
+sh deploy/k8s/nodeport-proxy.sh
 cd backend && go test ./...
 go run ./cmd/ingestion-worker
 go run ./cmd/svc-core

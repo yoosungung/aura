@@ -11,7 +11,7 @@ node --test lib.test.mjs
 node aura.mjs accounts list
 ```
 
-클러스터 기본 URL은 `http://127.0.0.1:30080`(프론트 NodePort). nginx가 `/platform`을 `gateway-web`으로 넘긴다. compose에서 `gateway-web`만 쓸 때는 `AURA_GATEWAY_URL=http://127.0.0.1:8080`. 목록·수정·삭제는 `gateway-web`과 `svc-core`가 `helpdesk.rpc.platform.accounts.*` / `users.*`를 받을 때 동작한다.
+클러스터 기본 URL은 `http://127.0.0.1:30080`(프론트 NodePort). nginx가 `/platform`을 `gateway-web`으로 넘긴다. 호스트에서 `gateway-web`만 쓸 때는 `AURA_GATEWAY_URL=http://127.0.0.1:8080`. 목록·수정·삭제는 `gateway-web`과 `svc-core`가 `helpdesk.rpc.platform.accounts.*` / `users.*`를 받을 때 동작한다.
 
 토큰은 환경변수 또는 이 디렉터리 `.env`. 이미 있는 환경변수는 `.env`가 덮어쓰지 않는다. 클러스터 시크릿:
 

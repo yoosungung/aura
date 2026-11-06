@@ -7,7 +7,7 @@
 - LangWatch Scenario는 채널을 모른다. `AgentAdapter.call()`이 시뮬레이터 발화를 `gateway-web` / `gateway-kakao` / `gateway-email` 규격으로 넣고, **같은 채널 아웃바운드**에서 텍스트를 읽어 반환한다. 인입 ACK는 회신이 아니다. 상담원 Application API로 고객 답을 읽지 않는다.
 - 웹: `POST /public/api/v1/inboxes/{id}/auth` → `POST .../messages` → `GET .../messages`. `sender_type`이 `AgentBot`/`User`이고 `kind=tool_approval` JSON이 아닌 본문만 회신이다. Client API에 컨택트 생성이 없어 bootstrap이 `contacts`+`contact_inboxes.pubsub_token`을 DSN으로 한 건 넣는다.
 - 카카오: `POST :8081/cstalk/message`, ACK `A000`. 회신은 가짜 허브 `POST /cstalk/plain`. `AURA_KAKAO_API_URL=http://127.0.0.1:18081`. `session_live=false`면 허브가 비고, 그때 상담원 API로 읽지 않는다.
-- 이메일: SMTP `127.0.0.1:2050` DATA. 회신은 Mailpit `GET /api/v1/messages`에서 `To=가상고객`. 다음 턴 `In-Reply-To`. Mailpit은 compose에 없다.
+- 이메일: SMTP `127.0.0.1:2050` DATA. 회신은 Mailpit `GET /api/v1/messages`에서 `To=가상고객`. 다음 턴 `In-Reply-To`. Mailpit은 클러스터에 없다.
 - 모의 MCP는 FastMCP Streamable HTTP(`:18082/mcp`). `ScenarioSpec.fixture`가 `lookup_order` / `lookup_shipping` / `refund` JSON이다. 로컬 디버그는 `svc-ai-agent: local debug`를 먼저 띄운 뒤 이 프로세스를 띄운다. 에이전트는 MCP URL이 바뀌면 다음 턴에 다시 붙는다.
 - Counselor는 admin 세션으로 `content_type=form` 승인 카드만 `POST .../tools/{execution_id}/approve` 한다. Judge는 이 경로의 텍스트를 쓰지 않는다. LangWatch Judge는 `tool_choice=required`인데 Gemma 등 로컬 모델은 평문으로 대화만 메아리친다. `_LocalJudge`가 tool_calls가 없으면 결정 단계는 `continue_test`, 강제 판정은 `finish_test`(inconclusive)로 보정해서 시나리오가 죽지 않게 한다.
 
@@ -25,7 +25,7 @@ python -m pytest
 # run.sh가 채널에 맞는 게이트웨이가 응답하는지 확인한 뒤 실행한다. --help는 건너뛴다.
 # Docker Desktop에서 localhost가 닫혀 있으면 deploy/k8s/nodeport-proxy.sh 를 띄운 뒤 다시 친다.
 # POST /public 405면 프론트 이미지에 location /public/이 없다. nginx.conf 반영 후 kind에 import.
-# kind 노드가 aura-backbone에 없거나 Endpoints가 비면 deploy/k8s/compose-endpoints.sh 로 PG/NATS를 맞춘다.
+# PG·NATS·필러는 베이스 StatefulSet이다. 호스트에서 안 열리면 deploy/k8s/nodeport-proxy.sh 를 다시 띄운다.
 # 카카오 아웃바운드: 클러스터 AURA_KAKAO_API_URL이 호스트 허브(18081)를 가리켜야 한다.
 # go run 로컬 게이트웨이는 --base/--kakao-base/--smtp-port 로 덮어쓴다.
 ./virtual-client/run.sh --channel web --scenario lost-package --max-turns 8

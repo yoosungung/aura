@@ -16,13 +16,11 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `README.developer.md` | 기여자 온보딩(로컬 개발·테스트·기여) | 루트 |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정·결정 로그) | 루트 |
 | `contracts/` | 이벤트·RPC JSON Schema. Go 생성 타입은 `backend/internal/contracts` | `contracts/` |
-| `deploy/compose/` | 로컬 PG·NATS 실행 하네스 | `deploy/compose/` |
 | `deploy/SETUP.md` | 로컬·클러스터 배포 런북 | `deploy/SETUP.md` |
 | `deploy/operator/` | 운영자 계정·유저 CRUD 노드 스크립트 | `deploy/operator/` |
 | `deploy/k8s/README.md` | 클러스터 로컬 사용법(적용·NodePort·TLS·위젯) | `deploy/k8s/` |
 | `deploy/k8s/nodeport-proxy.sh` | Docker Desktop kind 노드 NodePort → localhost socat | `deploy/k8s/` |
-| `deploy/k8s/compose-endpoints.sh` | 로컬 compose 고정 IP → aura Service Endpoints, kind 노드를 `aura-backbone`에 연결 | `deploy/k8s/` |
-| `deploy/k8s/base/` | Kustomize 베이스(로컬 태그 `aura/*:main`) | `deploy/k8s/base/` |
+| `deploy/k8s/base/` | Kustomize 베이스(앱 `aura/*:main`, 백본 PG·NATS·SeaweedFS) | `deploy/k8s/base/` |
 | `deploy/k8s/ghcr/` | 클러스터 기본 오버레이(GHCR `:current`) | `deploy/k8s/ghcr/` |
 | `docs/` | 기획 원본(설계서·헬프데스크 분석·테넌트 버킷/Fair Queue). 계약/일정으로 승격된 내용은 여기 두지 않는다 | `docs/` |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` (빌드/실행/테스트) | `backend/`, `frontend/`, `packages/widget-sdk/`, `svc-ai-agent/`, `virtual-client/` |

@@ -4,6 +4,9 @@ namespace: aura
 resources:
   - namespace.yaml
   - configmap.yaml
+  - postgres.yaml
+  - nats.yaml
+  - seaweedfs.yaml
   - seed-job.yaml
   - ingestion-worker.yaml
   - svc-core.yaml

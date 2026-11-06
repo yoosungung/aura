@@ -27,6 +27,6 @@ python -m pytest
 python -m aura_ai
 ```
 
-클러스터 파드와 WorkQueue durable을 같이 쓰지 않는다. Cursor/VS Code는 `.vscode` launch `svc-ai-agent: local debug`(시작 전 파드 0, 종료 후 1, `AURA_JS_DRAIN_PENDING`)를 **먼저** 띄운 뒤 `Virtual Client`. 모의 MCP(`:18082`)가 아직 없어도 에이전트는 stub으로 대기하고, bootstrap이 URL을 등록하면 재시작 없이 다음 턴에 붙는다. 호스트는 compose NATS `:4222`·PG `:5432`, LLM은 `127.0.0.1:11434`.
+클러스터 파드와 WorkQueue durable을 같이 쓰지 않는다. Cursor/VS Code는 `.vscode` launch `svc-ai-agent: local debug`(시작 전 파드 0, 종료 후 1, `AURA_JS_DRAIN_PENDING`)를 **먼저** 띄운 뒤 `Virtual Client`. 모의 MCP(`:18082`)가 아직 없어도 에이전트는 stub으로 대기하고, bootstrap이 URL을 등록하면 재시작 없이 다음 턴에 붙는다. 호스트는 `nodeport-proxy.sh`가 연 NATS `:4222`·PG `:5432`, LLM은 `127.0.0.1:11434`.
 
 환경변수: `AURA_DSN`, `AURA_NATS_URL`, `AURA_LLM_BASE_URL`, `AURA_LLM_API_KEY`, `AURA_LLM_MODEL`, `AURA_EMBEDDING_MODEL`, `AURA_JS_DRAIN_PENDING`(로컬 디버그 백로그 ACK).

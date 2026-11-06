@@ -1,11 +1,12 @@
 # SETUP
 
-로컬은 Compose, 클러스터는 Kustomize GHCR 오버레이다. 빈 매니페스트를 두지 않는다.
+로컬·클러스터 모두 Kustomize다. 백본(PostgreSQL·NATS·SeaweedFS)은 `deploy/k8s/base` StatefulSet. 클러스터 앱 기본은 GHCR 오버레이다. 빈 매니페스트를 두지 않는다.
 
 ## 로컬 (파일럿 테넌트)
 
 ```sh
-docker compose -f deploy/compose/docker-compose.yml up -d
+kubectl apply -k deploy/k8s/base
+sh deploy/k8s/nodeport-proxy.sh
 cd backend && go test ./... && go run ./cmd/ingestion-worker
 
 go run ./cmd/svc-core
@@ -21,7 +22,7 @@ cd ../frontend && npm run dev
 
 `gateway-email` SMTP 문서상 기본 포트는 `25`다. 에릭은 `:2050`에서 실행한다. 포트는 `AURA_SMTP_ADDR`로 바꾼다.
 
-compose `seed`와 k8s Job `seed`는 같은 `aura/seed:main`이다. 기본 로그인은 [compose/README.md](compose/README.md).
+시드는 Job `seed`(`aura/seed:main`)다. 기본 로그인은 [k8s/README.md](k8s/README.md). 호스트 프로세스는 프록시가 연 Postgres `5432`, NATS `4222`, 필러 `8888`을 쓴다.
 
 Platform API로 추가 파일럿 계정:
 
@@ -73,13 +74,13 @@ GHCR 패키지가 private이면 클러스터에 pull secret이 필요하다. 로
 
 베이스에서 외부 인입은 NodePort다. `frontend` HTTP `30080`→`:80`, `gateway-email` SMTP `30025`→`:25`, `gateway-kakao` HTTP `30081`→`:8081`. nginx는 `/api`·`/auth`·`/platform`·`/public`·`/ws`를 `gateway-web`으로 프록시한다. `gateway-web`과 워커는 ClusterIP. TLS/HTTPS는 패키지가 종료하지 않는다. 고객 앞단 L4/L7 로드밸런서 또는 Ingress에서 종료한다.
 
-로컬 접속은 Docker Desktop에서 NodePort가 `localhost`에 안 붙으므로 먼저 `sh deploy/k8s/nodeport-proxy.sh`다. compose 백본은 고정 IP라 처음 한 번 `sh deploy/k8s/compose-endpoints.sh`로 클러스터 Endpoints를 붙이면 된다.
+로컬 접속은 Docker Desktop에서 NodePort가 `localhost`에 안 붙으므로 먼저 `sh deploy/k8s/nodeport-proxy.sh`다.
 
 - 상담원 SPA: `http://localhost:30080`
 - 카카오 웹훅: `POST http://localhost:30081/cstalk/message`
 - SMTP: `localhost:30025`
 
-PostgreSQL(pgvector)·NATS JetStream·SeaweedFS는 클러스터 밖 또는 별도 차트다. `deploy/k8s/base/configmap.yaml` DSN을 맞춘 뒤:
+PostgreSQL(pgvector)·NATS JetStream·SeaweedFS는 베이스에 있다. `deploy/k8s/base/configmap.yaml` DSN은 그 Service 이름이다. 시크릿:
 
 ```sh
 kubectl create secret generic aura-secrets -n aura \

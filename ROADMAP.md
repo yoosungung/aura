@@ -18,7 +18,7 @@
 
 목표: 이벤트 한 건이 PG에 멱등으로 적재된다.
 
-- `deploy/compose/`: PostgreSQL 16+pgvector, NATS JetStream. SeaweedFS는 P3.
+- `deploy/k8s/base`: PostgreSQL 16+pgvector, NATS JetStream. SeaweedFS는 P3.
 - `backend/`: Go module, `cmd/ingestion-worker`, [ARCHITECTURE.md](ARCHITECTURE.md) §10 DDL 마이그레이션, RLS FORCE (`(SELECT current_setting(...))` InitPlan).
 - `contracts/`: `message_created` JSON Schema. Envelope에 `schema_version`, `trace_id`, `causation_id`, `hop_count`. ID는 UUIDv7.
 - 배치: 500건 또는 100ms. 엔티티 계층 정렬 Upsert. `ON CONFLICT (id) DO NOTHING`. 실패 시 단건 폴백, 영구 실패는 `helpdesk.dlq.ingestion` ACK.
@@ -192,3 +192,5 @@
 **대화 목록 필터 (B안).** `GET /conversations`와 `conversations.list` 기본은 작업 큐다. `resolved`는 내려주지 않는다. 담당자·Mine/미배정 쿼리는 두지 않는다. 화면은 미래 `snoozed`를 숨긴다. Mine/미배정/전체 + 상태 탭과 URL 복원·라벨 폴더는 출시 후.
 
 **인박스 멤버 UI.** 인박스별 상담원 ID 입력 / 사용자×인박스 매트릭스 → 계정 사용자 행 × 인박스 열 체크. 변경된 행만 이름 앞 체크로 저장 대상을 고르고, 기존 add/remove API를 그 행의 diff에만 호출한다. 행 데이터는 `GET .../users`(administrator).
+
+**백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트 포트는 NodePort를 `nodeport-proxy.sh`가 localhost에 연다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.

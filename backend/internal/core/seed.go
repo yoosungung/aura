@@ -13,7 +13,7 @@ const (
 	DevSeedAccount  = "Local"
 )
 
-// SeedDevLogin creates the local compose administrator once. Superuser DSN.
+// SeedDevLogin creates the local administrator once. Superuser DSN.
 func SeedDevLogin(ctx context.Context, db DB) (ProvisionResult, bool, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {

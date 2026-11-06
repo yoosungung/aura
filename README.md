@@ -6,21 +6,22 @@
 
 ## 의존성
 
-앱 프로세스 밖에 PostgreSQL 16+pgvector, NATS JetStream, SeaweedFS가 있어야 한다. 로컬은 Compose, 클러스터는 외부 또는 별도 차트다.
+PostgreSQL 16+pgvector, NATS JetStream, SeaweedFS는 `deploy/k8s/base` StatefulSet이다.
 
 필수 시크릿: `AURA_TOKEN_SECRET`, `AURA_PLATFORM_TOKEN`. 선택: `AURA_LLM_API_KEY`, `AURA_KAKAO_API_URL`, `AURA_KAKAO_API_KEY`. LLM 키가 비면 `svc-ai-agent`는 결정적 stub이다.
 
 ## 로컬 백본
 
 ```sh
-docker compose -f deploy/compose/docker-compose.yml up -d
+kubectl apply -k deploy/k8s/base
+sh deploy/k8s/nodeport-proxy.sh
 ```
 
-포트: Postgres `5432`, NATS `4222`, SeaweedFS 필러 `8888`. 상세는 [deploy/compose/README.md](deploy/compose/README.md).
+호스트 포트: Postgres `5432`, NATS `4222`, SeaweedFS 필러 `8888`. 상세는 [deploy/k8s/README.md](deploy/k8s/README.md).
 
 ## 이미지와 클러스터
 
-이미지 빌드와 클러스터 적용(`kubectl apply -k deploy/k8s/ghcr`, GitHub Packages `:current`)은 [deploy/SETUP.md](deploy/SETUP.md). 로컬 태그 `aura/*:main`은 `deploy/k8s/base`. 클러스터 로컬 사용법은 [deploy/k8s/README.md](deploy/k8s/README.md). ConfigMap DSN(`postgres` / `nats` / `seaweedfs-filer`)을 실제 백본에 맞춘 뒤 `aura-secrets`를 만들고 GHCR 오버레이를 적용한다. main CI가 통과하면 CD가 `linux/amd64`·`linux/arm64` 이미지를 GHCR `:current`와 릴리즈 `current`에 덮어쓰고, 이전 패키지 버전은 지운다.
+이미지 빌드와 클러스터 적용(`kubectl apply -k deploy/k8s/ghcr`, GitHub Packages `:current`)은 [deploy/SETUP.md](deploy/SETUP.md). 로컬 태그 `aura/*:main`은 `deploy/k8s/base`. 클러스터 로컬 사용법은 [deploy/k8s/README.md](deploy/k8s/README.md). ConfigMap DSN은 베이스 Service `postgres` / `nats` / `seaweedfs-filer`다. `aura-secrets`를 만들고 GHCR 오버레이를 적용한다. main CI가 통과하면 CD가 `linux/amd64`·`linux/arm64` 이미지를 GHCR `:current`와 릴리즈 `current`에 덮어쓰고, 이전 패키지 버전은 지운다.
 
 클러스터 안은 HTTP다. 로컬 베이스 NodePort: `frontend` `30080`, `gateway-email` SMTP `30025`, `gateway-kakao` `30081`. `gateway-web`은 ClusterIP. TLS는 고객 인그레스 또는 L4/L7 로드밸런서에서 종료한다. 상세는 [deploy/SETUP.md](deploy/SETUP.md) 클러스터.
 
@@ -31,4 +32,4 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 kubectl get svc -n aura frontend gateway-email gateway-kakao
 ```
 
-로컬 compose 기본 로그인은 [deploy/compose/README.md](deploy/compose/README.md). 추가 테넌트는 Platform API(`AURA_PLATFORM_TOKEN`), 예는 [deploy/SETUP.md](deploy/SETUP.md). 계정·유저 CRUD 스크립트는 [deploy/operator/README.md](deploy/operator/README.md).
+기본 로그인은 [deploy/k8s/README.md](deploy/k8s/README.md). 추가 테넌트는 Platform API(`AURA_PLATFORM_TOKEN`), 예는 [deploy/SETUP.md](deploy/SETUP.md). 계정·유저 CRUD 스크립트는 [deploy/operator/README.md](deploy/operator/README.md).
