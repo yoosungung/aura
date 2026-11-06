@@ -13,7 +13,7 @@ import (
 
 func main() {
 	ctx := context.Background()
-	dsn := getenv("AURA_MIGRATE_DSN", "postgres://aura:aura@127.0.0.1:5432/aura?sslmode=disable")
+	dsn := getenv("AURA_MIGRATE_DSN", "postgres://aura:aura@127.0.0.1:30432/aura?sslmode=disable")
 
 	var pool *pgxpool.Pool
 	var err error

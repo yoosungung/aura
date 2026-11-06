@@ -20,9 +20,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	migrateDSN := getenv("AURA_MIGRATE_DSN", "postgres://aura:aura@127.0.0.1:5432/aura?sslmode=disable")
-	dsn := getenv("AURA_DSN", "postgres://aura_app:aura_app@127.0.0.1:5432/aura?sslmode=disable")
-	natsURL := getenv("AURA_NATS_URL", nats.DefaultURL)
+	migrateDSN := getenv("AURA_MIGRATE_DSN", "postgres://aura:aura@127.0.0.1:30432/aura?sslmode=disable")
+	dsn := getenv("AURA_DSN", "postgres://aura_app:aura_app@127.0.0.1:30432/aura?sslmode=disable")
+	natsURL := getenv("AURA_NATS_URL", "nats://127.0.0.1:30422")
 
 	admin, err := pgxpool.New(ctx, migrateDSN)
 	if err != nil {

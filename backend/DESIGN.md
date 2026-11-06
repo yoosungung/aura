@@ -31,7 +31,6 @@
 
 ```sh
 kubectl apply -k deploy/k8s/base
-sh deploy/k8s/nodeport-proxy.sh
 cd backend
 go generate ./internal/contracts
 go test ./...
@@ -46,6 +45,6 @@ go run ./cmd/event-archive
 go run ./cmd/seed
 ```
 
-환경변수: `AURA_MIGRATE_DSN` (슈퍼유저), `AURA_DSN` (`aura_app`), `AURA_NATS_URL`, `AURA_TOKEN_SECRET` (`gateway-web`), `AURA_PLATFORM_TOKEN` (Platform API Bearer), `AURA_HTTP_ADDR` (기본 `:8080`), `AURA_WIDGET_DIR`(기본 `../packages/widget-sdk`), `AURA_SMTP_ADDR` (기본 `:25`), `AURA_SMTP_RELAY`(아웃바운드, 기본 `127.0.0.1:2525`), `AURA_KAKAO_ADDR`(기본 `:8081`), `AURA_KAKAO_API_URL`, `AURA_KAKAO_API_KEY`, `AURA_ENABLED_CHANNELS`(기본 `web,email,kakao`. ConfigMap), `AURA_FILER_URL`(기본 `http://127.0.0.1:8888`), `AURA_FILER_PUBLIC_URL`(이벤트 URL, 비면 `AURA_FILER_URL`). `event-archive`는 같은 filer URL에 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}.jsonl`을 NDJSON append한다. 아웃바운드 한도 `AURA_OUTBOUND_RPS`(기본 20), 서킷 `AURA_CIRCUIT_FAILURES`(기본 5)·`AURA_CIRCUIT_OPEN`(기본 30s).
+환경변수: `AURA_MIGRATE_DSN` (슈퍼유저. 비면 `127.0.0.1:30432`), `AURA_DSN` (`aura_app`. 비면 `127.0.0.1:30432`), `AURA_NATS_URL`(비면 `nats://127.0.0.1:30422`), `AURA_TOKEN_SECRET` (`gateway-web`), `AURA_PLATFORM_TOKEN` (Platform API Bearer), `AURA_HTTP_ADDR` (기본 `:8080`), `AURA_WIDGET_DIR`(기본 `../packages/widget-sdk`), `AURA_SMTP_ADDR` (기본 `:25`), `AURA_SMTP_RELAY`(아웃바운드, 기본 `127.0.0.1:2525`), `AURA_KAKAO_ADDR`(기본 `:8081`), `AURA_KAKAO_API_URL`, `AURA_KAKAO_API_KEY`, `AURA_ENABLED_CHANNELS`(기본 `web,email,kakao`. ConfigMap), `AURA_FILER_URL`(비면 `http://127.0.0.1:30888`), `AURA_FILER_PUBLIC_URL`(이벤트 URL, 비면 `AURA_FILER_URL`). `event-archive`는 같은 filer URL에 `archive/{account_id}/{conversation_id}/{yyyy-mm-dd}.jsonl`을 NDJSON append한다. 아웃바운드 한도 `AURA_OUTBOUND_RPS`(기본 20), 서킷 `AURA_CIRCUIT_FAILURES`(기본 5)·`AURA_CIRCUIT_OPEN`(기본 30s).
 
 `gateway-email` SMTP 문서상 기본 포트는 `25`다. 에릭은 `:2050`에서 실행한다. 포트는 `AURA_SMTP_ADDR`로 바꾼다.

@@ -193,4 +193,4 @@
 
 **인박스 멤버 UI.** 인박스별 상담원 ID 입력 / 사용자×인박스 매트릭스 → 계정 사용자 행 × 인박스 열 체크. 변경된 행만 이름 앞 체크로 저장 대상을 고르고, 기존 add/remove API를 그 행의 diff에만 호출한다. 행 데이터는 `GET .../users`(administrator).
 
-**백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트 포트는 NodePort를 `nodeport-proxy.sh`가 localhost에 연다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.
+**백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트는 OrbStack이 연 NodePort(Postgres `30432`, NATS `30422`, 필러 `30888`)를 쓴다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.

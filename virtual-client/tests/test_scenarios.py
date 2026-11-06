@@ -67,4 +67,4 @@ def test_run_sh_fails_when_gateway_down():
     assert out.returncode != 0
     assert "응답하지 않습니다" in out.stderr
     assert "http://127.0.0.1:9" in out.stderr
-    assert "nodeport-proxy.sh" in out.stderr
+    assert "OrbStack NodePort" in out.stderr

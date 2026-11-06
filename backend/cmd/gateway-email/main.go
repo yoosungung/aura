@@ -19,9 +19,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	natsURL := getenv("AURA_NATS_URL", nats.DefaultURL)
+	natsURL := getenv("AURA_NATS_URL", "nats://127.0.0.1:30422")
 	addr := getenv("AURA_SMTP_ADDR", ":25")
-	filer := getenv("AURA_FILER_URL", "http://127.0.0.1:8888")
+	filer := getenv("AURA_FILER_URL", "http://127.0.0.1:30888")
 	public := getenv("AURA_FILER_PUBLIC_URL", filer)
 
 	nc, err := nats.Connect(natsURL)

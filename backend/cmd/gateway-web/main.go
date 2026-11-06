@@ -20,7 +20,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	natsURL := getenv("AURA_NATS_URL", nats.DefaultURL)
+	natsURL := getenv("AURA_NATS_URL", "nats://127.0.0.1:30422")
 	secret := []byte(os.Getenv("AURA_TOKEN_SECRET"))
 	if len(secret) == 0 {
 		log.Fatal("AURA_TOKEN_SECRET required")
@@ -40,7 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	filer := getenv("AURA_FILER_URL", "http://127.0.0.1:8888")
+	filer := getenv("AURA_FILER_URL", "http://127.0.0.1:30888")
 	public := getenv("AURA_FILER_PUBLIC_URL", filer)
 	n := gateway.NewRPC(nc)
 	srv := &gateway.Server{

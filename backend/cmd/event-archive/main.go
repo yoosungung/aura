@@ -23,8 +23,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	natsURL := getenv("AURA_NATS_URL", nats.DefaultURL)
-	filer := strings.TrimRight(getenv("AURA_FILER_URL", "http://127.0.0.1:8888"), "/")
+	natsURL := getenv("AURA_NATS_URL", "nats://127.0.0.1:30422")
+	filer := strings.TrimRight(getenv("AURA_FILER_URL", "http://127.0.0.1:30888"), "/")
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal(err)

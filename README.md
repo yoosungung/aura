@@ -14,10 +14,9 @@ PostgreSQL 16+pgvector, NATS JetStream, SeaweedFS는 `deploy/k8s/base` StatefulS
 
 ```sh
 kubectl apply -k deploy/k8s/base
-sh deploy/k8s/nodeport-proxy.sh
 ```
 
-호스트 포트: Postgres `5432`, NATS `4222`, SeaweedFS 필러 `8888`. 상세는 [deploy/k8s/README.md](deploy/k8s/README.md).
+호스트는 OrbStack NodePort다. Postgres `30432`, NATS `30422`, SeaweedFS 필러 `30888`. 상세는 [deploy/k8s/README.md](deploy/k8s/README.md).
 
 ## 이미지와 클러스터
 

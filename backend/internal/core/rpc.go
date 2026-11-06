@@ -98,7 +98,7 @@ func Serve(ctx context.Context, nc *nats.Conn, js jetstream.JetStream, db DB) er
 	}
 	s := &Service{DB: db, JS: js, NC: nc, Archive: FilerPurge{Endpoint: os.Getenv("AURA_FILER_URL")}}
 	if f, ok := s.Archive.(FilerPurge); ok && f.Endpoint == "" {
-		s.Archive = FilerPurge{Endpoint: "http://127.0.0.1:8888"}
+		s.Archive = FilerPurge{Endpoint: "http://127.0.0.1:30888"}
 	}
 	subCreate, err := nc.QueueSubscribe(SubjectCreate, QueueGroup, func(msg *nats.Msg) {
 		s.handleCreate(msg)

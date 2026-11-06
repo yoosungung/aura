@@ -78,35 +78,13 @@ while [[ $i -le $# ]]; do
   i=$((i + 1))
 done
 
-publish_nodeports() {
-  local script="$ROOT/deploy/k8s/nodeport-proxy.sh"
-  if [[ "${AURA_NODEPORT_PROXY_DONE:-0}" -eq 1 || ! -x "$script" ]]; then
-    return 1
-  fi
-  AURA_NODEPORT_PROXY_DONE=1
-  "$script"
-}
-
-is_cluster_http() {
-  case "$1" in
-    http://127.0.0.1:30080|http://127.0.0.1:30080/*|http://localhost:30080|http://localhost:30080/*) return 0 ;;
-    http://127.0.0.1:30081|http://127.0.0.1:30081/*|http://localhost:30081|http://localhost:30081/*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 check_http() {
   local url="$1"
   local name="$2"
   if curl -sS --connect-timeout 2 --max-time 3 -o /dev/null "$url" 2>/dev/null; then
     return 0
   fi
-  if is_cluster_http "$url" && publish_nodeports; then
-    if curl -sS --connect-timeout 2 --max-time 3 -o /dev/null "$url" 2>/dev/null; then
-      return 0
-    fi
-  fi
-  echo "${name}이(가) ${url} 에서 응답하지 않습니다. Docker Desktop NodePort는 localhost에 안 열립니다. sh deploy/k8s/nodeport-proxy.sh (deploy/k8s/README.md)." >&2
+  echo "${name}이(가) ${url} 에서 응답하지 않습니다. OrbStack NodePort가 localhost에 열려 있는지 확인한다 (deploy/k8s/README.md)." >&2
   exit 1
 }
 
@@ -117,12 +95,7 @@ check_tcp() {
   if python -c "import socket; socket.create_connection(('${host}', int('${port}')), 2).close()" 2>/dev/null; then
     return 0
   fi
-  if [[ "$port" == "30025" && ( "$host" == "127.0.0.1" || "$host" == "localhost" ) ]] && publish_nodeports; then
-    if python -c "import socket; socket.create_connection(('${host}', int('${port}')), 2).close()" 2>/dev/null; then
-      return 0
-    fi
-  fi
-  echo "${name}이(가) ${host}:${port} 에서 응답하지 않습니다. Docker Desktop NodePort는 localhost에 안 열립니다. sh deploy/k8s/nodeport-proxy.sh (deploy/k8s/README.md)." >&2
+  echo "${name}이(가) ${host}:${port} 에서 응답하지 않습니다. OrbStack NodePort가 localhost에 열려 있는지 확인한다 (deploy/k8s/README.md)." >&2
   exit 1
 }
 

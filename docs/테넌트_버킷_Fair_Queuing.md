@@ -36,7 +36,7 @@
 루트는 `{region}/{account_id}/`. `FilerStore`는 리전 맵에서 PUT/GET/DELETE 엔드포인트를 고른다. env:
 
 - `AURA_REGION` 기본 `local`
-- `AURA_FILER_ENDPOINTS` 예: `{"local":{"url":"http://127.0.0.1:8888","public":"http://127.0.0.1:8888"}}` — 비면 지금처럼 `AURA_FILER_URL` / `AURA_FILER_PUBLIC_URL`
+- `AURA_FILER_ENDPOINTS` 예: `{"local":{"url":"http://127.0.0.1:30888","public":"http://127.0.0.1:30888"}}` — 비면 지금처럼 `AURA_FILER_URL` / `AURA_FILER_PUBLIC_URL`
 
 `contacts.purge`는 `archive/{account}/`가 아니라 `{region}/{account}/archive/{conversation}/`를 지운다.
 

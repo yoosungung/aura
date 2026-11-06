@@ -33,8 +33,9 @@ func TestDeployBackboneInCluster(t *testing.T) {
 	assertHas(t, nats, "nats:2.15-alpine", "name: nats", "nodePort: 30422", "nodePort: 30822")
 	weed := mustRead(t, filepath.Join(root, "deploy", "k8s", "base", "seaweedfs.yaml"))
 	assertHas(t, weed, "chrislusf/seaweedfs:4.03", "name: seaweedfs-filer", "nodePort: 30888", "name: seaweedfs-master", "port: 19333", "port: 18080")
-	proxy := mustRead(t, filepath.Join(root, "deploy", "k8s", "nodeport-proxy.sh"))
-	assertHas(t, proxy, "5432 30432", "4222 30422", "8888 30888")
+	if _, err := os.Stat(filepath.Join(root, "deploy", "k8s", "nodeport-proxy.sh")); !os.IsNotExist(err) {
+		t.Fatal("nodeport proxy should be gone")
+	}
 }
 
 func mustRead(t *testing.T, path string) string {

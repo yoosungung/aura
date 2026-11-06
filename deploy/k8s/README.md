@@ -8,13 +8,7 @@ Docker Desktop Kubernetes, OrbStack, 또는 `kubectl`이 가리키는 클러스�
 
 클러스터 안 주소는 ConfigMap 그대로다. `postgres:5432`, `nats:4222`, `seaweedfs-filer:8888`. 슈퍼유저 `aura`/`aura`, DB `aura`. 런타임 롤 `aura_app`/`aura_app`은 마이그레이션이 만든다.
 
-NodePort: postgres `30432`, NATS 클라이언트 `30422`, NATS 모니터 `30822`, 필러 `30888`. Docker Desktop kind는 이 포트가 macOS `localhost`에 바로 안 열린다. OrbStack은 NodePort가 localhost에 열린다. 호스트 프로세스용 `5432`·`4222`·`8888`은 프록시가 맞춘다. 한 번 붙인다.
-
-```sh
-sh deploy/k8s/nodeport-proxy.sh
-```
-
-프록시가 호스트에 여는 포트: Postgres `5432`, NATS `4222`, 모니터 `8222`, 필러 `8888`, SPA `30080`, 카카오 `30081`, SMTP `30025`. `svc-core`가 PG에 못 붙으면 `POST /auth/sign_in`이 401로 떨어진다.
+OrbStack은 NodePort를 `localhost`에 연다. 호스트 프로세스는 그 포트를 그대로 쓴다. Postgres `30432`, NATS `30422`, 모니터 `30822`, 필러 `30888`, SPA `30080`, 카카오 `30081`, SMTP `30025`. `svc-core`가 PG에 못 붙으면 `POST /auth/sign_in`이 401로 떨어진다.
 
 ## 적용
 
@@ -47,15 +41,15 @@ kubectl apply -k deploy/k8s/ghcr
 
 패키지는 클러스터 안에서 HTTP를 연다. 프론트 컨테이너·Service 포트는 `80`. TLS는 고객 앞단 인그레스 또는 L4/L7 로드밸런서에서 종료한다.
 
-| Service | 용도 | nodePort | 호스트(프록시) |
-|---------|------|----------|----------------|
-| `frontend` | 상담원 SPA | `30080` → `:80` | `30080` |
-| `gateway-kakao` | 카카오 웹훅 | `30081` → `:8081` | `30081` |
-| `gateway-email` | SMTP | `30025` → `:25` | `30025` |
-| `postgres` | PostgreSQL | `30432` → `:5432` | `5432` |
-| `nats` | 클라이언트 | `30422` → `:4222` | `4222` |
-| `nats` | 모니터 | `30822` → `:8222` | `8222` |
-| `seaweedfs-filer` | 필러 | `30888` → `:8888` | `8888` |
+| Service | 용도 | localhost NodePort | 클러스터 포트 |
+|---------|------|-------------------|---------------|
+| `frontend` | 상담원 SPA | `30080` | `:80` |
+| `gateway-kakao` | 카카오 웹훅 | `30081` | `:8081` |
+| `gateway-email` | SMTP | `30025` | `:25` |
+| `postgres` | PostgreSQL | `30432` | `:5432` |
+| `nats` | 클라이언트 | `30422` | `:4222` |
+| `nats` | 모니터 | `30822` | `:8222` |
+| `seaweedfs-filer` | 필러 | `30888` | `:8888` |
 
 `gateway-web`과 워커는 ClusterIP. 로컬에서 SPA는 `http://localhost:30080`. nginx가 `/api`·`/auth`·`/platform`·`/public`·`/ws`를 `gateway-web`으로 넘긴다.
 

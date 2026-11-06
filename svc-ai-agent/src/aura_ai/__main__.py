@@ -74,7 +74,7 @@ async def _bind(js, durable: str):
 async def run() -> None:
     import nats
 
-    nats_url = os.environ.get("AURA_NATS_URL", "nats://127.0.0.1:4222")
+    nats_url = os.environ.get("AURA_NATS_URL", "nats://127.0.0.1:30422")
     nc = await nats.connect(nats_url)
     js = nc.jetstream(timeout=15)
     bus = NATSBus(js)

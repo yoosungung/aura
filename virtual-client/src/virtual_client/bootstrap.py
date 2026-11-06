@@ -38,7 +38,7 @@ class Bootstrap:
         self.base = base.rstrip("/")
         self.email = email
         self.password = password
-        self.dsn = dsn or os.environ.get("AURA_DSN", "postgres://aura:aura@127.0.0.1:5432/aura?sslmode=disable")
+        self.dsn = dsn or os.environ.get("AURA_DSN", "postgres://aura:aura@127.0.0.1:30432/aura?sslmode=disable")
         self.seed_web = seed_web or self._seed_web
 
     def run(self, mcp_url: str = "http://127.0.0.1:18082/mcp") -> Context:

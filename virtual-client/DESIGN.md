@@ -23,9 +23,8 @@ python -m pytest
 
 # 기본은 클러스터 NodePort. 웹 http://127.0.0.1:30080, 카카오 :30081, SMTP :30025.
 # run.sh가 채널에 맞는 게이트웨이가 응답하는지 확인한 뒤 실행한다. --help는 건너뛴다.
-# Docker Desktop에서 localhost가 닫혀 있으면 deploy/k8s/nodeport-proxy.sh 를 띄운 뒤 다시 친다.
-# POST /public 405면 프론트 이미지에 location /public/이 없다. nginx.conf 반영 후 kind에 import.
-# PG·NATS·필러는 베이스 StatefulSet이다. 호스트에서 안 열리면 deploy/k8s/nodeport-proxy.sh 를 다시 띄운다.
+# POST /public 405면 프론트 이미지에 location /public/이 없다. nginx.conf 반영 후 이미지를 노드에 넣는다.
+# PG·NATS·필러는 베이스 StatefulSet이다. 호스트는 OrbStack NodePort(PG 30432, NATS 30422, 필러 30888).
 # 카카오 아웃바운드: 클러스터 AURA_KAKAO_API_URL이 호스트 허브(18081)를 가리켜야 한다.
 # go run 로컬 게이트웨이는 --base/--kakao-base/--smtp-port 로 덮어쓴다.
 ./virtual-client/run.sh --channel web --scenario lost-package --max-turns 8
@@ -33,4 +32,4 @@ python -m pytest
 ./virtual-client/run.sh --base http://127.0.0.1:8080 --kakao-base http://127.0.0.1:8081 --smtp-port 2050
 ```
 
-환경변수: `AURA_GATEWAY_URL`(기본 `http://127.0.0.1:30080`), `AURA_KAKAO_URL`(기본 `http://127.0.0.1:30081`), `AURA_SMTP_HOST`/`AURA_SMTP_PORT`(기본 `30025`), `AURA_DSN`(웹 시드), `AURA_LLM_API_KEY` / `AURA_LLM_MODEL` / `AURA_LLM_BASE_URL`(시뮬레이터·Judge). `AURA_LLM_MODEL`에 `/`가 없으면 LiteLLM용으로 `openai/`를 붙인다. 모델 이름에 `gemma`가 있으면 Judge·시뮬레이터가 Ollama `extra_body.think=false` / `reasoning_effort=none`을 넣어 thinking을 끈다. Judge tool_calls 보정은 `virtual_client.judge.coerce_judge_tool_calls`. Mailpit API는 `http://127.0.0.1:8025`. 채널 회신 대기는 `AURA_VC_REPLY_TIMEOUT`(초, 기본 15). Virtual Client 디버그 launch는 600(10분)이라 에이전트 브레이크포인트 동안 가상고객이 먼저 끊지 않는다.
+환경변수: `AURA_GATEWAY_URL`(기본 `http://127.0.0.1:30080`), `AURA_KAKAO_URL`(기본 `http://127.0.0.1:30081`), `AURA_SMTP_HOST`/`AURA_SMTP_PORT`(기본 `30025`), `AURA_DSN`(웹 시드, 비면 `127.0.0.1:30432`), `AURA_LLM_API_KEY` / `AURA_LLM_MODEL` / `AURA_LLM_BASE_URL`(시뮬레이터·Judge). `AURA_LLM_MODEL`에 `/`가 없으면 LiteLLM용으로 `openai/`를 붙인다. 모델 이름에 `gemma`가 있으면 Judge·시뮬레이터가 Ollama `extra_body.think=false` / `reasoning_effort=none`을 넣어 thinking을 끈다. Judge tool_calls 보정은 `virtual_client.judge.coerce_judge_tool_calls`. Mailpit API는 `http://127.0.0.1:8025`. 채널 회신 대기는 `AURA_VC_REPLY_TIMEOUT`(초, 기본 15). Virtual Client 디버그 launch는 600(10분)이라 에이전트 브레이크포인트 동안 가상고객이 먼저 끊지 않는다.

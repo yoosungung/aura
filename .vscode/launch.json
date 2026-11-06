@@ -46,8 +46,8 @@
       "envFile": "${workspaceFolder}/.env",
       "env": {
         "PYTHONPATH": "${workspaceFolder}/svc-ai-agent/src",
-        "AURA_NATS_URL": "nats://127.0.0.1:4222",
-        "AURA_DSN": "postgres://aura_app:aura_app@127.0.0.1:5432/aura?sslmode=disable",
+        "AURA_NATS_URL": "nats://127.0.0.1:30422",
+        "AURA_DSN": "postgres://aura_app:aura_app@127.0.0.1:30432/aura?sslmode=disable",
         "AURA_LLM_API_KEY": "ollama",
         "AURA_LLM_MODEL": "gemma4:e2b-mlx",
         "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
