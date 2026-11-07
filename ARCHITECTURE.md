@@ -285,6 +285,8 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 
 고위험 도구(`refund`, `cancel_subscription`, `change_plan`, 또는 `mcp_servers.high_risk_tools`·MCP destructive annotation)는 스레드에 `content_type=form` `sender_type=AgentBot` 메시지를 같이 낸다. `content`는 `{"kind":"tool_approval","execution_id","tool_name","summary","args"}` JSON이다. **승인 전에는 운영계 MCP를 호출하지 않는다.** 저위험 운영계 조회(`lookup_order`, `lookup_shipping` 등)는 MCP를 즉시 호출하고, 네이티브 `send_status`는 outgoing `message_created`와 채널 아웃바운드를 낸다. `auth_header`는 이벤트 payload에 넣지 않는다.
 
+**Staff unavailable (P11).** 가용 = 인박스 영업시간이 열림 **그리고** 해당 인박스 온라인 멤버 ≥ 1 (P9 greeting과 동일). 가용하면 form 승인 카드는 `private=false`(현행). 비가용이면 form은 `private=true`(상담원·위젯 private 필터)이고, 고객에게는 공개 접수 안내 텍스트 outbound만 낸다. 대화 FSM(`unassigned`/`open`)은 바꾸지 않는다. 이후 상담원 `tools.approve` → `helpdesk.tasks.ai.execute`는 동일하다.
+
 **`ontology_extracted` payload**
 
 ```json

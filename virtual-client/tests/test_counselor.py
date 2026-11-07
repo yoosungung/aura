@@ -14,6 +14,7 @@ class FakeDesk(BaseHTTPRequestHandler):
             "content": json.dumps({"kind": "tool_approval", "execution_id": "exec-9", "tool_name": "refund"}),
             "sender_type": "AgentBot",
             "content_type": "form",
+            "private": True,
         },
     ]
 

@@ -9,7 +9,7 @@
 - 카카오: `POST :8081/cstalk/message`, ACK `A000`. 회신은 가짜 허브 `POST /cstalk/plain`. `AURA_KAKAO_API_URL=http://127.0.0.1:18081`. `session_live=false`면 허브가 비고, 그때 상담원 API로 읽지 않는다.
 - 이메일: SMTP `127.0.0.1:2050` DATA. 회신은 Mailpit `GET /api/v1/messages`에서 `To=가상고객`. 다음 턴 `In-Reply-To`. Mailpit은 클러스터에 없다.
 - 모의 MCP는 FastMCP Streamable HTTP(`:18082/mcp`). `ScenarioSpec.fixture`가 `lookup_order` / `lookup_shipping` / `refund` JSON이다. 로컬 디버그는 `svc-ai-agent: local debug`를 먼저 띄운 뒤 이 프로세스를 띄운다. 에이전트는 MCP URL이 바뀌면 다음 턴에 다시 붙는다.
-- Counselor는 admin 세션으로 `content_type=form` 승인 카드만 `POST .../tools/{execution_id}/approve` 한다. Judge는 이 경로의 텍스트를 쓰지 않는다. LangWatch Judge는 `tool_choice=required`인데 Gemma 등 로컬 모델은 평문으로 대화만 메아리친다. `_LocalJudge`가 tool_calls가 없으면 결정 단계는 `continue_test`, 강제 판정은 `finish_test`(inconclusive)로 보정해서 시나리오가 죽지 않게 한다.
+- Counselor는 admin 세션으로 `content_type=form` 승인 카드(`private` 포함)만 `POST .../tools/{execution_id}/approve` 한다. Judge는 이 경로의 텍스트를 쓰지 않는다. staff unavailable이면 고객 회신은 접수 안내(「요청을 접수했습니다…」)이고 form JSON은 회신이 아니다. LangWatch Judge는 `tool_choice=required`인데 Gemma 등 로컬 모델은 평문으로 대화만 메아리친다. `_LocalJudge`가 tool_calls가 없으면 결정 단계는 `continue_test`, 강제 판정은 `finish_test`(inconclusive)로 보정해서 시나리오가 죽지 않게 한다.
 
 ## Commands
 

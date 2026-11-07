@@ -168,6 +168,61 @@ test("frame counts unread only while closed", async () => {
   assert.equal(win.posted.filter((p) => p.data.event === "unread").at(-1).data.payload.count, 1);
 });
 
+test("frame skips private message.created", async () => {
+  const win = fakeFrame();
+  const log = messageLog();
+  let sock;
+  win.document = log.document;
+  const frame = createFrame(win, {
+    async fetch() {
+      return { ok: true, json: async () => ({ token: "guest", conversation_id: "c1" }) };
+    },
+    WebSocket: class {
+      constructor() {
+        sock = this;
+      }
+    },
+  });
+  win.deliver({
+    origin: "https://shop.example",
+    data: encode("init", { token: "guest", inboxId: "inbox-1" }),
+  });
+  await frame.send("hi");
+  sock.onmessage({
+    data: JSON.stringify({
+      type: "event",
+      event: "message.created",
+      conversation_id: "c1",
+      message: {
+        payload: {
+          content: JSON.stringify({ kind: "tool_approval", execution_id: "e1" }),
+          sender_type: "AgentBot",
+          content_type: "form",
+          private: true,
+        },
+      },
+    }),
+  });
+  sock.onmessage({
+    data: JSON.stringify({
+      type: "event",
+      event: "message.created",
+      conversation_id: "c1",
+      message: {
+        payload: {
+          content: "요청을 접수했습니다. 상담원이 확인 후 처리합니다.",
+          sender_type: "AgentBot",
+          content_type: "text",
+          private: false,
+        },
+      },
+    }),
+  });
+  const texts = log.items.flatMap((el) => (el.children || []).map((c) => c.textContent || ""));
+  assert.equal(texts.some((t) => t.includes("tool_approval")), false);
+  assert.equal(texts.some((t) => t.includes("요청을 접수했습니다")), true);
+});
+
 test("frame send uses own origin API after parent init", async () => {
   const win = fakeFrame();
   const calls = [];

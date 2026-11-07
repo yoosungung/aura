@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
+
+from aura_ai.hours import open_now
 
 EGO_SQL = """
 WITH center AS (
@@ -146,6 +149,30 @@ def search_articles(
     return out
 
 
+def staff_available(conn, inbox_id: str, now: datetime | None = None) -> bool:
+    row = conn.execute(
+        """
+        SELECT business_hours_enabled, business_hours
+        FROM inboxes WHERE id = %s
+        """,
+        (inbox_id,),
+    ).fetchone()
+    if not row:
+        return False
+    enabled, hours = bool(row[0]), row[1]
+    if not open_now(now or datetime.now(timezone.utc), enabled, hours):
+        return False
+    online = conn.execute(
+        """
+        SELECT COUNT(*) FROM inbox_members m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.inbox_id = %s AND u.availability_status = 'online'
+        """,
+        (inbox_id,),
+    ).fetchone()
+    return int((online or [0])[0] or 0) > 0
+
+
 def bind_agent(agent, conn) -> None:
     def with_account(account_id: str, fn):
         with conn.transaction():
@@ -159,6 +186,7 @@ def bind_agent(agent, conn) -> None:
     agent.read_rag = lambda account, vec: with_account(account, lambda: search_articles(conn, vec))
     agent.read_skills = lambda account: with_account(account, lambda: list_agent_skills(conn))
     agent.read_mcp_servers = lambda account: with_account(account, lambda: list_mcp_servers(conn))
+    agent.read_staff_available = lambda account, inbox: with_account(account, lambda: staff_available(conn, inbox))
 
 
 def list_agent_skills(conn) -> list[dict]:

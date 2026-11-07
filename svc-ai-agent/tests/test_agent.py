@@ -1,11 +1,28 @@
 import uuid
 
-from aura_ai.agent import Agent, MemoryBus, new_id
-from aura_ai.ego import bind_agent
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from aura_ai.agent import DEFER_RECEIPT, Agent, MemoryBus, new_id
+from aura_ai.ego import bind_agent, staff_available
+from aura_ai.hours import open_now
 from aura_ai.limit import ChannelGuard, CircuitOpen
 from aura_ai.llm import LLM, openai_complete, stub_complete
 from aura_ai.skills import load_builtin_skills, merge_skills
 from aura_ai.tools import TOOLS
+
+WEEKDAY_HOURS = {
+    "timezone": "Asia/Seoul",
+    "week": {
+        "mon": [["09:00", "18:00"]],
+        "tue": [["09:00", "18:00"]],
+        "wed": [["09:00", "18:00"]],
+        "thu": [["09:00", "18:00"]],
+        "fri": [["09:00", "18:00"]],
+        "sat": [],
+        "sun": [],
+    },
+}
 
 
 def task(**extra):
@@ -66,10 +83,66 @@ def test_high_risk_emits_approval_card():
     agent = Agent(bus)
     env = agent.handle_reason(task(content="환불 해주세요"))
     assert env["payload"]["content_type"] == "form"
+    assert env["payload"]["private"] is False
     card = __import__("json").loads(env["payload"]["content"])
     assert card["kind"] == "tool_approval"
     assert card["tool_name"] == "refund"
     assert any(payload.get("type") == "tool_execution" for _, payload in bus.events)
+
+
+def test_high_risk_defers_when_staff_unavailable():
+    bus = MemoryBus()
+    agent = Agent(bus)
+    agent.read_staff_available = lambda *_: False
+    env = agent.handle_reason(task(content="환불 해주세요"))
+    assert env["payload"]["content_type"] == "text"
+    assert env["payload"]["private"] is False
+    assert env["payload"]["content"] == DEFER_RECEIPT
+    messages = [p for _, p in bus.events if isinstance(p, dict) and p.get("type") == "message_created"]
+    form = next(p for p in messages if p["payload"]["content_type"] == "form")
+    assert form["payload"]["private"] is True
+    card = __import__("json").loads(form["payload"]["content"])
+    assert card["kind"] == "tool_approval"
+    assert card["tool_name"] == "refund"
+    assert any(p.get("type") == "tool_execution" for _, p in bus.events if isinstance(p, dict))
+    assert not any(
+        isinstance(p, dict) and p.get("type") == "tool_execution" and p["payload"].get("is_success")
+        for _, p in bus.events
+    )
+
+
+def test_open_now_matches_go_hours():
+    loc = ZoneInfo("Asia/Seoul")
+    sat = datetime(2026, 1, 3, 10, 0, tzinfo=loc)
+    fri = datetime(2026, 1, 2, 10, 0, tzinfo=loc)
+    assert open_now(sat, True, WEEKDAY_HOURS) is False
+    assert open_now(fri, True, WEEKDAY_HOURS) is True
+    assert open_now(sat, False, WEEKDAY_HOURS) is True
+
+
+def test_staff_available_requires_hours_and_online():
+    class FakeConn:
+        def __init__(self, enabled, hours, online):
+            self.enabled = enabled
+            self.hours = hours
+            self.online = online
+            self.calls = []
+
+        def execute(self, sql, args=None):
+            self.calls.append(sql)
+            self._sql = sql
+            return self
+
+        def fetchone(self):
+            if "FROM inboxes" in self._sql:
+                return (self.enabled, self.hours)
+            return (self.online,)
+
+    fri = datetime(2026, 1, 2, 10, 0, tzinfo=ZoneInfo("Asia/Seoul"))
+    assert staff_available(FakeConn(True, WEEKDAY_HOURS, 1), "i", now=fri) is True
+    assert staff_available(FakeConn(True, WEEKDAY_HOURS, 0), "i", now=fri) is False
+    sat = datetime(2026, 1, 3, 10, 0, tzinfo=ZoneInfo("Asia/Seoul"))
+    assert staff_available(FakeConn(True, WEEKDAY_HOURS, 1), "i", now=sat) is False
 
 
 def test_extract_writes_ontology_event():
@@ -294,6 +367,7 @@ def test_bind_agent_sets_tenant_guc():
     agent.read_ego("acc-1", "contact-1")
     assert conn.calls[0][0].startswith("SELECT set_config")
     assert conn.calls[0][1] == ("acc-1",)
+    assert callable(agent.read_staff_available)
 
 
 MCP_ROW = {"name": "ops", "url": "http://127.0.0.1:18082/mcp", "enabled": True}

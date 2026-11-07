@@ -2477,3 +2477,43 @@ test("thread renders tool approval card", async () => {
   expect(approved).toEqual(["ex1"]);
   expect(screen.getByRole("group", { name: "AI 승인 요청" }).textContent).toMatch(/결제 취소/);
 });
+
+test("thread renders private tool approval card", async () => {
+  const approved = [];
+  render(
+    <App
+      session={session}
+      client={{
+        connect() {},
+        async approveTool(req) {
+          approved.push(req.executionId);
+          return { ok: true };
+        },
+      }}
+      initialState={{
+        ...fixtureState(),
+        selectedId: "c1",
+        messages: {
+          c1: [
+            {
+              id: "m-ai-priv",
+              content: JSON.stringify({
+                kind: "tool_approval",
+                execution_id: "ex-priv",
+                tool_name: "refund",
+                summary: "환불 실행",
+              }),
+              senderType: "AgentBot",
+              contentType: "form",
+              private: true,
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  const user = userEvent.setup();
+  expect(screen.getByText("🔒 내부 메모 (상담원에게만 보임)")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "승인 및 실행" }));
+  expect(approved).toEqual(["ex-priv"]);
+});

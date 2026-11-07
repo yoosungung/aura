@@ -137,6 +137,17 @@
 
 성공: 관리자가 웹·메일·카카오 인박스를 만들고 이름을 고치고 지운 뒤, 그 인박스에 멤버를 넣는다. 계정 시드 웹 인박스는 그대로다. **완료.**
 
+## P11 고위험 비동기 접수
+
+목표: 고위험 도구가 필요할 때 영업시간 밖이거나 온라인 상담원이 없으면, 고객을 실시간 승인 대기에 두지 않고 접수 안내만 보낸다. FSM·`pending` 의미는 바꾸지 않는다.
+
+- 가용 판정: 인박스 `business_hours`가 열림 **그리고** 인박스 멤버 중 `availability_status=online` ≥ 1 (P9 greeting과 동일).
+- 가용: 현행 `content_type=form` 승인 카드(`private=false`). MCP는 승인 전 호출 금지.
+- 비가용: `tool_execution`(requires_approval) + form 승인 카드(`private=true`) + 고객 공개 접수 안내 outbound. 티켓 상태 `unassigned`/`open` 유지.
+- 상담원 `tools.approve` → `ai.execute`는 sync/async 동일.
+
+성공: 비가용에서 환불은 고객이 접수 안내만 보고 승인 form은 상담원만 보며 MCP는 없다. 승인 후 execute가 돌고, 가용 시에는 기존 실시간 승인 카드와 같다. **완료.**
+
 ## 출시 후
 
 - 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
@@ -194,3 +205,5 @@
 **인박스 멤버 UI.** 인박스별 상담원 ID 입력 / 사용자×인박스 매트릭스 → 계정 사용자 행 × 인박스 열 체크. 변경된 행만 이름 앞 체크로 저장 대상을 고르고, 기존 add/remove API를 그 행의 diff에만 호출한다. 행 데이터는 `GET .../users`(administrator).
 
 **백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트는 OrbStack이 연 NodePort(Postgres `30432`, NATS `30422`, 필러 `30888`)를 쓴다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.
+
+**고위험 staff unavailable.** 실시간 승인 대기 / 타임아웃 deny / FSM `pending` → **비동기 접수**. 영업시간 밖이거나 온라인 풀이 비면 고객에게 접수 안내만 보내고 승인 카드는 `private=true`. FSM은 유지. 가용 시에는 현행 public form.

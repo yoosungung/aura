@@ -14,6 +14,8 @@ from aura_ai.mcp_ops import config_from_rows, invoke_tool, load_ops_tools
 from aura_ai.skills import load_builtin_skills, merge_skills
 from aura_ai.tools import is_high_risk, run_low_risk
 
+DEFER_RECEIPT = "요청을 접수했습니다. 상담원이 확인 후 처리합니다."
+
 
 def new_id() -> str:
     ts = int(time.time() * 1000) & 0xFFFFFFFFFFFF
@@ -61,6 +63,7 @@ class Agent:
         self.read_rag: Callable[[str, list[float]], list[dict]] = lambda _account, _vec: []
         self.read_skills: Callable[[str], list[dict]] = lambda _account: []
         self.read_mcp_servers: Callable[[str], list[dict]] = lambda _account: []
+        self.read_staff_available: Callable[[str, str], bool] = lambda _account, _inbox: True
         self.ops_tools: list | None = None
         self._ops_key: str | None = None
         self.skills_root = None
@@ -184,7 +187,11 @@ class Agent:
             {"kind": "tool_approval", "execution_id": exec_id, "tool_name": name, "summary": summary, "args": args},
             ensure_ascii=False,
         )
-        return self._message(task, content, content_type="form", sender_type="AgentBot", message_type=3)
+        available = self.read_staff_available(task.get("account_id", ""), task.get("inbox_id", ""))
+        if available:
+            return self._message(task, content, content_type="form", sender_type="AgentBot", message_type=3, private=False)
+        self._message(task, content, content_type="form", sender_type="AgentBot", message_type=3, private=True)
+        return self._outbound_reply(task, DEFER_RECEIPT)
 
     def _auto_reply(self, task: dict, decision: dict) -> dict:
         content = decision.get("content") or "확인했습니다."
@@ -198,7 +205,7 @@ class Agent:
             self.guard.allow(channel)
         except (RateLimited, CircuitOpen):
             return {"skipped": True, "reason": "limited"}
-        env = self._message(task, content, content_type="text", sender_type="AgentBot", message_type=1)
+        env = self._message(task, content, content_type="text", sender_type="AgentBot", message_type=1, private=False)
         if channel in {"email", "kakao"}:
             self.bus.publish(
                 f"helpdesk.tasks.outbound.{channel}",
@@ -245,7 +252,16 @@ class Agent:
         account, inbox, conv = task.get("account_id"), task.get("inbox_id"), task.get("conversation_id")
         self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.tool_execution", env)
 
-    def _message(self, task: dict, content: str, *, content_type: str, sender_type: str, message_type: int) -> dict:
+    def _message(
+        self,
+        task: dict,
+        content: str,
+        *,
+        content_type: str,
+        sender_type: str,
+        message_type: int,
+        private: bool = False,
+    ) -> dict:
         env = self._envelope(
             task.get("account_id"),
             task.get("inbox_id"),
@@ -254,7 +270,7 @@ class Agent:
             {
                 "content": content,
                 "message_type": message_type,
-                "private": False,
+                "private": private,
                 "status": "sent",
                 "content_type": content_type,
                 "sender_type": sender_type,
