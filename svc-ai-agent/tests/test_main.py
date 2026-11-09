@@ -1,17 +1,12 @@
 import asyncio
 import json
-import time
 
 from aura_ai.__main__ import TASKS_STREAM, bind_consumers, drain_pending, handle_msg
 
 
-class DummyBus:
-    def __init__(self) -> None:
-        self.pending: list = []
-        self.flushed = 0
-
-    async def flush(self) -> None:
-        self.flushed += 1
+class FakePublishJS:
+    async def publish(self, subject: str, data: bytes) -> None:
+        return None
 
 
 class DummyMsg:
@@ -41,26 +36,23 @@ class FakeJS:
         return f"sub-{durable}"
 
 
-def test_bind_consumers_binds_all_existing_durables_before_return():
-    async def go():
-        js = FakeJS()
-        specs = [
-            ("helpdesk.tasks.ai.reasoning", "svc-ai-reasoning", lambda _t: None),
-            ("helpdesk.tasks.ai.execute", "svc-ai-execute", lambda _t: None),
-        ]
-        bound = await bind_consumers(js, specs)
-        assert js.infos == [(TASKS_STREAM, "svc-ai-reasoning"), (TASKS_STREAM, "svc-ai-execute")]
-        assert js.binds == [(TASKS_STREAM, "svc-ai-reasoning"), (TASKS_STREAM, "svc-ai-execute")]
-        assert [sub for sub, _ in bound] == ["sub-svc-ai-reasoning", "sub-svc-ai-execute"]
-
-    asyncio.run(go())
+async def test_bind_consumers_binds_all_existing_durables_before_return():
+    js = FakeJS()
+    specs = [
+        ("helpdesk.tasks.ai.reasoning", "svc-ai-reasoning", lambda _t: None),
+        ("helpdesk.tasks.ai.execute", "svc-ai-execute", lambda _t: None),
+    ]
+    bound = await bind_consumers(js, specs)
+    assert js.infos == [(TASKS_STREAM, "svc-ai-reasoning"), (TASKS_STREAM, "svc-ai-execute")]
+    assert js.binds == [(TASKS_STREAM, "svc-ai-reasoning"), (TASKS_STREAM, "svc-ai-execute")]
+    assert [sub for sub, _ in bound] == ["sub-svc-ai-reasoning", "sub-svc-ai-execute"]
 
 
-def test_handle_msg_does_not_block_event_loop():
+async def test_handle_msg_does_not_block_event_loop():
     markers: list[str] = []
 
-    def blocking_fn(_task: dict) -> None:
-        time.sleep(0.2)
+    async def slow_fn(_task: dict) -> None:
+        await asyncio.sleep(0.2)
         markers.append("fn")
 
     async def ticker() -> None:
@@ -68,17 +60,13 @@ def test_handle_msg_does_not_block_event_loop():
             await asyncio.sleep(0.04)
             markers.append("tick")
 
-    async def go() -> None:
-        bus = DummyBus()
-        work = asyncio.Lock()
-        msg = DummyMsg()
-        await asyncio.gather(handle_msg(msg, blocking_fn, bus, work), ticker())
-        assert msg.acked
-        assert "fn" in markers
-        assert "tick" in markers
-        assert markers.index("tick") < markers.index("fn")
-
-    asyncio.run(go())
+    msg = DummyMsg()
+    sem = asyncio.Semaphore(4)
+    await asyncio.gather(handle_msg(msg, slow_fn, FakePublishJS(), sem), ticker())
+    assert msg.acked
+    assert "fn" in markers
+    assert "tick" in markers
+    assert markers.index("tick") < markers.index("fn")
 
 
 class FakeSub:
@@ -97,14 +85,10 @@ class FakeSub:
         return out
 
 
-def test_drain_pending_acks_backlog_without_running_handler():
+async def test_drain_pending_acks_backlog_without_running_handler():
     ran = []
-
-    async def go():
-        sub = FakeSub([{"content": "old-1"}, {"content": "old-2"}, {"content": "old-3"}])
-        n = await drain_pending(sub)
-        assert n == 3
-        assert all(m.acked for m in sub.acked)
-        assert ran == []
-
-    asyncio.run(go())
+    sub = FakeSub([{"content": "old-1"}, {"content": "old-2"}, {"content": "old-3"}])
+    n = await drain_pending(sub)
+    assert n == 3
+    assert all(m.acked for m in sub.acked)
+    assert ran == []

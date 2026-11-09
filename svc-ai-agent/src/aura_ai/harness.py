@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import inspect
 import json
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware, ModelRetryMiddleware, ToolCallLimitMiddleware
@@ -11,18 +12,20 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import PrivateAttr
 
-from aura_ai.mcp_ops import canonical_tool_name, is_ops_high_risk, run_sync
+from aura_ai.mcp_ops import canonical_tool_name, is_ops_high_risk
 from aura_ai.skills import Skill, SkillsMiddleware, catalog_prompt
 from aura_ai.tools import TOOLS, is_high_risk
 
 SYSTEM = "Helpdesk AI. Low-risk tools auto-run. High-risk tools need approval."
 
+CompleteFn = Callable[[list[dict], list[dict]], Awaitable[dict] | dict]
+
 
 class CompletionsChatModel(BaseChatModel):
-    _complete: Callable[[list[dict], list[dict]], dict] = PrivateAttr()
+    _complete: CompleteFn = PrivateAttr()
     _tools_schema: list[dict] = PrivateAttr(default_factory=lambda: list(TOOLS))
 
-    def __init__(self, complete: Callable[[list[dict], list[dict]], dict], tools_schema: list[dict] | None = None, **kwargs: Any) -> None:
+    def __init__(self, complete: CompleteFn, tools_schema: list[dict] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._complete = complete
         self._tools_schema = tools_schema or list(TOOLS)
@@ -34,11 +37,7 @@ class CompletionsChatModel(BaseChatModel):
     def bind_tools(self, tools: list, **kwargs: Any) -> CompletionsChatModel:
         return self
 
-    def _generate(self, messages: list[BaseMessage], stop: list[str] | None = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
-        dicts = [_to_dict(m) for m in messages]
-        if _should_stop(dicts):
-            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
-        resp = self._complete(dicts, self._tools_schema)
+    def _result_from_resp(self, resp: dict) -> ChatResult:
         calls = resp.get("tool_calls") or []
         if not calls:
             return ChatResult(generations=[ChatGeneration(message=AIMessage(content=resp.get("content") or ""))])
@@ -57,6 +56,26 @@ class CompletionsChatModel(BaseChatModel):
                 }
             )
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=resp.get("content") or "", tool_calls=tool_calls))])
+
+    def _generate(self, messages: list[BaseMessage], stop: list[str] | None = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
+        dicts = [_to_dict(m) for m in messages]
+        if _should_stop(dicts):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
+        resp = self._complete(dicts, self._tools_schema)
+        if inspect.isawaitable(resp):
+            raise RuntimeError("async complete requires ainvoke")
+        return self._result_from_resp(resp)
+
+    async def _agenerate(
+        self, messages: list[BaseMessage], stop: list[str] | None = None, run_manager: Any = None, **kwargs: Any
+    ) -> ChatResult:
+        dicts = [_to_dict(m) for m in messages]
+        if _should_stop(dicts):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
+        resp = self._complete(dicts, self._tools_schema)
+        if inspect.isawaitable(resp):
+            resp = await resp
+        return self._result_from_resp(resp)
 
 
 class AuraHITLMiddleware(AgentMiddleware):
@@ -132,8 +151,8 @@ def send_status(content: str) -> str:
     return json.dumps({"sent": True, "content": content}, ensure_ascii=False)
 
 
-def reason(
-    complete: Callable[[list[dict], list[dict]], dict],
+async def reason(
+    complete: CompleteFn,
     prompt: str,
     ego: list[dict],
     articles: list[dict] | None = None,
@@ -160,7 +179,7 @@ def reason(
         ],
     )
     user = json.dumps({"message": prompt, "ego": ego, "articles": articles or []}, ensure_ascii=False)
-    run_sync(agent.ainvoke({"messages": [{"role": "user", "content": user}]}))
+    await agent.ainvoke({"messages": [{"role": "user", "content": user}]})
     if hitl.pending:
         return {"action": "approve", "tool_name": hitl.pending["tool_name"], "args": hitl.pending["args"], "steps": hitl.steps}
     if hitl.send_status:

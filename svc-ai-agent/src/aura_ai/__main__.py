@@ -4,7 +4,9 @@ import asyncio
 import json
 import os
 
-from aura_ai.agent import Agent, Bus
+import httpx
+
+from aura_ai.agent import Agent, Bus, MemoryBus, current_bus
 from aura_ai.ego import bind_agent
 from aura_ai.llm import LLM, embed_from_env
 
@@ -25,16 +27,20 @@ class NATSBus(Bus):
         self.pending.clear()
 
 
-async def handle_msg(msg, fn, bus, work: asyncio.Lock) -> None:
+async def handle_msg(msg, fn, js, sem: asyncio.Semaphore) -> None:
+    buf = NATSBus(js)
+    token = current_bus.set(buf)
     try:
         task = json.loads(msg.data)
-        async with work:
-            await asyncio.to_thread(fn, task)
-        await bus.flush()
+        async with sem:
+            await fn(task)
+        await buf.flush()
         await msg.ack()
     except Exception:
-        bus.pending.clear()
+        buf.pending.clear()
         await msg.nak()
+    finally:
+        current_bus.reset(token)
 
 
 async def drain_pending(sub, limit: int = 500) -> int:
@@ -73,44 +79,53 @@ async def _bind(js, durable: str):
 
 async def run() -> None:
     import nats
+    from psycopg_pool import AsyncConnectionPool
 
     nats_url = os.environ.get("AURA_NATS_URL", "nats://127.0.0.1:30422")
-    nc = await nats.connect(nats_url)
-    js = nc.jetstream(timeout=15)
-    bus = NATSBus(js)
-    agent = Agent(bus, LLM.from_env(), embed=embed_from_env())
-    dsn = os.environ.get("AURA_DSN")
-    conn = None
-    if dsn:
-        import psycopg
+    client = httpx.AsyncClient(timeout=60.0)
+    pool: AsyncConnectionPool | None = None
+    nc = None
+    try:
+        nc = await nats.connect(nats_url)
+        js = nc.jetstream(timeout=15)
+        llm = LLM.from_env(client=client)
+        agent = Agent(MemoryBus(), llm, embed=embed_from_env(client=client))
+        dsn = os.environ.get("AURA_DSN")
+        if dsn:
+            pool = AsyncConnectionPool(conninfo=dsn, open=False, min_size=1, max_size=4)
+            await pool.open()
+            bind_agent(agent, pool)
 
-        conn = psycopg.connect(dsn)
-        bind_agent(agent, conn)
+        sem = asyncio.Semaphore(int(os.environ.get("AURA_AI_CONCURRENCY", "4")))
+        specs = [
+            ("helpdesk.tasks.ai.reasoning", "svc-ai-reasoning", agent.handle_reason),
+            ("helpdesk.tasks.ai.execute", "svc-ai-execute", agent.handle_execute),
+            ("helpdesk.tasks.ontology.extract", "svc-ai-ontology", agent.handle_extract),
+            ("helpdesk.tasks.ai.embed", "svc-ai-embed", agent.handle_embed),
+        ]
+        bound = await bind_consumers(js, specs)
+        if os.environ.get("AURA_JS_DRAIN_PENDING"):
+            for sub, _fn in bound:
+                await drain_pending(sub)
+        for sub, fn in bound:
+            asyncio.create_task(_loop(sub, fn, js, sem))
+        await asyncio.Event().wait()
+    finally:
+        await client.aclose()
+        if pool is not None:
+            await pool.close()
+        if nc is not None:
+            await nc.drain()
 
-    work = asyncio.Lock()
-    specs = [
-        ("helpdesk.tasks.ai.reasoning", "svc-ai-reasoning", agent.handle_reason),
-        ("helpdesk.tasks.ai.execute", "svc-ai-execute", agent.handle_execute),
-        ("helpdesk.tasks.ontology.extract", "svc-ai-ontology", agent.handle_extract),
-        ("helpdesk.tasks.ai.embed", "svc-ai-embed", agent.handle_embed),
-    ]
-    bound = await bind_consumers(js, specs)
-    if os.environ.get("AURA_JS_DRAIN_PENDING"):
-        for sub, _fn in bound:
-            await drain_pending(sub)
-    for sub, fn in bound:
-        asyncio.create_task(_loop(sub, fn, bus, work))
-    await asyncio.Event().wait()
 
-
-async def _loop(sub, fn, bus, work: asyncio.Lock):
+async def _loop(sub, fn, js, sem: asyncio.Semaphore):
     while True:
         try:
             msgs = await sub.fetch(1, timeout=5)
         except Exception:
             continue
         for msg in msgs:
-            await handle_msg(msg, fn, bus, work)
+            await handle_msg(msg, fn, js, sem)
 
 
 def main() -> None:

@@ -2,9 +2,68 @@
 
 Python AI 워커. 컴포넌트 간 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md). PG INSERT/UPDATE/DELETE를 하지 않는다. Ego-Graph·embeddings는 SELECT만 하고, 메시지·도구감사·온톨로지·임베딩 쓰기는 NATS 이벤트다.
 
+## Flow
+
+JetStream WorkQueue 4종을 소비한다. 고위험은 `reasoning`에서 승인 카드만 내고 MCP는 `ai.execute`에서 친다.
+
+```mermaid
+flowchart TD
+  accTitle: svc-ai-agent task flow
+  accDescr: Four WorkQueue subjects enter the worker. Reasoning may skip on hop limit, load Ego/RAG/skills/MCP, run create_agent, then auto-reply or emit an approval card gated by staff availability. Execute calls ops MCP. Ontology extract and article embed publish events for ingestion.
+
+  subgraph Triggers["인입 트리거"]
+    GW["gateway-* 고객 메시지"]
+    CORE_OK["svc-core 승인"]
+    CORE_RES["svc-core resolved"]
+    CORE_ART["article 게시/갱신"]
+  end
+
+  GW --> T_REASON["WorkQueue<br/>helpdesk.tasks.ai.reasoning"]
+  CORE_OK --> T_EXEC["WorkQueue<br/>helpdesk.tasks.ai.execute"]
+  CORE_RES --> T_ONT["WorkQueue<br/>helpdesk.tasks.ontology.extract"]
+  CORE_ART --> T_EMBED["WorkQueue<br/>helpdesk.tasks.ai.embed"]
+
+  subgraph Worker["svc-ai-agent"]
+    T_REASON --> HOP{"hop_count > 5?"}
+    HOP -->|yes| SKIP1["skip"]
+    HOP -->|no| CTX["SELECT: Ego-Graph · RAG embeddings<br/>skills · mcp_servers"]
+    CTX --> EMB["고객 메시지 embed"]
+    EMB --> RAG["HNSW cosine top-5 article"]
+    RAG --> AGENT["LangChain create_agent<br/>Ego/RAG + Skills + ToolLimit + Retry + AuraHITL"]
+    AGENT --> LOOP["ReAct: model → tool_calls"]
+    LOOP --> RISK{"고위험 도구?"}
+    RISK -->|yes| STAFF{"staff available?<br/>hours + online"}
+    STAFF -->|yes| CARD["tool_execution requires_approval<br/>+ form private=false"]
+    STAFF -->|no| DEFER["form private=true<br/>+ 고객 공개 접수 문구 outbound"]
+    RISK -->|no| LOW["저위험 MCP / send_status 즉시 실행"]
+    LOW --> OUT["token-bucket + circuit<br/>message_created ± outbound.*"]
+    CARD --> WAIT["상담원 승인 대기"]
+
+    T_EXEC --> MCP["운영계 MCP 호출<br/>auth_header는 이벤트에 미포함"]
+    MCP --> OUT2["tool_execution success<br/>+ 고객 회신 outbound"]
+
+    T_ONT --> READ_MSG["대화 메시지 SELECT"]
+    READ_MSG --> EXT["노드/엣지 추출"]
+    EXT --> ONT_EVT["ontology_extracted 발행"]
+
+    T_EMBED --> READ_ART["article 본문 SELECT"]
+    READ_ART --> VEC["embedding 생성"]
+    VEC --> DIM{"dim 1..4000?"}
+    DIM -->|no| SKIP2["drop"]
+    DIM -->|yes| EMB_EVT["embedding_upsert 발행"]
+  end
+
+  WAIT -.-> CORE_OK
+  OUT --> INGEST["ingestion / realtime"]
+  OUT2 --> INGEST
+  ONT_EVT --> INGEST
+  EMB_EVT --> INGEST
+  DEFER --> INGEST
+```
+
 ## 내부 설계
 
-- JetStream WorkQueue `helpdesk.tasks.ai.reasoning` / `ai.execute` / `ontology.extract` / `ai.embed` 를 durable `svc-ai-reasoning` / `svc-ai-execute` / `svc-ai-ontology` / `svc-ai-embed` 로 소비한다. Go가 만든 `TASKS_STREAM` durable에 `pull_subscribe_bind`만 하고, 핸들러는 워커 스레드에서 돌려 NATS 이벤트 루프를 막지 않는다. 구독은 모두 bind한 뒤에 fetch를 시작한다. 로컬 디버그(`AURA_JS_DRAIN_PENDING`)는 시작 시 미ACK 백로그를 ACK만 하고 버린다. 파드 기동에는 이 변수를 두지 않는다.
+- JetStream WorkQueue `helpdesk.tasks.ai.reasoning` / `ai.execute` / `ontology.extract` / `ai.embed` 를 durable `svc-ai-reasoning` / `svc-ai-execute` / `svc-ai-ontology` / `svc-ai-embed` 로 소비한다. Go가 만든 `TASKS_STREAM` durable에 `pull_subscribe_bind`만 하고, 핸들러는 native async(`await handle_*`)다. LLM(`httpx.AsyncClient`)·MCP(`ainvoke`)·PG(`AsyncConnectionPool`)가 같은 이벤트 루프에서 돌아간다. 동시성은 `asyncio.Semaphore`(`AURA_AI_CONCURRENCY`, 기본 4)로 제한하고, 메시지별 `NATSBus` 버퍼는 `contextvars`로 격리한다. 구독은 모두 bind한 뒤에 fetch를 시작한다. 로컬 디버그(`AURA_JS_DRAIN_PENDING`)는 시작 시 미ACK 백로그를 ACK만 하고 버린다. 파드 기동에는 이 변수를 두지 않는다.
 - 추론은 LangChain `create_agent`다. 모델은 OpenAI 호환(`AURA_LLM_BASE_URL`/`AURA_LLM_MODEL`). 고객 메시지를 임베딩한 뒤 published article을 현재 `AURA_EMBEDDING_MODEL`/`version`·같은 차원 cosine top-5로 읽고 Ego-Graph와 함께 넣는다. 검색 트랜잭션에서 `SET LOCAL hnsw.ef_search = 40`, `hnsw.iterative_scan = relaxed_order`. 질의 차원이 비거나 4000을 넘으면 RAG는 빈 결과다. `AURA_LLM_API_KEY`가 비면 결정적 stub 모델(환불·취소 키워드 → 고위험 카드, 그 외 → `send_status`). 미들웨어: Ego/RAG 주입, Agent Skills `load_skill`, `ToolCallLimitMiddleware(run_limit=8)`, `ModelRetryMiddleware`, AuraHITL(고위험 MCP는 승인 카드만, LangGraph checkpointer 없음). 동일 (tool, args) 반복은 중단.
 - 네이티브 도구는 `send_status`(outgoing `message_created`와 `helpdesk.tasks.outbound.<channel>`, web은 realtime만). 운영계 도구(`lookup_order` / `lookup_shipping` / `refund` / `cancel_subscription` / `change_plan` 등)는 테넌트 `mcp_servers` MCP. 서버가 없으면 in-process FastMCP stub. URL이 바뀌면 다음 턴에 다시 붙고, 연결 실패면 그 턴만 stub이며 프로세스는 유지한다. 고위험은 `tool_execution`(requires_approval) + `content_type=form` 승인 카드만 내고 MCP는 치지 않는다.
 - Staff available은 PG SELECT만: 인박스 `business_hours`(`OpenNow`와 동일)와 온라인 멤버 수. 가용하면 form `private=false`. 비가용이면 form `private=true` + 고객 공개 문구「요청을 접수했습니다. 상담원이 확인 후 처리합니다.」outbound. FSM은 건드리지 않는다.
@@ -30,4 +89,4 @@ python -m aura_ai
 
 클러스터 파드와 WorkQueue durable을 같이 쓰지 않는다. Cursor/VS Code는 `.vscode` launch `svc-ai-agent: local debug`(시작 전 파드 0, 종료 후 1, `AURA_JS_DRAIN_PENDING`)를 **먼저** 띄운 뒤 `Virtual Client`. 모의 MCP(`:18082`)가 아직 없어도 에이전트는 stub으로 대기하고, bootstrap이 URL을 등록하면 재시작 없이 다음 턴에 붙는다. 호스트는 OrbStack NodePort NATS `:30422`·PG `:30432`, LLM은 `127.0.0.1:11434`.
 
-환경변수: `AURA_DSN`(호스트 디버그 `127.0.0.1:30432`), `AURA_NATS_URL`(비면 `nats://127.0.0.1:30422`), `AURA_LLM_BASE_URL`, `AURA_LLM_API_KEY`, `AURA_LLM_MODEL`, `AURA_EMBEDDING_MODEL`, `AURA_JS_DRAIN_PENDING`(로컬 디버그 백로그 ACK).
+환경변수: `AURA_DSN`(호스트 디버그 `127.0.0.1:30432`), `AURA_NATS_URL`(비면 `nats://127.0.0.1:30422`), `AURA_LLM_BASE_URL`, `AURA_LLM_API_KEY`, `AURA_LLM_MODEL`, `AURA_EMBEDDING_MODEL`, `AURA_AI_CONCURRENCY`(기본 4), `AURA_JS_DRAIN_PENDING`(로컬 디버그 백로그 ACK).

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 import httpx
 
@@ -10,18 +10,27 @@ from aura_ai.harness import reason as harness_reason
 from aura_ai.skills import Skill
 from aura_ai.tools import TOOLS
 
+CompleteFn = Callable[[list[dict], list[dict]], Awaitable[dict] | dict]
+EmbedFn = Callable[[str], Awaitable[list[float]] | list[float]]
+
 
 class LLM:
-    def __init__(self, complete: Callable[[list[dict], list[dict]], dict] | None = None) -> None:
+    def __init__(self, complete: CompleteFn | None = None) -> None:
         self.complete = complete or stub_complete
 
     @classmethod
-    def from_env(cls) -> "LLM":
+    def from_env(cls, client: httpx.AsyncClient | None = None) -> "LLM":
         if os.environ.get("AURA_LLM_API_KEY"):
-            return cls(complete=openai_complete)
+            if client is None:
+                raise ValueError("AsyncClient required when AURA_LLM_API_KEY is set")
+
+            async def complete(messages: list[dict], tools: list[dict]) -> dict:
+                return await openai_complete(messages, tools, client=client)
+
+            return cls(complete=complete)
         return cls()
 
-    def reason(
+    async def reason(
         self,
         prompt: str,
         ego: list[dict],
@@ -30,7 +39,7 @@ class LLM:
         skills: dict[str, Skill] | None = None,
         extra_high_risk: set[str] | None = None,
     ) -> dict:
-        return harness_reason(
+        return await harness_reason(
             self.complete,
             prompt,
             ego,
@@ -41,7 +50,7 @@ class LLM:
         )
 
 
-def stub_complete(messages: list[dict], _tools: list[dict]) -> dict:
+async def stub_complete(messages: list[dict], _tools: list[dict]) -> dict:
     text = ""
     for m in messages:
         if m.get("role") == "user":
@@ -77,15 +86,15 @@ def stub_extract(transcript: str) -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
-def stub_embed(_text: str) -> list[float]:
+async def stub_embed(_text: str) -> list[float]:
     return [0.01] * 1536
 
 
-def openai_complete(messages: list[dict], tools: list[dict]) -> dict:
+async def openai_complete(messages: list[dict], tools: list[dict], *, client: httpx.AsyncClient) -> dict:
     base = os.environ.get("AURA_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     key = os.environ.get("AURA_LLM_API_KEY", "")
     model = os.environ.get("AURA_LLM_MODEL", "gpt-4o-mini")
-    res = httpx.post(
+    res = await client.post(
         f"{base}/chat/completions",
         headers={"Authorization": f"Bearer {key}"},
         json={"model": model, "messages": messages, "tools": tools},
@@ -96,11 +105,11 @@ def openai_complete(messages: list[dict], tools: list[dict]) -> dict:
     return {"content": msg.get("content") or "", "tool_calls": msg.get("tool_calls") or []}
 
 
-def openai_embed(text: str) -> list[float]:
+async def openai_embed(text: str, *, client: httpx.AsyncClient) -> list[float]:
     base = os.environ.get("AURA_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     key = os.environ.get("AURA_LLM_API_KEY", "")
     model = os.environ.get("AURA_EMBEDDING_MODEL", "text-embedding-3-small")
-    res = httpx.post(
+    res = await client.post(
         f"{base}/embeddings",
         headers={"Authorization": f"Bearer {key}"},
         json={"model": model, "input": text},
@@ -111,7 +120,13 @@ def openai_embed(text: str) -> list[float]:
     return [float(x) for x in vec]
 
 
-def embed_from_env() -> Callable[[str], list[float]]:
+def embed_from_env(client: httpx.AsyncClient | None = None) -> EmbedFn:
     if os.environ.get("AURA_LLM_API_KEY"):
-        return openai_embed
+        if client is None:
+            raise ValueError("AsyncClient required when AURA_LLM_API_KEY is set")
+
+        async def embed(text: str) -> list[float]:
+            return await openai_embed(text, client=client)
+
+        return embed
     return stub_embed

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import os
 import time
 import uuid
+from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 from aura_ai.ego import MAX_EMBED_DIM
 from aura_ai.limit import ChannelGuard, CircuitOpen, RateLimited
@@ -15,6 +18,8 @@ from aura_ai.skills import load_builtin_skills, merge_skills
 from aura_ai.tools import is_high_risk, run_low_risk
 
 DEFER_RECEIPT = "요청을 접수했습니다. 상담원이 확인 후 처리합니다."
+
+current_bus: ContextVar["Bus | None"] = ContextVar("current_bus", default=None)
 
 
 def new_id() -> str:
@@ -27,6 +32,28 @@ def new_id() -> str:
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+async def _awaitable(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _empty_list(*_args: Any, **_kwargs: Any) -> list:
+    return []
+
+
+async def _empty_str(*_args: Any, **_kwargs: Any) -> str:
+    return ""
+
+
+async def _none(*_args: Any, **_kwargs: Any) -> None:
+    return None
+
+
+async def _true(*_args: Any, **_kwargs: Any) -> bool:
+    return True
 
 
 class Bus:
@@ -49,82 +76,89 @@ class Agent:
         llm: LLM | None = None,
         guard: ChannelGuard | None = None,
         db=None,
-        embed: Callable[[str], list[float]] | None = None,
+        embed: Callable[[str], Awaitable[list[float]] | list[float]] | None = None,
     ) -> None:
         self.bus = bus
         self.llm = llm or LLM()
         self.guard = guard or ChannelGuard()
         self.db = db
         self.embed = embed or stub_embed
-        self.read_ego: Callable[[str, str], list[dict]] = lambda _account, _contact: []
-        self.read_center: Callable[[str, str], str | None] = lambda _account, _contact: None
-        self.read_messages: Callable[[str, str], str] = lambda _account, _conv: ""
-        self.read_article: Callable[[str, str], str] = lambda _account, _id: ""
-        self.read_rag: Callable[[str, list[float]], list[dict]] = lambda _account, _vec: []
-        self.read_skills: Callable[[str], list[dict]] = lambda _account: []
-        self.read_mcp_servers: Callable[[str], list[dict]] = lambda _account: []
-        self.read_staff_available: Callable[[str, str], bool] = lambda _account, _inbox: True
+        self.read_ego: Callable[[str, str], Awaitable[list[dict]]] = _empty_list
+        self.read_center: Callable[[str, str], Awaitable[str | None]] = _none
+        self.read_messages: Callable[[str, str], Awaitable[str]] = _empty_str
+        self.read_article: Callable[[str, str], Awaitable[str]] = _empty_str
+        self.read_rag: Callable[[str, list[float]], Awaitable[list[dict]]] = _empty_list
+        self.read_skills: Callable[[str], Awaitable[list[dict]]] = _empty_list
+        self.read_mcp_servers: Callable[[str], Awaitable[list[dict]]] = _empty_list
+        self.read_staff_available: Callable[[str, str], Awaitable[bool]] = _true
         self.ops_tools: list | None = None
         self._ops_key: str | None = None
+        self._ops_lock = asyncio.Lock()
         self.skills_root = None
 
-    def _ops_tools_for(self, servers: list[dict]) -> list:
+    def _bus(self) -> Bus:
+        return current_bus.get() or self.bus
+
+    async def _ops_tools_for(self, servers: list[dict]) -> list:
         config = config_from_rows(servers)
         key = json.dumps(config, sort_keys=True, default=str) if config else ""
-        if self.ops_tools is not None and self._ops_key == key:
-            return self.ops_tools
-        try:
-            tools = load_ops_tools(config=config)
-        except Exception:
-            return load_ops_tools(config=None)
-        self.ops_tools = tools
-        self._ops_key = key
-        return tools
+        async with self._ops_lock:
+            if self.ops_tools is not None and self._ops_key == key:
+                return self.ops_tools
+            try:
+                tools = await load_ops_tools(config=config)
+            except Exception:
+                return await load_ops_tools(config=None)
+            self.ops_tools = tools
+            self._ops_key = key
+            return tools
 
-    def handle_reason(self, task: dict) -> dict:
+    async def handle_reason(self, task: dict) -> dict:
         if int(task.get("hop_count") or 0) > 5:
             return {"skipped": True, "reason": "hop"}
         prompt = task.get("content") or ""
         account = task.get("account_id", "")
-        ego = self.read_ego(account, task.get("contact_id", ""))
-        articles = self.read_rag(account, self.embed(prompt))
-        skills = merge_skills(load_builtin_skills(self.skills_root), self.read_skills(account))
-        servers = self.read_mcp_servers(account)
+        ego = await self.read_ego(account, task.get("contact_id", ""))
+        articles = await self.read_rag(account, await _awaitable(self.embed(prompt)))
+        skills = merge_skills(load_builtin_skills(self.skills_root), await self.read_skills(account))
+        servers = await self.read_mcp_servers(account)
         extra = set()
         for row in servers:
             extra.update(row.get("high_risk_tools") or [])
-        ops_tools = self._ops_tools_for(servers)
-        decision = self.llm.reason(prompt, ego, articles, ops_tools=ops_tools, skills=skills, extra_high_risk=extra)
+        ops_tools = await self._ops_tools_for(servers)
+        decision = await self.llm.reason(
+            prompt, ego, articles, ops_tools=ops_tools, skills=skills, extra_high_risk=extra
+        )
         for step in decision.get("steps") or []:
             name = step.get("tool_name") or ""
             if name and name != decision.get("tool_name"):
                 self._tool_event(task, name, step.get("args") or {}, step.get("result") or {}, requires=False, success=True)
         if decision.get("action") == "approve":
-            return self._approval_card(task, decision)
-        return self._auto_reply(task, decision)
+            return await self._approval_card(task, decision)
+        return await self._auto_reply(task, decision)
 
-    def handle_execute(self, task: dict) -> dict:
+    async def handle_execute(self, task: dict) -> dict:
         name = task.get("tool_name") or ""
         args = task.get("input_args") or {}
         if name == "send_status":
             result = run_low_risk(name, args)
         else:
-            ops_tools = self._ops_tools_for(self.read_mcp_servers(task.get("account_id", "")))
-            result = invoke_tool(ops_tools, name, args)
+            ops_tools = await self._ops_tools_for(await self.read_mcp_servers(task.get("account_id", "")))
+            result = await invoke_tool(ops_tools, name, args)
         content = args.get("content") or f"{name} 처리했습니다."
         if is_high_risk(name):
             content = f"{name} 승인이 반영되었습니다."
         self._tool_event(task, name, args, result, requires=False, success=True, approved_by=task.get("approved_by"))
-        return self._outbound_reply(task, content)
+        return await self._outbound_reply(task, content)
 
-    def handle_extract(self, task: dict) -> dict:
-        transcript = self.read_messages(task.get("account_id", ""), task.get("conversation_id", ""))
+    async def handle_extract(self, task: dict) -> dict:
+        transcript = await self.read_messages(task.get("account_id", ""), task.get("conversation_id", ""))
         extracted = stub_extract(transcript)
         account = task.get("account_id")
         inbox = task.get("inbox_id") or str(uuid.UUID(int=0))
         conv = task.get("conversation_id")
         contact = task.get("contact_id")
-        center = self.read_center(account, contact) or new_id()
+        center = await self.read_center(account, contact) or new_id()
         nodes = [
             {
                 "id": center,
@@ -150,12 +184,12 @@ class Agent:
                 }
             )
         env = self._envelope(account, inbox, conv, "ontology_extracted", {"nodes": nodes, "edges": edges}, task=task)
-        self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.ontology_extracted", env)
+        self._bus().publish(f"helpdesk.events.{account}.{inbox}.{conv}.ontology_extracted", env)
         return env
 
-    def handle_embed(self, task: dict) -> dict:
-        text = self.read_article(task.get("account_id", ""), task.get("owner_id", ""))
-        vector = self.embed(text)
+    async def handle_embed(self, task: dict) -> dict:
+        text = await self.read_article(task.get("account_id", ""), task.get("owner_id", ""))
+        vector = await _awaitable(self.embed(text))
         if not (1 <= len(vector) <= MAX_EMBED_DIM):
             return {"skipped": True, "reason": "dim"}
         account = task.get("account_id")
@@ -174,10 +208,10 @@ class Agent:
             },
             task=task,
         )
-        self.bus.publish(f"helpdesk.events.{account}.{nil_id}.{nil_id}.embedding_upsert", env)
+        self._bus().publish(f"helpdesk.events.{account}.{nil_id}.{nil_id}.embedding_upsert", env)
         return env
 
-    def _approval_card(self, task: dict, decision: dict) -> dict:
+    async def _approval_card(self, task: dict, decision: dict) -> dict:
         exec_id = new_id()
         name = decision["tool_name"]
         args = decision.get("args") or {}
@@ -187,27 +221,27 @@ class Agent:
             {"kind": "tool_approval", "execution_id": exec_id, "tool_name": name, "summary": summary, "args": args},
             ensure_ascii=False,
         )
-        available = self.read_staff_available(task.get("account_id", ""), task.get("inbox_id", ""))
+        available = await self.read_staff_available(task.get("account_id", ""), task.get("inbox_id", ""))
         if available:
             return self._message(task, content, content_type="form", sender_type="AgentBot", message_type=3, private=False)
         self._message(task, content, content_type="form", sender_type="AgentBot", message_type=3, private=True)
-        return self._outbound_reply(task, DEFER_RECEIPT)
+        return await self._outbound_reply(task, DEFER_RECEIPT)
 
-    def _auto_reply(self, task: dict, decision: dict) -> dict:
+    async def _auto_reply(self, task: dict, decision: dict) -> dict:
         content = decision.get("content") or "확인했습니다."
         if decision.get("tool_name"):
             self._tool_event(task, decision["tool_name"], decision.get("args") or {}, {"ok": True}, requires=False, success=True)
-        return self._outbound_reply(task, content)
+        return await self._outbound_reply(task, content)
 
-    def _outbound_reply(self, task: dict, content: str) -> dict:
+    async def _outbound_reply(self, task: dict, content: str) -> dict:
         channel = task.get("channel_type") or "web"
         try:
-            self.guard.allow(channel)
+            await self.guard.allow(channel)
         except (RateLimited, CircuitOpen):
             return {"skipped": True, "reason": "limited"}
         env = self._message(task, content, content_type="text", sender_type="AgentBot", message_type=1, private=False)
         if channel in {"email", "kakao"}:
-            self.bus.publish(
+            self._bus().publish(
                 f"helpdesk.tasks.outbound.{channel}",
                 {
                     "account_id": task.get("account_id"),
@@ -218,7 +252,7 @@ class Agent:
                     "session_live": True,
                 },
             )
-        self.guard.success(channel)
+        await self.guard.success(channel)
         return env
 
     def _tool_event(
@@ -250,7 +284,7 @@ class Agent:
             task=task,
         )
         account, inbox, conv = task.get("account_id"), task.get("inbox_id"), task.get("conversation_id")
-        self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.tool_execution", env)
+        self._bus().publish(f"helpdesk.events.{account}.{inbox}.{conv}.tool_execution", env)
 
     def _message(
         self,
@@ -282,8 +316,8 @@ class Agent:
             task=task,
         )
         account, inbox, conv = task.get("account_id"), task.get("inbox_id"), task.get("conversation_id")
-        self.bus.publish(f"helpdesk.events.{account}.{inbox}.{conv}.message_created", env)
-        self.bus.publish(
+        self._bus().publish(f"helpdesk.events.{account}.{inbox}.{conv}.message_created", env)
+        self._bus().publish(
             f"helpdesk.realtime.{account}.{conv}.updated",
             {"type": "event", "event": "message.created", "account_id": account, "inbox_id": inbox, "conversation_id": conv, "message": env},
         )

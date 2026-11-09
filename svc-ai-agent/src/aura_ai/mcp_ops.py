@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import socket
 from typing import Any, Callable
 from urllib.parse import urlparse
 
@@ -60,51 +59,27 @@ def is_ops_high_risk(name: str, extra: set[str] | None = None) -> bool:
     return canon in names
 
 
-def run_sync(coro):
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    result: dict[str, Any] = {}
-
-    def worker() -> None:
-        try:
-            result["value"] = asyncio.run(coro)
-        except BaseException as exc:
-            result["error"] = exc
-
-    import threading
-
-    t = threading.Thread(target=worker)
-    t.start()
-    t.join()
-    if "error" in result:
-        raise result["error"]
-    if "value" not in result:
-        raise RuntimeError("async tool failed")
-    return result["value"]
-
-
-def mcp_http_ready(url: str, timeout: float = 0.4) -> bool:
+async def mcp_http_ready(url: str, timeout: float = 0.4) -> bool:
     parsed = urlparse(url)
     host = parsed.hostname
     if not host:
         return False
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
     try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except OSError:
+        _reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except (OSError, asyncio.TimeoutError):
         return False
 
 
-def _require_mcp_ready(config: dict | None) -> None:
+async def _require_mcp_ready(config: dict | None) -> None:
     if not config:
         return
     for entry in (config.get("mcpServers") or {}).values():
         url = (entry.get("url") or "").strip()
-        if url and not mcp_http_ready(url):
+        if url and not await mcp_http_ready(url):
             raise ConnectionError(url)
 
 
@@ -116,9 +91,9 @@ async def list_mcp_tools(server: Any = None, config: dict | None = None) -> list
         return await adapter.list_tools()
 
 
-def load_ops_tools(server: Any = None, config: dict | None = None) -> list:
-    _require_mcp_ready(config)
-    return run_sync(list_mcp_tools(server, config))
+async def load_ops_tools(server: Any = None, config: dict | None = None) -> list:
+    await _require_mcp_ready(config)
+    return await list_mcp_tools(server, config)
 
 
 def _parse_tool_out(out: Any) -> dict:
@@ -145,13 +120,13 @@ def _parse_tool_out(out: Any) -> dict:
     return {"result": out}
 
 
-def invoke_tool(tools: list, name: str, args: dict) -> dict:
+async def invoke_tool(tools: list, name: str, args: dict) -> dict:
     canon = canonical_tool_name(name)
     for tool in tools:
         if tool.name == name or canonical_tool_name(tool.name) == canon:
             invoke = getattr(tool, "ainvoke", None)
             if invoke is not None:
-                out = run_sync(invoke(args))
+                out = await invoke(args)
             else:
                 out = tool.invoke(args)
             return _parse_tool_out(out)
