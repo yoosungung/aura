@@ -104,7 +104,7 @@ async def run() -> None:
             ("helpdesk.tasks.ai.embed", "svc-ai-embed", agent.handle_embed),
         ]
         bound = await bind_consumers(js, specs)
-        if os.environ.get("AURA_JS_DRAIN_PENDING"):
+        if os.environ.get("AURA_JS_DRAIN_DEBUGING"):
             for sub, _fn in bound:
                 await drain_pending(sub)
         for sub, fn in bound:

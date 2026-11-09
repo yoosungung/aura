@@ -52,7 +52,7 @@
         "AURA_LLM_MODEL": "gemma4:e2b-mlx",
         "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
         "AURA_EMBEDDING_MODEL": "embeddinggemma-2:270m",
-        "AURA_JS_DRAIN_PENDING": "1"
+        "AURA_JS_DRAIN_DEBUGING": "1"
       }
     }
   ]
