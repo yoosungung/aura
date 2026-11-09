@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from aura_ai.agent import DEFER_RECEIPT, Agent, MemoryBus, new_id
-from aura_ai.ego import bind_agent, staff_available
+from aura_ai.handlers import DEFER_RECEIPT, Handler, MemoryBus, new_id
+from aura_ai.ego import bind_handler, staff_available
 from aura_ai.hours import open_now
 from aura_ai.limit import ChannelGuard, CircuitOpen
 from aura_ai.llm import LLM, openai_complete, stub_complete
@@ -41,10 +41,10 @@ def task(**extra):
     return base
 
 
-async def test_reason_increments_hop_and_sets_causation():
+async def test_reasoning_increments_hop_and_sets_causation():
     bus = MemoryBus()
-    agent = Agent(bus)
-    env = await agent.handle_reason(task(hop_count=0, trigger_message_id="m1", trace_id="abc"))
+    handler = Handler(bus)
+    env = await handler.handle_reasoning(task(hop_count=0, trigger_message_id="m1", trace_id="abc"))
     assert env["hop_count"] == 1
     assert env["causation_id"] == "m1"
     assert env["trace_id"] == "abc"
@@ -52,16 +52,16 @@ async def test_reason_increments_hop_and_sets_causation():
 
 async def test_reason_drops_when_hop_exceeds_five():
     bus = MemoryBus()
-    agent = Agent(bus)
-    env = await agent.handle_reason(task(hop_count=6))
+    handler = Handler(bus)
+    env = await handler.handle_reasoning(task(hop_count=6))
     assert env["skipped"] is True
     assert bus.events == []
 
 
 async def test_low_risk_sends_outbound_message():
     bus = MemoryBus()
-    agent = Agent(bus)
-    env = await agent.handle_reason(task())
+    handler = Handler(bus)
+    env = await handler.handle_reasoning(task())
     types = [payload["type"] for _, payload in bus.events if isinstance(payload, dict) and "type" in payload]
     assert "message_created" in types
     assert env["payload"]["content_type"] == "text"
@@ -70,8 +70,8 @@ async def test_low_risk_sends_outbound_message():
 
 async def test_execute_calls_ops_mcp():
     bus = MemoryBus()
-    agent = Agent(bus)
-    env = await agent.handle_execute(task(tool_name="refund", input_args={"amount": 45000, "reason": "고객 요청"}))
+    handler = Handler(bus)
+    env = await handler.handle_execute(task(tool_name="refund", input_args={"amount": 45000, "reason": "고객 요청"}))
     assert env["payload"]["content_type"] == "text"
     types = [payload["type"] for _, payload in bus.events if isinstance(payload, dict)]
     assert "tool_execution" in types
@@ -82,8 +82,8 @@ async def test_execute_calls_ops_mcp():
 
 async def test_high_risk_emits_approval_card():
     bus = MemoryBus()
-    agent = Agent(bus)
-    env = await agent.handle_reason(task(content="환불 해주세요"))
+    handler = Handler(bus)
+    env = await handler.handle_reasoning(task(content="환불 해주세요"))
     assert env["payload"]["content_type"] == "form"
     assert env["payload"]["private"] is False
     card = __import__("json").loads(env["payload"]["content"])
@@ -94,13 +94,13 @@ async def test_high_risk_emits_approval_card():
 
 async def test_high_risk_defers_when_staff_unavailable():
     bus = MemoryBus()
-    agent = Agent(bus)
+    handler = Handler(bus)
 
     async def unavailable(*_):
         return False
 
-    agent.read_staff_available = unavailable
-    env = await agent.handle_reason(task(content="환불 해주세요"))
+    handler.read_staff_available = unavailable
+    env = await handler.handle_reasoning(task(content="환불 해주세요"))
     assert env["payload"]["content_type"] == "text"
     assert env["payload"]["private"] is False
     assert env["payload"]["content"] == DEFER_RECEIPT
@@ -153,13 +153,13 @@ async def test_staff_available_requires_hours_and_online():
 
 async def test_extract_writes_ontology_event():
     bus = MemoryBus()
-    agent = Agent(bus)
+    handler = Handler(bus)
 
     async def messages(*_):
         return "결제 오류로 문의"
 
-    agent.read_messages = messages
-    env = await agent.handle_extract(task())
+    handler.read_messages = messages
+    env = await handler.handle_extract(task())
     assert env["type"] == "ontology_extracted"
     assert any(n["entity_type"] == "PainPoint" for n in env["payload"]["nodes"])
 
@@ -167,8 +167,8 @@ async def test_extract_writes_ontology_event():
 async def test_embed_has_1536_dims(monkeypatch):
     monkeypatch.delenv("AURA_EMBEDDING_MODEL", raising=False)
     bus = MemoryBus()
-    agent = Agent(bus)
-    env = await agent.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
+    handler = Handler(bus)
+    env = await handler.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
     assert len(env["payload"]["embedding"]) == 1536
     assert env["payload"]["model"] == "text-embedding-3-small"
 
@@ -180,8 +180,8 @@ async def test_embed_keeps_model_dim(monkeypatch):
     async def embed768(_text):
         return [0.01] * 768
 
-    agent = Agent(bus, embed=embed768)
-    env = await agent.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
+    handler = Handler(bus, embed=embed768)
+    env = await handler.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
     assert env.get("skipped") is None
     assert len(env["payload"]["embedding"]) == 768
     assert env["payload"]["model"] == "embeddinggemma-2:270m"
@@ -193,8 +193,8 @@ async def test_embed_drops_empty_vector():
     async def empty(_text):
         return []
 
-    agent = Agent(bus, embed=empty)
-    env = await agent.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
+    handler = Handler(bus, embed=empty)
+    env = await handler.handle_embed({"account_id": "a", "owner_type": "article", "owner_id": "art"})
     assert env["skipped"] is True
     assert env["reason"] == "dim"
 
@@ -223,13 +223,13 @@ async def test_reason_passes_rag_articles():
         return {"tool_calls": [{"function": {"name": "send_status", "arguments": {"content": "영업일 2일"}}}]}
 
     bus = MemoryBus()
-    agent = Agent(bus, LLM(complete))
+    handler = Handler(bus, LLM(complete))
 
     async def rag(*_):
         return [{"title": "배송 안내", "body": "영업일 2일"}]
 
-    agent.read_rag = rag
-    await agent.handle_reason(task())
+    handler.read_rag = rag
+    await handler.handle_reasoning(task())
     assert "배송 안내" in seen[0][1]["content"]
 
 
@@ -303,13 +303,13 @@ async def test_reason_passes_ego_and_lookup_result():
         return {"tool_calls": [{"function": {"name": "send_status", "arguments": {"content": "주문은 paid"}}}]}
 
     bus = MemoryBus()
-    agent = Agent(bus, LLM(complete))
+    handler = Handler(bus, LLM(complete))
 
     async def ego(*_):
         return [{"name": "결제 오류", "entity_type": "PainPoint"}]
 
-    agent.read_ego = ego
-    env = await agent.handle_reason(task())
+    handler.read_ego = ego
+    env = await handler.handle_reasoning(task())
     assert "결제 오류" in seen[0][1]["content"]
     assert "paid" in seen[1][-1]["content"]
     assert env["payload"]["content"] == "주문은 paid"
@@ -363,7 +363,7 @@ def test_from_env_stub_without_key(monkeypatch):
     assert LLM.from_env().complete is stub_complete
 
 
-async def test_bind_agent_sets_tenant_guc():
+async def test_bind_handler_sets_tenant_guc():
     class FakeConn:
         def __init__(self):
             self.calls = []
@@ -405,12 +405,12 @@ async def test_bind_agent_sets_tenant_guc():
             return False
 
     conn = FakeConn()
-    agent = Agent(MemoryBus())
-    bind_agent(agent, FakePool(conn))
-    await agent.read_ego("acc-1", "contact-1")
+    handler = Handler(MemoryBus())
+    bind_handler(handler, FakePool(conn))
+    await handler.read_ego("acc-1", "contact-1")
     assert conn.calls[0][0].startswith("SELECT set_config")
     assert conn.calls[0][1] == ("acc-1",)
-    assert callable(agent.read_staff_available)
+    assert callable(handler.read_staff_available)
 
 
 MCP_ROW = {"name": "ops", "url": "http://127.0.0.1:18082/mcp", "enabled": True}
@@ -423,15 +423,15 @@ async def test_ops_tools_reload_when_mcp_servers_appear(monkeypatch):
         loads.append(config)
         return []
 
-    monkeypatch.setattr("aura_ai.agent.load_ops_tools", fake_load)
-    agent = Agent(MemoryBus())
-    await agent.handle_reason(task())
+    monkeypatch.setattr("aura_ai.handlers.load_ops_tools", fake_load)
+    handler = Handler(MemoryBus())
+    await handler.handle_reasoning(task())
 
     async def servers(*_):
         return [MCP_ROW]
 
-    agent.read_mcp_servers = servers
-    await agent.handle_reason(task())
+    handler.read_mcp_servers = servers
+    await handler.handle_reasoning(task())
     assert loads[0] is None
     assert loads[1]["mcpServers"]["ops"]["url"] == MCP_ROW["url"]
 
@@ -445,15 +445,15 @@ async def test_ops_tools_retry_after_connect_fail(monkeypatch):
             raise RuntimeError("Client failed to connect")
         return []
 
-    monkeypatch.setattr("aura_ai.agent.load_ops_tools", fake_load)
-    agent = Agent(MemoryBus())
+    monkeypatch.setattr("aura_ai.handlers.load_ops_tools", fake_load)
+    handler = Handler(MemoryBus())
 
     async def servers(*_):
         return [MCP_ROW]
 
-    agent.read_mcp_servers = servers
-    await agent.handle_reason(task())
-    await agent.handle_reason(task())
+    handler.read_mcp_servers = servers
+    await handler.handle_reasoning(task())
+    await handler.handle_reasoning(task())
     remote = [c for c in loads if c is not None]
     assert len(remote) == 2
     assert any(c is None for c in loads)

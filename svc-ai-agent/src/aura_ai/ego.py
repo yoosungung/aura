@@ -186,7 +186,7 @@ async def staff_available(conn, inbox_id: str, now: datetime | None = None) -> b
     return int((online or [0])[0] or 0) > 0
 
 
-def bind_agent(agent, pool) -> None:
+def bind_handler(handler, pool) -> None:
     async def with_account(account_id: str, fn: Callable[[Any], Awaitable[Any]]):
         async with pool.connection() as conn:
             async with conn.transaction():
@@ -217,14 +217,14 @@ def bind_agent(agent, pool) -> None:
     async def read_staff_available_bound(account: str, inbox: str) -> bool:
         return await with_account(account, lambda conn: staff_available(conn, inbox))
 
-    agent.read_ego = read_ego_bound
-    agent.read_center = read_center_bound
-    agent.read_messages = read_messages_bound
-    agent.read_article = read_article_bound
-    agent.read_rag = read_rag_bound
-    agent.read_skills = read_skills_bound
-    agent.read_mcp_servers = read_mcp_servers_bound
-    agent.read_staff_available = read_staff_available_bound
+    handler.read_ego = read_ego_bound
+    handler.read_center = read_center_bound
+    handler.read_messages = read_messages_bound
+    handler.read_article = read_article_bound
+    handler.read_rag = read_rag_bound
+    handler.read_skills = read_skills_bound
+    handler.read_mcp_servers = read_mcp_servers_bound
+    handler.read_staff_available = read_staff_available_bound
 
 
 async def list_agent_skills(conn) -> list[dict]:

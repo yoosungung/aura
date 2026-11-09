@@ -79,7 +79,7 @@ flowchart TD
 - `helpdesk.tasks.webhooks.deliver.{account_id}`
 - `helpdesk.tasks.snooze.wake.{account_id}.{conversation_id}`
 
-발행은 이미 payload에 `account_id`가 있다. 상수·필터를 [streams.go](../backend/internal/ingest/streams.go), [outbound.go](../backend/internal/gateway/outbound.go), [submit.go](../backend/internal/gateway/submit.go), core(article/tool/service/webhook/snooze), [engine.go](../backend/internal/automation/engine.go), [svc-ai-agent `__main__.py` / `agent.py`](../svc-ai-agent/src/aura_ai/__main__.py)에서 한곳으로 모은다.
+발행은 이미 payload에 `account_id`가 있다. 상수·필터를 [streams.go](../backend/internal/ingest/streams.go), [outbound.go](../backend/internal/gateway/outbound.go), [submit.go](../backend/internal/gateway/submit.go), core(article/tool/service/webhook/snooze), [engine.go](../backend/internal/automation/engine.go), [svc-ai-agent `__main__.py` / `handlers.py`](../svc-ai-agent/src/aura_ai/__main__.py)에서 한곳으로 모은다.
 
 워커 (`backend/internal/fairtask`, Python 동등):
 

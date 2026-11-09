@@ -6,8 +6,8 @@ import os
 
 import httpx
 
-from aura_ai.agent import Agent, Bus, MemoryBus, current_bus
-from aura_ai.ego import bind_agent
+from aura_ai.ego import bind_handler
+from aura_ai.handlers import Bus, Handler, MemoryBus, current_bus
 from aura_ai.llm import LLM, embed_from_env
 
 TASKS_STREAM = "TASKS_STREAM"
@@ -89,19 +89,19 @@ async def run() -> None:
         nc = await nats.connect(nats_url)
         js = nc.jetstream(timeout=15)
         llm = LLM.from_env(client=client)
-        agent = Agent(MemoryBus(), llm, embed=embed_from_env(client=client))
+        handler = Handler(MemoryBus(), llm, embed=embed_from_env(client=client))
         dsn = os.environ.get("AURA_DSN")
         if dsn:
             pool = AsyncConnectionPool(conninfo=dsn, open=False, min_size=1, max_size=4)
             await pool.open()
-            bind_agent(agent, pool)
+            bind_handler(handler, pool)
 
         sem = asyncio.Semaphore(int(os.environ.get("AURA_AI_CONCURRENCY", "4")))
         specs = [
-            ("helpdesk.tasks.ai.reasoning", "svc-ai-reasoning", agent.handle_reason),
-            ("helpdesk.tasks.ai.execute", "svc-ai-execute", agent.handle_execute),
-            ("helpdesk.tasks.ontology.extract", "svc-ai-ontology", agent.handle_extract),
-            ("helpdesk.tasks.ai.embed", "svc-ai-embed", agent.handle_embed),
+            ("helpdesk.tasks.ai.reasoning", "svc-ai-reasoning", handler.handle_reasoning),
+            ("helpdesk.tasks.ai.execute", "svc-ai-execute", handler.handle_execute),
+            ("helpdesk.tasks.ontology.extract", "svc-ai-ontology", handler.handle_extract),
+            ("helpdesk.tasks.ai.embed", "svc-ai-embed", handler.handle_embed),
         ]
         bound = await bind_consumers(js, specs)
         if os.environ.get("AURA_JS_DRAIN_DEBUGING"):

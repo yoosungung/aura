@@ -6,10 +6,6 @@ from typing import Any, Awaitable, Callable
 
 import httpx
 
-from aura_ai.harness import reason as harness_reason
-from aura_ai.skills import Skill
-from aura_ai.tools import TOOLS
-
 CompleteFn = Callable[[list[dict], list[dict]], Awaitable[dict] | dict]
 EmbedFn = Callable[[str], Awaitable[list[float]] | list[float]]
 
@@ -29,25 +25,6 @@ class LLM:
 
             return cls(complete=complete)
         return cls()
-
-    async def reason(
-        self,
-        prompt: str,
-        ego: list[dict],
-        articles: list[dict] | None = None,
-        ops_tools: list | None = None,
-        skills: dict[str, Skill] | None = None,
-        extra_high_risk: set[str] | None = None,
-    ) -> dict:
-        return await harness_reason(
-            self.complete,
-            prompt,
-            ego,
-            articles,
-            ops_tools=ops_tools,
-            skills=skills,
-            extra_high_risk=extra_high_risk,
-        )
 
 
 async def stub_complete(messages: list[dict], _tools: list[dict]) -> dict:
