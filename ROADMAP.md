@@ -156,6 +156,7 @@
 - 멀티리전 첨부 버킷
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
 - Task Fair Queuing(테넌트 쿼터)
+- KEDA `nats-jetstream` 오토스케일: 큐 워커만(`svc-ai-agent` 파일럿 → `ingestion-worker`). `minReplicaCount ≥ 1`. core·프론트·StatefulSet 백본 제외. Fair Queue와 보완
 - presence 연결 카운트 (멀티탭·멀티 레플리카). last-write-wins를 KV 증감으로 교체
 - 상담원 큐 폴더: Mine/미배정/전체 + 상태 탭. 필터를 URL에 넣어 새로고침이 그 뷰를 복원. 라벨 폴더·저장 뷰. 티켓 딥링크.
 - 큐/메시지 가상 스크롤.
@@ -204,5 +205,7 @@
 **인박스 멤버 UI.** 인박스별 상담원 ID 입력 / 사용자×인박스 매트릭스 → 계정 사용자 행 × 인박스 열 체크. 변경된 행만 이름 앞 체크로 저장 대상을 고르고, 기존 add/remove API를 그 행의 diff에만 호출한다. 행 데이터는 `GET .../users`(administrator).
 
 **백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트는 OrbStack이 연 NodePort(Postgres `30432`, NATS `30422`, 필러 `30888`)를 쓴다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.
+
+**KEDA.** 전 스택 HPA / JetStream 워커만 → 워커만. NATS monitor(`/jsz`, `:8222`) + durable lag. 부하·백로그 관측 후 `svc-ai-agent`부터. scale-to-zero는 콜드스타트·로컬 durable 디버그와 충돌해 쓰지 않는다.
 
 **Semantic Pyramid (P12).** TencentDB 이식 / Aura Ego 확장 → Ego 확장. drill은 숨은 라우터가 아니라 에이전트 도구. Mermaid 단기 캔버스는 P12 비목표.
