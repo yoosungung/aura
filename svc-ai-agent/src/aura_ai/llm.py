@@ -51,14 +51,16 @@ async def stub_complete(messages: list[dict], _tools: list[dict]) -> dict:
     }
 
 
-def stub_extract(transcript: str) -> dict[str, Any]:
+def stub_extract(transcript: str, message_ids: list[str] | None = None) -> dict[str, Any]:
     nodes = []
     edges = []
+    refs = [str(x) for x in (message_ids or []) if x]
+    props = {"source_message_ids": refs} if refs else {}
     if any(k in transcript for k in ("결제", "환불", "오류")):
-        nodes.append({"entity_type": "PainPoint", "name": "결제 오류", "properties": {}})
+        nodes.append({"entity_type": "PainPoint", "name": "결제 오류", "properties": dict(props)})
         edges.append({"relation_type": "EXPERIENCED"})
     if "카카오" in transcript:
-        nodes.append({"entity_type": "Preference", "name": "카카오", "properties": {}})
+        nodes.append({"entity_type": "Preference", "name": "카카오", "properties": dict(props)})
         edges.append({"relation_type": "PREFERS"})
     return {"nodes": nodes, "edges": edges}
 

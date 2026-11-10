@@ -155,13 +155,34 @@ async def test_extract_writes_ontology_event():
     bus = MemoryBus()
     handler = Handler(bus)
 
-    async def messages(*_):
-        return "결제 오류로 문의"
+    async def l0(*_):
+        return [{"id": "msg-1", "content": "결제 오류로 문의합니다", "sender_type": "Contact"}]
 
-    handler.read_messages = messages
+    handler.read_l0 = l0
     env = await handler.handle_extract(task())
     assert env["type"] == "ontology_extracted"
-    assert any(n["entity_type"] == "PainPoint" for n in env["payload"]["nodes"])
+    nodes = env["payload"]["nodes"]
+    edges = env["payload"]["edges"]
+    assert any(n["entity_type"] == "PainPoint" for n in nodes)
+    assert any(n["entity_type"] == "Scenario" for n in nodes)
+    atom = next(n for n in nodes if n["entity_type"] == "PainPoint")
+    assert atom["properties"]["source_message_ids"] == ["msg-1"]
+    rels = {e["relation_type"] for e in edges}
+    assert "CONTAINS_ATOM" in rels and "HAS_SCENARIO" in rels
+    emb = [p for s, p in bus.events if p.get("type") == "embedding_upsert"]
+    assert emb and emb[0]["payload"]["owner_type"] == "ontology_node"
+
+
+async def test_extract_skips_short_l0():
+    bus = MemoryBus()
+    handler = Handler(bus)
+
+    async def l0(*_):
+        return [{"id": "m", "content": "ok", "sender_type": "Contact"}]
+
+    handler.read_l0 = l0
+    out = await handler.handle_extract(task())
+    assert out.get("skipped") is True
 
 
 async def test_embed_has_1536_dims(monkeypatch):
@@ -311,10 +332,52 @@ async def test_reason_passes_ego_and_lookup_result():
     handler.read_ego = ego
     env = await handler.handle_reasoning(task())
     assert "결제 오류" in seen[0][1]["content"]
+    assert "memory" in seen[0][1]["content"]
     assert "paid" in seen[1][-1]["content"]
     assert env["payload"]["content"] == "주문은 paid"
     types = [payload["type"] for _, payload in bus.events if isinstance(payload, dict)]
     assert types.count("tool_execution") == 2
+
+
+async def test_reasoning_memory_drill_tool():
+    drilled = []
+
+    async def complete(messages, _tools):
+        roles = [m.get("role") for m in messages]
+        if "tool" not in roles:
+            return {
+                "tool_calls": [
+                    {
+                        "id": "1",
+                        "function": {"name": "memory_drill_down", "arguments": {"from_layer": "L3", "ref_id": "cust-1"}},
+                    }
+                ]
+            }
+        return {"tool_calls": [{"function": {"name": "send_status", "arguments": {"content": "드릴 완료"}}}]}
+
+    bus = MemoryBus()
+    handler = Handler(bus, LLM(complete))
+
+    async def persona(*_):
+        return {"id": "cust-1", "summary": "결제 고객"}
+
+    async def down(_account, layer, ref):
+        drilled.append((layer, ref))
+        return {"miss": False, "items": [{"id": "sc-1", "layer": "L2", "name": "결제 상담"}]}
+
+    async def up(*_):
+        return {"miss": True, "items": []}
+
+    async def search(*_):
+        return {"items": []}
+
+    handler.read_persona = persona
+    handler.memory_drill_down = down
+    handler.memory_drill_up = up
+    handler.memory_search = search
+    env = await handler.handle_reasoning(task())
+    assert drilled == [("L3", "cust-1")]
+    assert env["payload"]["content"] == "드릴 완료"
 
 
 async def test_openai_complete_posts_chat(monkeypatch):

@@ -22,6 +22,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 14. **상담원 인증은 자체 세션이다.** 이메일+비밀번호. P3에 OIDC를 두지 않는다. 비밀번호는 Argon2id로만 저장한다. 세션 행은 `svc-core`가 PG에 커밋하고, `gateway-web`이 접근 토큰을 서명한다. 게이트웨이는 `users`를 읽지 않는다.
 15. **인박스 HMAC 시크릿은 administrator만 본다.** 호스트 서버가 identifier를 서명하고, 위젯·Client API·상담원에게 시크릿을 주지 않는다. 회전은 `inboxes.hmac_secret`을 즉시 덮어쓰며 이전 키를 남기지 않는다.
 16. **채널은 게이트웨이 능력, 인박스는 계정 자원이다.** `channel_type`은 `web` \| `kakao` \| `email`(`social`은 출시 후)이고 `channels` 테이블은 없다. 이 설치에서 고를 수 있는 타입은 `gateway-web` env `AURA_ENABLED_CHANNELS`(ConfigMap, 기본 `web,email,kakao`)다. administrator가 인박스를 만들고 고치고 지운다. 멤버는 그 인박스에 붙인다.
+17. **가역적 계층형 메모리.** 상위 요약은 원본을 대체하지 않는다. L0(`messages` public)·L1 atom·L2 Scenario·L3 Persona는 결정적 링크로 이어진다. `svc-ai-agent` reasoning은 L3(+활성 L2)만 부트스트랩하고, L1/L0는 `memory_drill_down`/`memory_drill_up`/`memory_search`로만 읽는다. 유사도만으로 계층을 점프하지 않는다. Cold Archive는 감사·GDPR용이며 1차 drill 소스가 아니다.
 
 ## 2. 토폴로지와 서비스 경계
 
@@ -52,7 +53,7 @@ ingestion-worker  svc-core    svc-ai-agent
 | `svc-core` | FSM, 컨택트·대화 생성, Application/Platform API, 설정 CRUD, 웹훅 배달, Request-Reply | 설정 쓰기, `contacts`/`conversations` 쓰기, 나머지 이벤트 도메인 읽기 |
 | `svc-sla-routing` | 라운드로빈·capacity, FRT/NRT/RT 감시. `C_current`는 JetStream KV 원자 증감(P5), PG는 대사 | 읽기. 전이는 이벤트 |
 | `svc-automation` | Event → Conditions → Actions. `hop_count > 5`면 드롭. 액션은 `add_label`/`change_priority`/`send_webhook` | 읽기. 티켓 필드 액션은 직접 쓰기. 웹훅은 `helpdesk.tasks.webhooks.deliver` |
-| `svc-ai-agent` | Ego-Graph 1~2홉 읽기, LangChain `create_agent`(네이티브 `send_status` + 운영계 MCP + Agent Skills), 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 온톨로지 추출 | Ego-Graph·embeddings·`mcp_servers`·`agent_skills` **읽기만**. 쓰기는 이벤트. 운영계 MCP HTTP는 테넌트 URL만 |
+| `svc-ai-agent` | Ego-Graph 1~2홉·메모리 drill SELECT, LangChain `create_agent`(네이티브 `send_status` + `memory_*` + 운영계 MCP + Agent Skills), 저위험 자동 아웃바운드, 고위험 승인 카드, resolved 계층 온톨로지 추출 | Ego-Graph·embeddings·messages·`mcp_servers`·`agent_skills` **읽기만**. 쓰기는 이벤트. 운영계 MCP HTTP는 테넌트 URL만 |
 | `event-archive` | JetStream `helpdesk.events.>` → 오브젝트 스토리지 JSONL Cold Archive | 없음 |
 | `frontend` | 상담원 Rail + 3-Pane SPA | 없음 |
 | `packages/widget-sdk` | 호스트 런처(Shadow DOM) + 교차출처 iframe + postMessage | 없음 |
@@ -293,9 +294,23 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
 {
   "nodes": [
     {
+      "id": "0192d4f0-8c00-7000-8000-cccccccccccc",
+      "entity_type": "Customer",
+      "name": "Customer",
+      "external_ref_id": "0192d4ef-0000-7000-8000-dddddddddddd",
+      "properties": {"summary": "결제 이슈가 있는 고객"}
+    },
+    {
       "id": "0192d4f0-8c00-7000-8000-aaaaaaaaaaaa",
       "entity_type": "PainPoint",
       "name": "결제 오류",
+      "external_ref_id": "",
+      "properties": {"source_message_ids": ["0192d4ef-0000-7000-8000-eeeeeeeeeeee"]}
+    },
+    {
+      "id": "0192d4f0-8c00-7000-8000-ffffffffffff",
+      "entity_type": "Scenario",
+      "name": "결제 오류 상담",
       "external_ref_id": "",
       "properties": {}
     }
@@ -311,12 +326,32 @@ HMAC이 통과한 익명 컨택트의 티켓만 옮긴다. `conversations.id`는
       "valid_until": null,
       "confidence": 0.9,
       "source_conversation_id": "0192d4ef-0000-7000-8000-cccccccccccc"
+    },
+    {
+      "id": "0192d4f0-8c00-7000-8000-111111111111",
+      "source_node_id": "0192d4f0-8c00-7000-8000-ffffffffffff",
+      "target_node_id": "0192d4f0-8c00-7000-8000-aaaaaaaaaaaa",
+      "relation_type": "CONTAINS_ATOM",
+      "weight": 1.0,
+      "confidence": 1.0,
+      "source_conversation_id": "0192d4ef-0000-7000-8000-cccccccccccc"
+    },
+    {
+      "id": "0192d4f0-8c00-7000-8000-222222222222",
+      "source_node_id": "0192d4f0-8c00-7000-8000-cccccccccccc",
+      "target_node_id": "0192d4f0-8c00-7000-8000-ffffffffffff",
+      "relation_type": "HAS_SCENARIO",
+      "weight": 1.0,
+      "confidence": 1.0,
+      "source_conversation_id": "0192d4ef-0000-7000-8000-cccccccccccc"
     }
   ]
 }
 ```
 
 같은 `(account_id, source_node_id, target_node_id, relation_type)`의 현재 엣지(`valid_until IS NULL`)가 있으면 이전 행의 `valid_until`을 찍고 새 행을 넣는다.
+
+**Semantic Pyramid 링크 불변식 (ingestion).** L1 atom(`PainPoint`\|`Preference`\|`Product`\|`Feature`)의 `properties.source_message_ids`는 비어 있으면 안 된다(L0 soft FK). payload에 `Scenario`가 있으면 `CONTAINS_ATOM` 엣지가 그 Scenario→atom으로 ≥1 있어야 하고, Customer→Scenario `HAS_SCENARIO`가 있어야 한다. 위반 payload는 영구 실패로 배치에서 걸러 DLQ한다.
 
 **`embedding_upsert` payload.** 계정 수준이면 `inbox_id`/`conversation_id`는 nil UUID.
 
@@ -515,7 +550,9 @@ ORDER BY x.hop ASC, x.weight DESC, n.updated_at DESC
 LIMIT 50;
 ```
 
-`entity_type`: `Customer` \| `Product` \| `PainPoint` \| `Preference` \| `Feature`. `relation_type`: `PREFERS` \| `EXPERIENCED` \| `CAUSED_BY` \| `RESOLVED_BY`.
+`entity_type`: `Customer` \| `Product` \| `PainPoint` \| `Preference` \| `Feature` \| `Scenario`. `relation_type`: `PREFERS` \| `EXPERIENCED` \| `CAUSED_BY` \| `RESOLVED_BY` \| `HAS_SCENARIO` \| `CONTAINS_ATOM`.
+
+**메모리 drill (P12).** `svc-ai-agent` 네이티브 도구: `memory_drill_down(from_layer, ref_id)` / `memory_drill_up(from_layer, ref_id)` / `memory_search(layer, query)`. 한 호출은 한 계층만 이동한다. down: L3 Customer→`HAS_SCENARIO`→L2→`CONTAINS_ATOM`→L1→`source_message_ids`→L0 `messages`(public). up은 역방향. L0 증거는 `private=false` 메시지만. `memory_search`는 L1 임베딩 또는 L0 본문 후보 `ref_id`만 주고, 이후 계층 이동은 링크로만 한다.
 
 ## 9. RLS
 

@@ -137,6 +137,16 @@
 
 성공: 관리자가 웹·메일·카카오 인박스를 만들고 이름을 고치고 지운 뒤, 그 인박스에 멤버를 넣는다. 계정 시드 웹 인박스는 그대로다. **완료.**
 
+## P12 가역적 계층형 메모리 (Semantic Pyramid)
+
+목표: 단순 요약으로 증거가 사라지지 않게, L0→L1→L2→L3를 **결정적 연결 고리**로 적재하고 에이전트는 L3부터 drill down/up 도구로만 하위를 읽는다. TencentDB를 의존하지 않는다. Mermaid·LangGraph checkpointer·Cold Archive L0 drill은 비목표.
+
+- 링크 모델: L3→L2 `HAS_SCENARIO`, L2→L1 `CONTAINS_ATOM`(`ontology_edges`), L1→L0 `properties.source_message_ids`→`messages.id`. `entity_type=Scenario` 추가. 링크 없는 atom/scenario는 ingestion 거부.
+- 쓰기: public `message_created`·`tool_execution` 수집 → resolved(·보조) extract → quality gate → atom(+message refs) → Scenario/Persona 엣지 → `ontology_extracted` / `embedding_upsert(owner_type=ontology_node)`.
+- 읽기: reasoning 부트스트랩은 L3(+활성 L2 1블록). 네이티브 `memory_drill_down` / `memory_drill_up` / `memory_search`. 유사도만으로 계층 점프 금지. article RAG와 네임스페이스 분리.
+
+성공: L3→L2→L1→L0 한 경로가 링크로 끊기지 않고, 고유명사·제약이 상위 요약만으로 소실되지 않으며 Zero DB Direct Write·hop/HITL 회귀가 통과한다.
+
 ## 출시 후
 
 - 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
@@ -194,3 +204,5 @@
 **인박스 멤버 UI.** 인박스별 상담원 ID 입력 / 사용자×인박스 매트릭스 → 계정 사용자 행 × 인박스 열 체크. 변경된 행만 이름 앞 체크로 저장 대상을 고르고, 기존 add/remove API를 그 행의 diff에만 호출한다. 행 데이터는 `GET .../users`(administrator).
 
 **백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트는 OrbStack이 연 NodePort(Postgres `30432`, NATS `30422`, 필러 `30888`)를 쓴다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.
+
+**Semantic Pyramid (P12).** TencentDB 이식 / Aura Ego 확장 → Ego 확장. drill은 숨은 라우터가 아니라 에이전트 도구. Mermaid 단기 캔버스는 P12 비목표.

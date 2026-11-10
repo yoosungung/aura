@@ -56,7 +56,10 @@ func TestFlush_ToolOntologyEmbedding(t *testing.T) {
 		"payload": map[string]any{
 			"nodes": []any{
 				map[string]any{"id": center.String(), "entity_type": "Customer", "name": "Ada", "external_ref_id": fxt.Contact.String()},
-				map[string]any{"id": pain.String(), "entity_type": "PainPoint", "name": "결제 오류"},
+				map[string]any{
+					"id": pain.String(), "entity_type": "PainPoint", "name": "결제 오류",
+					"properties": map[string]any{"source_message_ids": []any{mustV7(t).String()}},
+				},
 			},
 			"edges": []any{
 				map[string]any{
@@ -104,6 +107,99 @@ func TestFlush_ToolOntologyEmbedding(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("embeddings=%d", n)
+	}
+}
+
+func TestFlush_OntologyRejectsAtomWithoutMessageRefs(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	js := testutil.NATS(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	fxt := seed(t, admin)
+	flusher := &ingest.Flusher{DB: app, JS: js}
+	ack := func(context.Context) error { return nil }
+	ont, _ := json.Marshal(map[string]any{
+		"id": mustV7(t).String(), "schema_version": 1, "type": "ontology_extracted",
+		"occurred_at": time.Now().UTC().Format(time.RFC3339),
+		"account_id":  fxt.Account.String(), "inbox_id": fxt.Inbox.String(),
+		"conversation_id": fxt.Conversation.String(), "trace_id": "t", "hop_count": 0,
+		"payload": map[string]any{
+			"nodes": []any{
+				map[string]any{"id": mustV7(t).String(), "entity_type": "PainPoint", "name": "결제 오류"},
+			},
+			"edges": []any{},
+		},
+	})
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: ont, Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM ontology_nodes WHERE account_id=$1`, fxt.Account).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("nodes=%d", n)
+	}
+	stream, err := js.Stream(ctx, ingest.IngestionDLQ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stream.GetLastMsgForSubject(ctx, ingest.DLQSubject); err != nil {
+		t.Fatalf("dlq: %v", err)
+	}
+}
+
+func TestFlush_OntologyPyramidLinks(t *testing.T) {
+	ctx := context.Background()
+	admin, app := testutil.Postgres(t)
+	js := testutil.NATS(t)
+	if _, err := ingest.EnsureStreams(ctx, js); err != nil {
+		t.Fatal(err)
+	}
+	fxt := seed(t, admin)
+	center, pain, scenario := mustV7(t), mustV7(t), mustV7(t)
+	flusher := &ingest.Flusher{DB: app, JS: js}
+	ack := func(context.Context) error { return nil }
+	ont, _ := json.Marshal(map[string]any{
+		"id": mustV7(t).String(), "schema_version": 1, "type": "ontology_extracted",
+		"occurred_at": time.Now().UTC().Format(time.RFC3339),
+		"account_id":  fxt.Account.String(), "inbox_id": fxt.Inbox.String(),
+		"conversation_id": fxt.Conversation.String(), "trace_id": "t", "hop_count": 0,
+		"payload": map[string]any{
+			"nodes": []any{
+				map[string]any{"id": center.String(), "entity_type": "Customer", "name": "Ada", "external_ref_id": fxt.Contact.String(),
+					"properties": map[string]any{"summary": "결제 이슈 고객"}},
+				map[string]any{"id": pain.String(), "entity_type": "PainPoint", "name": "결제 오류",
+					"properties": map[string]any{"source_message_ids": []any{mustV7(t).String()}}},
+				map[string]any{"id": scenario.String(), "entity_type": "Scenario", "name": "결제 상담"},
+			},
+			"edges": []any{
+				map[string]any{"id": mustV7(t).String(), "source_node_id": center.String(), "target_node_id": pain.String(),
+					"relation_type": "EXPERIENCED", "weight": 1.0, "confidence": 0.9},
+				map[string]any{"id": mustV7(t).String(), "source_node_id": scenario.String(), "target_node_id": pain.String(),
+					"relation_type": "CONTAINS_ATOM", "weight": 1.0, "confidence": 1.0},
+				map[string]any{"id": mustV7(t).String(), "source_node_id": center.String(), "target_node_id": scenario.String(),
+					"relation_type": "HAS_SCENARIO", "weight": 1.0, "confidence": 1.0},
+			},
+		},
+	})
+	if err := flusher.Flush(ctx, []ingest.Ackable{{Data: ont, Ack: ack}}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM ontology_nodes WHERE account_id=$1`, fxt.Account).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("nodes=%d", n)
+	}
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM ontology_edges WHERE relation_type='HAS_SCENARIO'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("HAS_SCENARIO=%d", n)
 	}
 }
 

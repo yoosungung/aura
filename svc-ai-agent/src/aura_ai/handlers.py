@@ -15,6 +15,7 @@ from aura_ai.ego import MAX_EMBED_DIM
 from aura_ai.limit import ChannelGuard, CircuitOpen, RateLimited
 from aura_ai.llm import LLM, stub_embed, stub_extract
 from aura_ai.mcp_ops import config_from_rows, invoke_tool, load_ops_tools
+from aura_ai.memory import bootstrap_memory, build_pyramid_payload, memory_tools, transcript_from_l0
 from aura_ai.skills import load_builtin_skills, merge_skills
 from aura_ai.tools import is_high_risk, run_low_risk
 
@@ -53,6 +54,10 @@ async def _none(*_args: Any, **_kwargs: Any) -> None:
     return None
 
 
+async def _empty_dict(*_args: Any, **_kwargs: Any) -> dict:
+    return {}
+
+
 async def _true(*_args: Any, **_kwargs: Any) -> bool:
     return True
 
@@ -89,11 +94,16 @@ class Handler:
         self.read_ego: Callable[[str, str], Awaitable[list[dict]]] = _empty_list
         self.read_center: Callable[[str, str], Awaitable[str | None]] = _none
         self.read_messages: Callable[[str, str], Awaitable[str]] = _empty_str
+        self.read_l0: Callable[[str, str], Awaitable[list[dict]]] = _empty_list
+        self.read_persona: Callable[[str, str], Awaitable[dict]] = _empty_dict
         self.read_article: Callable[[str, str], Awaitable[str]] = _empty_str
         self.read_rag: Callable[[str, list[float]], Awaitable[list[dict]]] = _empty_list
         self.read_skills: Callable[[str], Awaitable[list[dict]]] = _empty_list
         self.read_mcp_servers: Callable[[str], Awaitable[list[dict]]] = _empty_list
         self.read_staff_available: Callable[[str, str], Awaitable[bool]] = _true
+        self.memory_drill_down: Callable[[str, str, str], Awaitable[dict]] | None = None
+        self.memory_drill_up: Callable[[str, str, str], Awaitable[dict]] | None = None
+        self.memory_search: Callable[[str, str, str, str], Awaitable[dict]] | None = None
         self.ops_tools: list | None = None
         self._ops_key: str | None = None
         self._ops_lock = asyncio.Lock()
@@ -121,7 +131,15 @@ class Handler:
             return {"skipped": True, "reason": "hop"}
         prompt = task.get("content") or ""
         account = task.get("account_id", "")
-        ego = await self.read_ego(account, task.get("contact_id", ""))
+        contact = task.get("contact_id", "")
+        conv = task.get("conversation_id", "")
+        ego = await self.read_ego(account, contact)
+        persona = await self.read_persona(account, contact) or {}
+        memory = bootstrap_memory(ego, conversation_id=conv)
+        if persona.get("summary"):
+            memory["persona"]["summary"] = persona["summary"]
+        if persona.get("id"):
+            memory["persona"]["customer_id"] = persona["id"]
         articles = await self.read_rag(account, await _awaitable(self.embed(prompt)))
         skills = merge_skills(load_builtin_skills(self.skills_root), await self.read_skills(account))
         servers = await self.read_mcp_servers(account)
@@ -129,8 +147,27 @@ class Handler:
         for row in servers:
             extra.update(row.get("high_risk_tools") or [])
         ops_tools = await self._ops_tools_for(servers)
+        mem_tools = []
+        if self.memory_drill_down and self.memory_drill_up and self.memory_search:
+
+            async def down(layer: str, ref: str):
+                return await self.memory_drill_down(account, layer, ref)
+
+            async def up(layer: str, ref: str):
+                return await self.memory_drill_up(account, layer, ref)
+
+            async def search(layer: str, query: str):
+                return await self.memory_search(account, conv, layer, query)
+
+            mem_tools = memory_tools(drill_down=down, drill_up=up, search=search)
         decision = await self.agent.run(
-            prompt, ego, articles, ops_tools=ops_tools, skills=skills, extra_high_risk=extra
+            prompt,
+            memory,
+            articles,
+            ops_tools=ops_tools,
+            memory_tools=mem_tools,
+            skills=skills,
+            extra_high_risk=extra,
         )
         for step in decision.get("steps") or []:
             name = step.get("tool_name") or ""
@@ -155,40 +192,56 @@ class Handler:
         return await self._outbound_reply(task, content)
 
     async def handle_extract(self, task: dict) -> dict:
-        transcript = await self.read_messages(task.get("account_id", ""), task.get("conversation_id", ""))
-        extracted = stub_extract(transcript)
         account = task.get("account_id")
         inbox = task.get("inbox_id") or str(uuid.UUID(int=0))
         conv = task.get("conversation_id")
         contact = task.get("contact_id")
+        l0 = await self.read_l0(account, conv)
+        if not l0:
+            # fallback for tests that only stub read_messages
+            transcript = await self.read_messages(account, conv)
+            if transcript:
+                l0 = [{"id": new_id(), "content": transcript, "sender_type": "Contact"}]
+        extracted = stub_extract(transcript_from_l0(l0) if l0 else "", message_ids=[r["id"] for r in l0])
         center = await self.read_center(account, contact) or new_id()
-        nodes = [
-            {
-                "id": center,
-                "entity_type": "Customer",
-                "name": "Customer",
-                "external_ref_id": contact,
-                "properties": {},
-            }
-        ]
-        edges = []
-        for node, edge in zip(extracted.get("nodes") or [], extracted.get("edges") or []):
-            nid = new_id()
-            nodes.append({"id": nid, **node, "external_ref_id": node.get("external_ref_id", "")})
-            edges.append(
-                {
-                    "id": new_id(),
-                    "source_node_id": center,
-                    "target_node_id": nid,
-                    "relation_type": edge.get("relation_type") or "EXPERIENCED",
-                    "weight": 1.0,
-                    "confidence": 0.8,
-                    "source_conversation_id": conv,
-                }
-            )
-        env = self._envelope(account, inbox, conv, "ontology_extracted", {"nodes": nodes, "edges": edges}, task=task)
+        payload = build_pyramid_payload(
+            center_id=center,
+            contact_id=contact,
+            conversation_id=conv,
+            l0=l0,
+            extracted=extracted,
+            new_id=new_id,
+        )
+        if not payload:
+            return {"skipped": True, "reason": "quality_gate"}
+        env = self._envelope(account, inbox, conv, "ontology_extracted", payload, task=task)
         self._bus().publish(f"helpdesk.events.{account}.{inbox}.{conv}.ontology_extracted", env)
+        for node in payload["nodes"]:
+            if node.get("entity_type") in {"PainPoint", "Preference", "Product", "Feature", "Scenario"}:
+                await self._publish_node_embedding(task, account, node)
         return env
+
+    async def _publish_node_embedding(self, task: dict, account: str, node: dict) -> None:
+        text = f"{node.get('entity_type')} {node.get('name')}"
+        vector = await _awaitable(self.embed(text))
+        if not (1 <= len(vector) <= MAX_EMBED_DIM):
+            return
+        nil_id = str(uuid.UUID(int=0))
+        env = self._envelope(
+            account,
+            nil_id,
+            nil_id,
+            "embedding_upsert",
+            {
+                "owner_type": "ontology_node",
+                "owner_id": node["id"],
+                "model": os.environ.get("AURA_EMBEDDING_MODEL", "text-embedding-3-small"),
+                "version": 1,
+                "embedding": vector,
+            },
+            task=task,
+        )
+        self._bus().publish(f"helpdesk.events.{account}.{nil_id}.{nil_id}.embedding_upsert", env)
 
     async def handle_embed(self, task: dict) -> dict:
         text = await self.read_article(task.get("account_id", ""), task.get("owner_id", ""))

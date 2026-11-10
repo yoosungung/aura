@@ -14,9 +14,13 @@ from pydantic import PrivateAttr
 
 from aura_ai.mcp_ops import canonical_tool_name, is_ops_high_risk
 from aura_ai.skills import Skill, SkillsMiddleware, catalog_prompt
-from aura_ai.tools import TOOLS, is_high_risk
+from aura_ai.tools import MEMORY_TOOLS, TOOLS, is_high_risk
 
-SYSTEM = "Helpdesk AI. Low-risk tools auto-run. High-risk tools need approval."
+SYSTEM = (
+    "Helpdesk AI. Bootstrap has L3 persona and at most one L2 scenario. "
+    "Use memory_drill_down/up to follow links to L1/L0 evidence; do not invent refs. "
+    "Low-risk tools auto-run. High-risk tools need approval."
+)
 
 CompleteFn = Callable[[list[dict], list[dict]], Awaitable[dict] | dict]
 
@@ -158,21 +162,25 @@ class Agent:
     async def run(
         self,
         prompt: str,
-        ego: list[dict],
+        memory: list[dict] | dict,
         articles: list[dict] | None = None,
         *,
         ops_tools: list | None = None,
+        memory_tools: list | None = None,
         skills: dict[str, Skill] | None = None,
         extra_high_risk: set[str] | None = None,
     ) -> dict:
         skills = skills or {}
         skill_mw = SkillsMiddleware(skills)
         hitl = AuraHITLMiddleware(extra_high_risk)
-        tools = [send_status, skill_mw.tool(), *(ops_tools or [])]
+        tools = [send_status, skill_mw.tool(), *(memory_tools or []), *(ops_tools or [])]
+        schema = list(TOOLS)
+        if memory_tools:
+            schema = list(TOOLS) + list(MEMORY_TOOLS)
         catalog = catalog_prompt(skills)
         system = SYSTEM if not catalog else f"{SYSTEM}\n{catalog}"
         graph = create_agent(
-            CompletionsChatModel(self.complete),
+            CompletionsChatModel(self.complete, tools_schema=schema),
             tools,
             system_prompt=system,
             middleware=[
@@ -182,7 +190,13 @@ class Agent:
                 hitl,
             ],
         )
-        user = json.dumps({"message": prompt, "ego": ego, "articles": articles or []}, ensure_ascii=False)
+        # memory is L3(+L2) bootstrap; legacy list ego is still accepted as "ego" key for tests
+        payload: dict[str, Any] = {"message": prompt, "articles": articles or []}
+        if isinstance(memory, dict):
+            payload["memory"] = memory
+        else:
+            payload["ego"] = memory
+        user = json.dumps(payload, ensure_ascii=False)
         await graph.ainvoke({"messages": [{"role": "user", "content": user}]})
         if hitl.pending:
             return {"action": "approve", "tool_name": hitl.pending["tool_name"], "args": hitl.pending["args"], "steps": hitl.steps}

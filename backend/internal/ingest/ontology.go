@@ -62,6 +62,88 @@ func insertToolExecution(ctx context.Context, tx pgx.Tx, raw []byte) error {
 	return err
 }
 
+var atomEntityTypes = map[string]struct{}{
+	"PainPoint": {}, "Preference": {}, "Product": {}, "Feature": {},
+}
+
+type ontologyNodeIn struct {
+	ID            string         `json:"id"`
+	EntityType    string         `json:"entity_type"`
+	Name          string         `json:"name"`
+	ExternalRefID string         `json:"external_ref_id"`
+	Properties    map[string]any `json:"properties"`
+}
+
+type ontologyEdgeIn struct {
+	ID                   string  `json:"id"`
+	SourceNodeID         string  `json:"source_node_id"`
+	TargetNodeID         string  `json:"target_node_id"`
+	RelationType         string  `json:"relation_type"`
+	Weight               float64 `json:"weight"`
+	ValidFrom            string  `json:"valid_from"`
+	ValidUntil           *string `json:"valid_until"`
+	Confidence           float64 `json:"confidence"`
+	SourceConversationID string  `json:"source_conversation_id"`
+}
+
+func validateOntologyPyramid(nodes []ontologyNodeIn, edges []ontologyEdgeIn) error {
+	byID := map[string]string{}
+	scenarios := map[string]struct{}{}
+	customers := map[string]struct{}{}
+	for _, n := range nodes {
+		byID[n.ID] = n.EntityType
+		if n.EntityType == "Scenario" {
+			scenarios[n.ID] = struct{}{}
+		}
+		if n.EntityType == "Customer" {
+			customers[n.ID] = struct{}{}
+		}
+		if _, isAtom := atomEntityTypes[n.EntityType]; isAtom {
+			if n.Properties == nil {
+				return fmt.Errorf("invalid ontology node: atom missing source_message_ids")
+			}
+			ids, ok := n.Properties["source_message_ids"]
+			if !ok {
+				return fmt.Errorf("invalid ontology node: atom missing source_message_ids")
+			}
+			arr, ok := ids.([]any)
+			if !ok || len(arr) == 0 {
+				return fmt.Errorf("invalid ontology node: atom missing source_message_ids")
+			}
+		}
+	}
+	if len(scenarios) == 0 {
+		return nil
+	}
+	contains := map[string]int{}
+	hasScenario := map[string]struct{}{}
+	for _, e := range edges {
+		switch e.RelationType {
+		case "CONTAINS_ATOM":
+			if _, ok := scenarios[e.SourceNodeID]; ok {
+				if _, isAtom := atomEntityTypes[byID[e.TargetNodeID]]; isAtom {
+					contains[e.SourceNodeID]++
+				}
+			}
+		case "HAS_SCENARIO":
+			if _, ok := customers[e.SourceNodeID]; ok {
+				if _, ok := scenarios[e.TargetNodeID]; ok {
+					hasScenario[e.TargetNodeID] = struct{}{}
+				}
+			}
+		}
+	}
+	for sid := range scenarios {
+		if contains[sid] < 1 {
+			return fmt.Errorf("invalid ontology edge: Scenario missing CONTAINS_ATOM")
+		}
+		if _, ok := hasScenario[sid]; !ok {
+			return fmt.Errorf("invalid ontology edge: Scenario missing HAS_SCENARIO")
+		}
+	}
+	return nil
+}
+
 func insertOntology(ctx context.Context, tx pgx.Tx, raw []byte) error {
 	env, err := Parse(raw)
 	if err != nil {
@@ -69,27 +151,14 @@ func insertOntology(ctx context.Context, tx pgx.Tx, raw []byte) error {
 	}
 	var wrap struct {
 		Payload struct {
-			Nodes []struct {
-				ID            string         `json:"id"`
-				EntityType    string         `json:"entity_type"`
-				Name          string         `json:"name"`
-				ExternalRefID string         `json:"external_ref_id"`
-				Properties    map[string]any `json:"properties"`
-			} `json:"nodes"`
-			Edges []struct {
-				ID                   string  `json:"id"`
-				SourceNodeID         string  `json:"source_node_id"`
-				TargetNodeID         string  `json:"target_node_id"`
-				RelationType         string  `json:"relation_type"`
-				Weight               float64 `json:"weight"`
-				ValidFrom            string  `json:"valid_from"`
-				ValidUntil           *string `json:"valid_until"`
-				Confidence           float64 `json:"confidence"`
-				SourceConversationID string  `json:"source_conversation_id"`
-			} `json:"edges"`
+			Nodes []ontologyNodeIn `json:"nodes"`
+			Edges []ontologyEdgeIn `json:"edges"`
 		} `json:"payload"`
 	}
 	if err := json.Unmarshal(raw, &wrap); err != nil {
+		return err
+	}
+	if err := validateOntologyPyramid(wrap.Payload.Nodes, wrap.Payload.Edges); err != nil {
 		return err
 	}
 	for _, n := range wrap.Payload.Nodes {

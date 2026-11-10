@@ -82,14 +82,177 @@ async def customer_node_id(conn, contact_id: str) -> str | None:
     return str(row[0]) if row else None
 
 
-async def read_messages(conn, conversation_id: str) -> str:
+async def read_message_rows(conn, conversation_id: str) -> list[dict]:
     rows = await (
         await conn.execute(
-            "SELECT content FROM messages WHERE conversation_id = %s ORDER BY created_at",
+            """
+            SELECT id, content, private, sender_type, created_at
+            FROM messages
+            WHERE conversation_id = %s
+            ORDER BY created_at
+            """,
             (conversation_id,),
         )
     ).fetchall()
-    return "\n".join(str(r[0] or "") for r in rows)
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "id": str(r[0]),
+                "content": str(r[1] or ""),
+                "private": bool(r[2]),
+                "sender_type": str(r[3] or ""),
+                "created_at": str(r[4] or ""),
+            }
+        )
+    return out
+
+
+async def read_messages(conn, conversation_id: str) -> str:
+    from aura_ai.memory import public_l0, transcript_from_l0
+
+    rows = await read_message_rows(conn, conversation_id)
+    return transcript_from_l0(public_l0(rows))
+
+
+async def drill_edges(conn, relation_type: str, source_id: str | None = None, target_id: str | None = None) -> list[dict]:
+    clauses = [
+        "account_id = current_setting('app.current_account_id')::uuid",
+        "relation_type = %s",
+        "valid_from <= CURRENT_TIMESTAMP",
+        "(valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP)",
+    ]
+    args: list[Any] = [relation_type]
+    if source_id:
+        clauses.append("source_node_id = %s")
+        args.append(source_id)
+    if target_id:
+        clauses.append("target_node_id = %s")
+        args.append(target_id)
+    rows = await (
+        await conn.execute(
+            f"""
+            SELECT id, source_node_id, target_node_id, relation_type, valid_until
+            FROM ontology_edges
+            WHERE {' AND '.join(clauses)}
+            """,
+            tuple(args),
+        )
+    ).fetchall()
+    return [
+        {
+            "id": str(r[0]),
+            "source_node_id": str(r[1]),
+            "target_node_id": str(r[2]),
+            "relation_type": r[3],
+            "valid_until": r[4],
+        }
+        for r in rows
+    ]
+
+
+async def read_nodes_by_ids(conn, ids: list[str]) -> dict[str, dict]:
+    if not ids:
+        return {}
+    rows = await (
+        await conn.execute(
+            """
+            SELECT id, entity_type, name, properties
+            FROM ontology_nodes
+            WHERE id = ANY(%s::uuid[])
+            """,
+            (ids,),
+        )
+    ).fetchall()
+    out = {}
+    for r in rows:
+        out[str(r[0])] = {
+            "id": str(r[0]),
+            "entity_type": r[1],
+            "name": r[2],
+            "properties": r[3] or {},
+        }
+    return out
+
+
+async def messages_by_ids(conn, ids: list[str]) -> dict[str, dict]:
+    if not ids:
+        return {}
+    rows = await (
+        await conn.execute(
+            """
+            SELECT id, content, private, sender_type, created_at
+            FROM messages
+            WHERE id = ANY(%s::uuid[]) AND NOT private
+            """,
+            (ids,),
+        )
+    ).fetchall()
+    return {
+        str(r[0]): {
+            "id": str(r[0]),
+            "content": str(r[1] or ""),
+            "sender_type": str(r[3] or ""),
+            "created_at": str(r[4] or ""),
+        }
+        for r in rows
+    }
+
+
+async def customer_persona(conn, contact_id: str) -> dict:
+    row = await (
+        await conn.execute(
+            """
+            SELECT id, name, properties FROM ontology_nodes
+            WHERE entity_type = 'Customer' AND external_ref_id = %s
+            LIMIT 1
+            """,
+            (contact_id,),
+        )
+    ).fetchone()
+    if not row:
+        return {"id": None, "summary": "", "name": ""}
+    props = row[2] or {}
+    return {"id": str(row[0]), "name": row[1], "summary": str(props.get("summary") or "")}
+
+
+async def search_l1_nodes(conn, query: str, limit: int = 5) -> list[dict]:
+    rows = await (
+        await conn.execute(
+            """
+            SELECT id, entity_type, name, properties
+            FROM ontology_nodes
+            WHERE entity_type = ANY(%s)
+              AND (name ILIKE %s OR properties::text ILIKE %s)
+            ORDER BY updated_at DESC
+            LIMIT %s
+            """,
+            (list({"PainPoint", "Preference", "Product", "Feature"}), f"%{query}%", f"%{query}%", limit),
+        )
+    ).fetchall()
+    return [
+        {"id": str(r[0]), "entity_type": r[1], "name": r[2], "properties": r[3] or {}, "layer": "L1"}
+        for r in rows
+    ]
+
+
+async def search_l0_messages(conn, conversation_id: str, query: str, limit: int = 5) -> list[dict]:
+    rows = await (
+        await conn.execute(
+            """
+            SELECT id, content, sender_type, created_at
+            FROM messages
+            WHERE conversation_id = %s AND NOT private AND content ILIKE %s
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (conversation_id, f"%{query}%", limit),
+        )
+    ).fetchall()
+    return [
+        {"id": str(r[0]), "content": str(r[1] or ""), "sender_type": str(r[2] or ""), "created_at": str(r[3] or ""), "layer": "L0"}
+        for r in rows
+    ]
 
 
 async def read_article(conn, article_id: str) -> str:
@@ -202,6 +365,15 @@ def bind_handler(handler, pool) -> None:
     async def read_messages_bound(account: str, conv: str) -> str:
         return await with_account(account, lambda conn: read_messages(conn, conv))
 
+    async def read_l0_bound(account: str, conv: str) -> list[dict]:
+        from aura_ai.memory import public_l0
+
+        rows = await with_account(account, lambda conn: read_message_rows(conn, conv))
+        return public_l0(rows)
+
+    async def read_persona_bound(account: str, contact: str) -> dict:
+        return await with_account(account, lambda conn: customer_persona(conn, contact))
+
     async def read_article_bound(account: str, article: str) -> str:
         return await with_account(account, lambda conn: read_article(conn, article))
 
@@ -217,14 +389,87 @@ def bind_handler(handler, pool) -> None:
     async def read_staff_available_bound(account: str, inbox: str) -> bool:
         return await with_account(account, lambda conn: staff_available(conn, inbox))
 
+    async def memory_drill_down_bound(account: str, from_layer: str, ref_id: str) -> dict:
+        from aura_ai.memory import LAYER_L1, LAYER_L2, LAYER_L3, drill_down_graph
+
+        async def run(conn):
+            layer = (from_layer or "").upper()
+            if layer == LAYER_L3:
+                edges = await drill_edges(conn, "HAS_SCENARIO", source_id=ref_id)
+                nodes = await read_nodes_by_ids(conn, [e["target_node_id"] for e in edges])
+                return drill_down_graph(layer, ref_id, edges=edges, nodes=nodes)
+            if layer == LAYER_L2:
+                edges = await drill_edges(conn, "CONTAINS_ATOM", source_id=ref_id)
+                nodes = await read_nodes_by_ids(conn, [e["target_node_id"] for e in edges])
+                return drill_down_graph(layer, ref_id, edges=edges, nodes=nodes)
+            if layer == LAYER_L1:
+                nodes = await read_nodes_by_ids(conn, [ref_id])
+                props = (nodes.get(ref_id) or {}).get("properties") or {}
+                mids = [str(x) for x in (props.get("source_message_ids") or [])]
+                messages = await messages_by_ids(conn, mids)
+                return drill_down_graph(layer, ref_id, edges=[], nodes=nodes, messages=messages)
+            return {"miss": True, "reason": "layer", "items": []}
+
+        return await with_account(account, run)
+
+    async def memory_drill_up_bound(account: str, from_layer: str, ref_id: str) -> dict:
+        from aura_ai.memory import LAYER_L0, LAYER_L1, LAYER_L2, drill_up_graph
+
+        async def run(conn):
+            layer = (from_layer or "").upper()
+            if layer == LAYER_L0:
+                rows = await (
+                    await conn.execute(
+                        """
+                        SELECT id, entity_type, name, properties
+                        FROM ontology_nodes
+                        WHERE properties -> 'source_message_ids' ? %s
+                        LIMIT 20
+                        """,
+                        (ref_id,),
+                    )
+                ).fetchall()
+                nodes = {
+                    str(r[0]): {"id": str(r[0]), "entity_type": r[1], "name": r[2], "properties": r[3] or {}}
+                    for r in rows
+                }
+                return drill_up_graph(layer, ref_id, edges=[], nodes=nodes)
+            if layer == LAYER_L1:
+                edges = await drill_edges(conn, "CONTAINS_ATOM", target_id=ref_id)
+                nodes = await read_nodes_by_ids(conn, [e["source_node_id"] for e in edges])
+                return drill_up_graph(layer, ref_id, edges=edges, nodes=nodes)
+            if layer == LAYER_L2:
+                edges = await drill_edges(conn, "HAS_SCENARIO", target_id=ref_id)
+                nodes = await read_nodes_by_ids(conn, [e["source_node_id"] for e in edges])
+                return drill_up_graph(layer, ref_id, edges=edges, nodes=nodes)
+            return {"miss": True, "reason": "layer", "items": []}
+
+        return await with_account(account, run)
+
+    async def memory_search_bound(account: str, conversation_id: str, layer: str, query: str) -> dict:
+        async def run(conn):
+            ly = (layer or "").upper()
+            if ly == "L1":
+                return {"items": await search_l1_nodes(conn, query)}
+            if ly == "L0":
+                return {"items": await search_l0_messages(conn, conversation_id, query)}
+            return {"miss": True, "reason": "layer", "items": []}
+
+        return await with_account(account, run)
+
     handler.read_ego = read_ego_bound
     handler.read_center = read_center_bound
     handler.read_messages = read_messages_bound
+    handler.read_l0 = read_l0_bound
+    handler.read_persona = read_persona_bound
     handler.read_article = read_article_bound
     handler.read_rag = read_rag_bound
     handler.read_skills = read_skills_bound
     handler.read_mcp_servers = read_mcp_servers_bound
     handler.read_staff_available = read_staff_available_bound
+    handler.memory_drill_down = memory_drill_down_bound
+    handler.memory_drill_up = memory_drill_up_bound
+    handler.memory_search = memory_search_bound
 
 
 async def list_agent_skills(conn) -> list[dict]:

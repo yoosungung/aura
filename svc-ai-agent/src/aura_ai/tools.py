@@ -58,6 +58,54 @@ TOOLS = [
     },
 ]
 
+MEMORY_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_drill_down",
+            "description": "메모리 계층 한 칸 아래(L3→L2→L1→L0). 결정적 링크만 따른다.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "from_layer": {"type": "string", "enum": ["L3", "L2", "L1"]},
+                    "ref_id": {"type": "string"},
+                },
+                "required": ["from_layer", "ref_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_drill_up",
+            "description": "메모리 계층 한 칸 위(L0→L1→L2→L3). 결정적 링크만 따른다.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "from_layer": {"type": "string", "enum": ["L0", "L1", "L2"]},
+                    "ref_id": {"type": "string"},
+                },
+                "required": ["from_layer", "ref_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_search",
+            "description": "L1 또는 L0에서 후보 ref_id를 찾는다. 계층 점프는 하지 않는다.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "layer": {"type": "string", "enum": ["L1", "L0"]},
+                    "query": {"type": "string"},
+                },
+                "required": ["layer", "query"],
+            },
+        },
+    },
+]
+
 
 def is_high_risk(name: str) -> bool:
     return name in HIGH_RISK

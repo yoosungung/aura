@@ -26,12 +26,15 @@ flowchart TD
   subgraph Worker["svc-ai-agent"]
     T_REASON --> HOP{"hop_count > 5?"}
     HOP -->|yes| SKIP1["skip"]
-    HOP -->|no| CTX["SELECT: Ego-Graph · RAG embeddings<br/>skills · mcp_servers"]
+    HOP -->|no|     CTX["SELECT: L3 persona + 활성 L2<br/>RAG · skills · mcp_servers"]
     CTX --> EMB["고객 메시지 embed"]
     EMB --> RAG["HNSW cosine top-5 article"]
-    RAG --> AGENT["LangChain create_agent<br/>Ego/RAG + Skills + ToolLimit + Retry + AuraHITL"]
+    RAG --> AGENT["LangChain create_agent<br/>memory_drill_* + send_status + MCP"]
     AGENT --> LOOP["ReAct: model → tool_calls"]
-    LOOP --> RISK{"고위험 도구?"}
+    LOOP --> MEM{"memory_drill_*?"}
+    MEM -->|yes| DRILL["링크 traverse SELECT<br/>L3↔L2↔L1↔L0"]
+    DRILL --> LOOP
+    MEM -->|no| RISK{"고위험 도구?"}
     RISK -->|yes| STAFF{"staff available?<br/>hours + online"}
     STAFF -->|yes| CARD["tool_execution requires_approval<br/>+ form private=false"]
     STAFF -->|no| DEFER["form private=true<br/>+ 고객 공개 접수 문구 outbound"]
@@ -42,9 +45,10 @@ flowchart TD
     T_EXEC --> MCP["운영계 MCP 호출<br/>auth_header는 이벤트에 미포함"]
     MCP --> OUT2["tool_execution success<br/>+ 고객 회신 outbound"]
 
-    T_ONT --> READ_MSG["대화 메시지 SELECT"]
-    READ_MSG --> EXT["노드/엣지 추출"]
+    T_ONT --> READ_L0["public messages SELECT (L0)"]
+    READ_L0 --> EXT["atoms + Scenario + HAS_SCENARIO<br/>CONTAINS_ATOM + source_message_ids"]
     EXT --> ONT_EVT["ontology_extracted 발행"]
+    EXT --> EMB_N["ontology_node embedding_upsert"]
 
     T_EMBED --> READ_ART["article 본문 SELECT"]
     READ_ART --> VEC["embedding 생성"]
@@ -65,12 +69,12 @@ flowchart TD
 
 - JetStream 태스크 진입은 `handlers.Handler`(`handle_reasoning` 등), LangChain 루프는 `agent.Agent.run` → Decision이다. `LLM`은 `complete` 어댑터만 제공하고 에이전트를 감싸지 않는다. PG 바인딩은 `ego.bind_handler`.
 - JetStream WorkQueue `helpdesk.tasks.ai.reasoning` / `ai.execute` / `ontology.extract` / `ai.embed` 를 durable `svc-ai-reasoning` / `svc-ai-execute` / `svc-ai-ontology` / `svc-ai-embed` 로 소비한다. Go가 만든 `TASKS_STREAM` durable에 `pull_subscribe_bind`만 하고, 핸들러는 native async(`await handle_*`)다. LLM(`httpx.AsyncClient`)·MCP(`ainvoke`)·PG(`AsyncConnectionPool`)가 같은 이벤트 루프에서 돌아간다. 동시성은 `asyncio.Semaphore`(`AURA_AI_CONCURRENCY`, 기본 4)로 제한하고, 메시지별 `NATSBus` 버퍼는 `contextvars`로 격리한다. 구독은 모두 bind한 뒤에 fetch를 시작한다. 로컬 디버그(`AURA_JS_DRAIN_DEBUGING`)는 시작 시 미ACK 백로그를 ACK만 하고 버린다. 파드 기동에는 이 변수를 두지 않는다.
-- 추론은 LangChain `create_agent`다. 모델은 OpenAI 호환(`AURA_LLM_BASE_URL`/`AURA_LLM_MODEL`). 고객 메시지를 임베딩한 뒤 published article을 현재 `AURA_EMBEDDING_MODEL`/`version`·같은 차원 cosine top-5로 읽고 Ego-Graph와 함께 넣는다. 검색 트랜잭션에서 `SET LOCAL hnsw.ef_search = 40`, `hnsw.iterative_scan = relaxed_order`. 질의 차원이 비거나 4000을 넘으면 RAG는 빈 결과다. `AURA_LLM_API_KEY`가 비면 결정적 stub 모델(환불·취소 키워드 → 고위험 카드, 그 외 → `send_status`). 미들웨어: Ego/RAG 주입, Agent Skills `load_skill`, `ToolCallLimitMiddleware(run_limit=8)`, `ModelRetryMiddleware`, AuraHITL(고위험 MCP는 승인 카드만, LangGraph checkpointer 없음). 동일 (tool, args) 반복은 중단.
-- 네이티브 도구는 `send_status`(outgoing `message_created`와 `helpdesk.tasks.outbound.<channel>`, web은 realtime만). 운영계 도구(`lookup_order` / `lookup_shipping` / `refund` / `cancel_subscription` / `change_plan` 등)는 테넌트 `mcp_servers` MCP. 서버가 없으면 in-process FastMCP stub. URL이 바뀌면 다음 턴에 다시 붙고, 연결 실패면 그 턴만 stub이며 프로세스는 유지한다. 고위험은 `tool_execution`(requires_approval) + `content_type=form` 승인 카드만 내고 MCP는 치지 않는다.
+- 추론은 LangChain `create_agent`다. 모델은 OpenAI 호환(`AURA_LLM_BASE_URL`/`AURA_LLM_MODEL`). 부트스트랩은 L3(Customer `properties.summary` + Preference/PainPoint 요약)와 활성 L2 Scenario 1블록만 넣는다. article RAG는 별도. L1/L0는 `memory_drill_down`/`memory_drill_up`/`memory_search`로만. `AURA_LLM_API_KEY`가 비면 결정적 stub. 미들웨어: Skills, `ToolCallLimitMiddleware(run_limit=8)`, `ModelRetryMiddleware`, AuraHITL. checkpointer 없음.
+- 네이티브 도구: `send_status`, `memory_drill_down`/`memory_drill_up`/`memory_search`(링크 traverse·SELECT only). 운영계 MCP·고위험 승인 카드는 P8과 동일.
 - Staff available은 PG SELECT만: 인박스 `business_hours`(`OpenNow`와 동일)와 온라인 멤버 수. 가용하면 form `private=false`. 비가용이면 form `private=true` + 고객 공개 문구「요청을 접수했습니다. 상담원이 확인 후 처리합니다.」outbound. FSM은 건드리지 않는다.
 - Agent Skills는 `skills/*/SKILL.md` 메타를 시스템 프롬프트에 넣고, `load_skill`이 본문을 읽는다. 같은 `name`의 `agent_skills` 행이 있으면 last-wins.
 - 승인 후 `ai.execute`가 운영계 MCP를 호출하고 결과를 고객에게 보낸다. `auth_header`는 이벤트에 넣지 않는다.
-- resolved extract는 대화 메시지를 읽어 노드/엣지 JSON을 만들고 `ontology_extracted`를 발행한다. Customer 노드는 `external_ref_id=contacts.id`로 upsert.
+- resolved extract는 public L0 메시지를 읽어 atom(`source_message_ids` 필수)·Scenario·`CONTAINS_ATOM`·`HAS_SCENARIO`·Customer `summary`를 만들고 `ontology_extracted`를 발행한다. atom/Scenario에 대해 `embedding_upsert(owner_type=ontology_node)`도 낸다. 메시지가 너무 짧으면 skip.
 - article embed는 본문 임베딩을 만들어 `embedding_upsert`를 발행한다. 길이는 모델 차원 그대로(1..4000)이고, `model`은 `AURA_EMBEDDING_MODEL`이다. 비거나 한도를 넘으면 드롭.
 - 채널별 token-bucket + 서킷브레이커는 아웃바운드 발행 직전에 적용한다.
 - Envelope `hop_count`는 태스크 값 + 1, `causation_id`는 `trigger_message_id`, `trace_id`는 태스크 값을 따른다. `hop_count > 5`면 추론을 건너뛴다.
