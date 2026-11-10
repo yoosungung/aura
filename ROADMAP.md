@@ -152,6 +152,7 @@
 - 카카오 알림톡: 세션 밖 승인 템플릿·전화번호 발송
 - `gateway-social` (WhatsApp 24시간 창, SMS)
 - 상담원 Skill/Team 라우팅 고도화 (티켓을 상담원 스킬·팀으로 나눈다. P8 `agent_skills` 플레이북과 다른 개념)
+- AI 에이전트 system profile(다중 페르소나): 계정·인박스(또는 라우팅)로 system + 허용 skills + 허용 MCP 묶음을 고른다. 같은 `svc-ai-agent` 프로세스. L3/L2는 고객 컨텍스트만. Fission·종류별 이미지 배포는 두지 않는다
 - PG 읽기 복제본
 - 멀티리전 첨부 버킷
 - `messages` 등 대용량 테이블 UUIDv7 범위 파티셔닝(PK는 `id` 유지)
@@ -207,5 +208,7 @@
 **백본 실행.** Compose 고정 IP + Endpoints / 클러스터 StatefulSet → 클러스터. PostgreSQL·NATS·SeaweedFS는 `deploy/k8s/base`다. 호스트는 OrbStack이 연 NodePort(Postgres `30432`, NATS `30422`, 필러 `30888`)를 쓴다. 복제 1, PVC. 노드 디스크 손실은 백업 밖이다.
 
 **KEDA.** 전 스택 HPA / JetStream 워커만 → 워커만. NATS monitor(`/jsz`, `:8222`) + durable lag. 부하·백로그 관측 후 `svc-ai-agent`부터. scale-to-zero는 콜드스타트·로컬 durable 디버그와 충돌해 쓰지 않는다.
+
+**AI 다중 페르소나.** Fission/함수별 배포 / 설정 프로필 → 설정 프로필. system·skills·MCP 묶음을 운영 설정으로 고르고 한 워커가 턴마다 조립한다. L3 persona·L2 scenario는 고객 기억이지 프로필 스위치가 아니다. 시나리오→프로필 자동 매핑은 출시 후 검토.
 
 **Semantic Pyramid (P12).** TencentDB 이식 / Aura Ego 확장 → Ego 확장. drill은 숨은 라우터가 아니라 에이전트 도구. Mermaid 단기 캔버스는 P12 비목표.
