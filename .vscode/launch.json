@@ -21,9 +21,10 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}/virtual-client/src",
         "AURA_VC_REPLY_TIMEOUT": "600",
+        "AURA_DSN": "postgres://aura:aura@127.0.0.1:30432/aura?sslmode=disable",
         "AURA_LLM_API_KEY": "ollama",
         "AURA_LLM_MODEL": "gemma4:e2b-mlx",
-        "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
+        "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1"
       },
       "args": [
         "--channel",
@@ -51,7 +52,7 @@
         "AURA_LLM_API_KEY": "ollama",
         "AURA_LLM_MODEL": "gemma4:e2b-mlx",
         "AURA_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
-        "AURA_EMBEDDING_MODEL": "embeddinggemma-2:270m",
+        "AURA_EMBEDDING_MODEL": "embeddinggemma-2:270m-mxfp8-text",
         "AURA_JS_DRAIN_DEBUGING": "1"
       }
     }
