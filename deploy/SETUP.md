@@ -33,8 +33,7 @@ bash deploy/scripts/smoke-split-deploy.sh
 | KEDA | Helm `kedacore/keda` `2.20.2` → ns `keda` |
 | Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`** → ns `fission` |
 | Streams | `ensure-streams.sh` (nats-box) — `AURA_TASKS` WorkQueue · `AURA_EVENTS` Limits 90d · `AURA_DLQ` Limits |
-| Split deploy (V0.1) | [`deploy/k8s/functions`](k8s/functions/) — async MQT min=0 vs sync newdeploy MinScale≥2 (**별 매니페스트**) |
-| Split deploy (V0.1) | [`k8s/async-smoke`](k8s/async-smoke/) MQT `minReplicaCount=0` · [`k8s/sync-smoke`](k8s/sync-smoke/) `newdeploy` `MinScale≥2` (별 ScaledObject/MQT 없음) |
+| Split deploy (V0.1) | [`k8s/async-smoke`](k8s/async-smoke/) MQT `minReplicaCount=0` · [`k8s/sync-smoke`](k8s/sync-smoke/) `newdeploy` `MinScale≥2` (MQT/ScaledObject 없음) |
 
 Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-configuration` 한도(262144)에 걸릴 수 있다. `install-runtime.sh`는 create 실패 시 `--server-side --force-conflicts`로 재시도한다.
 
@@ -55,22 +54,15 @@ Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-confi
 | RPC subject | `aura.rpc.smoke` | Core Request-Reply — **스트림/MQT 없음** |
 | RPC queue-group | `aura-rpc-smoke` | 응답자 프로세스 기동 시 subscribe (본문 후속) |
 
-정적 게이트(클러스터 불필요):
+정적 게이트(클러스터 불필요) + 클러스터 관측:
 
 ```bash
 bash deploy/scripts/check-split-deploy.sh
+bash deploy/scripts/apply-split-deploy.sh
+bash deploy/scripts/smoke-split-deploy.sh
 ```
 
-패키지 아카이브(echo / Core subscribe 본문)가 생긴 뒤:
-
-```bash
-kubectl apply -k deploy/k8s/async-smoke
-kubectl apply -k deploy/k8s/sync-smoke
-# sync에 ScaledObject·MessageQueueTrigger가 없는지 확인
-kubectl get scaledobject,mqtrigger -A -l aura.runtime/class=sync   # 기대: No resources
-kubectl get mqtrigger -n default aura-tasks-smoke -o jsonpath='{.spec.minReplicaCount}{"\n"}'  # 기대: 0
-kubectl get function -n default aura-rpc-smoke -o jsonpath='{.spec.InvokeStrategy.ExecutionStrategy.MinScale}{"\n"}'  # 기대: 2
-```
+echo/Core RR **본문 행위** 검증은 후속 티켓. 이 슬라이스는 배포 골격·스케일 분리(V0.1)만.
 
 ## 엔드포인트 (클러스터)
 

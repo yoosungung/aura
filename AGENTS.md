@@ -19,7 +19,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
 | `deploy/k8s/async-smoke/` | async MQT 분리 배포 골격 (`minReplicaCount=0`) | `deploy/k8s/async-smoke/` |
 | `deploy/k8s/sync-smoke/` | sync Warm 분리 배포 골격 (`newdeploy` `MinScale≥2`, MQT 없음) | `deploy/k8s/sync-smoke/` |
-| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `smoke-runtime.sh` · `smoke-streams.sh` · `check-split-deploy.sh` | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `smoke-*.sh` | `deploy/scripts/` |
 
 규칙:
 

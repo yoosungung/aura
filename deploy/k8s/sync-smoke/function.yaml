@@ -25,4 +25,4 @@ spec:
       MaxScale: 4
       SpecializationTimeout: 120
   functionTimeout: 30
-  idleTimeout: 0
+  idletimeout: 0

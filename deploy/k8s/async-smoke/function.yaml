@@ -23,4 +23,4 @@ spec:
     ExecutionStrategy:
       ExecutorType: poolmgr
   functionTimeout: 60
-  idleTimeout: 120
+  idletimeout: 120
