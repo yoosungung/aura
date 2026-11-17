@@ -33,7 +33,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] K8s에 NATS JetStream, KEDA, Fission 설치 (`deploy/SETUP.md` · `deploy/scripts/install-runtime.sh`)
-- [ ] 스트림 `AURA_TASKS` / `AURA_EVENTS` / **`AURA_DLQ`** 사전 생성
+- [x] 스트림 `AURA_TASKS` / `AURA_EVENTS` / **`AURA_DLQ`** 사전 생성 (`deploy/scripts/ensure-streams.sh` · `smoke-streams.sh`)
 - [ ] **분리 배포**: async MQT Function(scale-to-zero 가능)과 sync Warm Function(`aura.rpc.*`, minReplicas≥2)을 **별 매니페스트/별 ScaledObject**로 둔다 — 동일 Deployment에 0과 ≥2를 섞지 않음
 - [ ] **Async**: 샘플 Function + MQT — `aura.tasks.smoke` → echo → `resptopic` / `errortopic`
 - [ ] **Async poison**: 파싱 불가/고의 실패 메시지로 **MaxDeliver 초과** → `errortopic` 및/또는 **`AURA_DLQ`** 적재 확인
