@@ -227,6 +227,7 @@ RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에
 - **트리거**: MessageQueueTrigger `mqtype=nats-jetstream`, `mqtkind=keda`. 스트림·pull consumer 사전 생성. `resptopic` / `errortopic` + **MaxDeliver→DLQ**.
 - **스케일**: KEDA JetStream lag. **`minReplicaCount = 0` 허용** (scale-to-zero).
 - **콜드스타트 SLA (async만)**: 워밍 없이 p95 **< 15s** 베이스라인(M0 측정). 대화 턴의 **체감 지연 정본이 아님**.
+- **M0 샘플**: Function/MQT `aura-tasks-smoke` — topic `aura.tasks.smoke`, pull consumer `aura_tasks_smoke`, `respTopic`=`aura.events.tasks.smoke.done`, `errorTopic`=`aura.events.tasks.smoke.error` (이름 정본은 `deploy/SETUP.md`).
 
 ### 4.2 동기 — Core Request-Reply 상시 워밍
 

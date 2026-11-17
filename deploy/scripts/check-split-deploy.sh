@@ -49,8 +49,35 @@ mqts.each do |name, doc|
   errors << "#{name}: metadata.stream must be AURA_TASKS" unless meta["stream"] == "AURA_TASKS"
   errors << "#{name}: metadata.consumer required" if meta["consumer"].to_s.empty?
   errors << "#{name}: topic must be aura.tasks.smoke" unless spec["topic"] == "aura.tasks.smoke"
+  errors << "#{name}: respTopic must be aura.events.tasks.smoke.done" unless spec["respTopic"] == "aura.events.tasks.smoke.done"
+  errors << "#{name}: errorTopic must be aura.events.tasks.smoke.error" unless spec["errorTopic"] == "aura.events.tasks.smoke.error"
+  errors << "#{name}: metadata.consumer must be aura_tasks_smoke" unless meta["consumer"] == "aura_tasks_smoke"
 end
 errors << "async-smoke: do not hand-roll ScaledObject (Fission MQT creates it)" unless kinds(async_docs, "ScaledObject").empty?
+
+# --- async Package literal must match echo.js (not skeleton) ---
+echo_path = async_dir.join("echo.js")
+errors << "async-smoke: echo.js required" unless echo_path.file?
+echo_src = echo_path.file? ? echo_path.read : ""
+errors << "async-smoke: echo.js missing tasks.smoke.done marker" unless echo_src.include?("tasks.smoke.done")
+errors << "async-smoke: echo.js missing aura_smoke fail path" unless echo_src.include?("aura_smoke")
+pkgs = kinds(async_docs, "Package")
+errors << "async-smoke: Package required" if pkgs.empty?
+pkgs.each do |name, doc|
+  lit = doc.dig("spec", "deployment", "literal").to_s
+  errors << "#{name}: deployment.literal required" if lit.empty?
+  next if lit.empty?
+  require "base64"
+  begin
+    decoded = Base64.decode64(lit)
+  rescue StandardError => e
+    errors << "#{name}: literal base64 decode failed: #{e}"
+    next
+  end
+  # Compare as binary — echo.js may contain UTF-8 (e.g. em dash) while Base64.decode64 is ASCII-8BIT.
+  errors << "#{name}: literal must equal echo.js" unless decoded.b == echo_src.b
+  errors << "#{name}: skeleton body forbidden" if decoded.include?("aura-skeleton")
+end
 
 afns = kinds(async_docs, "Function")
 errors << "async-smoke: Function required" if afns.empty?

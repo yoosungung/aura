@@ -1,5 +1,5 @@
 # Shared Node env for async MQT smoke Function (ARCHITECTURE §4.1).
-# Package/archive body: follow-up ticket (aura.tasks.smoke echo).
+# Package body: echo.js (aura.tasks.smoke).
 apiVersion: fission.io/v1
 kind: Environment
 metadata:

@@ -37,10 +37,13 @@ kubectl create -k "github.com/fission/fission/crds/v1?ref=v${FISSION_VERSION}" 2
   || kubectl apply --server-side --force-conflicts \
        -k "github.com/fission/fission/crds/v1?ref=v${FISSION_VERSION}"
 
+# internalAuth.enabled=false: stock KEDA connector images do not HMAC-sign
+# router-internal calls (401). Signing-aware connectors = later; see SETUP.md.
 helm upgrade --install fission fission-charts/fission-all \
   --namespace "$FISSION_NS" \
   --version "$FISSION_VERSION" \
   --set mqt_keda.enabled=true \
+  --set internalAuth.enabled=false \
   --set prometheus.enabled=false \
   --set serviceType=ClusterIP \
   --set routerServiceType=ClusterIP \
