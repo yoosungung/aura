@@ -41,14 +41,15 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **Sync**: 샘플 RPC — `aura.rpc.smoke`, **`minReplicas >= 2`**, JetStream MQT·lag scaler **미연결** (`aura-rpc-smoke-rr` · `smoke-sync-rpc.sh`)
 - [x] pull consumer·RPC queue-group·DLQ subject·분리 배포 이름 문서화 (`deploy/SETUP.md`)
 - [ ] (권장) PG + Pooler 스모크 계획 — 본문은 M1
-- [ ] **DLQ 적재 경로 확정**(아래 유의사항) → 결정 로그 1행
+- [x] **DLQ 적재 경로 확정**(아래 유의사항) → 결정 로그 1행 · `smoke-dlq-term.sh`
 
 **구현 유의사항 (착수 시 확인)**
 
 1. **Sync RPC Executor** — Fission 기본 `poolmgr`는 HTTP specialize 전까지 NATS에 안 붙는다. `aura.rpc.*`(V0.1·V0.2)는 기동 즉시 Core queue-group subscribe가 필요하므로 **`newdeploy`(minScale ≥ 2)** 또는 ARCHITECTURE §4.3의 **동일 이미지 명시 Deployment**로 띄운다. poolmgr+scale-to-zero로 sync를 검증하지 않는다.
-2. **MaxDeliver → `AURA_DLQ`는 JetStream 자동 이관이 아님** — 초과 시 재전달만 중단되고 `$JS.EVENT.ADVISORY…`가 난다. V0.3에서 **택일** 후 결정 로그에 기입: ① 함수/미들웨어가 delivery count ≥ MaxDeliver를 보고 `AURA_DLQ` 발행 후 `Term()` · ② Advisory 구독기가 DLQ로 넘김. 둘 다 구현하지 말고 하나를 고정한다.
-3. **결정 로그 (2026-11-17, V0.3 격리):** MQT `maxRetries` 소진 → **`errorTopic` 잔존** + consumer `MaxDeliver=5`(`ensure-async-consumer.sh`)로 무한 재시도 차단을 입증. **`AURA_DLQ` Term vs Advisory 택일은 미확정** → 티켓 `1632b9ee` (이 슬라이스에서는 DLQ 적재 미구현).
-4. **결정 로그 (2026-11-17, V0.2 sync):** Core RR 응답자는 Fission node-env가 아닌 **명시 Deployment `aura-rpc-smoke-rr`**(nats-box `nats reply -q`, replicas≥2). Function `aura-rpc-smoke` newdeploy는 Warm Pool 분리 불변용.
+2. **MaxDeliver → `AURA_DLQ`는 JetStream 자동 이관이 아님** — 초과 시 재전달만 중단되고 `$JS.EVENT.ADVISORY…`가 난다. **택일 확정(①):** 함수/미들웨어가 마지막 delivery에서 payload를 `AURA_DLQ`로 복사한 뒤 `Term()`/`Ack`로 원본 격리. ② Advisory 구독기는 **비채택**(WorkQueue에서 MaxDeliver 후 payload 유실·별도 구독기).
+3. **결정 로그 (2026-11-17, V0.3 격리):** MQT `maxRetries` 소진 → **`errorTopic` 잔존** + consumer `MaxDeliver=5`(`ensure-async-consumer.sh`)로 무한 재시도 차단을 입증. `AURA_DLQ` 적재는 본 슬라이스 범위 밖(병행·비충돌).
+4. **결정 로그 (2026-11-17, DLQ 적재 ①):** MaxDeliver 초과 격리 = **handler Term 경로** — 마지막 delivery에서 `aura.dlq.>` publish 후 Term. 증거 `smoke-dlq-term.sh` (전용 filter `aura.tasks.dlq_term_smoke`; MQT/`errorTopic` 비침범). Fission MQT 미들웨어 이식은 후속.
+5. **결정 로그 (2026-11-17, V0.2 sync):** Core RR 응답자는 Fission node-env가 아닌 **명시 Deployment `aura-rpc-smoke-rr`**(nats-box `nats reply -q`, replicas≥2). Function `aura-rpc-smoke` newdeploy는 Warm Pool 분리 불변용.
 
 **검증 체크리스트 (권고 반영)**
 
@@ -56,7 +57,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 |---|------|------|
 | V0.1 | async MQT와 sync Warm Function **분리 배포** | 매니페스트/네임스페이스 라벨로 구분; sync에 JetStream ScaledObject 없음 |
 | V0.2 | sync **No Responders 방지** | Warm 상태에서 RR 성공; sync를 0으로 내리면 즉시 실패(회귀) |
-| V0.3 | MaxDeliver 초과 격리 | 워커 무한 재시도 없음; `errortopic` 잔존 (`smoke-async-poison.sh` PASS). `AURA_DLQ` 택일·적재는 `1632b9ee` |
+| V0.3 | MaxDeliver 초과 격리 | 워커 무한 재시도 없음; `errortopic` 잔존 (`smoke-async-poison.sh` PASS) |
+| V0.4 | `AURA_DLQ` 적재 경로 | **① Term** 확정; `smoke-dlq-term.sh` PASS; Advisory(②)·JS 자동 이관 금지 |
 
 **성공 기준 — async (MQT)**
 

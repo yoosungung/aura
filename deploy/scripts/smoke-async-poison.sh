@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # V0.3 live gate: poison (fail + invalid JSON) → errorTopic; MaxDeliver finite; no infinite retry.
-# AURA_DLQ Term/Advisory path is deferred — errortopic residual is the acceptance for this slice.
+# AURA_DLQ path is ① Term (smoke-dlq-term.sh) — this slice accepts errortopic residual only.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

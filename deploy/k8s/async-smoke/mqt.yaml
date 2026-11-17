@@ -19,7 +19,7 @@ spec:
   respTopic: aura.events.tasks.smoke.done
   errorTopic: aura.events.tasks.smoke.error
   # Function HTTP retries before errorTopic (finite). JetStream MaxDeliver=5 via
-  # ensure-async-consumer.sh. AURA_DLQ Term/Advisory = ticket 1632b9ee.
+  # ensure-async-consumer.sh. AURA_DLQ path = ① Term (smoke-dlq-term.sh; MQT wire-up later).
   maxRetries: 3
   contentType: application/json
   pollingInterval: 30

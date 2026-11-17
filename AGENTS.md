@@ -49,7 +49,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 
 **기획 문서 고정 완료** — [ARCHITECTURE.md](ARCHITECTURE.md)·[ROADMAP.md](ROADMAP.md)·[README.md](README.md).
 
-M0: NATS·KEDA·Fission 설치 + 스트림 + async/sync 분리(V0.1) + async echo/poison + **V0.2 sync Core RR** 완료.  
-다음: `AURA_DLQ` Term/Advisory 택일(`1632b9ee`) · (권장) PG 스모크 계획 ([ROADMAP.md](ROADMAP.md) M0).
+M0: NATS·KEDA·Fission 설치 + 스트림 + async/sync 분리(V0.1) + async echo/poison + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term** 완료.  
+다음: (권장) PG 스모크 계획 ([ROADMAP.md](ROADMAP.md) M0) · Fission MQT Term 미들웨어 이식.
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

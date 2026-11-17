@@ -2,8 +2,8 @@
 
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
-**이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + **V0.2 sync Core RR**.  
-**후속 M0 슬라이스:** MaxDeliver→`AURA_DLQ` Term/Advisory 택일(`1632b9ee`) · (권장) PG 스모크 계획(M1).
+**이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
+**후속 M0 슬라이스:** (권장) PG 스모크 계획(M1) · Fission MQT Term 미들웨어 이식.
 
 ## 전제
 
@@ -56,7 +56,7 @@ Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-confi
 |------|-----|------|
 | pull consumer | `aura_tasks_smoke` | MQT `metadata.consumer` · stream `AURA_TASKS` · topic `aura.tasks.smoke` |
 | resp / error | `aura.events.tasks.smoke.done` / `aura.events.tasks.smoke.error` | MQT `respTopic` / `errorTopic` |
-| DLQ subject (예약) | `aura.dlq.tasks.smoke` | 스트림 `AURA_DLQ` (`aura.dlq.>`); Term/Advisory 택일·적재는 `1632b9ee` |
+| DLQ subject | `aura.dlq.tasks.dlq_term_smoke` (스모크) / `aura.dlq.tasks.smoke` (예약) | 적재 경로 **① Term** (`smoke-dlq-term.sh`); Advisory 비채택 |
 | MaxDeliver | `5` | durable `aura_tasks_smoke` — `ensure-async-consumer.sh` (V0.3) |
 | RPC subject | `aura.rpc.smoke` | Core Request-Reply — **스트림/MQT 없음** |
 | RPC queue-group | `aura-rpc-smoke` | Deployment `aura-rpc-smoke-rr` 기동 시 `nats reply -q` |
@@ -71,11 +71,12 @@ bash deploy/scripts/smoke-split-deploy.sh
 bash deploy/scripts/smoke-async-mqt.sh      # live: pub → done / fail → error
 bash deploy/scripts/smoke-async-poison.sh   # V0.3: fail+bad JSON → errorTopic; MaxDeliver; settle
 bash deploy/scripts/smoke-sync-rpc.sh       # V0.2: Core RR Warm + scale-0 No Responders
+bash deploy/scripts/smoke-dlq-term.sh       # V0.4: MaxDeliver → Term → AURA_DLQ (path ①)
 ```
 
 `aura.tasks.smoke` echo: 성공 JSON은 `aura.events.tasks.smoke.done`에 `{id,type:tasks.smoke.done,echo}`; `{"aura_smoke":"fail"}` 또는 잘못된 JSON은 MQT `maxRetries` 후 `aura.events.tasks.smoke.error`에 잔존하고 consumer는 settle(acks/redelivered/unprocessed=0).  
 `aura.rpc.smoke` Core RR: Warm 응답 `{type:rpc.smoke.done,echo}`; responders `replicas=0`이면 즉시 No Responders.  
-`AURA_DLQ` 적재 경로는 후속(`1632b9ee`).
+`AURA_DLQ` 적재: **① handler Term** (`smoke-dlq-term.sh`); JetStream 자동 이관·Advisory(②) 아님.
 
 ## 엔드포인트 (클러스터)
 
@@ -139,7 +140,21 @@ bash deploy/scripts/smoke-async-poison.sh      # bad JSON + fail → errorTopic;
 | JetStream | consumer `aura_tasks_smoke` **MaxDeliver=5** (무한 재전달 금지) |
 | MQT | `maxRetries: 3` 후 `errorTopic` |
 | 증거 | `aura.events.tasks.smoke.error` 잔존 + consumer unprocessed/acks=0 |
-| `AURA_DLQ` | **미적재가 정상** — Term vs Advisory 택일은 티켓 `1632b9ee` |
+| `AURA_DLQ` | V0.3 슬라이스에서는 **미적재가 정상** (errorTopic 잔존만). 적재는 V0.4 |
+
+### `AURA_DLQ` Term / V0.4 (path ①)
+
+```bash
+bash deploy/scripts/smoke-dlq-term.sh      # MaxDeliver → Term → aura.dlq.>
+```
+
+| 항목 | 값 |
+|------|-----|
+| 경로 | **①** 마지막 delivery에서 payload 확보 → `AURA_DLQ` publish → `Term()` |
+| 비채택 | ② Advisory 구독 이관 · JetStream 자동 이관 |
+| 스모크 subject | `aura.tasks.dlq_term_smoke` → `aura.dlq.tasks.dlq_term_smoke` |
+| consumer | 전용 durable `aura_dlq_term_smoke` (MQT `aura_tasks_smoke` 비침범) |
+| errorTopic | V0.3과 **병행·비충돌** (본 스모크는 errorTopic 미사용) |
 
 ### Sync Core RR / V0.2 (`aura.rpc.smoke`)
 
@@ -157,7 +172,7 @@ bash deploy/scripts/smoke-sync-rpc.sh       # Warm RR · scale-0 No Responders �
 | Fission Function | `aura-rpc-smoke` newdeploy MinScale≥2 — Warm Pool 불변(V0.1); NATS 구독은 Deployment |
 | MQT / lag | **미연결** |
 
-**하지 않음(후속):** `AURA_DLQ` Term/Advisory 택일·적재(`1632b9ee`).
+**하지 않음(후속):** Fission MQT에 Term 미들웨어 이식(프로덕션 consumer); PG 스모크(M1).
 
 ## 제거 (개발 클러스터만)
 
