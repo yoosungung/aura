@@ -37,7 +37,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **분리 배포**: async MQT Function(scale-to-zero 가능)과 sync Warm Function(`aura.rpc.*`, minReplicas≥2)을 **별 매니페스트/별 ScaledObject**로 둔다 — 동일 Deployment에 0과 ≥2를 섞지 않음 (`deploy/k8s/async-smoke` · `deploy/k8s/sync-smoke` · `check-split-deploy.sh`)
 - [x] **Async**: 샘플 Function + MQT — `aura.tasks.smoke` → echo → `resptopic` / `errortopic` (`deploy/k8s/async-smoke/echo.js` · `smoke-async-mqt.sh`)
 - [x] **Async poison**: 파싱 불가/고의 실패 → 유한 재시도 + **`errortopic` 잔존** (`smoke-async-poison.sh`; `AURA_DLQ` 택일은 `1632b9ee`)
-- [ ] **Sync**: 샘플 RPC — `aura.rpc.smoke`, **`minReplicas >= 2`**, JetStream MQT·lag scaler **미연결**
+- [x] **Sync**: 샘플 RPC — `aura.rpc.smoke`, **`minReplicas >= 2`**, JetStream MQT·lag scaler **미연결** (`aura-rpc-smoke-rr` · `smoke-sync-rpc.sh`)
 - [x] pull consumer·RPC queue-group·DLQ subject·분리 배포 이름 문서화 (`deploy/SETUP.md`)
 - [ ] (권장) PG + Pooler 스모크 계획 — 본문은 M1
 - [ ] **DLQ 적재 경로 확정**(아래 유의사항) → 결정 로그 1행

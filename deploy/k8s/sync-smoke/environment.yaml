@@ -1,5 +1,5 @@
 # Warm Node env for sync RPC smoke Function (ARCHITECTURE §4.2).
-# Package/archive body: follow-up ticket (aura.rpc.smoke Core RR).
+# Core RR subscribe: see rpc-responder.yaml (nats reply queue-group).
 apiVersion: fission.io/v1
 kind: Environment
 metadata:

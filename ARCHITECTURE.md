@@ -236,6 +236,7 @@ RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에
 - **스케일**: **`minReplicaCount >= 2` (Warm Pool)**. 상한만 HPA/Fission maxReplicas.
 - **이유**: Core RR 메시지는 스트림에 쌓이지 않아 KEDA가 0→1을 트리거할 수 없다.
 - **SLA (동기 연쇄)**: recall → resolve → mcp.tool 등 **동기 홉 합** p95 **< 1~2s** (콜드 제외, Warm Pool 전제). M0에서 sync p95를 측정·기록하고 ROADMAP 목표를 확정한다. 15s는 sync 목표로 쓰지 않는다.
+- **M0 샘플**: Deployment `aura-rpc-smoke-rr` — subject `aura.rpc.smoke`, queue-group `aura-rpc-smoke`, replicas ≥ 2 (이름 정본은 `deploy/SETUP.md`). Fission Function `aura-rpc-smoke`(`newdeploy` MinScale≥2)는 Warm Pool 분리 불변용; Core RR 구독은 명시 Deployment(§4.3).
 
 ### 4.3 공통
 

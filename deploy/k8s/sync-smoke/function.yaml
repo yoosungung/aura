@@ -1,5 +1,6 @@
 # Sync smoke Function — newdeploy Warm Pool (MinScale>=2). No MQT / no JetStream ScaledObject.
-# Process must Core-subscribe queue-group `aura-rpc-smoke` on boot (body: follow-up ticket).
+# Core RR body lives on Deployment aura-rpc-smoke-rr (ARCHITECTURE §4.3) — stock node-env
+# does not NATS-subscribe on boot; this Function keeps the Warm Pool invariant for V0.1.
 apiVersion: fission.io/v1
 kind: Function
 metadata:
