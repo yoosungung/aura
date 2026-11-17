@@ -2,8 +2,8 @@
 
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
-**이 문서 범위:** 컨트롤 플레인 설치·스모크.  
-**후속 M0 슬라이스:** `AURA_TASKS`/`AURA_EVENTS`/`AURA_DLQ` 스트림, async/sync 샘플 Function, DLQ 경로 확정.
+**이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성.  
+**후속 M0 슬라이스:** async/sync 샘플 Function, MaxDeliver→`AURA_DLQ` 경로 확정.
 
 ## 전제
 
@@ -22,6 +22,7 @@ KEDA는 Fission 1.27이 빌드·검증한 **2.20.x**를 쓴다(2.21로 올리지
 ```bash
 bash deploy/scripts/install-runtime.sh
 bash deploy/scripts/smoke-runtime.sh
+bash deploy/scripts/smoke-streams.sh
 ```
 
 | 단계 | 구현 |
@@ -29,6 +30,7 @@ bash deploy/scripts/smoke-runtime.sh
 | NATS JetStream + monitor `:8222` | Kustomize [`deploy/k8s/base`](k8s/base/) → ns `aura`, NodePort `30422`/`30822` |
 | KEDA | Helm `kedacore/keda` `2.20.2` → ns `keda` |
 | Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`** → ns `fission` |
+| Streams | `ensure-streams.sh` (nats-box) — `AURA_TASKS` WorkQueue · `AURA_EVENTS` Limits 90d · `AURA_DLQ` Limits |
 
 Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-configuration` 한도(262144)에 걸릴 수 있다. `install-runtime.sh`는 create 실패 시 `--server-side --force-conflicts`로 재시도한다.
 
@@ -45,15 +47,30 @@ Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-confi
 - `natsServer=nats://nats.aura.svc.cluster.local:4222`
 - `natsServerMonitoringEndpoint=nats.aura.svc.cluster.local:8222`
 
-## 스모크 합격 기준 (이 슬라이스)
+## 스모크 합격 기준
 
-`smoke-runtime.sh`가 exit 0:
+`smoke-runtime.sh` exit 0:
 
 - `aura/nats` StatefulSet Ready, `/healthz`·`/jsz` OK
 - `keda` operator·metrics-apiserver Ready, `scaledobjects.keda.sh` CRD
 - `fission` router·executor·storagesvc·**mqtrigger-keda** Ready
 
-**하지 않음(후속):** 스트림 생성, `aura.tasks.smoke` MQT, `aura.rpc.smoke` Warm, MaxDeliver→`AURA_DLQ` 택일.
+`smoke-streams.sh` exit 0 (ARCHITECTURE §3):
+
+| 스트림 | retention | subjects |
+|--------|-----------|----------|
+| `AURA_TASKS` | WorkQueue | `aura.tasks.>` |
+| `AURA_EVENTS` | Limits, max-age 90d | `aura.events.>` |
+| `AURA_DLQ` | Limits | `aura.dlq.>` |
+
+스트림만 재생성·검증:
+
+```bash
+bash deploy/scripts/ensure-streams.sh   # idempotent
+bash deploy/scripts/smoke-streams.sh
+```
+
+**하지 않음(후속):** `aura.tasks.smoke` MQT, `aura.rpc.smoke` Warm, MaxDeliver→`AURA_DLQ` 택일·적재 경로.
 
 ## 제거 (개발 클러스터만)
 

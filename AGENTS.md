@@ -17,7 +17,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
-| `deploy/scripts/` | `install-runtime.sh` · `smoke-runtime.sh` | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `smoke-runtime.sh` · `smoke-streams.sh` | `deploy/scripts/` |
 
 규칙:
 
@@ -47,6 +47,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 
 **기획 문서 고정 완료** — [ARCHITECTURE.md](ARCHITECTURE.md)·[ROADMAP.md](ROADMAP.md)·[README.md](README.md).
 
-다음 구현: **M0** — async MQT / sync Warm **분리 배포** + No Responders·MaxDeliver/DLQ 검증 ([ROADMAP.md](ROADMAP.md) M0 체크리스트 V0.x).
+M0: NATS·KEDA·Fission 설치 + **`AURA_TASKS`/`AURA_EVENTS`/`AURA_DLQ` 스트림** 완료.  
+다음: async MQT / sync Warm **분리 배포** + No Responders·MaxDeliver/DLQ 검증 ([ROADMAP.md](ROADMAP.md) M0 V0.x).
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

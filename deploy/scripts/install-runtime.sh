@@ -46,5 +46,10 @@ helm upgrade --install fission fission-charts/fission-all \
   --set routerServiceType=ClusterIP \
   --wait --timeout 10m
 
+echo "== streams AURA_TASKS / AURA_EVENTS / AURA_DLQ =="
+bash "$ROOT/deploy/scripts/ensure-streams.sh"
+
 echo
-echo "install-runtime: done. Run: bash deploy/scripts/smoke-runtime.sh"
+echo "install-runtime: done. Run:"
+echo "  bash deploy/scripts/smoke-runtime.sh"
+echo "  bash deploy/scripts/smoke-streams.sh"
