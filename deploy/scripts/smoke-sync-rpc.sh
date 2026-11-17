@@ -66,14 +66,16 @@ echo "$LAST_OUT" | grep -q OK_RR || fail "Warm RR missing OK_RR"
 ok "Warm RR aura.rpc.smoke → rpc.smoke.done"
 
 echo "== Warm single-hop timing (n=20) =="
-# reuse probe pod for latency samples
+# reuse probe pod for latency samples (SID via env — avoid kubectl argv quote mangling)
 [[ -n "${POD:-}" ]] || fail "probe pod missing after Warm RR"
 samples=""
 for i in $(seq 1 20); do
   sid="${SMOKE_ID}-p$i"
   line=$(kubectl -n "$NATS_NS" exec "$POD" -- \
-    nats req -s "$NATS_URL" aura.rpc.smoke "{\"id\":\"$sid\"}" --timeout=3s 2>&1) || fail "timing req $i"
-  echo "$line" | grep -q rpc.smoke.done || fail "timing type $i"
+    env NATS_URL="$NATS_URL" SID="$sid" \
+    sh -c 'nats req -s "$NATS_URL" aura.rpc.smoke "{\"id\":\"$SID\"}" --timeout=3s' 2>&1) \
+    || fail "timing req $i: $line"
+  echo "$line" | grep -q rpc.smoke.done || fail "timing type $i: $line"
   rtt=$(echo "$line" | sed -n 's/.*Received with rtt \([^ ]*\).*/\1/p' | head -1)
   samples="${samples}${rtt}"$'\n'
 done
