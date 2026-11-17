@@ -28,7 +28,9 @@ bash deploy/scripts/smoke-runtime.sh
 |------|------|
 | NATS JetStream + monitor `:8222` | Kustomize [`deploy/k8s/base`](k8s/base/) → ns `aura`, NodePort `30422`/`30822` |
 | KEDA | Helm `kedacore/keda` `2.20.2` → ns `keda` |
-| Fission | CRDs + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`** → ns `fission` |
+| Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`** → ns `fission` |
+
+Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-configuration` 한도(262144)에 걸릴 수 있다. `install-runtime.sh`는 create 실패 시 `--server-side --force-conflicts`로 재시도한다.
 
 ## 엔드포인트 (클러스터)
 
