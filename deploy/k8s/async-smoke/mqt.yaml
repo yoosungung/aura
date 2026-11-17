@@ -1,0 +1,32 @@
+# Fission KEDA MQT — owns the JetStream ScaledObject (do not hand-roll ScaledObject).
+# minReplicaCount=0 → scale-to-zero when AURA_TASKS lag is idle (ARCHITECTURE §4.1).
+apiVersion: fission.io/v1
+kind: MessageQueueTrigger
+metadata:
+  name: aura-tasks-smoke
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-tasks-smoke
+spec:
+  functionref:
+    name: aura-tasks-smoke
+    type: name
+  messageQueueType: nats-jetstream
+  mqtkind: keda
+  topic: aura.tasks.smoke
+  respTopic: aura.events.tasks.smoke.done
+  errorTopic: aura.events.tasks.smoke.error
+  maxRetries: 3
+  contentType: application/json
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0
+  maxReplicaCount: 8
+  metadata:
+    stream: AURA_TASKS
+    consumer: aura_tasks_smoke
+    account: "$G"
+    natsServer: nats://nats.aura.svc.cluster.local:4222
+    natsServerMonitoringEndpoint: nats.aura.svc.cluster.local:8222
