@@ -4,4 +4,5 @@ resources:
   - environment.yaml
   - package.yaml
   - function.yaml
+  - rpc-responder.yaml
   # Intentionally no MessageQueueTrigger / ScaledObject — Core RR is not JetStream-scaled.

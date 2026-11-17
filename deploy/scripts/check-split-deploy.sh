@@ -113,6 +113,24 @@ fns.each do |name, doc|
   errors << "#{name}: MinScale must be >= 2 (got #{mins.inspect})" if mins.nil? || mins.to_i < 2
 end
 
+# --- sync Core RR responder (ARCHITECTURE §4.3 explicit Deployment) ---
+rr = kinds(sync_docs, "Deployment").select { |_n, d| d.dig("metadata", "name") == "aura-rpc-smoke-rr" }
+errors << "sync-smoke: Deployment aura-rpc-smoke-rr required (Core RR)" if rr.empty?
+rr.each do |name, doc|
+  labels = (doc.dig("metadata", "labels") || {})
+  errors << "#{name}: label aura.runtime/class=sync required" unless labels["aura.runtime/class"] == "sync"
+  replicas = doc.dig("spec", "replicas")
+  errors << "#{name}: replicas must be >= 2 (got #{replicas.inspect})" if replicas.nil? || replicas.to_i < 2
+  containers = doc.dig("spec", "template", "spec", "containers") || []
+  reply = containers.find { |c| c["name"] == "reply" } || containers.first || {}
+  args = Array(reply["args"]).join(" ")
+  cmd = Array(reply["command"]).join(" ") + " " + args
+  errors << "#{name}: must nats-reply subject aura.rpc.smoke" unless cmd.include?("aura.rpc.smoke") || Array(reply.dig("env")).any? { |e| e["name"] == "RPC_SUBJECT" && e["value"] == "aura.rpc.smoke" }
+  q_ok = cmd.include?("aura-rpc-smoke") || Array(reply.dig("env")).any? { |e| e["name"] == "RPC_QUEUE" && e["value"] == "aura-rpc-smoke" }
+  errors << "#{name}: must use queue-group aura-rpc-smoke" unless q_ok
+  errors << "#{name}: reply body must mark rpc.smoke.done" unless cmd.include?("rpc.smoke.done")
+end
+
 if errors.any?
   errors.each { |e| warn "FAIL: #{e}" }
   exit 1
@@ -120,6 +138,6 @@ end
 puts "invariants-ok"
 RUBY
 
-ok "V0.1 split-deploy invariants (async MQT min=0 · sync newdeploy min≥2 · no shared scaler)"
+ok "V0.1/V0.2 split-deploy invariants (async MQT min=0 · sync newdeploy min≥2 · aura-rpc-smoke-rr · no shared scaler)"
 echo
 echo "check-split-deploy: PASS"

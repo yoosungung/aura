@@ -18,8 +18,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
 | `deploy/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/k8s/async-smoke/` |
-| `deploy/k8s/sync-smoke/` | sync Warm 분리 배포 골격 (`newdeploy` `MinScale≥2`, MQT 없음) | `deploy/k8s/sync-smoke/` |
-| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `smoke-async-mqt.sh` · `smoke-*.sh` | `deploy/scripts/` |
+| `deploy/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/k8s/sync-smoke/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `smoke-async-mqt.sh` · `smoke-sync-rpc.sh` · `smoke-*.sh` | `deploy/scripts/` |
 
 규칙:
 
@@ -49,7 +49,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 
 **기획 문서 고정 완료** — [ARCHITECTURE.md](ARCHITECTURE.md)·[ROADMAP.md](ROADMAP.md)·[README.md](README.md).
 
-M0: NATS·KEDA·Fission 설치 + 스트림 + async/sync 분리(V0.1) + async echo MQT + **V0.3 poison→errorTopic** 완료.  
-다음: sync `aura.rpc.smoke` Core RR + No Responders · `AURA_DLQ` 택일(`1632b9ee`) ([ROADMAP.md](ROADMAP.md) M0 V0.x).
+M0: NATS·KEDA·Fission 설치 + 스트림 + async/sync 분리(V0.1) + async echo/poison + **V0.2 sync Core RR** 완료.  
+다음: `AURA_DLQ` Term/Advisory 택일(`1632b9ee`) · (권장) PG 스모크 계획 ([ROADMAP.md](ROADMAP.md) M0).
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

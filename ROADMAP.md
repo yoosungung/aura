@@ -22,7 +22,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-17 | **테넌트 Fair Queue**: Gateway Token Bucket + max_inflight **필수**(NATS Account와 독립). 상태=NATS KV 권장. SLO 미달 시 F1 테넌트 subject 샤딩 | 공유 AURA_TASKS FIFO → noisy neighbor 기아 |
 | 2026-11-17 | **P2 엔터프라이즈**: 샌드박스(gVisor/Kata)+Egress NP; NATS mTLS·시크릿 TTL 캐시; GDPR content_ref+crypto-shred; **LLM Gateway**; sync Warm p95 < 1–2s; PG Multi-AZ/PITR; MaxDeliver+AURA_DLQ | 1만+/10년 보안·비용·컴플라이언스 |
 | (M1) | 활성 임베딩 실값 + BM25 + Pooler 제품 + iterative_scan + **PG HA/RPO/RTO 초안** | M1에서 고정 |
-| (M0) | async 콜드 p95 + **sync Warm 홉/연쇄 p95** 기입 | M0 스모크 후 |
+| 2026-11-17 | **sync Warm 단일 홉 p95 ≈ 0.6ms** (`smoke-sync-rpc.sh` n=20, Core local). 연쇄 목표 p95 < 1–2s 유지. async 콜드 p95는 별도 기입 | V0.2 스모크 |
+| (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
 
@@ -37,7 +38,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **분리 배포**: async MQT Function(scale-to-zero 가능)과 sync Warm Function(`aura.rpc.*`, minReplicas≥2)을 **별 매니페스트/별 ScaledObject**로 둔다 — 동일 Deployment에 0과 ≥2를 섞지 않음 (`deploy/k8s/async-smoke` · `deploy/k8s/sync-smoke` · `check-split-deploy.sh`)
 - [x] **Async**: 샘플 Function + MQT — `aura.tasks.smoke` → echo → `resptopic` / `errortopic` (`deploy/k8s/async-smoke/echo.js` · `smoke-async-mqt.sh`)
 - [x] **Async poison**: 파싱 불가/고의 실패 → 유한 재시도 + **`errortopic` 잔존** (`smoke-async-poison.sh`; `AURA_DLQ` 택일은 `1632b9ee`)
-- [ ] **Sync**: 샘플 RPC — `aura.rpc.smoke`, **`minReplicas >= 2`**, JetStream MQT·lag scaler **미연결**
+- [x] **Sync**: 샘플 RPC — `aura.rpc.smoke`, **`minReplicas >= 2`**, JetStream MQT·lag scaler **미연결** (`aura-rpc-smoke-rr` · `smoke-sync-rpc.sh`)
 - [x] pull consumer·RPC queue-group·DLQ subject·분리 배포 이름 문서화 (`deploy/SETUP.md`)
 - [ ] (권장) PG + Pooler 스모크 계획 — 본문은 M1
 - [ ] **DLQ 적재 경로 확정**(아래 유의사항) → 결정 로그 1행
@@ -47,6 +48,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 1. **Sync RPC Executor** — Fission 기본 `poolmgr`는 HTTP specialize 전까지 NATS에 안 붙는다. `aura.rpc.*`(V0.1·V0.2)는 기동 즉시 Core queue-group subscribe가 필요하므로 **`newdeploy`(minScale ≥ 2)** 또는 ARCHITECTURE §4.3의 **동일 이미지 명시 Deployment**로 띄운다. poolmgr+scale-to-zero로 sync를 검증하지 않는다.
 2. **MaxDeliver → `AURA_DLQ`는 JetStream 자동 이관이 아님** — 초과 시 재전달만 중단되고 `$JS.EVENT.ADVISORY…`가 난다. V0.3에서 **택일** 후 결정 로그에 기입: ① 함수/미들웨어가 delivery count ≥ MaxDeliver를 보고 `AURA_DLQ` 발행 후 `Term()` · ② Advisory 구독기가 DLQ로 넘김. 둘 다 구현하지 말고 하나를 고정한다.
 3. **결정 로그 (2026-11-17, V0.3 격리):** MQT `maxRetries` 소진 → **`errorTopic` 잔존** + consumer `MaxDeliver=5`(`ensure-async-consumer.sh`)로 무한 재시도 차단을 입증. **`AURA_DLQ` Term vs Advisory 택일은 미확정** → 티켓 `1632b9ee` (이 슬라이스에서는 DLQ 적재 미구현).
+4. **결정 로그 (2026-11-17, V0.2 sync):** Core RR 응답자는 Fission node-env가 아닌 **명시 Deployment `aura-rpc-smoke-rr`**(nats-box `nats reply -q`, replicas≥2). Function `aura-rpc-smoke` newdeploy는 Warm Pool 분리 불변용.
 
 **검증 체크리스트 (권고 반영)**
 

@@ -17,13 +17,14 @@ echo "== async consumer MaxDeliver (ARCHITECTURE §3.2) =="
 bash "$ROOT/deploy/scripts/ensure-async-consumer.sh" || \
   echo "WARN: ensure-async-consumer deferred — run smoke-async-poison.sh (re-ensures)"
 
-echo "== wait sync Warm Pool =="
+echo "== wait sync Warm Pool (Fission newdeploy) =="
 for i in $(seq 1 60); do
   DEP=$(kubectl -n default get deploy -o json 2>/dev/null | python3 -c '
 import sys,json
 for d in json.load(sys.stdin).get("items",[]):
-  if "aura-rpc-smoke" in d["metadata"]["name"]:
-    print(d["metadata"]["name"]); break
+  n=d["metadata"]["name"]
+  if n.startswith("newdeploy-aura-rpc-smoke") or n=="aura-rpc-smoke":
+    print(n); break
 ' || true)
   if [ -n "${DEP:-}" ]; then
     kubectl -n default rollout status "deploy/$DEP" --timeout=180s
@@ -33,5 +34,8 @@ for d in json.load(sys.stdin).get("items",[]):
 done
 [ -n "${DEP:-}" ] || { echo "FAIL: sync newdeploy for aura-rpc-smoke not found" >&2; exit 1; }
 
+echo "== wait sync Core RR responder =="
+kubectl -n default rollout status deploy/aura-rpc-smoke-rr --timeout=180s
+
 echo
-echo "apply-split-deploy: done. Run: bash deploy/scripts/check-split-deploy.sh && bash deploy/scripts/smoke-split-deploy.sh"
+echo "apply-split-deploy: done. Run: bash deploy/scripts/check-split-deploy.sh && bash deploy/scripts/smoke-split-deploy.sh && bash deploy/scripts/smoke-sync-rpc.sh"
