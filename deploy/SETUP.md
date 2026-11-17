@@ -54,7 +54,8 @@ Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-confi
 |------|-----|------|
 | pull consumer | `aura_tasks_smoke` | MQT `metadata.consumer` · stream `AURA_TASKS` · topic `aura.tasks.smoke` |
 | resp / error | `aura.events.tasks.smoke.done` / `aura.events.tasks.smoke.error` | MQT `respTopic` / `errorTopic` |
-| DLQ subject (예약) | `aura.dlq.tasks.smoke` | 스트림 `AURA_DLQ` (`aura.dlq.>`); MaxDeliver→적재 경로는 후속 택일 |
+| DLQ subject (예약) | `aura.dlq.tasks.smoke` | 스트림 `AURA_DLQ` (`aura.dlq.>`); Term/Advisory 택일·적재는 `1632b9ee` |
+| MaxDeliver | `5` | durable `aura_tasks_smoke` — `ensure-async-consumer.sh` (V0.3) |
 | RPC subject | `aura.rpc.smoke` | Core Request-Reply — **스트림/MQT 없음** |
 | RPC queue-group | `aura-rpc-smoke` | 응답자 프로세스 기동 시 subscribe (본문 후속) |
 
@@ -65,10 +66,11 @@ bash deploy/scripts/check-split-deploy.sh   # MQT 이름표 + echo.js == Package
 bash deploy/scripts/apply-split-deploy.sh
 bash deploy/scripts/smoke-split-deploy.sh
 bash deploy/scripts/smoke-async-mqt.sh      # live: pub → done / fail → error
+bash deploy/scripts/smoke-async-poison.sh   # V0.3: fail+bad JSON → errorTopic; MaxDeliver; settle
 ```
 
-`aura.tasks.smoke` echo: 성공 JSON은 `aura.events.tasks.smoke.done`에 `{id,type:tasks.smoke.done,echo}`; `{"aura_smoke":"fail"}` 또는 잘못된 JSON은 MQT 재시도 후 `aura.events.tasks.smoke.error`.  
-sync Core RR **본문** 검증은 후속 티켓.
+`aura.tasks.smoke` echo: 성공 JSON은 `aura.events.tasks.smoke.done`에 `{id,type:tasks.smoke.done,echo}`; `{"aura_smoke":"fail"}` 또는 잘못된 JSON은 MQT `maxRetries` 후 `aura.events.tasks.smoke.error`에 잔존하고 consumer는 settle(acks/redelivered/unprocessed=0).  
+`AURA_DLQ` 적재 경로는 후속(`1632b9ee`). sync Core RR **본문** 검증은 후속 티켓.
 
 ## 엔드포인트 (클러스터)
 
@@ -134,7 +136,7 @@ bash deploy/scripts/smoke-async-poison.sh      # bad JSON + fail → errorTopic;
 | 증거 | `aura.events.tasks.smoke.error` 잔존 + consumer unprocessed/acks=0 |
 | `AURA_DLQ` | **미적재가 정상** — Term vs Advisory 택일은 티켓 `1632b9ee` |
 
-**하지 않음(후속):** `aura.rpc.smoke` Core RR 본문·No Responders, MaxDeliver→`AURA_DLQ` **경로 택일**.
+**하지 않음(후속):** `aura.rpc.smoke` Core RR 본문·No Responders, `AURA_DLQ` Term/Advisory 택일·적재(`1632b9ee`).
 
 ## 제거 (개발 클러스터만)
 
