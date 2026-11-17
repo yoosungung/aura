@@ -1,0 +1,18 @@
+# Shared Node env for async MQT smoke Function (ARCHITECTURE §4.1).
+# Package/archive body: follow-up ticket (aura.tasks.smoke echo).
+apiVersion: fission.io/v1
+kind: Environment
+metadata:
+  name: aura-async-nodejs
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    app.kubernetes.io/part-of: aura
+spec:
+  version: 3
+  runtime:
+    image: ghcr.io/fission/node-env:latest
+  builder:
+    image: ghcr.io/fission/node-builder:latest
+  poolsize: 1
+  resources: {}

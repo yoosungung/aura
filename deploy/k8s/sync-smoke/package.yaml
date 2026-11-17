@@ -1,0 +1,15 @@
+apiVersion: fission.io/v1
+kind: Package
+metadata:
+  name: aura-rpc-smoke
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    app.kubernetes.io/part-of: aura
+spec:
+  environment:
+    name: aura-sync-nodejs
+    namespace: default
+  deployment:
+    type: literal
+    literal: bW9kdWxlLmV4cG9ydHMgPSBhc3luYyBmdW5jdGlvbiAoKSB7IHJldHVybiB7IHN0YXR1czogMjAwLCBib2R5OiAiYXVyYS1za2VsZXRvbiIgfTsgfTsK

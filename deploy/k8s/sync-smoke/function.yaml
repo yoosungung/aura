@@ -1,0 +1,28 @@
+# Sync smoke Function — newdeploy Warm Pool (MinScale>=2). No MQT / no JetStream ScaledObject.
+# Process must Core-subscribe queue-group `aura-rpc-smoke` on boot (body: follow-up ticket).
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-rpc-smoke
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-rpc-smoke
+spec:
+  environment:
+    name: aura-sync-nodejs
+    namespace: default
+  package:
+    packageref:
+      name: aura-rpc-smoke
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: newdeploy
+      MinScale: 2
+      MaxScale: 4
+      SpecializationTimeout: 120
+  functionTimeout: 30
+  idletimeout: 0

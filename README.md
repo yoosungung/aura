@@ -9,13 +9,14 @@
 ## Quickstart
 
 1. [ARCHITECTURE.md](ARCHITECTURE.md) §1 계약 확인
-2. [deploy/SETUP.md](deploy/SETUP.md) — NATS JetStream · KEDA · Fission · 스트림 사전 생성
+2. [deploy/SETUP.md](deploy/SETUP.md) — NATS JetStream · KEDA · Fission · 스트림 · async/sync 분리 배포 골격
    ```sh
    bash deploy/scripts/install-runtime.sh
    bash deploy/scripts/smoke-runtime.sh
    bash deploy/scripts/smoke-streams.sh
+   bash deploy/scripts/check-split-deploy.sh   # V0.1 static gate (no cluster)
    ```
-3. [ROADMAP.md](ROADMAP.md) M0 나머지(분리 Function·V0.x·DLQ 경로)
+3. [ROADMAP.md](ROADMAP.md) M0 나머지(샘플 Function 본문·V0.2/V0.3·DLQ 경로)
 
 로컬 빌드/테스트 명령은 각 컴포넌트 `DESIGN.md`의 `## Commands`에 코드와 함께 생긴다.
 
