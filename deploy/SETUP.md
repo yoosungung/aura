@@ -2,8 +2,8 @@
 
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
-**이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + **async/sync 분리 배포 골격**(V0.1).  
-**후속 M0 슬라이스:** 샘플 Function 본문(echo / Core RR), MaxDeliver→`AURA_DLQ` 경로 확정.
+**이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + **async MQT echo**.  
+**후속 M0 슬라이스:** sync Core RR 본문(`aura.rpc.smoke`), MaxDeliver→`AURA_DLQ` 경로 확정.
 
 ## 전제
 
@@ -25,15 +25,17 @@ bash deploy/scripts/smoke-runtime.sh
 bash deploy/scripts/smoke-streams.sh
 bash deploy/scripts/apply-split-deploy.sh
 bash deploy/scripts/smoke-split-deploy.sh
+bash deploy/scripts/smoke-async-mqt.sh
 ```
 
 | 단계 | 구현 |
 |------|------|
 | NATS JetStream + monitor `:8222` | Kustomize [`deploy/k8s/base`](k8s/base/) → ns `aura`, NodePort `30422`/`30822` |
 | KEDA | Helm `kedacore/keda` `2.20.2` → ns `keda` |
-| Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`** → ns `fission` |
+| Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`**, **`internalAuth.enabled=false`** (stock KEDA connector는 HMAC 미서명 → router-internal 401) → ns `fission` |
 | Streams | `ensure-streams.sh` (nats-box) — `AURA_TASKS` WorkQueue · `AURA_EVENTS` Limits 90d · `AURA_DLQ` Limits |
 | Split deploy (V0.1) | [`k8s/async-smoke`](k8s/async-smoke/) MQT `minReplicaCount=0` · [`k8s/sync-smoke`](k8s/sync-smoke/) `newdeploy` `MinScale≥2` (MQT/ScaledObject 없음) |
+| Async echo | Package `echo.js` · topic `aura.tasks.smoke` → `respTopic`/`errorTopic` · `smoke-async-mqt.sh` |
 
 Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-configuration` 한도(262144)에 걸릴 수 있다. `install-runtime.sh`는 create 실패 시 `--server-side --force-conflicts`로 재시도한다.
 
@@ -57,12 +59,14 @@ Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-confi
 정적 게이트(클러스터 불필요) + 클러스터 관측:
 
 ```bash
-bash deploy/scripts/check-split-deploy.sh
+bash deploy/scripts/check-split-deploy.sh   # MQT 이름표 + echo.js == Package literal
 bash deploy/scripts/apply-split-deploy.sh
 bash deploy/scripts/smoke-split-deploy.sh
+bash deploy/scripts/smoke-async-mqt.sh      # live: pub → done / fail → error
 ```
 
-echo/Core RR **본문 행위** 검증은 후속 티켓. 이 슬라이스는 배포 골격·스케일 분리(V0.1)만.
+`aura.tasks.smoke` echo: 성공 JSON은 `aura.events.tasks.smoke.done`에 `{id,type:tasks.smoke.done,echo}`; `{"aura_smoke":"fail"}` 또는 잘못된 JSON은 MQT 재시도 후 `aura.events.tasks.smoke.error`.  
+sync Core RR **본문** 검증은 후속 티켓.
 
 ## 엔드포인트 (클러스터)
 
@@ -100,7 +104,21 @@ bash deploy/scripts/ensure-streams.sh   # idempotent
 bash deploy/scripts/smoke-streams.sh
 ```
 
-**하지 않음(후속):** `aura.tasks.smoke` echo 본문·live MQT 스모크, `aura.rpc.smoke` Core RR 본문·No Responders 관측, MaxDeliver→`AURA_DLQ` 택일·적재 경로.
+### Async MQT echo (`aura.tasks.smoke`)
+
+```bash
+bash deploy/scripts/apply-split-deploy.sh   # (재)적용 — Package literal = echo.js
+bash deploy/scripts/smoke-async-mqt.sh      # publish → resptopic echo
+```
+
+| 항목 | 값 |
+|------|-----|
+| 본문 | `deploy/k8s/async-smoke/echo.js` — request body echo (2xx → `respTopic`) |
+| in | `aura.tasks.smoke` (`AURA_TASKS`) |
+| out | `aura.events.tasks.smoke.done` (`AURA_EVENTS`) |
+| error | `aura.events.tasks.smoke.error` |
+
+**하지 않음(후속):** `aura.rpc.smoke` Core RR 본문·No Responders, MaxDeliver→`AURA_DLQ` 택일·적재 경로.
 
 ## 제거 (개발 클러스터만)
 
@@ -115,3 +133,4 @@ kubectl delete -k deploy/k8s/base || true
 
 - Fission install: https://fission.io/docs/installation/
 - Fission × KEDA MQT / NATS JetStream: https://fission.io/docs/usage/triggers/message-queue-trigger-kind-keda/nats-jetstream/
+- Internal auth + KEDA gap: https://fission.io/docs/installation/internal-auth/ (`internalAuth.enabled=false` until signing-aware connectors)

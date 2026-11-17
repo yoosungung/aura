@@ -1,5 +1,5 @@
 # Async smoke Function — scale-to-zero is on the MessageQueueTrigger, not MinScale here.
-# Package body (echo): follow-up; packageref name reserved as aura-tasks-smoke.
+# Package body: echo.js → aura.tasks.smoke → respTopic / errorTopic.
 apiVersion: fission.io/v1
 kind: Function
 metadata:
