@@ -8,10 +8,13 @@
 
 ## Quickstart
 
-코드·클러스터 매니페스트는 **M0**부터 추가한다. 지금은 문서만 있다.
-
 1. [ARCHITECTURE.md](ARCHITECTURE.md) §1 계약 확인
-2. [ROADMAP.md](ROADMAP.md) M0 성공 기준으로 Fission + KEDA + NATS 부트스트랩
+2. [deploy/SETUP.md](deploy/SETUP.md) — NATS JetStream · KEDA · Fission 설치
+   ```sh
+   bash deploy/scripts/install-runtime.sh
+   bash deploy/scripts/smoke-runtime.sh
+   ```
+3. [ROADMAP.md](ROADMAP.md) M0 나머지(스트림·분리 Function·V0.x)
 
 로컬 빌드/테스트 명령은 각 컴포넌트 `DESIGN.md`의 `## Commands`에 코드와 함께 생긴다.
 

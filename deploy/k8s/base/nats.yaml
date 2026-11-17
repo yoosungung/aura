@@ -1,0 +1,88 @@
+# NATS JetStream backbone for Aura (ARCHITECTURE §3).
+# Monitoring (:8222) is required — Fission KEDA nats-jetstream MQT scales via /jsz.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: aura
+  labels:
+    app: nats
+    app.kubernetes.io/part-of: aura
+spec:
+  type: NodePort
+  selector:
+    app: nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+      nodePort: 30422
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+      nodePort: 30822
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: aura
+  labels:
+    app: nats
+    app.kubernetes.io/part-of: aura
+spec:
+  serviceName: nats
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+        app.kubernetes.io/part-of: aura
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: nats
+          image: nats:2.10-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["nats-server"]
+          args: ["-js", "-sd", "/data", "-m", "8222"]
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: monitor
+              containerPort: 8222
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

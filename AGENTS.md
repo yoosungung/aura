@@ -15,6 +15,9 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
+| `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
+| `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
+| `deploy/scripts/` | `install-runtime.sh` · `smoke-runtime.sh` | `deploy/scripts/` |
 
 규칙:
 
