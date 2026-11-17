@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ensure durable pull consumer aura_tasks_smoke has finite MaxDeliver (ARCHITECTURE §3.2 draft=5).
 # MQT may create the consumer first; we edit MaxDeliver afterward (idempotent).
-# AURA_DLQ Term/Advisory path is out of scope — errorTopic isolation is V0.3 evidence.
+# AURA_DLQ ① Term is smoke-dlq-term.sh — this script only sets MaxDeliver for errorTopic V0.3.
 set -euo pipefail
 
 NATS_NS="${NATS_NS:-aura}"

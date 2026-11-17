@@ -164,7 +164,8 @@ MQT: `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.
 |------|------|
 | `MaxDeliver` | WorkQueue consumer별 유한값(초안 **5**, DESIGN 확정). 초과 시 재전달 중단 |
 | DLQ 스트림 | `AURA_DLQ` (Limits), subject `aura.dlq.>` — 원본 subject·마지막 오류·payload 메타 복사 |
-| 격리 | poison이 워커 슬롯을 점유하며 재시도 루프하지 않음 |
+| 적재 경로 | **① 함수/미들웨어 Term** — 마지막 delivery에서 `AURA_DLQ` 발행 후 `Term()`/`Ack`. JetStream 자동 이관 없음. **② Advisory 구독 비채택** |
+| 격리 | poison이 워커 슬롯을 점유하며 재시도 루프하지 않음; `errorTopic`(MQT)과 병행·역할 분리 |
 | 재처리 | 운영 Replay 도구(CLI/admin)만 — 자동 무한 replay 금지 |
 
 ### 3.3 RPC (Core Request-Reply — 상시 워밍)
@@ -665,7 +666,7 @@ Function은 `aura.rpc.control.resolve`(또는 브리지)로 `source_meta`+`user_
 
 ### 9.7 DLQ · Poison Pill
 
-§3.2 MaxDeliver + `AURA_DLQ` + Replay 도구. 모니터링: DLQ depth 알림. 자동 replay 루프 금지.
+§3.2 MaxDeliver + `AURA_DLQ`(적재=**① Term**) + Replay 도구. 모니터링: DLQ depth 알림. 자동 replay 루프·Advisory 이관 금지.
 
 ---
 
