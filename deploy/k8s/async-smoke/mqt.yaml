@@ -18,6 +18,8 @@ spec:
   topic: aura.tasks.smoke
   respTopic: aura.events.tasks.smoke.done
   errorTopic: aura.events.tasks.smoke.error
+  # Function HTTP retries before errorTopic (finite). JetStream MaxDeliver=5 via
+  # ensure-async-consumer.sh. AURA_DLQ Term/Advisory = ticket 1632b9ee.
   maxRetries: 3
   contentType: application/json
   pollingInterval: 30

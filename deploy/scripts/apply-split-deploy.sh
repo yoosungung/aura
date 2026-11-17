@@ -12,6 +12,11 @@ kubectl apply -k "$ROOT/deploy/k8s/async-smoke"
 echo "== sync-smoke (newdeploy MinScale>=2, no MQT) =="
 kubectl apply -k "$ROOT/deploy/k8s/sync-smoke"
 
+echo "== async consumer MaxDeliver (ARCHITECTURE §3.2) =="
+# Best-effort: consumer appears after MQT first interest; poison smoke re-ensures.
+bash "$ROOT/deploy/scripts/ensure-async-consumer.sh" || \
+  echo "WARN: ensure-async-consumer deferred — run smoke-async-poison.sh (re-ensures)"
+
 echo "== wait sync Warm Pool =="
 for i in $(seq 1 60); do
   DEP=$(kubectl -n default get deploy -o json 2>/dev/null | python3 -c '

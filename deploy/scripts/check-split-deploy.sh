@@ -52,6 +52,10 @@ mqts.each do |name, doc|
   errors << "#{name}: respTopic must be aura.events.tasks.smoke.done" unless spec["respTopic"] == "aura.events.tasks.smoke.done"
   errors << "#{name}: errorTopic must be aura.events.tasks.smoke.error" unless spec["errorTopic"] == "aura.events.tasks.smoke.error"
   errors << "#{name}: metadata.consumer must be aura_tasks_smoke" unless meta["consumer"] == "aura_tasks_smoke"
+  retries = spec["maxRetries"]
+  if retries.nil? || retries.to_i < 1 || retries.to_i > 10
+    errors << "#{name}: maxRetries must be finite 1..10 (got #{retries.inspect}) — V0.3 poison isolation"
+  end
 end
 errors << "async-smoke: do not hand-roll ScaledObject (Fission MQT creates it)" unless kinds(async_docs, "ScaledObject").empty?
 
