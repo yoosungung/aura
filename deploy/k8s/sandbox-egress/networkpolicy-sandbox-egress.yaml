@@ -1,0 +1,101 @@
+# Sandbox Egress deny-default allowlist — ARCHITECTURE §9.1 · mcp-bundle-isolation.
+# Vanilla Kubernetes NetworkPolicy: L3/L4 to labeled in-cluster peers only.
+# External MCP HTTPS FQDNs are NOT expressible here — register in aura-mcp-egress-hosts
+# ConfigMap for audit; traffic must egress via app: aura-mcp-proxy or Cilium toFQDNs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aura-sandbox-egress-allowlist
+  namespace: aura
+  labels:
+    app.kubernetes.io/part-of: aura
+    aura.sandbox/role: egress-allowlist
+spec:
+  podSelector:
+    matchLabels:
+      aura.swfactory.io/sandbox: "true"
+  policyTypes:
+    - Egress
+  egress:
+    # NATS (cluster backbone)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: nats
+      ports:
+        - protocol: TCP
+          port: 4222
+    # CloudNativePG Pooler — not primary
+    - to:
+        - podSelector:
+            matchLabels:
+              aura.db/role: pooler
+      ports:
+        - protocol: TCP
+          port: 5432
+    # LLM Gateway — sole LLM exit
+    - to:
+        - podSelector:
+            matchLabels:
+              app: aura-llm-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Object store (Garage / aura-content)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: aura-content
+      ports:
+        - protocol: TCP
+          port: 3900
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Cluster DNS (kube-dns / CoreDNS)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Registered external MCP — HTTPS proxy sidecar/gateway in cluster (vanilla NP path)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: aura-mcp-proxy
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aura-mcp-egress-hosts
+  namespace: aura
+  labels:
+    app.kubernetes.io/part-of: aura
+    aura.sandbox/role: mcp-fqdn-allowlist-doc
+  annotations:
+    aura.sandbox/egress-note: >-
+      FQDN allowlist for cfg.mcp_endpoint requires Cilium toFQDNs or per-tenant
+      aura-mcp-proxy routing. This ConfigMap documents registered hosts; it does
+      not open NetworkPolicy by itself.
+data:
+  README: |
+    Keys are hostnames (no scheme). Values are opaque tenant/bundle ids for audit.
+  example.mcp.tenant.example: registered-bundle-id

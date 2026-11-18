@@ -1,0 +1,10 @@
+# M3 default sandbox RuntimeClass — ARCHITECTURE §9.1 · mcp-bundle-isolation.
+# Cluster must install gVisor runsc handler before Pods can schedule.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+  labels:
+    app.kubernetes.io/part-of: aura
+    aura.sandbox/tier: default
+handler: runsc

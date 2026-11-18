@@ -4,12 +4,12 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M3 — `mcp_invoke` **이원화**.  
 와이어 정본: [`deploy/docs/mcp-invoke-dual.md`](../../deploy/docs/mcp-invoke-dual.md).  
 외부 HTTP: [`deploy/docs/mcp-streamable-http.md`](../../deploy/docs/mcp-streamable-http.md).  
-격리 정책: [`deploy/docs/mcp-bundle-isolation.md`](../../deploy/docs/mcp-bundle-isolation.md) (RuntimeClass·Egress allowlist·서명 차등).  
+격리 정책: [`deploy/docs/mcp-bundle-isolation.md`](../../deploy/docs/mcp-bundle-isolation.md) (RuntimeClass·Egress allowlist·서명 차등). Egress 검증: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block-verify.md) · [`egress-allowlist.js`](egress-allowlist.js).  
 resolve: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-resolve.md).  
 요청자: [`../agent-invoke/DESIGN.md`](../agent-invoke/DESIGN.md) (`aura.rpc.mcp.tool`).
 
 **이 문서 범위:** 공유 툴 핸들러 · **async MQT**(`aura.tasks.mcp.invoke`) · **sync Core RR**(`aura.rpc.mcp.tool`, minReplicas ≥ 2) · 분리 배포.  
-**Non-goals (본 슬라이스):** RuntimeClass/Egress **라이브 apply·실측** · live NATS Core 클라이언트 배선 · live LLM · F1 샤딩 · full MCP initialize/세션 서버 · legacy HTTP+SSE transport. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))
+**Non-goals (본 슬라이스):** live NATS Core 클라이언트 배선 · live LLM · F1 샤딩 · full MCP initialize/세션 서버 · legacy HTTP+SSE transport · CNI FQDN 라이브 프로브. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))
 
 ---
 
@@ -71,6 +71,8 @@ plaintext `secrets` from resolve → 거부.
 bash deploy/scripts/check-mcp-invoke-dual.sh
 bash deploy/scripts/check-mcp-streamable-http.sh
 bash deploy/scripts/check-mcp-bundle-isolation.sh
+bash deploy/scripts/check-egress-block-verify.sh
 node services/mcp-invoke/handler.selftest.js
 node services/mcp-invoke/streamable-http.selftest.js
+node services/mcp-invoke/egress-allowlist.selftest.js
 ```
