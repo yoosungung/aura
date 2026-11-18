@@ -111,7 +111,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN — [`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md) · `check-memory-embed-guard.sh` · `smoke-memory-embed-guard.sh`
 - [x] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2 — [`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md) · `check-memory-hnsw-multitenant.sh` · `smoke-memory-hnsw-multitenant.sh`
 - [x] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정) — [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md) · `check-memory-embedding-active.sh` (`BAAI/bge-m3` · `1` · `1024`)
-- [ ] `services/memory/DESIGN.md` + store MQT — 매 트랜잭션 `set_config(..., true)`
+- [x] `services/memory/DESIGN.md` + store MQT — 매 트랜잭션 `set_config(..., true)` (`services/memory/` · `deploy/k8s/memory-store/` · `check-memory-store.sh`)
 - [x] (스모크) 무차원 HNSW 실패; short_term→embed 거부 (`smoke-memory-embed-guard.sh`; live 또는 `SMOKE_MEMORY_EMBED_GUARD_STATIC=1`)
 
 **검증 체크리스트 (권고 반영)**
