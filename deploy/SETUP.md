@@ -327,6 +327,21 @@ bash deploy/scripts/check-memory-capture.sh   # DESIGN + MQT + PG-forbidden self
 | PG | **금지** — Pooler DSN/`set_config`/`query` 미사용 |
 | Non-goals | 라이브 LLM Gateway · `content_ref` Object Store 업로드 · live apply 필수 |
 
+### svc-memory embed MQT (M2 · short_term 스킵)
+
+```bash
+bash deploy/scripts/check-memory-embed.sh   # DESIGN + MQT + short_term skip selftest (no cluster)
+```
+
+| 항목 | 값 |
+|------|-----|
+| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Embed MQT 절) |
+| 코드 | `services/memory/embed/handler.js` (+ `store/tenant-tx.js`) |
+| 매니페스트 | [`k8s/memory-embed/`](k8s/memory-embed/) — topic `aura.tasks.memory.embed` · consumer `aura_memory_embed` · resp/error `aura.events.memory.embedded` / `.embed.error` · `minReplicaCount=0` |
+| short_term | **스킵** — PG INSERT 미시도 (`skipped_short_term`) |
+| embeddable | episodic/long_term/semantic → `set_config(..., true)` + 활성 `model_key` stub (HNSW); BM25=`content_tsv` |
+| Non-goals | 라이브 TEI · 실 halfvec INSERT · recall · live apply 필수 |
+
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
 ```bash
