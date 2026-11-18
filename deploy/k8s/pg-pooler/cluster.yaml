@@ -1,0 +1,17 @@
+# Minimal CNPG Cluster for M1 Pooler attach.
+# Multi-AZ / PITR topology expansion = ROADMAP ticket sibling (f320c964).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: aura-pg
+  namespace: aura
+  labels:
+    aura.db/role: cluster
+spec:
+  instances: 1
+  storage:
+    size: 10Gi
+  bootstrap:
+    initdb:
+      database: aura
+      owner: aura

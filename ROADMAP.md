@@ -21,10 +21,11 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-17 | **그래프 순회 방어**: edges out+**in** partial(`valid_until IS NULL`); max_depth=2, per_hop_limit=50, visited, supernode cap. M1 인덱스·한도 수치 고정, M4 구현 | 슈퍼노드 1–2홉 fan-out 폭발 |
 | 2026-11-17 | **테넌트 Fair Queue**: Gateway Token Bucket + max_inflight **필수**(NATS Account와 독립). 상태=NATS KV 권장. SLO 미달 시 F1 테넌트 subject 샤딩 | 공유 AURA_TASKS FIFO → noisy neighbor 기아 |
 | 2026-11-17 | **P2 엔터프라이즈**: 샌드박스(gVisor/Kata)+Egress NP; NATS mTLS·시크릿 TTL 캐시; GDPR content_ref+crypto-shred; **LLM Gateway**; sync Warm p95 < 1–2s; PG Multi-AZ/PITR; MaxDeliver+AURA_DLQ | 1만+/10년 보안·비용·컴플라이언스 |
-| (M1) | 활성 임베딩 실값 + BM25 + Pooler 제품 + iterative_scan + **PG HA/RPO/RTO 초안** | M1에서 고정 |
+| (M1) | 활성 임베딩 실값 + iterative_scan + **PG HA/RPO/RTO 초안** | M1에서 고정 (BM25·Pooler 제품은 2026-11-18 확정) |
 | 2026-11-17 | **sync Warm 단일 홉 p95 ≈ 0.6ms** (`smoke-sync-rpc.sh` n=20, Core local). 연쇄 목표 p95 < 1–2s 유지. async 콜드 p95는 별도 기입 | V0.2 스모크 |
 | 2026-11-18 | **PG + Pooler 스모크 계획** 문서화 — [`deploy/docs/pg-pooler-smoke-plan.md`](deploy/docs/pg-pooler-smoke-plan.md) (설치·제품 확정·실측은 M1 V1.1) | M0 권장 체크 |
 | 2026-11-18 | **BM25/전문 = stock `tsvector` + `GIN` + `ts_rank`/`ts_rank_cd`** (`content_tsv`). ParadeDB/`pg_search` **M1 비채택** | §6 DDL 기본과 일치; 추가 확장·`shared_preload`·CNPG ImageVolume(PG18+) 없이 Pooler/RLS M1과 병행 가능. 순수 Okapi BM25 품질 갭이 실측되면 이후 `pg_search` 재평가 |
+| 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only** (`aura-pg-pooler…`). standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator; §2.1·[`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/)·`check-pg-pooler.sh`. V1.1 RLS 실측은 `92cccf21` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -91,7 +92,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] BM25 구현체 결정 → 결정 로그 기입 (`tsvector`+`ts_rank`; ParadeDB M1 비채택)
-- [ ] **PgBouncer(또는 CNPG Pooler) Transaction Pooling** 설치; 앱 DSN = pooler only → 결정 로그에 제품명 기입
+- [x] **CloudNativePG `Pooler`** Transaction Pooling 설치 매니페스트; 앱 DSN = pooler only → 결정 로그에 제품명 기입 (`deploy/k8s/pg-pooler` · `install-pg-pooler.sh` · `check-pg-pooler.sh`; V1.1 RLS 실측=`92cccf21`)
 - [ ] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출
 - [ ] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획)
 - [ ] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS
@@ -110,7 +111,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 | # | 검증 | 합격 |
 |---|------|------|
-| V1.1 | PgBouncer transaction pooling + RLS `set_config(..., true)` | 풀 재사용 후 테넌트 오염 없음; `set_config(..., false)` 경로 없음 |
+| V1.1 | CNPG Pooler transaction pooling + RLS `set_config(..., true)` | 풀 재사용 후 테넌트 오염 없음; `set_config(..., false)` 경로 없음 |
 | V1.2 | 임베딩 세대 교체 DDL | 제2 `model_key` 파티션 추가·HNSW·전환·DETACH 문서/스크립트 존재(실측 또는 dry-run) |
 | V1.3 | items/audit 파티션 + short_term 만료 정책 | 비파티션 힙 없음; DROP/TTL 정책이 DESIGN에 수치와 함께 명시 |
 
@@ -232,7 +233,6 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 ## 미결정
 
 - 활성 임베딩 모델·version·dims(N) 실값 — **M1** (레이아웃 방안 B·halfvec는 결정됨)
-- Pooler 제품(PgBouncer vs CNPG Pooler) — **M1** (Pooler 필수·transaction·GUC `is_local`은 결정됨)
 - iterative_scan만으로 충분한지 vs T1/T2 승격 — **M1 픽스처 결과**
 - 그래프 `per_hop_limit` / `supernode_degree_cap` 최종 수치 — **M1 DESIGN 초안 → M4 부하 테스트**
 - async 콜드스타트 p95 확정 수치 — **M0 측정 후**

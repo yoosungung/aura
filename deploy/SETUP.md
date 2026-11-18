@@ -3,7 +3,8 @@
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
-**후속:** PG+Pooler 스모크 **계획**([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md); 설치·실측은 M1) · Fission MQT Term 미들웨어 이식 · async 콜드 p95.
+**후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  
+**M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh`. V1.1 RLS 실측=`smoke-pg-pooler.sh`(후속).
 
 ## 전제
 
