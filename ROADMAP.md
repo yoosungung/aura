@@ -44,6 +44,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **inflight `release` + `ensureAdmitted` 우회 재확인 M3 고정** — terminal stream/event → `release`(멱등) · `agent_invoke` poison 429 · live done 구독 Deployment=후속 | [`deploy/docs/gateway-inflight-release.md`](deploy/docs/gateway-inflight-release.md)·`check-gateway-inflight-release.sh` |
 | 2026-11-19 | **`mcp_invoke` 이원화 M3 고정** — MQT `aura.tasks.mcp.invoke`/`aura_mcp_invoke`/`minReplicaCount=0` · sync `aura.rpc.mcp.tool` Warm **MinScale≥2**+`aura-mcp-invoke-rr` · PG 금지 · 외부 Streamable HTTP=후속 | [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md)·`check-mcp-invoke-dual.sh` · [`services/mcp-invoke/`](services/mcp-invoke/) |
 | 2026-11-19 | **외부 MCP Streamable HTTP 어댑터 M3 고정** — Spec `2025-06-18` · `tools/call` POST · JSON/SSE · cfg `transport`/`mcp_endpoint` · injectable fetch · initialize/sandbox/Egress=후속 | [`deploy/docs/mcp-streamable-http.md`](deploy/docs/mcp-streamable-http.md)·`check-mcp-streamable-http.sh` · [`services/mcp-invoke/streamable-http.js`](services/mcp-invoke/streamable-http.js) |
+| 2026-11-19 | **MCP·번들 격리 수준 M3 고정** — RuntimeClass **기본=`gvisor`(`runsc`)** · 고위험=`kata` · Egress deny-default allowlist(NATS·Pooler·LLM Gateway·`aura-content`·등록 MCP·DNS) · 플랫폼 서명 vs 커스텀 차등(서명도 Egress 동일; 미서명+비샌드박스 금지). 라이브 NP/실측=후속 | §9.1 · [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)·`check-mcp-bundle-isolation.sh` |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 M3 고정** — Core RR `aura-control-resolve-rr` **replicas≥2** · Warm `MinScale≥2` · queue-group `aura-control-resolve` · stub/injectable `bridge.js` · Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`agent_checkpoints` 예외 테이블 DDL M3 고정** — 이름=`agent_checkpoints` · FORCE RLS · UNIQUE(tenant,run,seq) · kind turn/tool/final · state JSONB+`content_ref`(256KB+) · writer=`agent_invoke` only · Pooler+`set_config` · writer/resume=후속 | §1 #10·§6.1.2 · [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md)·`agent_checkpoints.sql`·`check-agent-checkpoints.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
@@ -188,7 +189,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `aura.rpc.control.resolve` 브리지 minReplicas ≥ 2 — [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) · [`services/control/`](services/control/) · `deploy/k8s/control-resolve/` · `check-control-resolve-bridge.sh`
 - [x] 체크포인트 예외 테이블 DDL (§6) — [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md) · `agent_checkpoints.sql` · `check-agent-checkpoints.sh` (writer/resume=후속)
 - [x] 외부 MCP Streamable HTTP 어댑터 — [`deploy/docs/mcp-streamable-http.md`](deploy/docs/mcp-streamable-http.md) · [`services/mcp-invoke/streamable-http.js`](services/mcp-invoke/streamable-http.js) · `check-mcp-streamable-http.sh`
-- [ ] **외부/커스텀 MCP·번들 격리 수준 정의(문서+정책)**: Egress deny-default allowlist; gVisor/Kata(또는 동등) RuntimeClass; 플랫폼 서명 vs 커스텀 차등
+- [x] **외부/커스텀 MCP·번들 격리 수준 정의(문서+정책)**: Egress deny-default allowlist; gVisor(`runsc`) 기본 · Kata 고위험 RuntimeClass; 플랫폼 서명 vs 커스텀 차등 — [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md) · `check-mcp-bundle-isolation.sh`
 - [ ] **Egress 차단 검증**: 샌드박스에서 LLM Gateway·NATS·Pooler·허용 MCP 호스트 외 연결 실패
 - [ ] **LLM Gateway** 최소 + Function Egress는 Gateway만
 - [ ] **NATS mTLS** + 시크릿 마스킹/TTL 캐시 무효화
@@ -200,7 +201,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 |---|------|------|
 | V3.1 | `aura.stream.*` 토큰 스트리밍 | 첫 `token`/`tool.started`가 done **이전**; Core(비-JetStream) |
 | V3.2 | 테넌트별 Rate Limiting | A 폭주 시 B 기아 없음; 쿼터 없는 publish 경로 없음 |
-| V3.3 | 커스텀/외부 MCP Egress·샌드박스 | 정책 문서 + 스모크에서 비허용 Egress 차단; 격리 수준(gVisor/Kata 등) 결정 로그 기입 |
+| V3.3 | 커스텀/외부 MCP Egress·샌드박스 | 정책 문서([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md))+결정 로그(`gvisor`) **기입됨**; 스모크(비허용 Egress 차단)=후속 |
 
 **성공 기준**
 
@@ -264,7 +265,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - NATS account 격리 — **출시 후**
 - 테넌트 rate/burst/inflight·플랜 tier 최종 숫자 — **M3 DESIGN**(기능은 M3 필수)
 - F1 테넌트 subject 샤딩 — **M3 노이지 픽스처 후**
-- gVisor vs Kata 최종 선택 — **M3 V3.3**
+- ~~gVisor vs Kata 최종 선택~~ — **M3 고정:** 기본=`gvisor`(`runsc`) · 고위험=`kata` ([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)); 라이브 apply·실측=후속
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**
 - RPO/RTO **드릴 실측으로 초안 교체** — 초안(≤5m/≤1h)은 M1 고정; 확정 실측 **M4**
 - 암호화 키 KMS 제품 — **M4 erase 직전**
