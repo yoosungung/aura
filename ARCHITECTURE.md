@@ -660,8 +660,8 @@ Function은 `aura.rpc.control.resolve`(또는 브리지)로 `source_meta`+`user_
 | 항목 | 계약 |
 |------|------|
 | 토폴로지 | **Multi-AZ** 단일 논리 클러스터(CNPG/동등). “디스크 1장” 단일 장애점 금지 |
-| Read | recall·읽기 많은 경로 **Read Replica** 오프로드 가능(쓰기 `svc-memory`는 primary) |
-| 백업 | **PITR** 연속 백업. RPO/RTO 수치는 ROADMAP·`deploy/SETUP`에 기입(초안 RPO ≤ 5m, RTO ≤ 1h — 확정은 M1) |
+| Read | recall·읽기 많은 경로 **Read Replica** 오프로드 가능(쓰기 `svc-memory`는 primary). 앱은 **RO Pooler**만 — `-ro` Service 직접 연결 금지(§2.1) |
+| 백업 | **PITR** 연속 백업(Barman Cloud object store). **M1 초안** RPO ≤ 5m, RTO ≤ 1h — 수치·토폴로지 본문 [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md). 드릴 실측·확정은 M4 |
 | 훈련 | 정기 복구 드릴(분기 1회 이상) |
 
 ### 9.7 DLQ · Poison Pill

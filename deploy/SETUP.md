@@ -4,7 +4,8 @@
 
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
 **후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  
-**M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh` / **V1.1** `smoke-pg-pooler.sh`(+ `rls-smoke-fixture.sql`).
+**M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh` / **V1.1** `smoke-pg-pooler.sh`(+ `rls-smoke-fixture.sql`).  
+**M1 PG HA 초안:** [docs/pg-ha-pitr-topology.md](docs/pg-ha-pitr-topology.md) · `k8s/pg-pooler/cluster-ha.draft.yaml` · `check-pg-ha.sh` — **RPO ≤ 5m · RTO ≤ 1h** (드릴 실측=M4).
 
 ## 전제
 
@@ -189,6 +190,21 @@ bash deploy/scripts/smoke-pg-pooler.sh     # live (a)–(c) via aura-pg-pooler S
 | 픽스처 | `deploy/k8s/pg-pooler/rls-smoke-fixture.sql` (`FORCE ROW LEVEL SECURITY`) |
 | 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` |
 | 합격 | 풀 재사용 후 타 테넌트 미노출; `set_config(..., false)` 경로 없음 |
+
+### PG Multi-AZ / PITR (M1 초안 · apply 비범위)
+
+```bash
+bash deploy/scripts/check-pg-ha.sh   # draft shape + RPO/RTO doc gate (no cluster)
+```
+
+| 항목 | M1 초안 |
+|------|---------|
+| 토폴로지 | CNPG `instances≥3` + zone anti-affinity — [`docs/pg-ha-pitr-topology.md`](docs/pg-ha-pitr-topology.md) |
+| 참고 매니페스트 | `k8s/pg-pooler/cluster-ha.draft.yaml` (**kustomization 미포함**; 값 채운 뒤 별도 apply) |
+| **RPO** | **≤ 5분** (연속 WAL archive 전제) |
+| **RTO** | **≤ 1시간** (페일오버 또는 PITR 신규 Cluster+DSN 전환) |
+| recall | 옵트인 `aura-pg-pooler-ro` (`type: ro`); store는 RW Pooler only |
+| 실측 | M4 PITR 복구 드릴 — 초안 수치 교체 |
 
 ## 제거 (개발 클러스터만)
 

@@ -1,0 +1,56 @@
+# DRAFT ONLY — not in kustomization.yaml. Do not kubectl apply as-is.
+# Fill object-store endpoint/credentials + StorageClass before a dedicated apply ticket.
+# Topology narrative: ../../docs/pg-ha-pitr-topology.md
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: aura-pg
+  namespace: aura
+  labels:
+    aura.db/role: cluster
+    aura.db/ha: multi-az-draft
+spec:
+  instances: 3
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 10Gi
+    # storageClass: <az-aware-class>
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: topology.kubernetes.io/zone
+  bootstrap:
+    initdb:
+      database: aura
+      owner: aura
+  backup:
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: s3://REPLACE_BUCKET/aura-pg/
+      # endpointURL: https://REPLACE_S3_ENDPOINT
+      s3Credentials:
+        accessKeyId:
+          name: aura-pg-backup-creds
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: aura-pg-backup-creds
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+---
+# Optional RO pooler for recall offload (store keeps aura-pg-pooler RW).
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: aura-pg-pooler-ro
+  namespace: aura
+  labels:
+    aura.db/role: pooler-ro
+spec:
+  cluster:
+    name: aura-pg
+  instances: 2
+  type: ro
+  pgbouncer:
+    poolMode: transaction

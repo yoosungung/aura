@@ -26,6 +26,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **PG + Pooler 스모크 계획** 문서화 — [`deploy/docs/pg-pooler-smoke-plan.md`](deploy/docs/pg-pooler-smoke-plan.md) (설치·제품 확정·실측은 M1 V1.1) | M0 권장 체크 |
 | 2026-11-18 | **BM25/전문 = stock `tsvector` + `GIN` + `ts_rank`/`ts_rank_cd`** (`content_tsv`). ParadeDB/`pg_search` **M1 비채택** | §6 DDL 기본과 일치; 추가 확장·`shared_preload`·CNPG ImageVolume(PG18+) 없이 Pooler/RLS M1과 병행 가능. 순수 Okapi BM25 품질 갭이 실측되면 이후 `pg_search` 재평가 |
 | 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only** (`aura-pg-pooler…`). standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator; §2.1·[`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/)·`check-pg-pooler.sh`. V1.1 RLS 실측은 `92cccf21` |
+| 2026-11-18 | **PG Multi-AZ / PITR 토폴로지 초안** — instances=3 + zone anti-affinity; Barman Cloud WAL+base; **RPO ≤ 5m · RTO ≤ 1h**; recall = RO Pooler(`type: ro`) | §9.6·[`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)·`cluster-ha.draft.yaml`. 라이브 apply·PITR 드릴 실측은 후속/M4. 비용·리전 실값 비범위 |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -94,7 +95,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] BM25 구현체 결정 → 결정 로그 기입 (`tsvector`+`ts_rank`; ParadeDB M1 비채택)
 - [x] **CloudNativePG `Pooler`** Transaction Pooling 설치 매니페스트; 앱 DSN = pooler only → 결정 로그에 제품명 기입 (`deploy/k8s/pg-pooler` · `install-pg-pooler.sh` · `check-pg-pooler.sh`; V1.1 RLS 실측=`92cccf21`)
 - [x] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출 (`rls-smoke-fixture.sql` · `smoke-pg-pooler.sh`)
-- [ ] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획)
+- [x] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획) — [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)
 - [ ] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS
 - [ ] `memory_audit` **월 RANGE** 파티션
 - [ ] **short_term 만료 정리 정책** 문서화: 핫 일수·월 파티션 DROP 주기·담당 태스크(`aura.tasks.memory.ttl`) — DESIGN에 수치 고정
@@ -244,7 +245,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - F1 테넌트 subject 샤딩 — **M3 노이지 픽스처 후**
 - gVisor vs Kata 최종 선택 — **M3 V3.3**
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**
-- RPO/RTO 확정 — **M1**
+- RPO/RTO **드릴 실측으로 초안 교체** — 초안(≤5m/≤1h)은 M1 고정; 확정 실측 **M4**
 - 암호화 키 KMS 제품 — **M4 erase 직전**
 
 ---
