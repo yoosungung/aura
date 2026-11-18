@@ -5,8 +5,8 @@
 관련: [`mcp-streamable-http.md`](mcp-streamable-http.md) · [`mcp-invoke-dual.md`](mcp-invoke-dual.md) · [`../services/mcp-invoke/DESIGN.md`](../../services/mcp-invoke/DESIGN.md).
 
 **이 문서 범위:** RuntimeClass 선택 · Egress **deny-default allowlist** · 플랫폼 서명 vs 커스텀 차등을 **수치·이름과 함께 고정**.  
-**Non-goals:** LLM Gateway **본구현** · NATS mTLS · F1 테넌트 샤딩 · Streamable HTTP initialize 세션 서버 · gVisor `runsc` **노드 설치**.  
-Egress **매니페스트·오프라인 검증**: [`egress-block-verify.md`](egress-block-verify.md) · `check-egress-block-verify.sh` (live 클러스터는 Non-goal for CI PASS).
+**Non-goals:** NATS mTLS · F1 테넌트 샤딩 · Streamable HTTP initialize 세션 서버 · gVisor `runsc` **노드 설치**.  
+LLM Gateway 최소: [`llm-gateway.md`](llm-gateway.md). Egress **매니페스트·오프라인 검증**: [`egress-block-verify.md`](egress-block-verify.md) · `check-egress-block-verify.sh` (live 클러스터는 Non-goal for CI PASS).
 
 ---
 

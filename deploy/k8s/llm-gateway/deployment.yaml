@@ -1,0 +1,77 @@
+# LLM Gateway — always-on HA (ARCHITECTURE §9.4). Sole Function→provider exit.
+# Live provider wiring = injectable surface in services/llm-gateway (this slice: contract + stub).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-llm-gateway
+  namespace: aura
+  labels:
+    aura.runtime/class: llm-gateway
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-llm-gateway
+    app: aura-llm-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aura-llm-gateway
+  template:
+    metadata:
+      labels:
+        aura.runtime/class: llm-gateway
+        app.kubernetes.io/part-of: aura
+        app.kubernetes.io/name: aura-llm-gateway
+        app: aura-llm-gateway
+    spec:
+      containers:
+        - name: llm-gateway
+          image: node:22-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: AURA_LLM_GATEWAY_MODE
+              value: contract
+          command: ["node", "-e"]
+          args:
+            - |
+              const http = require('http');
+              const port = Number(process.env.PORT || 8080);
+              http.createServer((req, res) => {
+                if (req.url === '/healthz') {
+                  res.writeHead(200, { 'content-type': 'text/plain' });
+                  res.end('ok');
+                  return;
+                }
+                if (req.method === 'POST' && req.url && req.url.startsWith('/v1/chat/completions')) {
+                  res.writeHead(503, { 'content-type': 'application/json' });
+                  res.end(JSON.stringify({
+                    error: 'live_provider_wiring_pending',
+                    hint: 'services/llm-gateway + deploy/docs/llm-gateway.md',
+                  }));
+                  return;
+                }
+                res.writeHead(404, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({ error: 'not_found' }));
+              }).listen(port, () => console.log('aura-llm-gateway health on', port));
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
