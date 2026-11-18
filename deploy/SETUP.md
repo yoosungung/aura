@@ -357,6 +357,20 @@ bash deploy/scripts/check-memory-recall.sh   # DESIGN + hybrid RRF + GUCs + Core
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject · 앱 post-filter |
 | Non-goals | 라이브 TEI · graph walk 본구현(M4) · live apply 필수 |
 
+### Agent 주입 계약 (M2 수치 고정 · 패킹 비범위)
+
+```bash
+bash deploy/scripts/check-agent-inject-contract.sh   # doc gate: slots + 2048/512/768/768 + recall-only
+```
+
+| 항목 | M2 고정 |
+|------|---------|
+| 문서 | [`docs/agent-inject-contract.md`](docs/agent-inject-contract.md) |
+| 소스 | `aura.rpc.memory.recall` `items[]`만 · 원문/`content_ref` 덤프 금지 |
+| 토큰 | 합 **2048** · short_term **512** · episodic **768** · long_term+semantic **768** |
+| 아이템 | short_term **4** · `top_k` **12** |
+| 구현 | 패킹=`agent_invoke` M3 |
+
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
 ```bash

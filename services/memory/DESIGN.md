@@ -89,6 +89,8 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 `AURA_DATABASE_HOST`는 `aura-pg-pooler`만(RO pooler OK). Agent는 이 RPC만 사용한다(§1 #9).
 
+**Agent 주입 (M2 계약 · 패킹=M3):** recall `items[]`만 프롬프트 슬롯에 넣는다 — short_term / episodic / long_term+semantic 분리, 합계 **2048** 토큰(short **512** / epi **768** / lt+sem **768**), short 아이템 **4** · `top_k` **12**. 원문 전량·`content_ref` 우회 덤프 금지. 수치·금지: [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · 게이트 `check-agent-inject-contract.sh`. `agent_invoke` 패킹 본구현은 M3.
+
 ---
 
 ## 트랜잭션 헬퍼
@@ -104,6 +106,7 @@ store·embed·**recall** handler는 이 헬퍼만 경유한다(short_term embed 
 bash deploy/scripts/check-memory-store.sh          # DESIGN + store MQT + set_config(..., true) + selftests
 bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_term skip + selftests
 bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + GUCs + Warm Pool + no MQT + selftests
+bash deploy/scripts/check-agent-inject-contract.sh # Agent 주입 슬롯·토큰 예산 문서 게이트
 node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
 node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
@@ -114,5 +117,5 @@ node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant
 
 ## 관련 링크
 
-- §2.1 Pooler · §3.2 store/embed · §3.3 recall subject · §6.3 hybrid · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
-- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF»
+- §2.1 Pooler · §3.2 store/embed · §3.3 recall subject · §6.3 hybrid · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
+- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약»
