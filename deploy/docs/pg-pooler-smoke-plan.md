@@ -4,7 +4,7 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M0(계획) · M1 V1.1(설치·실행).
 
 **이 문서 범위:** 스모크 케이스·매핑 + (설치) CNPG Cluster/Pooler 매니페스트·DSN 계약 + V1.1 실측 스크립트.  
-**Non-goals:** 전체 `memory_*` DDL · `services/memory` 코드 · Multi-AZ(`f320c964`).  
+**Non-goals:** 전체 `memory_*` DDL · `services/memory` 코드 · Multi-AZ/PITR 본문([`pg-ha-pitr-topology.md`](pg-ha-pitr-topology.md)).  
 **제품 확정 (2026-11-18):** **CloudNativePG `Pooler`** — ROADMAP 결정 로그 · [`../k8s/pg-pooler`](../k8s/pg-pooler/).
 
 ---

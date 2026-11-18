@@ -19,7 +19,8 @@ require "pathname"
 dir = Pathname(ARGV[0])
 
 def load_docs(dir)
-  dir.glob("*.yaml").flat_map do |path|
+  # *.draft.yaml = HA/PITR reference only (not applied; not gate invariants)
+  dir.glob("*.yaml").reject { |p| p.basename.to_s.end_with?(".draft.yaml") }.flat_map do |path|
     YAML.load_stream(path.read).compact.map { |doc| [path.basename.to_s, doc] }
   end
 end

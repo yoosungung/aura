@@ -1,5 +1,5 @@
-# Minimal CNPG Cluster for M1 Pooler attach.
-# Multi-AZ / PITR topology expansion = ROADMAP ticket sibling (f320c964).
+# Minimal CNPG Cluster for M1 Pooler attach (instances=1 smoke).
+# Multi-AZ / PITR target: ../../docs/pg-ha-pitr-topology.md · cluster-ha.draft.yaml (f320c964).
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
