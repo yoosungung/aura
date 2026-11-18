@@ -91,7 +91,7 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 
 | 규칙 | 내용 |
 |------|------|
-| 제품 | **CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트는 **pooler Service DNS만** (예: `*.pooler.<ns>.svc`). standalone PgBouncer는 CNPG 미도입 폴백만. |
+| 제품 | **CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트는 **pooler Service DNS만** (예: `aura-pg-pooler.aura.svc.cluster.local`). standalone PgBouncer는 CNPG 미도입 폴백만. |
 | 모드 | **transaction pooling** 기본. session pooling을 RLS+GUC 경로에 쓰지 않는다. |
 | 테넌트 바인딩 | 매 요청/트랜잭션 시작: `SELECT set_config('app.tenant_id', $1, true);` 후 쿼리. `is_local=true` → COMMIT/ROLLBACK 시 GUC 해제. |
 | 금지 | Function → PG Pod IP/직접 포트·primary Service; `SET app.tenant_id = ...`; `set_config(..., false)`; 요청 간 커넥션에 테넌트 상태 의존 |

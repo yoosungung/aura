@@ -25,7 +25,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-17 | **sync Warm 단일 홉 p95 ≈ 0.6ms** (`smoke-sync-rpc.sh` n=20, Core local). 연쇄 목표 p95 < 1–2s 유지. async 콜드 p95는 별도 기입 | V0.2 스모크 |
 | 2026-11-18 | **PG + Pooler 스모크 계획** 문서화 — [`deploy/docs/pg-pooler-smoke-plan.md`](deploy/docs/pg-pooler-smoke-plan.md) (설치·제품 확정·실측은 M1 V1.1) | M0 권장 체크 |
 | 2026-11-18 | **BM25/전문 = stock `tsvector` + `GIN` + `ts_rank`/`ts_rank_cd`** (`content_tsv`). ParadeDB/`pg_search` **M1 비채택** | §6 DDL 기본과 일치; 추가 확장·`shared_preload`·CNPG ImageVolume(PG18+) 없이 Pooler/RLS M1과 병행 가능. 순수 Okapi BM25 품질 갭이 실측되면 이후 `pg_search` 재평가 |
-| 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only**. standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator 표면; §2.1 transaction·`set_config(..., true)` 계약과 정합. 설치·V1.1 스모크는 후속 체크 |
+| 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only** (`aura-pg-pooler…`). standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator; §2.1·[`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/)·`check-pg-pooler.sh`. V1.1 RLS 실측은 `92cccf21` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -92,7 +92,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] BM25 구현체 결정 → 결정 로그 기입 (`tsvector`+`ts_rank`; ParadeDB M1 비채택)
-- [x] **CloudNativePG `Pooler`** Transaction Pooling 채택; 앱 DSN = pooler only → 결정 로그에 제품명 기입 (클러스터 설치·스모크는 V1.1/`92cccf21`)
+- [x] **CloudNativePG `Pooler`** Transaction Pooling 설치 매니페스트; 앱 DSN = pooler only → 결정 로그에 제품명 기입 (`deploy/k8s/pg-pooler` · `install-pg-pooler.sh` · `check-pg-pooler.sh`; V1.1 RLS 실측=`92cccf21`)
 - [ ] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출
 - [ ] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획)
 - [ ] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS

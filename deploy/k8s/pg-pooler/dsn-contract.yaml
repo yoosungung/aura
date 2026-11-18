@@ -1,0 +1,18 @@
+# App DSN contract (ARCHITECTURE §1 #3 · §2.1): host = pooler Service only.
+# Password: Secret aura-pg-app key `password` (CNPG bootstrap owner).
+# Forbidden hosts: aura-pg-rw / aura-pg-r / aura-pg-ro / PG Pod IP.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aura-pg-dsn
+  namespace: aura
+  labels:
+    aura.db/role: pooler-dsn
+data:
+  AURA_DATABASE_HOST: aura-pg-pooler.aura.svc.cluster.local
+  AURA_DATABASE_PORT: "5432"
+  AURA_DATABASE_NAME: aura
+  AURA_DATABASE_USER: aura
+  # Example URL shape (password from Secret — do not commit plaintext):
+  # postgresql://aura:${PASSWORD}@aura-pg-pooler.aura.svc.cluster.local:5432/aura
+  AURA_DATABASE_URL_TEMPLATE: postgresql://aura:PASSWORD@aura-pg-pooler.aura.svc.cluster.local:5432/aura

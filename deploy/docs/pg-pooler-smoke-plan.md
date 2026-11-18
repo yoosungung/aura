@@ -3,9 +3,9 @@
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#4 · §2.1.  
 일정: [ROADMAP.md](../../ROADMAP.md) M0(계획) · M1 V1.1(설치·실행).
 
-**이 문서 범위:** M1에서 돌릴 스모크 케이스·매핑·스크립트 이름만 고정한다.  
-**Non-goals (이 슬라이스·이 PR):** PG/Pooler 클러스터 실측 · DDL · `services/memory` 코드.  
-**제품 확정 (2026-11-18):** **CloudNativePG `Pooler`** — ROADMAP 결정 로그.
+**이 문서 범위:** 스모크 케이스·매핑 + (설치) CNPG Cluster/Pooler 매니페스트·DSN 계약.  
+**Non-goals:** 클러스터 **실측**(V1.1) · DDL · RLS 통합(`92cccf21`) · `services/memory` 코드 · Multi-AZ(`f320c964`).  
+**제품 확정 (2026-11-18):** **CloudNativePG `Pooler`** — ROADMAP 결정 로그 · [`../k8s/pg-pooler`](../k8s/pg-pooler/).
 
 ---
 
@@ -18,11 +18,12 @@
 
 ### 앱 DSN 계약
 
-- Secret/`DATABASE_URL`(또는 동등) 호스트 = **pooler Service DNS만** (예: `aura-pg-pooler.<ns>.svc`).
-- PG Pod IP · CNPG **primary/read-write Service** · NodePort 직접 연결 **금지** (ARCHITECTURE §1 #3 · §2.1).
-- `services/memory` DESIGN·매니페스트가 생길 때 동일 규칙을 복사하지 말고 이 절·§2.1을 참조한다.
+- ConfigMap `aura-pg-dsn` / Secret URL 호스트 = **`aura-pg-pooler.aura.svc.cluster.local`만**.
+- PG Pod IP · CNPG **`aura-pg-rw` / `-r` / `-ro`** · NodePort 직접 연결 **금지** (ARCHITECTURE §1 #3 · §2.1).
+- `services/memory` DESIGN이 생길 때 동일 규칙을 복사하지 말고 이 절·§2.1·`aura-pg-dsn`을 참조한다.
 
-설치·매니페스트·실측은 **V1.1** / child `92cccf21`(RLS 통합 테스트)에서 수행한다.
+**설치 (이 슬라이스):** [`../k8s/pg-pooler`](../k8s/pg-pooler/) · `install-pg-pooler.sh` · 정적 게이트 `check-pg-pooler.sh`.  
+**실측 (V1.1 / `92cccf21`):** `smoke-pg-pooler.sh` + RLS 재사용 픽스처.
 
 ---
 
@@ -30,7 +31,8 @@
 
 실행 주체: **`svc-memory` store** (메모리 PG 유일 쓰기). recall은 동일 DSN 규칙·`set_config(..., true)`를 따르되, V1.1 합격의 쓰기 경로는 store.
 
-예상 스크립트(M1에 신설; **이 PR에 파일 없음**): `deploy/scripts/smoke-pg-pooler.sh`
+정적 게이트: `deploy/scripts/check-pg-pooler.sh` (클러스터 불필요).  
+실측 스크립트(V1.1에 신설): `deploy/scripts/smoke-pg-pooler.sh`
 
 | ID | 케이스 | 기대 | V1.1 |
 |----|--------|------|------|
@@ -46,7 +48,7 @@
 ## M1 실행 체크리스트 (이 계획의 소비자)
 
 1. ~~Pooler 제품 택일 → ROADMAP 결정 로그에 **제품명** 기입.~~ **완료** — CloudNativePG `Pooler`.
-2. PG + CNPG Pooler 설치; 앱 Secret/DSN = pooler only.
+2. ~~PG + CNPG Pooler 설치 매니페스트; 앱 DSN = pooler only.~~ **완료** — `deploy/k8s/pg-pooler` · `install-pg-pooler.sh` (클러스터 apply는 로컬/타깃에서 실행).
 3. 최소 RLS 픽스처(테넌트 A/B + `app.tenant_id` GUC) — 스키마는 `services/memory/DESIGN.md`(M1 코드 진입 시).
 4. `deploy/scripts/smoke-pg-pooler.sh` 구현·PASS 증거를 티켓에 남김.
 5. store MQT 경로가 매 트랜잭션 `set_config(..., true)` 호출.

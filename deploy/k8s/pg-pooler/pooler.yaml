@@ -1,0 +1,20 @@
+# CloudNativePG Pooler → managed PgBouncer, transaction pooling (ARCHITECTURE §2.1).
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: aura-pg-pooler
+  namespace: aura
+  labels:
+    aura.db/role: pooler
+spec:
+  cluster:
+    name: aura-pg
+  instances: 2
+  type: rw
+  pgbouncer:
+    poolMode: transaction
+    parameters:
+      default_pool_size: "20"
+      max_client_conn: "400"
+      # Allow libpq startup extras apps may send; drop silently at pooler.
+      ignore_startup_parameters: "extra_float_digits"
