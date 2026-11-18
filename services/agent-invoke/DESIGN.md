@@ -6,7 +6,8 @@
 주입 예산: [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md).
 
 **이 문서 범위:** Fission MQT 핸들러 경계 · RPC 의존(주입) · `aura.stream.<run_id>` publish · done envelope.  
-**Non-goals (본 슬라이스):** Gateway SSE/WS·principal 인가 · Fair Queue/Token Bucket · live LLM Gateway HTTP · live NATS Core 클라이언트 배선 · `mcp_invoke` Function · `aura.rpc.control.resolve` 브리지 Deployment · `agent_checkpoints` DDL.
+**Non-goals (본 슬라이스):** Fair Queue/Token Bucket · live LLM Gateway HTTP · live NATS Core 클라이언트 배선 · `mcp_invoke` Function · `aura.rpc.control.resolve` 브리지 Deployment · `agent_checkpoints` DDL.  
+Gateway SSE/WS·principal: [`../gateway/DESIGN.md`](../gateway/DESIGN.md).
 
 ---
 
