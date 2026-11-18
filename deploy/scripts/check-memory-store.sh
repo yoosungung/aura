@@ -58,7 +58,7 @@ STORE_JS="$K8S_DIR/store.js"
 [[ -f "$PKG" ]] || fail "missing $PKG"
 [[ -f "$STORE_JS" ]] || fail "missing $STORE_JS"
 
-grep -Eq "set_config\('app\.tenant_id',\s*\$1,\s*true\)" "$STORE_JS" \
+grep -Eq 'set_config\('\''app\.tenant_id'\'',\s*\$1,\s*true\)' "$STORE_JS" \
   || fail "store.js Package entry must call set_config(..., true)"
 # package.yaml literal must match store.js bytes
 python3 - "$PKG" "$STORE_JS" <<'PY' || fail "package.yaml literal != store.js"
