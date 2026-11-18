@@ -342,19 +342,20 @@ bash deploy/scripts/check-memory-embed.sh   # DESIGN + MQT + short_term skip sel
 | embeddable | episodic/long_term/semantic → `set_config(..., true)` + 활성 `model_key` stub (HNSW); BM25=`content_tsv` |
 | Non-goals | 라이브 TEI · 실 halfvec INSERT · hybrid RRF recall · live apply 필수 |
 
-### svc-memory recall RPC (M2 · Warm Pool · no MQT)
+### svc-memory recall RPC (M2 · Warm Pool · hybrid RRF)
 
 ```bash
-bash deploy/scripts/check-memory-recall.sh   # DESIGN + Core RR deploy + stub selftest (no cluster)
+bash deploy/scripts/check-memory-recall.sh   # DESIGN + hybrid RRF + GUCs + Core RR deploy (no cluster)
 ```
 
 | 항목 | 값 |
 |------|-----|
 | DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Recall RPC 절) |
-| 코드 | `services/memory/recall/handler.js` (stub · PG 미접속) |
+| 코드 | `services/memory/recall/handler.js` (`mode: hybrid_rrf` · short_term 최근순 + BM25/vector RRF + graph stub) |
 | 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` `newdeploy` **MinScale≥2** · Deployment `aura-memory-recall-rr` **replicas≥2** · subject `aura.rpc.memory.recall` · queue-group `aura-memory-recall` |
-| 금지 | MessageQueueTrigger · JetStream lag ScaledObject |
-| Non-goals | hybrid RRF / iterative_scan SQL · graph walk · live apply 필수 |
+| GUC | Pooler + `set_config(..., true)` · `SET LOCAL hnsw.iterative_scan/ef_search/max_scan_tuples` |
+| 금지 | MessageQueueTrigger · JetStream lag ScaledObject · 앱 post-filter |
+| Non-goals | 라이브 TEI · graph walk 본구현(M4) · live apply 필수 |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
