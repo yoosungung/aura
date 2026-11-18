@@ -181,7 +181,7 @@ MQT: `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.
 
 스케일 아웃(상한)은 CPU/RPS 등 **HTTP·커스텀 메트릭 HPA** 또는 Fission executor min/max로 한다. JetStream lag scaler를 RPC 응답자에 연결하지 않는다.
 
-RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에 수치를 적는다. 초과 본문은 object store `content_ref`만 실는다.
+RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에 수치를 적는다. 초과 본문은 object store `content_ref`만 실는다(제품·스키마: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)).
 
 ### 3.4 이벤트 (Limits)
 
@@ -618,7 +618,9 @@ Function은 `aura.rpc.control.resolve`(또는 브리지)로 `source_meta`+`user_
 }
 ```
 
-`id`는 멱등 키. NATS 페이로드 256KB 초과 또는 PII 본문은 **`content_ref`**(object store, 테넌트/유저 키로 암호화 가능)만 넣고 payload에 원문을 두지 않는다(§9.3).
+`id`는 멱등 키. NATS 페이로드 **256KB(262144) 초과** 또는 PII 본문은 **`content_ref`만** 넣고 `payload`에 원문을 두지 않는다(§9.3).
+
+**Object Store 제품 (M2 / V2.1):** **Garage** (S3-compatible / SigV4). 버킷 가정 `aura-content`; 키 `tenants/{tenant_id}/refs/…`. PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals.
 
 ---
 
