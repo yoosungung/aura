@@ -5,7 +5,7 @@
 스키마·wire 정본: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-resolve.md) · DDL [`deploy/sql/control_meta.sql`](../../deploy/sql/control_meta.sql).
 
 **이 문서 범위:** 컨트롤 메타 쓰기 경계 · resolve 읽기 헬퍼 · Pooler/GUC 전제.  
-**Non-goals (본 슬라이스):** NATS `aura.rpc.control.resolve` 브리지 Deployment · HTTP admin 서버 · tenants/ACL · 시크릿 스토어 구현 · 번들 업로드.
+**Non-goals (본 슬라이스):** NATS `aura.rpc.control.resolve` 브리지 Deployment · HTTP admin 서버 · tenants/ACL · 시크릿 스토어 구현 · 번들 업로드. (`agent_invoke` MQT는 [`../agent-invoke/DESIGN.md`](../agent-invoke/DESIGN.md).)
 
 ---
 
