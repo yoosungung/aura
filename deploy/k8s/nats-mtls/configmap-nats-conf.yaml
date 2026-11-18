@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aura-nats-mtls-conf
+  namespace: aura
+  labels:
+    app: nats
+    app.kubernetes.io/part-of: aura
+    aura.swfactory.io/mtls: "true"
+data:
+  nats.conf: |
+    # Aura NATS mTLS (ARCHITECTURE §9.2) — client connections require verified certs.
+    # Monitoring (:8222) stays HTTP for KEDA /jsz; TLS verify does not apply to monitor.
+    listen: "0.0.0.0:4222"
+    http: "0.0.0.0:8222"
+    jetstream {
+      store_dir: "/data"
+    }
+    tls {
+      cert_file: "/etc/nats/certs/server-cert.pem"
+      key_file:  "/etc/nats/certs/server-key.pem"
+      ca_file:   "/etc/nats/certs/ca.pem"
+      verify:    true
+      timeout:   2
+    }
