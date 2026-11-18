@@ -1,0 +1,33 @@
+# Fission KEDA MQT — aura.tasks.memory.embed (ARCHITECTURE §3.2 · §4.1).
+# minReplicaCount=0 → scale-to-zero when AURA_TASKS lag is idle.
+apiVersion: fission.io/v1
+kind: MessageQueueTrigger
+metadata:
+  name: aura-memory-embed
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-embed
+spec:
+  functionref:
+    name: aura-memory-embed
+    type: name
+  messageQueueType: nats-jetstream
+  mqtkind: keda
+  topic: aura.tasks.memory.embed
+  respTopic: aura.events.memory.embedded
+  errorTopic: aura.events.memory.embed.error
+  maxRetries: 3
+  contentType: application/json
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0
+  maxReplicaCount: 8
+  metadata:
+    stream: AURA_TASKS
+    consumer: aura_memory_embed
+    account: "$G"
+    natsServer: nats://nats.aura.svc.cluster.local:4222
+    natsServerMonitoringEndpoint: nats.aura.svc.cluster.local:8222

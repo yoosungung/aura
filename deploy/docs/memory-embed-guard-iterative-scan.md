@@ -17,7 +17,7 @@
 | 경로 | M1 상태 | 계약 |
 |------|---------|------|
 | **DDL (SoR)** | **고정** | `memory_embeddings.memory_type CHECK (memory_type IN ('episodic','long_term','semantic'))` — `short_term` INSERT는 DB가 거부 |
-| **앱 (계약)** | 문서만 · **구현=M2** | `aura.tasks.memory.embed` / embed Function은 `short_term` 후보를 **스킵·거부**하고 INSERT를 시도하지 않음. CHECK만으로 제어 흐름을 대체하지 않음 |
+| **앱 (계약)** | **M2 구현** | `aura.tasks.memory.embed` / embed Function은 `short_term` 후보를 **스킵·거부**하고 INSERT를 시도하지 않음 (`services/memory/embed/` · `check-memory-embed.sh`). CHECK만으로 제어 흐름을 대체하지 않음 |
 | **recall** | 계약 | `short_term` = 세션 **최근순**(relational)만. HNSW/벡터 경로에 넣지 않음 (§6.3 #2) |
 
 **금지:** Soft path로 `short_term` 행을 임베딩 테이블에 적재 · 앱이 CHECK 실패를 “정상 skip”으로만 삼고 사전 필터를 생략.
