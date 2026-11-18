@@ -96,7 +96,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **CloudNativePG `Pooler`** Transaction Pooling 설치 매니페스트; 앱 DSN = pooler only → 결정 로그에 제품명 기입 (`deploy/k8s/pg-pooler` · `install-pg-pooler.sh` · `check-pg-pooler.sh`; V1.1 RLS 실측=`92cccf21`)
 - [x] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출 (`rls-smoke-fixture.sql` · `smoke-pg-pooler.sh`)
 - [x] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획) — [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)
-- [ ] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS
+- [x] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS (`deploy/sql/memory_items.sql` · `check-memory-items.sh` · `smoke-memory-items.sh`)
 - [ ] `memory_audit` **월 RANGE** 파티션
 - [ ] **short_term 만료 정리 정책** 문서화: 핫 일수·월 파티션 DROP 주기·담당 태스크(`aura.tasks.memory.ttl`) — DESIGN에 수치 고정
 - [ ] `memory_nodes` / `memory_edges` 마이그레이션 + RLS

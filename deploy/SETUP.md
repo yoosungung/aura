@@ -191,6 +191,21 @@ bash deploy/scripts/smoke-pg-pooler.sh     # live (a)–(c) via aura-pg-pooler S
 | 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` |
 | 합격 | 풀 재사용 후 타 테넌트 미노출; `set_config(..., false)` 경로 없음 |
 
+### memory_items 파티션 + RLS (M1)
+
+```bash
+bash deploy/scripts/check-memory-items.sh              # static: LIST + RANGE parents + FORCE RLS
+SMOKE_MEMORY_ITEMS_STATIC=1 bash deploy/scripts/smoke-memory-items.sh
+bash deploy/scripts/smoke-memory-items.sh              # live via pooler: seed months + RLS
+```
+
+| 항목 | 값 |
+|------|-----|
+| DDL | `deploy/sql/memory_items.sql` — LIST(`memory_type`); short_term/episodic → 월 RANGE; long_term/semantic 리프 |
+| RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
+| 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH (TTL 수치·DROP 주기는 후속 티켓) |
+| Non-goals | `memory_audit` · embeddings · `svc-memory` store 본문 |
+
 ### PG Multi-AZ / PITR (M1 초안 · apply 비범위)
 
 ```bash
