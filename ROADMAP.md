@@ -136,7 +136,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [ ] `memory_capture` Function (PG 금지, MQT) → `aura.events.memory.candidates`
+- [x] `memory_capture` Function (PG 금지, MQT) → `aura.events.memory.candidates` (`services/memory-capture/` · `deploy/k8s/memory-capture/` · `check-memory-capture.sh`)
 - [ ] embed Function (MQT) — **short_term 스킵**; episodic/long_term/semantic만 HNSW/BM25
 - [ ] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음
 - [ ] recall: short_term=최근순; 나머지 hybrid RRF (+ graph stub); iterative_scan + tenant WHERE

@@ -5,7 +5,7 @@
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md).
 
 **이 문서 범위:** `svc-memory` **store** 경로 — Fission MQT(`aura.tasks.memory.store`) · Pooler DSN · **매 트랜잭션** `SELECT set_config('app.tenant_id', $1, true)` (`is_local=true`).  
-**Non-goals (M1):** embed/recall/consolidate/ttl/archive **본구현** · TEI 배포 · capture Function · 타 스키마 재작업 · live 클러스터 apply 필수(정적 게이트만).
+**Non-goals (M1):** embed/recall/consolidate/ttl/archive **본구현** · TEI 배포 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · 타 스키마 재작업 · live 클러스터 apply 필수(정적 게이트만).
 
 수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만(임베딩 INSERT는 embed 태스크).
 

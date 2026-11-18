@@ -1,0 +1,34 @@
+# Fission KEDA MQT — aura.tasks.memory.capture (ARCHITECTURE §3.2 · §4.1).
+# minReplicaCount=0 → scale-to-zero when AURA_TASKS lag is idle.
+# PG 금지: Function은 Pooler/DSN env를 받지 않는다.
+apiVersion: fission.io/v1
+kind: MessageQueueTrigger
+metadata:
+  name: aura-memory-capture
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: memory-capture
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-capture
+spec:
+  functionref:
+    name: aura-memory-capture
+    type: name
+  messageQueueType: nats-jetstream
+  mqtkind: keda
+  topic: aura.tasks.memory.capture
+  respTopic: aura.events.memory.candidates
+  errorTopic: aura.events.memory.capture.error
+  maxRetries: 3
+  contentType: application/json
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0
+  maxReplicaCount: 8
+  metadata:
+    stream: AURA_TASKS
+    consumer: aura_memory_capture
+    account: "$G"
+    natsServer: nats://nats.aura.svc.cluster.local:4222
+    natsServerMonitoringEndpoint: nats.aura.svc.cluster.local:8222
