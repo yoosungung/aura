@@ -44,7 +44,7 @@
 |------|-------------|-----------|------|
 | `content_ref` 본문 | **`aura-content`** | `tenants/{tenant_id}/refs/{yyyy}/{mm}/{content_id}` | — |
 | 콜드 episodic Parquet (M4) | **`aura-content`** (동일 버킷) | `tenants/{tenant_id}/archive/episodic/{yyyy}/{mm}/…` | content_ref와 **버킷 공유**, prefix 분리 |
-| 번들 스토어 (후속) | `aura-content` 또는 전용 | `tenants/{tenant_id}/bundles/…` | 가능하면 동일 버킷·prefix 분리 |
+| 번들 스토어 (`source_meta.bundle_uri`) | **`aura-content`** | `tenants/{tenant_id}/bundles/{kind}/{name}/{version}/…` | content_ref와 **버킷 공유**; resolve 계약 [`svc-control-resolve.md`](svc-control-resolve.md) |
 | PG Barman WAL/base | **`aura-pg`** (별도) | `aura-pg/…` ([`cluster-ha.draft.yaml`](../k8s/pg-pooler/cluster-ha.draft.yaml)) | **자격증명·버킷 비공유** — 앱 content 키로 백업 버킷 접근 금지 |
 
 `s3://aura-content/tenants/{tenant_id}/refs/…` 가 정본 경로 가정이다.

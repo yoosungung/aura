@@ -291,8 +291,45 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 | 테이블 | 쓰기 소유 |
 |--------|-----------|
 | `memory_items`, `memory_embeddings`, `memory_nodes`, `memory_edges`, `memory_audit` | **`svc-memory`만** |
-| `source_meta`, `user_meta`, tenants/ACL (이름 확정은 M1) | **`svc-control`만** |
+| `source_meta`, `user_meta` (DDL·resolve wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
+| tenants/ACL (후속) | **`svc-control`만** |
 | `agent_checkpoints` (이름 확정은 M3) | **`agent_invoke`만** (예외) |
+
+### 6.1.1 컨트롤 메타 DDL (`source_meta` / `user_meta`)
+
+정본 DDL: [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql). resolve 요청/응답·merge: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md).
+
+```sql
+-- 요약 (FORCE RLS + set_config('app.tenant_id', $1, true) — §2.1)
+CREATE TABLE source_meta (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  kind TEXT NOT NULL,          -- 'agent' | 'mcp'
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  entrypoint TEXT NOT NULL,    -- module.path:attr
+  bundle_uri TEXT NOT NULL,    -- s3://aura-content/tenants/{tenant_id}/bundles/…
+  checksum TEXT NOT NULL,
+  sig_uri TEXT,
+  config JSONB NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL,        -- 'pending' | 'active' | 'retired'
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, kind, name, version)
+);
+
+CREATE TABLE user_meta (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  source_meta_id UUID NOT NULL REFERENCES source_meta(id) ON DELETE CASCADE,
+  principal_id TEXT NOT NULL,
+  config JSONB NOT NULL DEFAULT '{}',
+  secrets_ref TEXT,            -- 참조만; plaintext 금지
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (source_meta_id, principal_id)
+);
+```
+
+resolve 성공 응답 `type=control.resolve.done` 은 `source` + `user`(nullable) + `cfg`(1-depth merge, user wins) + `secrets_ref` 만 담는다. `aura.rpc.control.resolve` 브리지 Deployment는 M3 후속 항목.
 
 ### 6.2 메모리 DDL
 
@@ -601,7 +638,7 @@ AND (valid_until IS NULL OR valid_until > now())
 }
 ```
 
-Function은 `aura.rpc.control.resolve`(또는 브리지)로 `source_meta`+`user_meta`를 받고 `factory(cfg, secrets)`를 호출한다. 메타 쓰기는 `svc-control`만. 시크릿 취급은 §9.2.
+Function은 `aura.rpc.control.resolve`(또는 브리지)로 `source_meta`+`user_meta`를 받고 `factory(cfg, secrets)`를 호출한다. 메타 쓰기는 `svc-control`만. 시크릿 취급은 §9.2. wire·DDL 최소 고정: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md).
 
 **실행 격리:** 테넌트 커스텀/비신뢰 번들은 §9.1 샌드박스에서만 로드한다. 플랫폼 서명 번들도 Egress NetworkPolicy는 동일하게 적용한다.
 

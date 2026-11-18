@@ -36,6 +36,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **Agent 주입 계약 M2 고정** — recall `items[]`만 주입; 원문/`content_ref` 덤프 금지; 슬롯 short_term **512** · episodic **768** · long_term+semantic **768**(합 **2048**); 아이템 short **4** · `top_k` **12**; 패킹 구현=M3 | §1 #9·§6.3 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md)·`check-agent-inject-contract.sh` |
 | 2026-11-19 | **Object Store = Garage** (S3/SigV4). 버킷 `aura-content` · 키 `tenants/{tenant_id}/refs/…`(+ archive prefix 공유) · Barman=`aura-pg` 분리. 256KB 초과/`PII` → `content_ref` only. 라이브 provision·NCP/AWS 비용=`@eric` 보류 | V2.1 · §8 · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)·`check-object-store-content-ref.sh` |
 | 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
+| 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Deployment는 후속 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -168,7 +169,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [ ] `svc-control` 최소 resolve API/스키마 (`source_meta`/`user_meta`)
+- [x] `svc-control` 최소 resolve API/스키마 (`source_meta`/`user_meta`) — [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · `control_meta.sql` · `check-svc-control-resolve.sh`
 - [ ] `agent_invoke` MQT — recall/mcp/resolve RPC + **`aura.stream.<run_id>` 토큰/툴 프레임** 설계·구현
 - [ ] Gateway: `run_id` 발급; SSE/WS 브리지 + principal 인가
 - [ ] Gateway: **테넌트별 Rate Limiting** — Token Bucket + max_inflight(§2.2); NATS KV; 429; 노이지 픽스처
