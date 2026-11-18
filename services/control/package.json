@@ -1,0 +1,9 @@
+{
+  "name": "aura-svc-control",
+  "private": true,
+  "version": "0.0.0",
+  "description": "svc-control resolve helpers (M3 minimal schema)",
+  "scripts": {
+    "test": "node resolve.selftest.js"
+  }
+}
