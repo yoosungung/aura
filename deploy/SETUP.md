@@ -239,6 +239,22 @@ bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: 
 | 순회 한도 | [`docs/memory-graph-traversal.md`](docs/memory-graph-traversal.md) (walk 구현=M4) |
 | Non-goals | embeddings · `svc-memory` store/graph walk 본문 |
 
+### memory_embeddings LIST(model_key) + halfvec HNSW (M1)
+
+```bash
+bash deploy/scripts/check-memory-embeddings.sh              # static: LIST + undimensioned halfvec + generation DESIGN
+SMOKE_MEMORY_EMBEDDINGS_STATIC=1 bash deploy/scripts/smoke-memory-embeddings.sh
+bash deploy/scripts/smoke-memory-embeddings.sh              # live via pooler: fixture ATTACH → switch → DETACH
+```
+
+| 항목 | 값 |
+|------|-----|
+| DDL | `deploy/sql/memory_embeddings.sql` — LIST(`model_key`); 부모 `halfvec` (typemod 없음); `memory_type` CHECK로 short_term 제외 |
+| RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
+| 세대 교체 | [`docs/memory-embeddings-generation.md`](docs/memory-embeddings-generation.md) — ATTACH → active 전환 → DETACH |
+| 스모크 | fixture `fixture:v1`/`v2` · dims=3 only (≠ production `AURA_EMBEDDING_*`); Cluster에 pgvector 필요 |
+| Non-goals | 생산 모델 실값 · iterative_scan 픽스처 · short_term 가드 본구현 · `svc-memory` store |
+
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
 ```bash
