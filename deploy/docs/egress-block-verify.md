@@ -4,7 +4,7 @@
 매니페스트: [`deploy/k8s/sandbox-egress/`](../k8s/sandbox-egress/).
 
 **범위:** 샌드박스 파드(`aura.swfactory.io/sandbox: "true"`)가 **허용 피어만** Egress 할 수 있음을 **오프라인 시뮬레이터**로 증명.  
-**Non-goals:** NATS mTLS · F1 · **live 클러스터를 CI PASS 필수 조건으로 두지 않음** · gVisor `runsc` 노드 설치.  
+**Non-goals:** F1 · **live 클러스터를 CI PASS 필수 조건으로 두지 않음** · gVisor `runsc` 노드 설치. (NATS mTLS·mask/TTL → [`nats-mtls-secrets.md`](nats-mtls-secrets.md).)  
 LLM Gateway 최소 경로: [`llm-gateway.md`](llm-gateway.md) (본 문서는 NP peer/`aura-llm-gateway` allow만).
 
 ---

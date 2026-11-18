@@ -717,6 +717,10 @@ Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs
 | 프로세스 캐시 | Function 메모리 캐시 **TTL 짧음**(초안 ≤ 60s) + **키 로테이션/revoke 이벤트** 시 무효화(`aura.events.control.secrets.rotated`) |
 | 금지 | 시크릿을 `AURA_EVENTS`·DLQ·스트림 프레임에 기록 |
 
+M3 와이어(오버레이·mask/cache/tls 가드·체크): [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · `deploy/k8s/nats-mtls/` · `check-nats-mtls-secrets.sh`. live cert 발급·시크릿 스토어 본구현은 후속.
+
+M3 최소 경로·NATS mTLS overlay·마스킹/TTL 캐시: [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) (`secrets-mask.js` · `secrets-cache.js` · `nats-tls.js`) · `check-nats-mtls-secrets.sh`. live cert apply·Vault 본구현은 후속.
+
 ### 9.3 GDPR · 잊힐 권리
 
 | 규칙 | 내용 |

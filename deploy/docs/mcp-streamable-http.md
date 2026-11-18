@@ -6,7 +6,7 @@
 
 **이 문서 범위:** MCP Spec **2025-06-18 Streamable HTTP** 클라이언트 어댑터 · `mcp_invoke` Function에서만 HTTP · Aura 컴포넌트 간은 NATS만.
 
-**Non-goals:** Egress **실측** · LLM Gateway · F1 · NATS mTLS · **initialize/전체 세션 라이프사이클 서버** · legacy HTTP+SSE transport(후속/선택).  
+**Non-goals:** Egress **실측** · LLM Gateway · F1 · **initialize/전체 세션 라이프사이클 서버** · legacy HTTP+SSE transport(후속/선택). (NATS mTLS → [`nats-mtls-secrets.md`](nats-mtls-secrets.md).)  
 격리 **정책**(RuntimeClass/Egress allowlist): [`mcp-bundle-isolation.md`](mcp-bundle-isolation.md).
 
 ---

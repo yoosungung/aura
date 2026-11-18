@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: aura
+spec:
+  template:
+    metadata:
+      labels:
+        aura.swfactory.io/mtls: "true"
+    spec:
+      containers:
+        - name: nats
+          args: ["-c", "/etc/nats/nats.conf"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: nats-conf
+              mountPath: /etc/nats/nats.conf
+              subPath: nats.conf
+              readOnly: true
+            - name: nats-certs
+              mountPath: /etc/nats/certs
+              readOnly: true
+      volumes:
+        - name: nats-conf
+          configMap:
+            name: aura-nats-mtls-conf
+        - name: nats-certs
+          secret:
+            secretName: aura-nats-mtls
+            items:
+              - key: ca.pem
+                path: ca.pem
+              - key: server-cert.pem
+                path: server-cert.pem
+              - key: server-key.pem
+                path: server-key.pem
