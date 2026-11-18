@@ -30,6 +30,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **메모리 TTL 수치 M1 고정** — short_term 핫 **14일** · episodic 핫 **24개월** · audit 핫 **12개월**; DROP 판정=`U <= now()-핫간격`; DROP 주기 **일 1회**; 담당=`aura.tasks.memory.ttl` (구현=M4) | §6.2.2·[`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)·`check-memory-ttl.sh`. Soft-delete-only 방치 금지 |
 | 2026-11-18 | **그래프 순회 한도 M1 고정** — `idx_memory_edges_out`/`in` partial(`valid_until IS NULL`); max_depth=**2** · per_hop_limit=**50** · max_nodes_total=**100** · max_edges_total=**200** · supernode_degree_cap=**64** · visited; walk 구현=M4 | §6.2.4·[`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)·`check-memory-graph-traversal.sh` |
 | 2026-11-18 | **memory_embeddings 세대 교체 절차 M1 고정** — LIST(`model_key`)+파티션 `halfvec(N)` HNSW; ATTACH→active 전환→DETACH; 생산 `AURA_EMBEDDING_*` 실값은 별도 체크 | §6.2.1·[`deploy/docs/memory-embeddings-generation.md`](deploy/docs/memory-embeddings-generation.md)·`check-memory-embeddings.sh` |
+| 2026-11-18 | **short_term embed 거부 + iterative_scan/ef_search M1 고정** — DDL CHECK로 `short_term` 제외; embed Function 스킵=M2; pgvector **≥0.8**; `hnsw.iterative_scan=relaxed_order`; `hnsw.ef_search=**40**`; `max_scan_tuples=**20000**`; 앱 post-filter 금지 | §6.2.3·§6.3·[`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md)·`check-memory-embed-guard.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -105,11 +106,11 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `memory_nodes` / `memory_edges` 마이그레이션 + RLS (`deploy/sql/memory_nodes_edges.sql` · `check-memory-nodes-edges.sh` · `smoke-memory-nodes-edges.sh`)
 - [x] edges **`idx_memory_edges_out` / `idx_memory_edges_in`** (partial `valid_until IS NULL`); 순회 한도 DESIGN(§6.2.4) — [`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md) · `check-memory-graph-traversal.sh`
 - [x] **`memory_embeddings` 차원/파티션 DDL 확정**: LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW; **모델 세대 교체**(새 파티션 ATTACH → 전환 → 구형 DETACH) 절차를 DESIGN/런북에 고정 — [`deploy/docs/memory-embeddings-generation.md`](deploy/docs/memory-embeddings-generation.md) · `check-memory-embeddings.sh` · `smoke-memory-embeddings.sh` (fixture만; 생산 dims=별도 체크)
-- [ ] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN
+- [x] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN — [`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md) · `check-memory-embed-guard.sh` · `smoke-memory-embed-guard.sh`
 - [ ] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2
 - [ ] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정)
 - [ ] `services/memory/DESIGN.md` + store MQT — 매 트랜잭션 `set_config(..., true)`
-- [ ] (스모크) 무차원 HNSW 실패; short_term→embed 거부
+- [x] (스모크) 무차원 HNSW 실패; short_term→embed 거부 (`smoke-memory-embed-guard.sh`; live 또는 `SMOKE_MEMORY_EMBED_GUARD_STATIC=1`)
 
 **검증 체크리스트 (권고 반영)**
 

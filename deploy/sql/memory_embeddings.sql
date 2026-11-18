@@ -1,8 +1,9 @@
 -- memory_embeddings: LIST(model_key) + partition-local halfvec(N) HNSW + RLS
 -- Contract: ARCHITECTURE §1 #3·#14 · §6 DDL · §6.2.1 · Pooler + set_config(..., true)
--- Ticket: 0d7a4200. Non-goals: production AURA_EMBEDDING_* 실값 · short_term embed 거부 가드 본구현
---   · iterative_scan 픽스처 · svc-memory store. Generation swap runbook:
---   deploy/docs/memory-embeddings-generation.md
+-- Ticket: 0d7a4200 (+ 6dfc4c4a short_term CHECK / iterative_scan DESIGN).
+-- Non-goals: production AURA_EMBEDDING_* 실값 · HNSW 왜곡 픽스처 · svc-memory store.
+-- Generation: deploy/docs/memory-embeddings-generation.md
+-- Guards: deploy/docs/memory-embed-guard-iterative-scan.md
 -- Idempotent for M1 smoke/dev (DROP CASCADE). Production ATTACH uses runbook + env dims.
 
 BEGIN;
