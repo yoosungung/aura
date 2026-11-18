@@ -371,6 +371,20 @@ bash deploy/scripts/check-agent-inject-contract.sh   # doc gate: slots + 2048/51
 | 아이템 | short_term **4** · `top_k` **12** |
 | 구현 | 패킹=`agent_invoke` M3 |
 
+### Object Store · `content_ref` (M2 / V2.1 · provision 비범위)
+
+```bash
+bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: Garage + 256KB ref-only + schema
+```
+
+| 항목 | M2 고정 |
+|------|---------|
+| 문서 | [`docs/object-store-content-ref.md`](docs/object-store-content-ref.md) |
+| 제품 | **Garage** (S3-compatible / SigV4); NCP/AWS는 endpoint 스왑 |
+| 버킷 | `aura-content` (`tenants/{tenant_id}/refs/…`); Barman=`aura-pg` 분리 |
+| 규칙 | >256KB 또는 PII → `content_ref` only · public ACL 금지 · `enc.kid` |
+| Non-goals | 라이브 provision · SDK 업로드 · 고아 GC(다음 child) |
+
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
 ```bash
