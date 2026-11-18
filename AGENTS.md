@@ -52,7 +52,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 **기획 문서 고정 완료** — [ARCHITECTURE.md](ARCHITECTURE.md)·[ROADMAP.md](ROADMAP.md)·[README.md](README.md).
 
 M0: NATS·KEDA·Fission 설치 + 스트림 + async/sync 분리(V0.1) + async echo/poison + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term** + **PG+Pooler 스모크 계획** 완료.  
-M1 진행: BM25=`tsvector` 확정 · **Pooler=CNPG `Pooler` transaction** + [`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/) · `check-pg-pooler.sh`.  
-다음: async 콜드 p95 · Fission MQT Term 미들웨어 · M1 V1.1 RLS 실측·스키마·`svc-memory`.
+M1 진행: BM25=`tsvector` 확정 · **Pooler=CNPG `Pooler` transaction** + [`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/) · `check-pg-pooler.sh` · **V1.1 RLS 실측** `smoke-pg-pooler.sh`.  
+다음: async 콜드 p95 · Fission MQT Term 미들웨어 · M1 스키마·`svc-memory`.
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.
