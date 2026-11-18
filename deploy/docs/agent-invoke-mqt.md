@@ -6,9 +6,9 @@
 주입: [`agent-inject-contract.md`](agent-inject-contract.md).  
 resolve wire: [`svc-control-resolve.md`](svc-control-resolve.md).
 
-**이 문서 범위:** 태스크 payload · 스트림 프레임 타입 · RPC 순서 · done/error envelope · MQT 이름표.  
-**Non-goals:** Fair Queue · live LLM Gateway · live NATS Core publisher 구현 · `mcp_invoke` 이원화 · resolve 브리지 Deployment · 체크포인트 DDL.  
-Gateway SSE/WS·`run_id`·principal: [`gateway-sse-ws.md`](gateway-sse-ws.md).
+**이 문서 범위:** 태스크 payload · 스트림 프레임 타입 · RPC 순서 · done/error envelope · MQT 이름표 · **우회 쿼터 재확인**.  
+**Non-goals:** live LLM Gateway · live NATS Core publisher 구현 · `mcp_invoke` 이원화 · resolve 브리지 Deployment · 체크포인트 DDL · Gateway Token Bucket 본구현.  
+Gateway SSE/WS·`run_id`·principal·Fair Queue: [`gateway-sse-ws.md`](gateway-sse-ws.md) · [`gateway-fair-queue.md`](gateway-fair-queue.md).
 
 ---
 
@@ -47,7 +47,8 @@ Gateway SSE/WS·`run_id`·principal: [`gateway-sse-ws.md`](gateway-sse-ws.md).
 |------|------|
 | `run_id` | Gateway(또는 제출자) 발급. 스트림 subject 키 |
 | `stream` | 기본 `true`(대화형). `false`면 Core 프레임 생략(배치) |
-| `principal.tenant_id` | 필수 — resolve/recall 테넌트 키 |
+| `principal.tenant_id` | 필수 — resolve/recall·쿼터 테넌트 키 |
+| 쿼터 재확인 | injectable `rateLimiter.ensureAdmitted` — Gateway 우회 publish 방어(§2.2); 초과 시 errorTopic·재큐 금지 | 
 
 선택: `input.tool = { server, name, arguments }` → 턴 중 `aura.rpc.mcp.tool` 1회(스켈레톤).
 

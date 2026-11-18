@@ -3,10 +3,12 @@
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #16 · §2.2.  
 일정: [ROADMAP.md](../../ROADMAP.md) M3.  
 내부: [`../../services/gateway/DESIGN.md`](../../services/gateway/DESIGN.md).  
-제출/SSE: [`gateway-sse-ws.md`](gateway-sse-ws.md).
+제출/SSE: [`gateway-sse-ws.md`](gateway-sse-ws.md).  
+**done/error 감산 · 우회 재확인:** [`gateway-inflight-release.md`](gateway-inflight-release.md).
 
-**이 문서 범위:** Token Bucket + max_inflight · 쿼터 키/상태(CAS KV) · 429 · 노이지 픽스처 · `release` API.  
-**Non-goals:** live NATS JetStream KV 클라이언트 배선 · done/error 이벤트 구독기 전체 배선 · F1 subject 샤딩 · 우회 publish 재확인(`agent_invoke`) · live LLM · sandbox.
+**이 문서 범위:** Token Bucket + max_inflight · 쿼터 키/상태(CAS KV) · 429 · 노이지 픽스처 · `tryAcquire`/`release` API.  
+**Non-goals:** live NATS JetStream KV 클라이언트 배선 · done/error 구독 Deployment · F1 subject 샤딩 · live LLM · sandbox.  
+terminal `release` / `ensureAdmitted` 우회 재확인은 [`gateway-inflight-release.md`](gateway-inflight-release.md).
 
 ---
 
@@ -16,7 +18,7 @@
 2. Gateway가 `tenant_id`에 대해 **Token Bucket** + **max_inflight** 검사 (`rateLimiter.tryAcquire`).
 3. 통과 시에만 `run_id` 등록 + `aura.tasks.agent.invoke` publish.
 4. 거부 → **429** (`rate_limited` | `max_inflight_exceeded`) · JetStream 미적재 · `retry_after_ms`.
-5. 완료/실패 시 `rateLimiter.release(tenant_id, run_id)` — 스트림 terminal / events 훅.
+5. 완료/실패 시 `rateLimiter.release(tenant_id, run_id)` — 상세 훅은 [`gateway-inflight-release.md`](gateway-inflight-release.md).
 
 ---
 
@@ -52,8 +54,8 @@
 
 | 심볼 | 역할 |
 |------|------|
-| `createTenantRateLimiter({ kv, limits, now })` | `tryAcquire` / `release` |
-| `tryAcquire(tenant, runId)` | CAS 루프로 토큰 1 + inflight 1 예약 |
+| `createTenantRateLimiter({ kv, limits, now })` | `tryAcquire` / `release` / `ensureAdmitted` |
+| `tryAcquire(tenant, runId)` | CAS 루프로 토큰 1 + inflight 1 예약; 동일 `run_id` 멱등 |
 | `release(tenant, runId)` | 멱등 감산 |
 | `submitAgentInvoke` | tryAcquire 실패 시 publish 금지; publish 실패 시 release |
 
@@ -63,5 +65,6 @@
 
 ```bash
 bash deploy/scripts/check-gateway-fair-queue.sh
+bash deploy/scripts/check-gateway-inflight-release.sh
 node services/gateway/gateway.selftest.js
 ```

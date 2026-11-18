@@ -5,12 +5,34 @@
  * Zero Direct Write: no memory_* PG. Stream frames → aura.stream.<run_id> (Core, lossy).
  * Done 정본 → HTTP 200 body → MQT respTopic aura.events.agent.invoke.done.
  *
- * Non-goals (this slice): Gateway SSE/WS · Fair Queue · live LLM Gateway HTTP ·
+ * Quota: injectable rateLimiter.tryAcquire / ensureAdmitted (§2.2 bypass defense).
+ * Non-goals (this slice): Gateway SSE/WS · live LLM Gateway HTTP ·
  * live NATS Core client wiring · mcp_invoke Function · control resolve bridge Deployment ·
- * agent_checkpoints DDL.
+ * agent_checkpoints DDL · Gateway Token Bucket ownership.
  */
 
 const SHORT_TERM_ITEM_CAP = 4;
+
+/** Production injects shared KV limiter; local Package stub skips quota. */
+const noopRateLimiterStub = {
+  ensureAdmitted: async () => ({ ok: true }),
+};
+
+/**
+ * @param {object} task
+ * @param {object} deps
+ */
+async function ensureInvokeAdmitted(task, deps) {
+  const rl = (deps && deps.rateLimiter) || noopRateLimiterStub;
+  const admit =
+    typeof rl.ensureAdmitted === 'function'
+      ? rl.ensureAdmitted.bind(rl)
+      : typeof rl.tryAcquire === 'function'
+        ? rl.tryAcquire.bind(rl)
+        : null;
+  if (!admit) return { ok: true };
+  return admit(task.principal.tenant_id, task.run_id);
+}
 const TOKEN_BUDGET = {
   short_term: 512,
   episodic: 768,
@@ -215,6 +237,24 @@ async function invokeOnce(task, deps) {
 
   const tenantId = task.principal.tenant_id;
 
+  const admission = await ensureInvokeAdmitted(task, d);
+  if (!admission.ok) {
+    const err = new Error(admission.error || 'quota_denied');
+    err.status = admission.status || 429;
+    err.poison = true;
+    if (admission.retry_after_ms != null) {
+      err.retry_after_ms = admission.retry_after_ms;
+    }
+    if (stream) {
+      await publishStream(task.run_id, {
+        type: 'error',
+        message: err.message,
+        poison: true,
+      });
+    }
+    throw err;
+  }
+
   const resolved = await resolve({
     tenant_id: tenantId,
     kind: 'agent',
@@ -318,6 +358,7 @@ module.exports = async function (context) {
     mcpTool: context && context.mcpTool,
     publishStream: context && context.publishStream,
     runTurn: context && context.runTurn,
+    rateLimiter: context && context.rateLimiter,
   };
 
   // Default in-process stubs so Package literal can load without NATS (live RR = Non-goal).
@@ -343,12 +384,15 @@ module.exports = async function (context) {
     const out = await invokeOnce(task, deps);
     return { status: 200, body: JSON.stringify(out) };
   } catch (err) {
+    const body = {
+      error: err.message || 'invoke_failed',
+      type: 'agent.invoke.error',
+    };
+    if (err.poison) body.poison = true;
+    if (err.retry_after_ms != null) body.retry_after_ms = err.retry_after_ms;
     return {
       status: err.status || 500,
-      body: JSON.stringify({
-        error: err.message || 'invoke_failed',
-        type: 'agent.invoke.error',
-      }),
+      body: JSON.stringify(body),
     };
   }
 };
@@ -358,5 +402,7 @@ module.exports.packRecallItems = packRecallItems;
 module.exports.estimateTokens = estimateTokens;
 module.exports.buildStreamSubject = buildStreamSubject;
 module.exports.invokeOnce = invokeOnce;
+module.exports.ensureInvokeAdmitted = ensureInvokeAdmitted;
+module.exports.noopRateLimiterStub = noopRateLimiterStub;
 module.exports.STREAM_FRAME_TYPES = STREAM_FRAME_TYPES;
 module.exports.defaultRunTurn = defaultRunTurn;

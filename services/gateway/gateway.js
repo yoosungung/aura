@@ -14,6 +14,7 @@ const {
   createTenantRateLimiter,
   isTerminalStreamFrame,
   isTerminalInvokeEvent,
+  quotaKey,
 } = require('./rate-limit');
 
 const TASK_AGENT_INVOKE = 'aura.tasks.agent.invoke';
@@ -380,4 +381,5 @@ module.exports = {
   DEFAULT_LIMITS,
   createMemoryKv,
   createTenantRateLimiter,
+  quotaKey,
 };

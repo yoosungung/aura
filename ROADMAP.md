@@ -40,6 +40,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **`agent_invoke` MQT + 스트림 프레임 M3 고정** — topic `aura.tasks.agent.invoke` · Core `aura.stream.<run_id>` (`run.started`/`token`/`tool.*`/`run.completed`) · resolve/recall/mcp RPC injectable · done=`aura.events.agent.invoke.done` · V3.1 token-before-done · Gateway SSE/Fair Queue/live LLM=후속 | [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md)·`check-agent-invoke.sh` · [`services/agent-invoke/`](services/agent-invoke/) |
 | 2026-11-19 | **Gateway `run_id`/SSE/WS/principal M3 고정** — UUIDv7 발급 · exact `aura.stream.<run_id>` · 소유 principal만 구독 · Deployment replicas≥2 · Fair Queue/live NATS=후속 | [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md)·`check-gateway-sse-ws.sh` · [`services/gateway/`](services/gateway/) |
 | 2026-11-19 | **Gateway Fair Queue/RL M3 고정** — Token Bucket 10/s·burst 30·maxInflight 20 · CAS KV `quota.{tenant_id}` · 429 · 노이지 픽스처(A 기아≠B) · live NATS KV·done 구독=후속 | [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md)·`check-gateway-fair-queue.sh` |
+| 2026-11-19 | **inflight `release` + `ensureAdmitted` 우회 재확인 M3 고정** — terminal stream/event → `release`(멱등) · `agent_invoke` poison 429 · live done 구독 Deployment=후속 | [`deploy/docs/gateway-inflight-release.md`](deploy/docs/gateway-inflight-release.md)·`check-gateway-inflight-release.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -176,7 +177,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `agent_invoke` MQT — recall/mcp/resolve RPC + **`aura.stream.<run_id>` 토큰/툴 프레임** 설계·구현 — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`services/agent-invoke/`](services/agent-invoke/) · `deploy/k8s/agent-invoke/` · `check-agent-invoke.sh`
 - [x] Gateway: `run_id` 발급; SSE/WS 브리지 + principal 인가 — [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md) · [`services/gateway/`](services/gateway/) · `deploy/k8s/gateway/` · `check-gateway-sse-ws.sh`
 - [x] Gateway: **테넌트별 Rate Limiting** — Token Bucket + max_inflight(§2.2); NATS KV; 429; 노이지 픽스처 — [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md) · `services/gateway/rate-limit.js` · `check-gateway-fair-queue.sh` (10/s·burst30·inflight20)
-- [ ] done/error 시 inflight 감산; 우회 시 `agent_invoke` 재확인
+- [x] done/error 시 inflight 감산; 우회 시 `agent_invoke` 재확인 — [`deploy/docs/gateway-inflight-release.md`](deploy/docs/gateway-inflight-release.md) · `ensureAdmitted` · `check-gateway-inflight-release.sh`
 - [x] 프레임 계약 확정: `run.started` / `token` / `tool.*` / `run.completed` + events done — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · `check-agent-invoke.sh`
 - [ ] `mcp_invoke` **이원화**: task(MQT) + rpc(`aura.rpc.mcp.tool`, minReplicas ≥ 2)
 - [ ] `aura.rpc.control.resolve` 브리지 minReplicas ≥ 2

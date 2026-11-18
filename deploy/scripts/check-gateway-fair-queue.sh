@@ -30,6 +30,7 @@ grep -Eq 'burst|30' "$DOCS" || fail "docs must fix default burst"
 grep -Eq 'maxInflight|20' "$DOCS" || fail "docs must fix default maxInflight"
 grep -Eqi 'NATS.*KV|JetStream KV' "$DOCS" || fail "docs must name NATS KV shape"
 grep -Eqi '노이지|noisy|V3\.2' "$DOCS" || fail "docs must mention noisy fixture / V3.2"
+grep -q 'gateway-inflight-release' "$DOCS" || fail "docs must link gateway-inflight-release.md"
 
 grep -q 'createTenantRateLimiter' "$RL" || fail "rate-limit.js must export createTenantRateLimiter"
 grep -q 'tryAcquire' "$RL" || fail "rate-limit.js must implement tryAcquire"

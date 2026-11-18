@@ -4,6 +4,10 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const {
+  createMemoryKv,
+  createTenantRateLimiter,
+} = require('../gateway/rate-limit');
+const {
   validateInvokeTask,
   packRecallItems,
   estimateTokens,
@@ -252,6 +256,98 @@ async function main() {
   });
   assert.strictEqual(bad.status, 400);
   assert.strictEqual(JSON.parse(bad.body).type, 'agent.invoke.error');
+
+  // --- §2.2 bypass reconfirm (동일 KV · 초과=poison 4xx) ---
+  const kvQ = createMemoryKv();
+  const limitsQ = { ratePerSec: 1, burst: 1, maxInflight: 1 };
+  const tQ = 1_700_000_200_000;
+  const rlQ = createTenantRateLimiter({
+    kv: kvQ,
+    limits: limitsQ,
+    now: () => tQ,
+  });
+  const runGw = '019a0000-0000-7000-8000-00000000gw01';
+  const runBypass = '019a0000-0000-7000-8000-00000000byp1';
+  assert.ok((await rlQ.tryAcquire('tenant-q', runGw)).ok);
+
+  // Gateway-admitted run_id: idempotent pass, turn runs
+  const framesGw = [];
+  const doneGw = await invokeOnce(
+    {
+      run_id: runGw,
+      agent: 'demo',
+      version: '1.0.0',
+      stream: true,
+      input: { text: 'via-gw' },
+      principal: { id: 'u', tenant_id: 'tenant-q' },
+    },
+    {
+      rateLimiter: rlQ,
+      resolve: async () => ({ type: 'control.resolve.done', cfg: {}, secrets_ref: null }),
+      recall: async () => ({ items: [] }),
+      publishStream: async (_r, f) => {
+        framesGw.push(f);
+      },
+    },
+  );
+  assert.strictEqual(doneGw.type, 'agent.invoke.done');
+  assert.ok(framesGw.some((f) => f.type === 'token'));
+
+  // Bypass with empty bucket → poison error, no turn tokens
+  const framesBy = [];
+  let bypassRejected = false;
+  try {
+    await invokeOnce(
+      {
+        run_id: runBypass,
+        agent: 'demo',
+        version: '1.0.0',
+        stream: true,
+        input: { text: 'bypass' },
+        principal: { id: 'u', tenant_id: 'tenant-q' },
+      },
+      {
+        rateLimiter: rlQ,
+        resolve: async () => {
+          throw new Error('must_not_resolve');
+        },
+        recall: async () => {
+          throw new Error('must_not_recall');
+        },
+        publishStream: async (_r, f) => {
+          framesBy.push(f);
+        },
+      },
+    );
+  } catch (err) {
+    bypassRejected =
+      err.poison === true &&
+      (err.message === 'rate_limited' || err.message === 'max_inflight_exceeded') &&
+      (err.status === 429 || err.status === 422);
+  }
+  assert.ok(bypassRejected, 'bypass over quota must poison without turn');
+  assert.ok(
+    framesBy.some((f) => f.type === 'error'),
+    'bypass reject should emit stream error frame',
+  );
+  assert.ok(!framesBy.some((f) => f.type === 'token'));
+
+  const httpPoison = await handler({
+    request: {
+      body: JSON.stringify({
+        run_id: '019a0000-0000-7000-8000-00000000byp2',
+        agent: 'demo',
+        version: '1.0.0',
+        principal: { id: 'u', tenant_id: 'tenant-q' },
+      }),
+    },
+    rateLimiter: rlQ,
+    resolve: async () => ({ type: 'control.resolve.done', cfg: {}, secrets_ref: null }),
+    recall: async () => ({ items: [] }),
+  });
+  assert.ok(httpPoison.status >= 400 && httpPoison.status < 500);
+  assert.strictEqual(JSON.parse(httpPoison.body).type, 'agent.invoke.error');
+  assert.strictEqual(JSON.parse(httpPoison.body).poison, true);
 
   console.log('handler.selftest: PASS');
 }

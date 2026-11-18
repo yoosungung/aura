@@ -228,7 +228,15 @@ function createTenantRateLimiter(opts) {
     return { ok: false, released: false, error: 'quota_cas_contention' };
   }
 
-  return { tryAcquire, release, kv, limits };
+  /**
+   * Gateway-admitted run: `runs[run_id]` → ok without extra token.
+   * Bypass publish: acquire quota or return 429 for agent_invoke poison path.
+   */
+  async function ensureAdmitted(tenantId, runId) {
+    return tryAcquire(tenantId, runId);
+  }
+
+  return { tryAcquire, release, ensureAdmitted, kv, limits };
 }
 
 function isTerminalStreamFrame(frame) {
