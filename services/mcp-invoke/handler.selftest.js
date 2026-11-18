@@ -22,6 +22,10 @@ async function main() {
   );
   assert.ok(src.includes('mcp.invoke.done'), 'handler must emit mcp.invoke.done');
   assert.ok(src.includes('mcp.tool.done'), 'handler must emit mcp.tool.done');
+  assert.ok(
+    src.includes('streamable_http') || src.includes('callToolViaStreamableHttp'),
+    'handler must wire streamable HTTP adapter',
+  );
 
   const base = {
     server: 'demo-mcp',
@@ -85,6 +89,40 @@ async function main() {
   assert.strictEqual(resolveCalls, 1);
   assert.strictEqual(toolOut.ok, true);
   assert.deepStrictEqual(toolOut.result.echo, { x: 1 });
+
+  let httpFetchCalls = 0;
+  const httpDeps = {
+    resolve: async () => ({
+      cfg: {
+        transport: 'streamable_http',
+        mcp_endpoint: 'https://mcp.test/v1',
+        mcp_session_id: 'sid-1',
+      },
+      secrets_ref: null,
+    }),
+    fetchImpl: async (url, init) => {
+      httpFetchCalls += 1;
+      assert.strictEqual(url, 'https://mcp.test/v1');
+      assert.strictEqual(init.method, 'POST');
+      assert.strictEqual(init.headers['Mcp-Session-Id'], 'sid-1');
+      const body = JSON.parse(init.body);
+      assert.strictEqual(body.method, 'tools/call');
+      return {
+        headers: { get: () => 'application/json' },
+        text: async () =>
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: { content: [] },
+          }),
+      };
+    },
+  };
+  const httpOut = await invokeToolOnce(base, httpDeps);
+  assert.strictEqual(httpFetchCalls, 1);
+  assert.strictEqual(httpOut.ok, true);
+  assert.deepStrictEqual(httpOut.result.content, []);
+  assert.strictEqual(httpOut.result.mode, 'streamable_http');
 
   // plaintext secrets from resolve must be rejected
   await assert.rejects(

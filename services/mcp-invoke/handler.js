@@ -7,9 +7,13 @@
  * Sync RPC:   aura.rpc.mcp.tool     → mcp.tool.done (Core RR; minReplicas ≥ 2)
  *
  * Zero Direct Write: no memory_* PG. Identifiers only; resolve → factory(cfg, secrets_ref).
- * Non-goals (this slice): live Streamable HTTP adapter · sandbox/egress · live NATS Core
- * subscribe wiring · control resolve bridge Deployment · live LLM.
+ * Streamable HTTP: external MCP via injectable client when resolve cfg says so
+ * ([`streamable-http.js`](streamable-http.js); Fission invoke.js = single-file bundle).
+ * Non-goals (this slice): sandbox/egress · live NATS Core subscribe wiring ·
+ * control resolve bridge Deployment · live LLM · full MCP initialize lifecycle.
  */
+
+const { callToolViaStreamableHttp } = require('./streamable-http');
 
 function parseBody(req) {
   let raw = (req && req.body) != null ? req.body : '';
@@ -60,6 +64,47 @@ function validateMcpRequest(req) {
   return { ok: true, req };
 }
 
+function cfgUsesStreamableHttp(cfg) {
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (cfg.transport === 'streamable_http') return true;
+  if (cfg.mcp_endpoint && typeof cfg.mcp_endpoint === 'string') return true;
+  return false;
+}
+
+function streamableEndpointFromCfg(cfg) {
+  if (!cfg || typeof cfg !== 'object') return '';
+  const ep = cfg.mcp_endpoint || cfg.endpoint;
+  return typeof ep === 'string' ? ep : '';
+}
+
+function buildStreamableRunTool(cfg, fetchImpl) {
+  const endpoint = streamableEndpointFromCfg(cfg);
+  const sessionId =
+    typeof cfg.mcp_session_id === 'string'
+      ? cfg.mcp_session_id
+      : typeof cfg.session_id === 'string'
+        ? cfg.session_id
+        : undefined;
+  const protocolVersion =
+    typeof cfg.mcp_protocol_version === 'string'
+      ? cfg.mcp_protocol_version
+      : undefined;
+  return async (ctx) => {
+    const out = await callToolViaStreamableHttp({
+      endpoint,
+      tool: ctx.tool,
+      arguments: ctx.arguments,
+      sessionId,
+      protocolVersion,
+      fetchImpl,
+    });
+    if (!out.ok) return out;
+    const payload =
+      out.result && typeof out.result === 'object' ? out.result : { value: out.result };
+    return { ok: true, mode: 'streamable_http', ...payload };
+  };
+}
+
 /** Deterministic stub factory — echoes arguments (no live MCP protocol / HTTP adapter). */
 async function defaultRunTool(ctx) {
   return {
@@ -90,7 +135,6 @@ async function invokeToolOnce(req, deps) {
     throw err;
   }
 
-  const runTool = d.runTool || defaultRunTool;
   const tenantId = req.principal.tenant_id;
 
   const resolved = await resolve({
@@ -106,13 +150,29 @@ async function invokeToolOnce(req, deps) {
     throw err;
   }
 
+  const cfg = (resolved && resolved.cfg) || {};
+  let runTool = d.runTool;
+  if (!runTool) {
+    if (cfgUsesStreamableHttp(cfg)) {
+      const ep = streamableEndpointFromCfg(cfg);
+      if (!ep) {
+        const err = new Error('mcp_endpoint_required');
+        err.status = 500;
+        throw err;
+      }
+      runTool = buildStreamableRunTool(cfg, d.fetchImpl);
+    } else {
+      runTool = defaultRunTool;
+    }
+  }
+
   const result = await runTool({
     server: req.server,
     version: req.version,
     tool: req.tool,
     arguments: req.arguments && typeof req.arguments === 'object' ? req.arguments : {},
     principal: req.principal,
-    cfg: (resolved && resolved.cfg) || {},
+    cfg,
     secrets_ref: (resolved && resolved.secrets_ref) || null,
   });
 
@@ -222,6 +282,7 @@ module.exports = async function (context) {
   const deps = {
     resolve: context && context.resolve,
     runTool: context && context.runTool,
+    fetchImpl: context && context.fetchImpl,
   };
 
   // Default in-process stubs so Package literal can load without NATS (live RR = Non-goal).
@@ -246,3 +307,5 @@ module.exports.handleTask = handleTask;
 module.exports.handleRpc = handleRpc;
 module.exports.defaultRunTool = defaultRunTool;
 module.exports.isRpcContext = isRpcContext;
+module.exports.cfgUsesStreamableHttp = cfgUsesStreamableHttp;
+module.exports.buildStreamableRunTool = buildStreamableRunTool;

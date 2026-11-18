@@ -434,16 +434,17 @@ bash deploy/scripts/check-svc-control-resolve.sh      # DDL + resolve wire (no c
 
 ```bash
 bash deploy/scripts/check-mcp-invoke-dual.sh   # DESIGN + MQT + RPC Warm≥2 + selftest (no cluster)
+bash deploy/scripts/check-mcp-streamable-http.sh   # Streamable HTTP adapter + selftest (no live network)
 ```
 
 | 항목 | M3 고정 |
 |------|---------|
-| 문서 | [`docs/mcp-invoke-dual.md`](docs/mcp-invoke-dual.md) · [`../services/mcp-invoke/DESIGN.md`](../services/mcp-invoke/DESIGN.md) |
+| 문서 | [`docs/mcp-invoke-dual.md`](docs/mcp-invoke-dual.md) · [`docs/mcp-streamable-http.md`](docs/mcp-streamable-http.md) · [`../services/mcp-invoke/DESIGN.md`](../services/mcp-invoke/DESIGN.md) |
 | async | `aura.tasks.mcp.invoke` / `aura_mcp_invoke` → `aura.events.mcp.invoke.done`/`error` |
 | sync | `aura.rpc.mcp.tool` · queue `aura-mcp-invoke` · **MinScale≥2** + Deployment `aura-mcp-invoke-rr` **replicas≥2** |
 | 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (Warm + RR; **MQT 없음**) |
 | PG | **금지** (Zero Direct Write) |
-| Non-goals | 외부 Streamable HTTP MCP · sandbox egress · live NATS SDK |
+| Non-goals | sandbox egress · live NATS SDK · full MCP initialize (Streamable HTTP client: `streamable-http.js`) |
 
 ### Gateway · `run_id` · SSE/WS · principal (M3)
 
