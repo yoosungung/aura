@@ -82,7 +82,7 @@ recall 기본과 동일. Agent는 이 상한을 넘긴 items를 추가로 요청
 ## V2.3 매핑
 
 ROADMAP M2 V2.3: *Agent 주입 슬롯·토큰 예산* → 이 문서 + ARCHITECTURE §6.3 수치.  
-패킹·스모크는 M3 `agent_invoke`.
+패킹 본구현=`services/agent-invoke` (`packRecallItems`) · 게이트 `check-agent-invoke.sh`.
 
 ---
 
