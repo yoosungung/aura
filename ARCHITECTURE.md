@@ -219,6 +219,7 @@ MQT·프레임·RPC 순서 고정: [`deploy/docs/agent-invoke-mqt.md`](deploy/do
 - JetStream/`AURA_EVENTS`에 토큰을 쌓지 않는다. 재연결 시 Gateway는 버퍼·replay를 보장하지 않는다(유실 허용). 필요 시 클라이언트는 done 이벤트·체크포인트로 최종 문구를 맞춘다.
 - Gateway는 `run_id` 소유 principal만 구독하게 인가한다(토큰/세션 검증). subject 와일드카드 남용 금지.
 - 비대화형·배치 전용 invoke는 스트림을 생략할 수 있으나, **대화형 기본 경로는 스트림 필수**.
+- Gateway wire(`run_id` 발급 · SSE/WS · 인가): [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md) · [`services/gateway/`](services/gateway/).
 
 ---
 

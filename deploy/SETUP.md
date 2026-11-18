@@ -385,7 +385,22 @@ bash deploy/scripts/check-agent-invoke.sh   # DESIGN + MQT + stream frames + sel
 | 스트림 | Core `aura.stream.<run_id>` — `run.started` / `token` / `tool.*` / `run.completed` |
 | RPC | resolve · recall · mcp.tool (injectable; live RR 후속) |
 | 매니페스트 | `k8s/agent-invoke/` · `minReplicaCount=0` |
-| Non-goals | Gateway SSE/Fair Queue · live LLM Gateway · live NATS Core publisher |
+| Non-goals | Fair Queue · live LLM Gateway · live NATS Core publisher (Gateway SSE → 아래 절) |
+
+### Gateway · `run_id` · SSE/WS · principal (M3)
+
+```bash
+bash deploy/scripts/check-gateway-sse-ws.sh   # DESIGN + Deployment≥2 + principal/SSE selftest (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/gateway-sse-ws.md`](docs/gateway-sse-ws.md) · [`../services/gateway/DESIGN.md`](../services/gateway/DESIGN.md) |
+| 제출 | `POST /v1/agent/invoke` → UUIDv7 `run_id` → `aura.tasks.agent.invoke` |
+| 브리지 | SSE `GET /v1/runs/:run_id/events` · WS `…/ws` · exact `aura.stream.<run_id>` |
+| 인가 | 소유 principal만 · 403/404 · 와일드카드 구독 금지 |
+| 매니페스트 | `k8s/gateway/` Deployment **replicas≥2** · Service · **MQT 없음** · **PG 없음** |
+| Non-goals | Fair Queue/Token Bucket · live NATS SDK · live LLM Gateway |
 
 ### Object Store · `content_ref` (M2 / V2.1 · provision 비범위)
 

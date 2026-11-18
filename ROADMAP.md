@@ -38,6 +38,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
 | 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Deployment는 후속 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | 2026-11-19 | **`agent_invoke` MQT + 스트림 프레임 M3 고정** — topic `aura.tasks.agent.invoke` · Core `aura.stream.<run_id>` (`run.started`/`token`/`tool.*`/`run.completed`) · resolve/recall/mcp RPC injectable · done=`aura.events.agent.invoke.done` · V3.1 token-before-done · Gateway SSE/Fair Queue/live LLM=후속 | [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md)·`check-agent-invoke.sh` · [`services/agent-invoke/`](services/agent-invoke/) |
+| 2026-11-19 | **Gateway `run_id`/SSE/WS/principal M3 고정** — UUIDv7 발급 · exact `aura.stream.<run_id>` · 소유 principal만 구독 · Deployment replicas≥2 · Fair Queue/live NATS=후속 | [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md)·`check-gateway-sse-ws.sh` · [`services/gateway/`](services/gateway/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -172,7 +173,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 - [x] `svc-control` 최소 resolve API/스키마 (`source_meta`/`user_meta`) — [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · `control_meta.sql` · `check-svc-control-resolve.sh`
 - [x] `agent_invoke` MQT — recall/mcp/resolve RPC + **`aura.stream.<run_id>` 토큰/툴 프레임** 설계·구현 — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`services/agent-invoke/`](services/agent-invoke/) · `deploy/k8s/agent-invoke/` · `check-agent-invoke.sh`
-- [ ] Gateway: `run_id` 발급; SSE/WS 브리지 + principal 인가
+- [x] Gateway: `run_id` 발급; SSE/WS 브리지 + principal 인가 — [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md) · [`services/gateway/`](services/gateway/) · `deploy/k8s/gateway/` · `check-gateway-sse-ws.sh`
 - [ ] Gateway: **테넌트별 Rate Limiting** — Token Bucket + max_inflight(§2.2); NATS KV; 429; 노이지 픽스처
 - [ ] done/error 시 inflight 감산; 우회 시 `agent_invoke` 재확인
 - [x] 프레임 계약 확정: `run.started` / `token` / `tool.*` / `run.completed` + events done — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · `check-agent-invoke.sh`

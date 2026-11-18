@@ -7,7 +7,8 @@
 resolve wire: [`svc-control-resolve.md`](svc-control-resolve.md).
 
 **이 문서 범위:** 태스크 payload · 스트림 프레임 타입 · RPC 순서 · done/error envelope · MQT 이름표.  
-**Non-goals:** Gateway SSE/WS 브리지·인가 · Fair Queue · live LLM Gateway · live NATS Core publisher 구현 · `mcp_invoke` 이원화 · resolve 브리지 Deployment · 체크포인트 DDL.
+**Non-goals:** Fair Queue · live LLM Gateway · live NATS Core publisher 구현 · `mcp_invoke` 이원화 · resolve 브리지 Deployment · 체크포인트 DDL.  
+Gateway SSE/WS·`run_id`·principal: [`gateway-sse-ws.md`](gateway-sse-ws.md).
 
 ---
 

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-gateway
+  namespace: default
+  labels:
+    aura.runtime/class: gateway
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-gateway
+spec:
+  selector:
+    app.kubernetes.io/name: aura-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
