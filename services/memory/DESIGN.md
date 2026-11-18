@@ -38,6 +38,7 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 입력 envelope: §8 (`id` 멱등 키 · `tenant_id` · `payload` / `content_ref`).  
 `content_ref` / 256KB / Object Store(**Garage**) 계약: [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) — 본 슬라이스는 업로드 본구현 없음(스키마만 준수).  
+고아 `content_ref` GC(V2.2): [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) — `aura.tasks.memory.object_gc` · 90일 grace · live 참조 시 스킵 · 구현=M4.  
 스켈레톤: `tenant_id` 검증 → `withTenantTx` → (stub) idempotent upsert 자리 · 성공 시 `type: memory.stored` 본문. 실 DDL INSERT·멱등 UNIQUE는 동일 헬퍼 위에서 확장(체크는 GUC 경로만 고정).
 
 ---
@@ -109,6 +110,7 @@ bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_
 bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + GUCs + Warm Pool + no MQT + selftests
 bash deploy/scripts/check-agent-inject-contract.sh # Agent 주입 슬롯·토큰 예산 문서 게이트
 bash deploy/scripts/check-object-store-content-ref.sh # Object Store=Garage · content_ref · 256KB
+bash deploy/scripts/check-object-store-orphan-gc.sh   # 고아 GC 90d · object_gc · skip-if-ref
 node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
 node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
@@ -119,5 +121,5 @@ node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant
 
 ## 관련 링크
 
-- §2.1 Pooler · §3.2 store/embed · §3.3 recall subject · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
-- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1»
+- §2.1 Pooler · §3.2 store/embed/object_gc · §3.3 recall subject · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · 고아 GC [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
+- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2»

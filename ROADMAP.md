@@ -35,6 +35,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **활성 임베딩 M1 고정** — `AURA_EMBEDDING_MODEL=BAAI/bge-m3` · `version=1` · `dims=1024` · `model_key=BAAI/bge-m3:1` (dense only). TTL 수치는 기존 로그·`memory-ttl-policy.md` 유지 | 클러스터 TEI `bge-m3-tei` + HF model card dims=1024 · [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md)·`check-memory-embedding-active.sh` |
 | 2026-11-19 | **Agent 주입 계약 M2 고정** — recall `items[]`만 주입; 원문/`content_ref` 덤프 금지; 슬롯 short_term **512** · episodic **768** · long_term+semantic **768**(합 **2048**); 아이템 short **4** · `top_k` **12**; 패킹 구현=M3 | §1 #9·§6.3 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md)·`check-agent-inject-contract.sh` |
 | 2026-11-19 | **Object Store = Garage** (S3/SigV4). 버킷 `aura-content` · 키 `tenants/{tenant_id}/refs/…`(+ archive prefix 공유) · Barman=`aura-pg` 분리. 256KB 초과/`PII` → `content_ref` only. 라이브 provision·NCP/AWS 비용=`@eric` 보류 | V2.1 · §8 · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)·`check-object-store-content-ref.sh` |
+| 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -144,20 +145,20 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph stub); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
 - [x] Agent 주입 계약(프롬프트 슬롯·토큰 예산) — [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · `check-agent-inject-contract.sh` (패킹 구현=M3)
 - [x] **Object Store 제품 확정**(Garage/S3/NCP 등) → 결정 로그; `content_ref` 스키마·권한 — **Garage** · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh` (라이브 provision 보류)
-- [ ] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — DESIGN에 알고리즘 고정(구현은 M4와 맞춰도 됨)
+- [x] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · `check-object-store-orphan-gc.sh` (구현=M4)
 
 **검증 체크리스트**
 
 | # | 검증 | 합격 |
 |---|------|------|
 | V2.1 | Object Store 제품·버킷/경로 | 결정 로그 **Garage**; `aura-content`+`tenants/{tenant_id}/…`; 256KB 초과=`content_ref`만; `check-object-store-content-ref.sh` PASS |
-| V2.2 | 90일(또는 정책일) 고아 GC 설계 | DESIGN에 GC 쿼리/태스크·안전장치(참조 존재 시 스킵) 명시 |
+| V2.2 | 90일(또는 정책일) 고아 GC 설계 | DESIGN/doc에 GC 쿼리/태스크·안전장치(참조 존재 시 스킵); `check-object-store-orphan-gc.sh` PASS |
 | V2.3 | Agent 주입 슬롯·토큰 예산 | ARCHITECTURE §6.3 + doc에 2048/512/768/768·short=4·top_k=12; `check-agent-inject-contract.sh` PASS |
 
 **성공 기준**
 
 - capture DB 쓰기 없음; recall에 JetStream ScaledObject 없음; 유형별 예산 동작.
-- V2.1–V2.3 합격 (V2.1·V2.3=고정; V2.2 고아 GC=후속 child).
+- V2.1–V2.3 합격 (V2.1–V2.3=고정).
 
 ---
 
@@ -210,6 +211,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [ ] 슈퍼노드 픽스처: 허브 1노드에 엣지 ≫ cap → 쿼리 시간/반환 상한 준수(폭발 없음)
 - [ ] `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션 DROP**
 - [ ] `aura.tasks.memory.archive` — 콜드 episodic → Object Storage Parquet → DETACH/DROP + `aura.events.memory.archived`
+- [ ] `aura.tasks.memory.object_gc` — 유예 90일 미참조 `content_ref` 삭제 ([`object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) 알고리즘)
 - [ ] object store 버킷/경로 계약(번들 스토어와 공유 가능) → 결정 로그
 - [ ] OTel (Function·NATS·PG) + 시크릿 마스킹 검증
 - [ ] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름
@@ -247,7 +249,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - 그래프 `per_hop_limit` / `supernode_degree_cap` 운영 튜닝 — **M1 수치 고정**([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)) → **M4 부하 후 조정**
 - async 콜드스타트 p95 확정 수치 — **M0 측정 후**
 - sync RPC 상한 스케일(HPA 메트릭: CPU vs RPS) — M2/M3 직전
-- ~~Object store **아카이브 Parquet 경로가 번들/`content_ref`와 버킷 공유인지**~~ — **M2 고정:** 동일 `aura-content` 버킷 · prefix 분리(`refs/` vs `archive/` vs `bundles/`); Barman=`aura-pg` 비공유 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)). GC 설계=M2 child · 아카이브 구현=M4
+- ~~Object store **아카이브 Parquet 경로가 번들/`content_ref`와 버킷 공유인지**~~ — **M2 고정:** 동일 `aura-content` 버킷 · prefix 분리(`refs/` vs `archive/` vs `bundles/`); Barman=`aura-pg` 비공유 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)). ~~GC 설계~~ **고정** ([`object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)) · 아카이브·GC 본구현=M4
 - short_term/episodic/audit 핫 일수 운영 튜닝 — M1 정책 수립 → M4 부하 후 조정
 - NATS account 격리 — **출시 후**
 - 테넌트 rate/burst/inflight·플랜 tier 최종 숫자 — **M3 DESIGN**(기능은 M3 필수)

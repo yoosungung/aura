@@ -156,6 +156,7 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 | `aura.tasks.memory.consolidate` | `aura_memory_consolidate` | `svc-memory` consolidate | `aura.events.memory.consolidated` / `aura.events.memory.consolidate.error` |
 | `aura.tasks.memory.ttl` | `aura_memory_ttl` | `svc-memory` ttl | `aura.events.memory.ttl.done` / `aura.events.memory.ttl.error` |
 | `aura.tasks.memory.archive` | `aura_memory_archive` | `svc-memory` archive | `aura.events.memory.archived` / `aura.events.memory.archive.error` |
+| `aura.tasks.memory.object_gc` | `aura_memory_object_gc` | `svc-memory` object_gc | `aura.events.memory.object_gc.done` / `aura.events.memory.object_gc.error` |
 
 MQT: `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.stream`은 `AURA_TASKS`(태스크) 또는 문서에 명시한 스트림.
 
@@ -487,6 +488,7 @@ Agent는 **이 recall 응답 `items[]`만** 메모리 컨텍스트에 넣는다.
 
 - `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션** DROP 스케줄 (MQT, scale-to-zero OK)
 - `aura.tasks.memory.archive` — 콜드 episodic export(Parquet) → object store → DETACH/DROP; 완료 이벤트 `aura.events.memory.archived`
+- `aura.tasks.memory.object_gc` — 유예(90일) 경과 미참조 `content_ref` 객체 삭제 배치 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)
 
 **수치 (M1 고정 · 구현=M4)** — 본문 [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)
 
@@ -621,6 +623,8 @@ Function은 `aura.rpc.control.resolve`(또는 브리지)로 `source_meta`+`user_
 `id`는 멱등 키. NATS 페이로드 **256KB(262144) 초과** 또는 PII 본문은 **`content_ref`만** 넣고 `payload`에 원문을 두지 않는다(§9.3).
 
 **Object Store 제품 (M2 / V2.1):** **Garage** (S3-compatible / SigV4). 버킷 가정 `aura-content`; 키 `tenants/{tenant_id}/refs/…`. PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals.
+
+**고아 객체 GC (M2 / V2.2 · 구현=M4):** `aura.tasks.memory.object_gc` — `refs/` prefix만, 객체 age **≥ 90일**(`AURA_EVENTS` retention 정합)이고 PG live 참조가 없을 때만 `DeleteObject`. 참조 존재 시 **스킵**. 알고리즘·멱등 키·배치: [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md).
 
 ---
 
