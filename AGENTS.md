@@ -16,13 +16,13 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
-| `deploy/docs/` | 배포·스모크 **계획** 문서 (PG+Pooler · Multi-AZ/PITR 초안) | `deploy/docs/` |
+| `deploy/docs/` | 배포·스모크 **계획** 문서 (PG+Pooler · Multi-AZ/PITR 초안 · **memory TTL 수치**) | `deploy/docs/` |
 | `deploy/sql/` | 메모리 PG DDL (`memory_items` LIST+RANGE+RLS · `memory_audit` 월 RANGE+RLS) | `deploy/sql/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
 | `deploy/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/k8s/async-smoke/` |
 | `deploy/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/k8s/sync-smoke/` |
 | `deploy/k8s/pg-pooler/` | CNPG `Cluster` `aura-pg` + `Pooler` `aura-pg-pooler` (transaction) + DSN ConfigMap · HA draft `cluster-ha.draft.yaml` | `deploy/k8s/pg-pooler/` |
-| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `check-pg-pooler.sh` · `check-pg-ha.sh` · `check-memory-items.sh` · `check-memory-audit.sh` · `smoke-pg-pooler.sh` · `smoke-memory-items.sh` · `smoke-memory-audit.sh` · `smoke-*.sh` | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `check-pg-pooler.sh` · `check-pg-ha.sh` · `check-memory-items.sh` · `check-memory-audit.sh` · `check-memory-ttl.sh` · `smoke-pg-pooler.sh` · `smoke-memory-items.sh` · `smoke-memory-audit.sh` · `smoke-*.sh` | `deploy/scripts/` |
 
 규칙:
 
@@ -53,7 +53,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 **기획 문서 고정 완료** — [ARCHITECTURE.md](ARCHITECTURE.md)·[ROADMAP.md](ROADMAP.md)·[README.md](README.md).
 
 M0: NATS·KEDA·Fission 설치 + 스트림 + async/sync 분리(V0.1) + async echo/poison + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term** + **PG+Pooler 스모크 계획** 완료.  
-M1 진행: BM25=`tsvector` 확정 · **Pooler=CNPG `Pooler` transaction** + [`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/) · `check-pg-pooler.sh` · **V1.1 RLS 실측** · **Multi-AZ/PITR 초안** · **`memory_items` LIST+월 RANGE+RLS** · **`memory_audit` 월 RANGE+RLS** [`deploy/sql/memory_audit.sql`](deploy/sql/memory_audit.sql).  
-다음: async 콜드 p95 · Fission MQT Term 미들웨어 · M1 short_term TTL 정책·embeddings·`svc-memory`.
+M1 진행: BM25=`tsvector` 확정 · **Pooler=CNPG `Pooler` transaction** + [`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/) · `check-pg-pooler.sh` · **V1.1 RLS 실측** · **Multi-AZ/PITR 초안** · **`memory_items` LIST+월 RANGE+RLS** · **`memory_audit` 월 RANGE+RLS** · **TTL 수치** [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md) (14d/24mo/12mo).  
+다음: async 콜드 p95 · Fission MQT Term 미들웨어 · M1 embeddings·nodes/edges·`svc-memory`.
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

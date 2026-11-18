@@ -203,8 +203,9 @@ bash deploy/scripts/smoke-memory-items.sh              # live via pooler: seed m
 |------|-----|
 | DDL | `deploy/sql/memory_items.sql` — LIST(`memory_type`); short_term/episodic → 월 RANGE; long_term/semantic 리프 |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
-| 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH (TTL 수치·DROP 주기는 후속 티켓) |
-| Non-goals | embeddings · `svc-memory` store 본문 · TTL DROP 수치 |
+| 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH |
+| TTL | 핫/DROP 수치 = [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (구현=M4) |
+| Non-goals | embeddings · `svc-memory` store 본문 · TTL job 본구현 |
 
 ### memory_audit 월 RANGE + RLS (M1)
 
@@ -218,8 +219,23 @@ bash deploy/scripts/smoke-memory-audit.sh              # live via pooler: seed m
 |------|-----|
 | DDL | `deploy/sql/memory_audit.sql` — `PARTITION BY RANGE (created_at)`; PK `(id, created_at)` |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
-| 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH (핫 12개월·DROP 주기는 후속 TTL 티켓) |
+| 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH |
+| TTL | audit 핫 **12개월** — [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (DROP 구현=M4) |
 | Non-goals | soft delete · `memory_items` FK · embeddings · `svc-memory` store 본문 |
+
+### memory TTL 정책 (M1 수치 고정 · job 비범위)
+
+```bash
+bash deploy/scripts/check-memory-ttl.sh   # doc gate: 14d / 24mo / 12mo + aura.tasks.memory.ttl
+```
+
+| 항목 | M1 고정 |
+|------|---------|
+| 문서 | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) |
+| short_term | 핫 **14일** → 월 파티션 DROP |
+| episodic | 핫 **24개월** → archive 후 DETACH/DROP |
+| audit | 핫 **12개월** → 월 파티션 DROP |
+| 태스크 | `aura.tasks.memory.ttl` (구현·스케줄=M4) |
 
 ### PG Multi-AZ / PITR (M1 초안 · apply 비범위)
 

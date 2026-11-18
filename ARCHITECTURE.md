@@ -463,21 +463,21 @@ Agent는 이 응답만 컨텍스트에 넣는다.
 
 | 대상 | 파티션 | 핫 유지 | 제거/아카이브 |
 |------|--------|---------|----------------|
-| `short_term` items | LIST + **월 RANGE** | 수일~수주(ROADMAP 수치) | **파티션 DROP** (DELETE+VACUUM 비선호). 내구 HNSW **미사용** |
-| `episodic` items (+embeds) | LIST + **월 RANGE** | 수개월~2년(핫) | 콜드: `aura.tasks.memory.archive` → Object Storage **Parquet**(또는 동등) 적재 → **DETACH/DROP**. Soft `valid_until`만으로 방치 금지 |
+| `short_term` items | LIST + **월 RANGE** | **14일** | **파티션 DROP** (DELETE+VACUUM 비선호). 내구 HNSW **미사용** |
+| `episodic` items (+embeds) | LIST + **월 RANGE** | **24개월**(핫) | 콜드: `aura.tasks.memory.archive` → Object Storage **Parquet**(또는 동등) 적재 → **DETACH/DROP**. Soft `valid_until`만으로 방치 금지 |
 | `long_term` / `semantic` | LIST (시간 RANGE는 연 단위 선택) | 장기 | `valid_until` + consolidate supersede; 대량 폐기는 배치 |
-| `memory_audit` | **월 RANGE** | N개월 | 오래된 월 파티션 **DROP** |
+| `memory_audit` | **월 RANGE** | **12개월** | 오래된 월 파티션 **DROP** |
 | `memory_embeddings` | LIST(`model_key`) | 활성 모델 | 모델 폐기 DETACH/DROP; 에피소딕 월 제거 시 orphan embed 정리 배치 |
 
 **태스크**
 
-- `aura.tasks.memory.ttl` — 만료 short_term/episodic **월 파티션** DROP 스케줄 (MQT, scale-to-zero OK)
+- `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션** DROP 스케줄 (MQT, scale-to-zero OK)
 - `aura.tasks.memory.archive` — 콜드 episodic export(Parquet) → object store → DETACH/DROP; 완료 이벤트 `aura.events.memory.archived`
 
-**수치(초안, M1/M4에서 확정)**
+**수치 (M1 고정 · 구현=M4)** — 본문 [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)
 
-- short_term 핫: **14일** (월 파티션 경계에 맞춤)
-- episodic 핫: **24개월**; 이후 아카이브 대상
+- short_term 핫: **14일** — DROP iff 파티션 상한 `U <= now() - interval '14 days'`
+- episodic 핫: **24개월**; 이후 archive 대상
 - audit 핫: **12개월**
 
 `valid_until`은 논리 만료·승격용이다. **인덱스/디스크 회수는 파티션 DROP·아카이브가 정본**이다.

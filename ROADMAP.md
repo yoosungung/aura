@@ -27,7 +27,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **BM25/전문 = stock `tsvector` + `GIN` + `ts_rank`/`ts_rank_cd`** (`content_tsv`). ParadeDB/`pg_search` **M1 비채택** | §6 DDL 기본과 일치; 추가 확장·`shared_preload`·CNPG ImageVolume(PG18+) 없이 Pooler/RLS M1과 병행 가능. 순수 Okapi BM25 품질 갭이 실측되면 이후 `pg_search` 재평가 |
 | 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only** (`aura-pg-pooler…`). standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator; §2.1·[`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/)·`check-pg-pooler.sh`. V1.1 RLS 실측은 `92cccf21` |
 | 2026-11-18 | **PG Multi-AZ / PITR 토폴로지 초안** — instances=3 + zone anti-affinity; Barman Cloud WAL+base; **RPO ≤ 5m · RTO ≤ 1h**; recall = RO Pooler(`type: ro`) | §9.6·[`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)·`cluster-ha.draft.yaml`. 라이브 apply·PITR 드릴 실측은 후속/M4. 비용·리전 실값 비범위 |
+| 2026-11-18 | **메모리 TTL 수치 M1 고정** — short_term 핫 **14일** · episodic 핫 **24개월** · audit 핫 **12개월**; DROP 담당=`aura.tasks.memory.ttl` (구현=M4) | §6.2.2·[`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)·`check-memory-ttl.sh`. Soft-delete-only 방치 금지 |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
+| 2026-11-18 | **short_term TTL**: 핫 **14일**; 월 RANGE는 `upper_exclusive + 14d` 이후 DETACH/DROP; DROP 주기 **일 1회**; 담당 **`aura.tasks.memory.ttl`** (구현 M4). 정본 [`services/memory/DESIGN.md`](services/memory/DESIGN.md) | §6.2.2 초안 확정; 월 파티션 경계에 맞춤; DELETE+VACUUM·soft-only 방치 금지 |
 
 ---
 
@@ -98,13 +100,13 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획) — [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)
 - [x] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS (`deploy/sql/memory_items.sql` · `check-memory-items.sh` · `smoke-memory-items.sh`)
 - [x] `memory_audit` **월 RANGE** 파티션 + RLS (`deploy/sql/memory_audit.sql` · `check-memory-audit.sh` · `smoke-memory-audit.sh`)
-- [ ] **short_term 만료 정리 정책** 문서화: 핫 일수·월 파티션 DROP 주기·담당 태스크(`aura.tasks.memory.ttl`) — DESIGN에 수치 고정
+- [x] **short_term 만료 정리 정책** 문서화: 핫 일수·월 파티션 DROP 주기·담당 태스크(`aura.tasks.memory.ttl`) — [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md) · `check-memory-ttl.sh`
 - [ ] `memory_nodes` / `memory_edges` 마이그레이션 + RLS
 - [ ] edges **`idx_memory_edges_out` / `idx_memory_edges_in`** (partial `valid_until IS NULL`); 순회 한도 DESIGN(§6.2.4)
 - [ ] **`memory_embeddings` 차원/파티션 DDL 확정**: LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW; **모델 세대 교체**(새 파티션 ATTACH → 전환 → 구형 DETACH) 절차를 DESIGN/런북에 고정
 - [ ] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN
 - [ ] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2
-- [ ] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그; TTL 초안(14일/24개월/12개월)
+- [ ] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정)
 - [ ] `services/memory/DESIGN.md` + store MQT — 매 트랜잭션 `set_config(..., true)`
 - [ ] (스모크) 무차원 HNSW 실패; short_term→embed 거부
 
