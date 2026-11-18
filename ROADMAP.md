@@ -100,7 +100,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS (`deploy/sql/memory_items.sql` · `check-memory-items.sh` · `smoke-memory-items.sh`)
 - [x] `memory_audit` **월 RANGE** 파티션 + RLS (`deploy/sql/memory_audit.sql` · `check-memory-audit.sh` · `smoke-memory-audit.sh`)
 - [x] **short_term 만료 정리 정책** 문서화: 핫 일수·월 파티션 DROP 주기·담당 태스크(`aura.tasks.memory.ttl`) — [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md) · `check-memory-ttl.sh`
-- [ ] `memory_nodes` / `memory_edges` 마이그레이션 + RLS
+- [x] `memory_nodes` / `memory_edges` 마이그레이션 + RLS (`deploy/sql/memory_nodes_edges.sql` · `check-memory-nodes-edges.sh` · `smoke-memory-nodes-edges.sh`)
 - [ ] edges **`idx_memory_edges_out` / `idx_memory_edges_in`** (partial `valid_until IS NULL`); 순회 한도 DESIGN(§6.2.4)
 - [ ] **`memory_embeddings` 차원/파티션 DDL 확정**: LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW; **모델 세대 교체**(새 파티션 ATTACH → 전환 → 구형 DETACH) 절차를 DESIGN/런북에 고정
 - [ ] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN
