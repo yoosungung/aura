@@ -16,6 +16,10 @@ const {
   authorizeWs,
   handleSubmitHttp,
   handleSseHttp,
+  releaseInflightFromEvent,
+  isTerminalInvokeEvent,
+  isTerminalStreamFrame,
+  quotaKey,
   TASK_AGENT_INVOKE,
   STREAM_FRAME_TYPES,
   DEFAULT_LIMITS,
@@ -335,6 +339,97 @@ async function main() {
   );
   assert.strictEqual(denied.status, 429);
   assert.ok(denied.body.retry_after_ms >= 1);
+
+  // --- done/error inflight release (멱등) ---
+  assert.ok(isTerminalInvokeEvent('aura.events.agent.invoke.done'));
+  assert.ok(isTerminalInvokeEvent('aura.events.agent.invoke.error'));
+  assert.ok(isTerminalStreamFrame({ type: 'run.completed' }));
+  assert.ok(isTerminalStreamFrame({ type: 'error' }));
+  assert.ok(!isTerminalInvokeEvent('aura.events.agent.invoke.other'));
+
+  const kvRel = createMemoryKv();
+  const limitsRel = { ratePerSec: 10, burst: 5, maxInflight: 2 };
+  const nowRel = 1_700_000_100_000;
+  const rlRel = createTenantRateLimiter({
+    kv: kvRel,
+    limits: limitsRel,
+    now: () => nowRel,
+  });
+  const runDone = '019a0000-0000-7000-8000-00000000done';
+  const runErr = '019a0000-0000-7000-8000-00000000err0';
+  assert.ok((await rlRel.tryAcquire('tenant-rel', runDone)).ok);
+  assert.ok((await rlRel.tryAcquire('tenant-rel', runErr)).ok);
+  let st = (await kvRel.get(quotaKey('tenant-rel'))).value;
+  assert.strictEqual(st.inflight, 2);
+
+  const relDone = await releaseInflightFromEvent(
+    'aura.events.agent.invoke.done',
+    'tenant-rel',
+    runDone,
+    { rateLimiter: rlRel },
+  );
+  assert.strictEqual(relDone.released, true);
+  st = (await kvRel.get(quotaKey('tenant-rel'))).value;
+  assert.strictEqual(st.inflight, 1);
+  assert.ok(!st.runs[runDone]);
+
+  const relDone2 = await releaseInflightFromEvent(
+    'aura.events.agent.invoke.done',
+    'tenant-rel',
+    runDone,
+    { rateLimiter: rlRel },
+  );
+  assert.strictEqual(relDone2.released, false, 'release must be idempotent');
+  st = (await kvRel.get(quotaKey('tenant-rel'))).value;
+  assert.strictEqual(st.inflight, 1);
+
+  const relErr = await releaseInflightFromEvent(
+    'aura.events.agent.invoke.error',
+    'tenant-rel',
+    runErr,
+    { rateLimiter: rlRel },
+  );
+  assert.strictEqual(relErr.released, true);
+  st = (await kvRel.get(quotaKey('tenant-rel'))).value;
+  assert.strictEqual(st.inflight, 0);
+
+  const skip = await releaseInflightFromEvent(
+    'aura.events.other',
+    'tenant-rel',
+    runDone,
+    { rateLimiter: rlRel },
+  );
+  assert.strictEqual(skip.skipped, true);
+
+  // stream terminal also releases (first-fire-wins)
+  const kvBridge2 = createMemoryKv();
+  const rlBridge2 = createTenantRateLimiter({
+    kv: kvBridge2,
+    limits: limitsRel,
+    now: () => nowRel,
+  });
+  const regBridge = createRunRegistry();
+  const runBridge = '019a0000-0000-7000-8000-00000000brdg';
+  assert.ok((await rlBridge2.tryAcquire('tenant-bridge', runBridge)).ok);
+  regBridge.register(runBridge, { id: 'p1', tenant_id: 'tenant-bridge' });
+  await openStreamBridge(
+    runBridge,
+    { id: 'p1', tenant_id: 'tenant-bridge' },
+    {
+      registry: regBridge,
+      rateLimiter: rlBridge2,
+      subscribeStream: async (_s, onFrame) => {
+        await onFrame({ type: 'token', text: 'x' });
+        await onFrame({ type: 'run.completed' });
+        await onFrame({ type: 'error', message: 'late' });
+        return { close: async () => {} };
+      },
+    },
+    async () => {},
+  );
+  st = (await kvBridge2.get(quotaKey('tenant-bridge'))).value;
+  assert.strictEqual(st.inflight, 0, 'stream terminal must release once');
+  assert.ok(!st.runs[runBridge]);
 
   console.log('gateway.selftest: PASS');
 }

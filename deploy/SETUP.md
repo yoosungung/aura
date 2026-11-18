@@ -415,7 +415,19 @@ bash deploy/scripts/check-gateway-fair-queue.sh   # Token Bucket + max_inflight 
 | 기본 수치 | rate **10**/s · burst **30** · inflight **20** |
 | 거부 | **429** (`rate_limited` / `max_inflight_exceeded`) · JetStream 미적재 |
 | 상태 | CAS KV `quota.{tenant_id}` (memory 테스트 · NATS KV 권장) |
-| Non-goals | live NATS KV 클라이언트 · done/error 구독 감산 배선 · F1 샤딩 |
+| Non-goals | live NATS KV 클라이언트 · live done 구독 Deployment · F1 샤딩 |
+
+### Gateway · inflight `release` + bypass re-check (M3 · §2.2)
+
+```bash
+bash deploy/scripts/check-gateway-inflight-release.sh   # terminal release + ensureAdmitted poison (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/gateway-inflight-release.md`](docs/gateway-inflight-release.md) |
+| 감산 | stream `run.completed`/`error` · event `aura.events.agent.invoke.done`/`error` |
+| 우회 | `agent_invoke` `ensureAdmitted` → 429 poison · 재큐 금지 |
 
 ### Object Store · `content_ref` (M2 / V2.1 · provision 비범위)
 
