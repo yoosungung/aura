@@ -119,7 +119,7 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 | 키 | `tenant_id` (+ 선택 `agent` 플랜 tier) |
 | 알고리즘 | **Token Bucket** (지속 rate + burst) + **max_inflight** 세마포어 |
 | 상태 저장 | Gateway 레플리카 공유: **NATS JetStream KV**(권장) 또는 동등. Redis를 **큐 대용**으로 쓰지 않는다(§1.1). |
-| 수치 | 플랜별 기본값 — M3 DESIGN. 초안: rate `R` req/s, burst `B`, inflight `C` (예: 10/s, burst 30, inflight 20) |
+| 수치 | 플랜별 기본값 — M3 DESIGN 고정 초안: rate **10**/s, burst **30**, inflight **20** ([`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md)) |
 
 **Fairness**
 

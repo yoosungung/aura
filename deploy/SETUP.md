@@ -400,7 +400,22 @@ bash deploy/scripts/check-gateway-sse-ws.sh   # DESIGN + Deployment≥2 + princi
 | 브리지 | SSE `GET /v1/runs/:run_id/events` · WS `…/ws` · exact `aura.stream.<run_id>` |
 | 인가 | 소유 principal만 · 403/404 · 와일드카드 구독 금지 |
 | 매니페스트 | `k8s/gateway/` Deployment **replicas≥2** · Service · **MQT 없음** · **PG 없음** |
-| Non-goals | Fair Queue/Token Bucket · live NATS SDK · live LLM Gateway |
+| Non-goals (SSE 슬라이스) | live NATS SDK · live LLM Gateway (Fair Queue는 아래 절) |
+
+### Gateway · Fair Queue / Rate Limit (M3 · §2.2)
+
+```bash
+bash deploy/scripts/check-gateway-fair-queue.sh   # Token Bucket + max_inflight + noisy fixture (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/gateway-fair-queue.md`](docs/gateway-fair-queue.md) |
+| 알고리즘 | Token Bucket + `max_inflight` · 키=`tenant_id` |
+| 기본 수치 | rate **10**/s · burst **30** · inflight **20** |
+| 거부 | **429** (`rate_limited` / `max_inflight_exceeded`) · JetStream 미적재 |
+| 상태 | KV shape `quota:{tenant_id}` (memory 테스트 · NATS KV 권장) |
+| Non-goals | live NATS KV 클라이언트 · done/error 구독 감산 배선 · F1 샤딩 |
 
 ### Object Store · `content_ref` (M2 / V2.1 · provision 비범위)
 

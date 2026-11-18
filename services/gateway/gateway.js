@@ -2,13 +2,18 @@
 
 /**
  * Gateway — run_id 발급 · aura.stream.<run_id> → SSE/WS 브리지 · principal 인가
- * (ARCHITECTURE §1 #1·#13 · §2 · §2.2 집행 위치 · §3.5 · §7).
+ * · tenant Fair Queue / Rate Limit (ARCHITECTURE §1 #1·#13·#16 · §2 · §2.2 · §3.5 · §7).
  *
- * Non-goals (this slice): Fair Queue / Token Bucket / max_inflight · live NATS client
- * wiring · live LLM Gateway · mcp_invoke · control resolve bridge · agent_checkpoints DDL.
+ * Non-goals: live NATS JetStream KV client · F1 subject sharding · live LLM · sandbox · mcp_invoke.
  */
 
 const crypto = require('crypto');
+const {
+  DEFAULT_PLAN,
+  createMemoryQuotaStore,
+  acquireForRun,
+  releaseInflight,
+} = require('./rate-limit');
 
 const TASK_AGENT_INVOKE = 'aura.tasks.agent.invoke';
 const STREAM_PREFIX = 'aura.stream.';
@@ -22,14 +27,9 @@ const STREAM_FRAME_TYPES = Object.freeze([
   'run.completed',
 ]);
 
-/**
- * UUIDv7 (RFC 9562) — 48-bit unix-ms + version/variant + random.
- * @returns {string}
- */
 function issueRunId(nowMs) {
   const ms = typeof nowMs === 'number' ? nowMs : Date.now();
   const bytes = crypto.randomBytes(16);
-  // 48-bit timestamp big-endian into bytes[0..5]
   const ts = BigInt(ms);
   bytes[0] = Number((ts >> 40n) & 0xffn);
   bytes[1] = Number((ts >> 32n) & 0xffn);
@@ -37,9 +37,7 @@ function issueRunId(nowMs) {
   bytes[3] = Number((ts >> 16n) & 0xffn);
   bytes[4] = Number((ts >> 8n) & 0xffn);
   bytes[5] = Number(ts & 0xffn);
-  // version 7 in high nibble of byte 6
   bytes[6] = (bytes[6] & 0x0f) | 0x70;
-  // RFC 9562 variant 10xxxxxx in high bits of byte 8
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = bytes.toString('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
@@ -47,25 +45,17 @@ function issueRunId(nowMs) {
 
 function isUuidV7(id) {
   if (typeof id !== 'string') return false;
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
-    return false;
-  }
-  return true;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 }
 
 function buildStreamSubject(runId) {
-  if (!runId || typeof runId !== 'string') {
-    throw new Error('run_id_required');
-  }
+  if (!runId || typeof runId !== 'string') throw new Error('run_id_required');
   if (runId.includes('*') || runId.includes('>') || runId.includes('.')) {
     throw new Error('run_id_invalid');
   }
   return `${STREAM_PREFIX}${runId}`;
 }
 
-/**
- * Reject wildcard / wrong-prefix subjects. Exact `aura.stream.<run_id>` only.
- */
 function assertExactStreamSubject(subject, runId) {
   const expected = buildStreamSubject(runId);
   if (subject !== expected) {
@@ -94,14 +84,9 @@ function validatePrincipal(principal) {
   return { ok: true, principal };
 }
 
-/**
- * In-memory run ownership registry (Gateway replica-local for this slice).
- * Shared KV / Fair Queue state = 후속 티켓.
- */
 function createRunRegistry() {
   /** @type {Map<string, { principal_id: string, tenant_id: string, created_at: string }>} */
   const runs = new Map();
-
   return {
     register(runId, principal) {
       const v = validatePrincipal(principal);
@@ -122,14 +107,9 @@ function createRunRegistry() {
       });
       return runs.get(runId);
     },
-
     get(runId) {
       return runs.get(runId) || null;
     },
-
-    /**
-     * @returns {{ ok: true } | { ok: false, error: string, status: number }}
-     */
     authorize(runId, principal) {
       const v = validatePrincipal(principal);
       if (!v.ok) return { ok: false, error: v.error, status: 401 };
@@ -143,7 +123,6 @@ function createRunRegistry() {
       }
       return { ok: true };
     },
-
     size() {
       return runs.size;
     },
@@ -151,12 +130,8 @@ function createRunRegistry() {
 }
 
 /**
- * Submit conversational agent_invoke: issue run_id → register → publish task.
- * Rate limit / max_inflight = Non-goal (별 티켓).
- *
- * @param {object} body — agent, version, input?, session_id?, stream?
- * @param {object} principal
- * @param {object} deps — { registry, publishTask, issueRunId? }
+ * Submit: mint run_id → quota acquire → register → publish.
+ * Reject → 429, no JetStream publish (§2.2).
  */
 async function submitAgentInvoke(body, principal, deps) {
   const d = deps || {};
@@ -191,7 +166,6 @@ async function submitAgentInvoke(body, principal, deps) {
     err.status = 400;
     throw err;
   }
-  // Identifiers only — reject accidental bundle dumps (§1 #11).
   if (req.bundle || req.bundle_uri || req.cfg || req.config || req.secrets) {
     const err = new Error('identifiers_only');
     err.status = 400;
@@ -203,6 +177,19 @@ async function submitAgentInvoke(body, principal, deps) {
   if (!isUuidV7(runId)) {
     const err = new Error('run_id_not_uuidv7');
     err.status = 500;
+    throw err;
+  }
+
+  const quotaStore = d.quotaStore || createMemoryQuotaStore();
+  const admitted = await acquireForRun(principal.tenant_id, runId, {
+    store: quotaStore,
+    plan: d.plan,
+    nowMs: d.nowMs,
+  });
+  if (!admitted.ok) {
+    const err = new Error(admitted.error);
+    err.status = admitted.status || 429;
+    err.retry_after_ms = admitted.retry_after_ms;
     throw err;
   }
 
@@ -219,7 +206,16 @@ async function submitAgentInvoke(body, principal, deps) {
     principal: { id: principal.id, tenant_id: principal.tenant_id },
   };
 
-  await publishTask(TASK_AGENT_INVOKE, task);
+  try {
+    await publishTask(TASK_AGENT_INVOKE, task);
+  } catch (pubErr) {
+    await releaseInflight(principal.tenant_id, runId, {
+      store: quotaStore,
+      plan: d.plan,
+      nowMs: d.nowMs,
+    });
+    throw pubErr;
+  }
 
   return {
     run_id: runId,
@@ -230,17 +226,26 @@ async function submitAgentInvoke(body, principal, deps) {
   };
 }
 
-/**
- * Authorize + open exact-subject stream bridge.
- * @param {string} runId
- * @param {object} principal
- * @param {object} deps — { registry, subscribeStream(subject, onFrame) → { close } }
- * @param {(frame: object) => void | Promise<void>} onFrame
- */
+function isTerminalStreamFrame(frame) {
+  return !!(frame && (frame.type === 'run.completed' || frame.type === 'error'));
+}
+
+function isTerminalInvokeEvent(subjectOrType) {
+  if (!subjectOrType || typeof subjectOrType !== 'string') return false;
+  return (
+    subjectOrType === 'aura.events.agent.invoke.done' ||
+    subjectOrType === 'aura.events.agent.invoke.error' ||
+    subjectOrType === 'run.completed' ||
+    subjectOrType === 'error'
+  );
+}
+
 async function openStreamBridge(runId, principal, deps, onFrame) {
   const d = deps || {};
   const registry = d.registry;
   const subscribeStream = d.subscribeStream;
+  const quotaStore = d.quotaStore;
+  const plan = d.plan;
   if (!registry) {
     const err = new Error('registry_required');
     err.status = 500;
@@ -264,7 +269,9 @@ async function openStreamBridge(runId, principal, deps, onFrame) {
     throw err;
   }
 
+  const owned = registry.get(runId);
   const subject = assertExactStreamSubject(buildStreamSubject(runId), runId);
+  let released = false;
 
   const sub = await subscribeStream(subject, async (raw) => {
     let frame = raw;
@@ -279,6 +286,13 @@ async function openStreamBridge(runId, principal, deps, onFrame) {
       frame = { type: 'error', message: 'invalid_frame' };
     }
     await onFrame(frame);
+    if (!released && quotaStore && owned && isTerminalStreamFrame(frame)) {
+      released = true;
+      await releaseInflight(owned.tenant_id, runId, {
+        store: quotaStore,
+        plan,
+      });
+    }
   });
 
   return {
@@ -290,16 +304,18 @@ async function openStreamBridge(runId, principal, deps, onFrame) {
   };
 }
 
-/** SSE: one event per frame (`data: <json>\n\n`). */
+async function releaseInflightFromEvent(subject, tenantId, runId, deps) {
+  if (!isTerminalInvokeEvent(subject)) {
+    return { ok: true, released: false, skipped: true };
+  }
+  return releaseInflight(tenantId, runId, deps);
+}
+
 function formatSseFrame(frame) {
   const payload = JSON.stringify(frame && typeof frame === 'object' ? frame : {});
   return `data: ${payload}\n\n`;
 }
 
-/**
- * WS authorize gate — same principal ownership as SSE.
- * @returns {{ ok: true, subject: string } | { ok: false, error: string, status: number }}
- */
 function authorizeWs(runId, principal, registry) {
   if (!registry) return { ok: false, error: 'registry_required', status: 500 };
   const auth = registry.authorize(runId, principal);
@@ -312,9 +328,6 @@ function authorizeWs(runId, principal, registry) {
   }
 }
 
-/**
- * HTTP-shaped handlers for tests / thin server.
- */
 async function handleSubmitHttp(request, deps) {
   const principal = request && request.principal;
   let body = request && request.body;
@@ -329,7 +342,11 @@ async function handleSubmitHttp(request, deps) {
     const out = await submitAgentInvoke(body, principal, deps);
     return { status: 202, body: out };
   } catch (err) {
-    return { status: err.status || 500, body: { error: err.message || 'submit_failed' } };
+    const bodyOut = { error: err.message || 'submit_failed' };
+    if (err.status === 429 && err.retry_after_ms != null) {
+      bodyOut.retry_after_ms = err.retry_after_ms;
+    }
+    return { status: err.status || 500, body: bodyOut };
   }
 }
 
@@ -360,7 +377,14 @@ module.exports = {
   authorizeWs,
   handleSubmitHttp,
   handleSseHttp,
+  releaseInflightFromEvent,
+  isTerminalStreamFrame,
+  isTerminalInvokeEvent,
   TASK_AGENT_INVOKE,
   STREAM_PREFIX,
   STREAM_FRAME_TYPES,
+  DEFAULT_PLAN,
+  createMemoryQuotaStore,
+  acquireForRun,
+  releaseInflight,
 };
