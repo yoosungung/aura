@@ -69,7 +69,7 @@
 |------|------|
 | `principal.tenant_id` | 필수 — resolve·감사 테넌트 키 |
 | resolve | injectable `aura.rpc.control.resolve` (kind=`mcp`) → `cfg` + `secrets_ref` only |
-| factory | `(cfg, secrets_ref)` stub — 라이브 번들/HTTP 어댑터 Non-goal |
+| factory | `(cfg, secrets_ref)` — stub 또는 Streamable HTTP ([`mcp-streamable-http.md`](mcp-streamable-http.md)) |
 | 선택 `id` | async 멱등/이벤트 `id` (없으면 핸들러 생성) |
 
 ---
