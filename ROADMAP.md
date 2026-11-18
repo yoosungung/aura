@@ -33,7 +33,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **short_term embed 거부 + iterative_scan/ef_search M1 고정** — DDL CHECK로 `short_term` 제외; embed Function 스킵=M2; pgvector **≥0.8**; `hnsw.iterative_scan=relaxed_order`; `hnsw.ef_search=**40**`; `max_scan_tuples=**20000**`; 앱 post-filter 금지 | §6.2.3·§6.3·[`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md)·`check-memory-embed-guard.sh` |
 | 2026-11-18 | **멀티테넌트 HNSW 픽스처 PASS (L2)** — A=2000 + B=2 · `halfvec_l2` · `LIMIT 10` · ON(`relaxed_order`) B≥1 · OFF B=0; 기본=공유 `model_key`+iterative_scan. **갭:** 생산 `halfvec_cosine` 동일 왜곡은 ON 미달 관측 → cosine 재실측 또는 T1/T2 후보(스키마 미적용) | §6.2.3·[`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md)·`check-memory-hnsw-multitenant.sh` |
 | 2026-11-18 | **활성 임베딩 M1 고정** — `AURA_EMBEDDING_MODEL=BAAI/bge-m3` · `version=1` · `dims=1024` · `model_key=BAAI/bge-m3:1` (dense only). TTL 수치는 기존 로그·`memory-ttl-policy.md` 유지 | 클러스터 TEI `bge-m3-tei` + HF model card dims=1024 · [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md)·`check-memory-embedding-active.sh` |
+| 2026-11-19 | **Agent 주입 계약 M2 고정** — recall 응답만; 슬롯 short_term/**512** · episodic/**768** · long_term+semantic/**768** · 합계/**2048** 토큰; short_term 아이템 **4** · `top_k` **12**; 원문/`content_ref` 덤프 금지. 패킹 구현=M3 | §1 #9·§6.3 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md)·`check-agent-inject-contract.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
+| 2026-11-19 | **Agent 주입 계약 M2 고정** — recall `items[]`만 주입; 원문/`content_ref` 덤프 금지; 슬롯 short_term **512** · episodic **768** · long_term+semantic **768**(합 **2048**); 아이템 short **4** · `top_k` **12**; 패킹 구현=M3 | §6.3·[`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md)·`check-agent-inject-contract.sh` |
 
 ---
 
@@ -140,7 +142,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] embed Function (MQT) — **short_term 스킵**; episodic/long_term/semantic만 HNSW/BM25 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`)
 - [x] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음 (`services/memory/recall/` · `deploy/k8s/memory-recall/` · `check-memory-recall.sh`)
 - [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph stub); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
-- [ ] Agent 주입 계약(프롬프트 슬롯·토큰 예산)
+- [x] Agent 주입 계약(프롬프트 슬롯·토큰 예산) — [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · `check-agent-inject-contract.sh` (패킹 구현=M3)
 - [ ] **Object Store 제품 확정**(Garage/S3/NCP 등) → 결정 로그; `content_ref` 스키마·권한
 - [ ] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — DESIGN에 알고리즘 고정(구현은 M4와 맞춰도 됨)
 
@@ -150,11 +152,12 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 |---|------|------|
 | V2.1 | Object Store 제품·버킷/경로 | 결정 로그에 제품명; 256KB 초과 페이로드가 `content_ref`만 사용 |
 | V2.2 | 90일(또는 정책일) 고아 GC 설계 | DESIGN에 GC 쿼리/태스크·안전장치(참조 존재 시 스킵) 명시 |
+| V2.3 | Agent 주입 슬롯·토큰 예산 | ARCHITECTURE §6.3 + doc에 2048/512/768/768·short=4·top_k=12; `check-agent-inject-contract.sh` PASS |
 
 **성공 기준**
 
 - capture DB 쓰기 없음; recall에 JetStream ScaledObject 없음; 유형별 예산 동작.
-- V2.1–V2.2 합격.
+- V2.1–V2.3 합격 (V2.3=본 슬라이스; V2.1–V2.2는 Object Store 후속).
 
 ---
 

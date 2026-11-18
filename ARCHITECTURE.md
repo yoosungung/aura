@@ -46,6 +46,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 - **MaxDeliver 없는 무한 재시도로 poison 메시지를 돌리지 말 것** — DLQ로 격리(§3.2·§9.7).
 - agent/mcp/capture에서 `memory_*` 테이블에 직접 쓰지 말 것.
 - Agent가 PG에 직접 SELECT해 recall하지 말 것 — `aura.rpc.memory.recall`만.
+- **recall 응답 외 memory 원문·`content_ref` 본문을 프롬프트에 덤프하지 말 것** — 슬롯·토큰 예산은 §6.3 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md).
 - 헬프데스크 FSM·옴니채널 게이트웨이·L0–L3 Semantic Pyramid 계약을 이 저장소에 되살리지 말 것.
 
 ---
@@ -444,9 +445,20 @@ RLS: `tenant_id::text = current_setting('app.tenant_id', true)` (또는 동등)�
    **앱 단 post-filter 금지.** 상세·폴백은 §6.2.3.
 4. BM25: `content_tsv` (핫 파티션)
 5. graph: `semantic` **방어적 1–2홉**(§6.2.4) — 벡터/BM25 시드 노드에서만 확장
-6. 유형 예산: short_term 슬롯 / episodic / long_term+semantic 분리
+6. 유형 예산: short_term 슬롯 / episodic / long_term+semantic 분리 — **Agent 주입 수치 고정** (아래 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md))
 
-Agent는 이 응답만 컨텍스트에 넣는다.
+Agent는 **이 recall 응답 `items[]`만** 메모리 컨텍스트에 넣는다. 원문 전량·PG 직접 SELECT·`content_ref` 우회 덤프 금지(§1 #9).
+
+**Agent 주입 슬롯·토큰 예산 (M2 고정 · 패킹 구현=M3)**
+
+| 슬롯 | 아이템 (default) | 토큰 상한 |
+|------|------------------|-----------|
+| short_term | **4** (`min(4, top_k)`) | **512** |
+| episodic | hybrid 잔여 중 타입 분리 | **768** |
+| long_term+semantic | hybrid 잔여 중 타입 분리 | **768** |
+| **합계** | `top_k` default **12** | **2048** |
+
+추정: `ceil(utf8_bytes/4)`. 슬롯 미사용분 재할당·spill 금지. 상세·절삭 규칙·Non-goals는 [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md).
 
 ### 6.2.1 임베딩 파티션 운영 규칙
 
