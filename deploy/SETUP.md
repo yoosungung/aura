@@ -313,6 +313,20 @@ bash deploy/scripts/check-memory-store.sh   # DESIGN + MQT + withTenantTx selfte
 | 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` (`is_local=true`); `false`/세션 `SET` 금지 |
 | Non-goals | embed/recall/consolidate 본구현 · TEI · live apply 필수 · 실 `memory_items` UPSERT(동일 헬퍼 위 후속) |
 
+### memory_capture MQT (M2 · PG 금지)
+
+```bash
+bash deploy/scripts/check-memory-capture.sh   # DESIGN + MQT + PG-forbidden selftest (no cluster)
+```
+
+| 항목 | 값 |
+|------|-----|
+| DESIGN | [`../services/memory-capture/DESIGN.md`](../services/memory-capture/DESIGN.md) |
+| 코드 | `services/memory-capture/handler.js` |
+| 매니페스트 | [`k8s/memory-capture/`](k8s/memory-capture/) — topic `aura.tasks.memory.capture` · consumer `aura_memory_capture` · resp/error `aura.events.memory.candidates` / `.capture.error` · `minReplicaCount=0` |
+| PG | **금지** — Pooler DSN/`set_config`/`query` 미사용 |
+| Non-goals | 라이브 LLM Gateway · `content_ref` Object Store 업로드 · live apply 필수 |
+
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
 ```bash

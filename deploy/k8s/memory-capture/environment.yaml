@@ -1,0 +1,19 @@
+# Node env for memory_capture MQT (ARCHITECTURE §4.1). No PG/Pooler env.
+apiVersion: fission.io/v1
+kind: Environment
+metadata:
+  name: aura-memory-capture-nodejs
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: memory-capture
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-capture
+spec:
+  version: 3
+  runtime:
+    image: ghcr.io/fission/node-env:latest
+  builder:
+    image: ghcr.io/fission/node-builder:latest
+  poolsize: 1
+  resources: {}
