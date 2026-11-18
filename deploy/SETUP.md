@@ -299,19 +299,19 @@ bash deploy/scripts/check-memory-embedding-active.sh   # doc gate: BAAI/bge-m3 �
 | MODEL / VERSION / DIMS | `BAAI/bge-m3` / `1` / `1024` (`model_key=BAAI/bge-m3:1`) |
 | TTL | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (14d/24mo/12mo · 재고정 아님) |
 
-### svc-memory store MQT + `set_config` (M1)
+### svc-memory store MQT (M1 · `set_config(..., true)`)
 
 ```bash
-bash deploy/scripts/check-memory-store.sh   # DESIGN + MQT §3.2 + set_config(..., true) selftest
+bash deploy/scripts/check-memory-store.sh   # DESIGN + MQT + withTenantTx selftests (no cluster)
 ```
 
 | 항목 | 값 |
 |------|-----|
-| DESIGN | [`services/memory/DESIGN.md`](../services/memory/DESIGN.md) |
-| 소스 | `services/memory/store/` — `withTenantTx` → `SELECT set_config('app.tenant_id', $1, true)` |
-| MQT | [`k8s/memory-store/`](k8s/memory-store/) — topic `aura.tasks.memory.store` · consumer `aura_memory_store` · `minReplicaCount=0` |
-| DSN | Pooler only (`aura-pg-pooler` / `AURA_DATABASE_HOST`) |
-| Non-goals | embed/recall 본구현 · live pg Pool 패키징 · TEI |
+| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) |
+| 코드 | `services/memory/store/tenant-tx.js` · `handler.js` |
+| 매니페스트 | [`k8s/memory-store/`](k8s/memory-store/) — topic `aura.tasks.memory.store` · consumer `aura_memory_store` · resp/error `aura.events.memory.stored` / `.store.error` · `minReplicaCount=0` |
+| 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` (`is_local=true`); `false`/세션 `SET` 금지 |
+| Non-goals | embed/recall/consolidate 본구현 · TEI · live apply 필수 · 실 `memory_items` UPSERT(동일 헬퍼 위 후속) |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
