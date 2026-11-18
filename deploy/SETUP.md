@@ -387,6 +387,36 @@ bash deploy/scripts/check-agent-invoke.sh   # DESIGN + MQT + stream frames + sel
 | 매니페스트 | `k8s/agent-invoke/` · `minReplicaCount=0` |
 | Non-goals | Fair Queue · live LLM Gateway · live NATS Core publisher (Gateway SSE → 아래 절) |
 
+### `aura.rpc.control.resolve` 브리지 · Warm Core RR (M3)
+
+```bash
+bash deploy/scripts/check-control-resolve-bridge.sh   # DESIGN + Warm≥2 + RR Deployment + selftest (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/control-resolve-bridge.md`](docs/control-resolve-bridge.md) · [`../services/control/DESIGN.md`](../services/control/DESIGN.md) · wire [`docs/svc-control-resolve.md`](docs/svc-control-resolve.md) |
+| sync | `aura.rpc.control.resolve` · queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` **replicas≥2** |
+| 매니페스트 | `k8s/control-resolve/` (Warm + RR; **MQT 없음**) |
+| PG | 의도=Pooler + `set_config(..., true)` · **라이브 SELECT 배선 Non-goal** (injectable) |
+| Non-goals | HTTP admin · live Pooler client · sandbox egress |
+
+### `aura.rpc.control.resolve` 브리지 (M3 · Warm Core RR)
+
+```bash
+bash deploy/scripts/check-control-resolve-bridge.sh   # DESIGN + Warm≥2 + bridge selftest (no cluster)
+bash deploy/scripts/check-svc-control-resolve.sh      # DDL + resolve wire (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/control-resolve-bridge.md`](docs/control-resolve-bridge.md) · [`docs/svc-control-resolve.md`](docs/svc-control-resolve.md) · [`../services/control/DESIGN.md`](../services/control/DESIGN.md) |
+| sync | `aura.rpc.control.resolve` · queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` **replicas≥2** |
+| 매니페스트 | [`k8s/control-resolve/`](k8s/control-resolve/) — **MQT 없음** |
+| handler | `services/control/bridge.js` — stub / injectable lookup |
+| PG | Pooler + `set_config(..., true)` **의도만** (라이브 SELECT Non-goal) |
+| Non-goals | HTTP admin 본구현 · live Pooler 배선 · tenants/ACL |
+
 ### `mcp_invoke` 이원화 · MQT + RPC (M3)
 
 ```bash
@@ -400,7 +430,7 @@ bash deploy/scripts/check-mcp-invoke-dual.sh   # DESIGN + MQT + RPC Warm≥2 + s
 | sync | `aura.rpc.mcp.tool` · queue `aura-mcp-invoke` · **MinScale≥2** + Deployment `aura-mcp-invoke-rr` **replicas≥2** |
 | 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (Warm + RR; **MQT 없음**) |
 | PG | **금지** (Zero Direct Write) |
-| Non-goals | 외부 Streamable HTTP MCP · sandbox egress · live resolve 브리지 · live NATS SDK |
+| Non-goals | 외부 Streamable HTTP MCP · sandbox egress · live NATS SDK |
 
 ### Gateway · `run_id` · SSE/WS · principal (M3)
 

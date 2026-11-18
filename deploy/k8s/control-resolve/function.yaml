@@ -1,0 +1,30 @@
+# Sync control resolve Function — newdeploy Warm Pool (MinScale>=2).
+# No MQT / no JetStream ScaledObject (ARCHITECTURE §4.2).
+# Core RR body lives on Deployment aura-control-resolve-rr (§4.3).
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-control-resolve
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.service: control
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-control-resolve
+spec:
+  environment:
+    name: aura-control-resolve-nodejs
+    namespace: default
+  package:
+    packageref:
+      name: aura-control-resolve
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: newdeploy
+      MinScale: 2
+      MaxScale: 8
+      SpecializationTimeout: 120
+  functionTimeout: 30
+  idletimeout: 0

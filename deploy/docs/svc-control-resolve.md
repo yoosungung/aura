@@ -7,7 +7,8 @@ DDL: [`../sql/control_meta.sql`](../sql/control_meta.sql).
 번들 객체 경로: [`object-store-content-ref.md`](object-store-content-ref.md) `bundles/` prefix.
 
 **이 문서 범위:** 컨트롤 메타 **테이블 이름·컬럼** · resolve **요청/응답 wire** · 쓰기/읽기 소유 · cfg merge · 시크릿 규칙.  
-**Non-goals:** `aura.rpc.control.resolve` NATS 브리지 Deployment(별 M3 항목) · HTTP admin 서버 본구현 · tenants/ACL 테이블 · image/general deploy_mode · 라이브 PG apply 필수.
+**Non-goals:** HTTP admin 서버 본구현 · tenants/ACL 테이블 · image/general deploy_mode · 라이브 PG apply 필수.  
+**브리지 Warm 배포:** [`control-resolve-bridge.md`](control-resolve-bridge.md) · `deploy/k8s/control-resolve/` (별 M3 항목 — minReplicas ≥ 2).
 
 참고 저장소 `agent-runtime`의 deploy-api `/v1/resolve`는 **의도만** 참고한다 — 스키마·코드를 복사하지 않는다(AGENTS §2).
 
@@ -18,7 +19,7 @@ DDL: [`../sql/control_meta.sql`](../sql/control_meta.sql).
 | 경로 | 소유 | 규칙 |
 |------|------|------|
 | `source_meta` / `user_meta` **쓰기** | **`svc-control`만** (관리 HTTP) | Function·Gateway·recall이 INSERT/UPDATE/DELETE 금지 (§1 #6) |
-| resolve **읽기** | 런타임 Function → **`aura.rpc.control.resolve`** | Core RR · minReplicas ≥ 2 (브리지는 후속 티켓). PG는 **Pooler** + `set_config('app.tenant_id', $1, true)` |
+| resolve **읽기** | 런타임 Function → **`aura.rpc.control.resolve`** | Core RR · minReplicas ≥ 2 ([`control-resolve-bridge.md`](control-resolve-bridge.md)). PG는 **Pooler** + `set_config('app.tenant_id', $1, true)` (라이브 배선 후속) |
 | 시크릿 | `user_meta.secrets_ref` **참조만** | plaintext 시크릿을 PG·NATS·로그에 두지 않음 (§9.2) |
 
 ---

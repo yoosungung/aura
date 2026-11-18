@@ -3,7 +3,7 @@
 /**
  * svc-control resolve wire helpers (M3 minimal).
  * Contract: ARCHITECTURE §1 #6·#11 · deploy/docs/svc-control-resolve.md
- * Non-goals: NATS bridge · HTTP admin server · PG pool client (later tickets).
+ * Non-goals: HTTP admin server · live PG pool client (bridge Warm: ./bridge.js).
  */
 
 const KINDS = new Set(['agent', 'mcp']);
