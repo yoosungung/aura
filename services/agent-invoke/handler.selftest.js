@@ -183,6 +183,44 @@ async function main() {
   assert.strictEqual(batch.type, 'agent.invoke.done');
   assert.strictEqual(batchFrames.length, 0);
 
+  // plaintext secrets from resolve → reject (§1 #11)
+  let secretsRejected = false;
+  try {
+    await invokeOnce(
+      {
+        run_id: '019a0000-0000-7000-8000-0000000000dd',
+        agent: 'demo',
+        version: '1.0.0',
+        principal: { id: 'u', tenant_id: 't1' },
+      },
+      {
+        resolve: async () => ({
+          type: 'control.resolve.done',
+          cfg: {},
+          secrets_ref: null,
+          secrets: { api_key: 'leak' },
+        }),
+        recall: async () => ({ items: [] }),
+        publishStream: async () => {},
+      },
+    );
+  } catch (err) {
+    secretsRejected = err.message === 'secrets_plaintext_forbidden';
+  }
+  assert.ok(secretsRejected, 'must reject plaintext secrets from resolve');
+
+  // identifiers-only: bundle dump rejected
+  assert.strictEqual(
+    validateInvokeTask({
+      run_id: 'r',
+      agent: 'a',
+      version: '1',
+      principal: { id: 'u', tenant_id: 't' },
+      bundle: { uri: 's3://x' },
+    }).ok,
+    false,
+  );
+
   // HTTP handler path
   const handler = require('./handler');
   const httpFrames = [];
