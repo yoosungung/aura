@@ -299,6 +299,20 @@ bash deploy/scripts/check-memory-embedding-active.sh   # doc gate: BAAI/bge-m3 �
 | MODEL / VERSION / DIMS | `BAAI/bge-m3` / `1` / `1024` (`model_key=BAAI/bge-m3:1`) |
 | TTL | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (14d/24mo/12mo · 재고정 아님) |
 
+### svc-memory store MQT + `set_config` (M1)
+
+```bash
+bash deploy/scripts/check-memory-store.sh   # DESIGN + MQT §3.2 + set_config(..., true) selftest
+```
+
+| 항목 | 값 |
+|------|-----|
+| DESIGN | [`services/memory/DESIGN.md`](../services/memory/DESIGN.md) |
+| 소스 | `services/memory/store/` — `withTenantTx` → `SELECT set_config('app.tenant_id', $1, true)` |
+| MQT | [`k8s/memory-store/`](k8s/memory-store/) — topic `aura.tasks.memory.store` · consumer `aura_memory_store` · `minReplicaCount=0` |
+| DSN | Pooler only (`aura-pg-pooler` / `AURA_DATABASE_HOST`) |
+| Non-goals | embed/recall 본구현 · live pg Pool 패키징 · TEI |
+
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 
 ```bash
