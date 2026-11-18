@@ -1,0 +1,18 @@
+# literal = base64(skeleton.js). check-mcp-invoke-dual.sh asserts match.
+apiVersion: fission.io/v1
+kind: Package
+metadata:
+  name: aura-mcp-invoke-rpc
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke-rpc
+spec:
+  environment:
+    name: aura-mcp-invoke-rpc-nodejs
+    namespace: default
+  deployment:
+    type: literal
+    literal: bW9kdWxlLmV4cG9ydHMgPSBhc3luYyBmdW5jdGlvbiAoKSB7CiAgcmV0dXJuIHsgc3RhdHVzOiAyMDAsIGJvZHk6ICdhdXJhLW1jcC1pbnZva2UtcnBjLXdhcm0nIH07Cn07

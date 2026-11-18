@@ -1,0 +1,30 @@
+# Sync mcp_invoke RPC Function — newdeploy Warm Pool (MinScale>=2).
+# No MQT / no JetStream ScaledObject (ARCHITECTURE §4.2).
+# Core RR body lives on Deployment aura-mcp-invoke-rr (§4.3).
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-mcp-invoke-rpc
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke-rpc
+spec:
+  environment:
+    name: aura-mcp-invoke-rpc-nodejs
+    namespace: default
+  package:
+    packageref:
+      name: aura-mcp-invoke-rpc
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: newdeploy
+      MinScale: 2
+      MaxScale: 8
+      SpecializationTimeout: 120
+  functionTimeout: 30
+  idletimeout: 0
