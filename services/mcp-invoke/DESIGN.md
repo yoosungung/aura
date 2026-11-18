@@ -3,11 +3,12 @@
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #2 · #10 · #11 · #12 · §3.2 · §3.3 · §4 · §7 · §8.  
 일정: [ROADMAP.md](../../ROADMAP.md) M3 — `mcp_invoke` **이원화**.  
 와이어 정본: [`deploy/docs/mcp-invoke-dual.md`](../../deploy/docs/mcp-invoke-dual.md).  
+외부 HTTP: [`deploy/docs/mcp-streamable-http.md`](../../deploy/docs/mcp-streamable-http.md).  
 resolve: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-resolve.md).  
 요청자: [`../agent-invoke/DESIGN.md`](../agent-invoke/DESIGN.md) (`aura.rpc.mcp.tool`).
 
 **이 문서 범위:** 공유 툴 핸들러 · **async MQT**(`aura.tasks.mcp.invoke`) · **sync Core RR**(`aura.rpc.mcp.tool`, minReplicas ≥ 2) · 분리 배포.  
-**Non-goals (본 슬라이스):** 외부 MCP Streamable HTTP 어댑터 · 샌드박스/Egress · live NATS Core 클라이언트 배선 · live LLM · F1 샤딩. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))
+**Non-goals (본 슬라이스):** 샌드박스/Egress · live NATS Core 클라이언트 배선 · live LLM · F1 샤딩 · full MCP initialize/세션 서버 · legacy HTTP+SSE transport. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))
 
 ---
 
@@ -18,7 +19,7 @@ resolve: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-re
 | 역할 | MCP 툴 실행: resolve → stub factory(`cfg`,`secrets_ref`); task done / rpc reply |
 | 실행 계급 | **이원화** — async MQT(`minReplicaCount=0`) **와** sync Warm(`minReplicas ≥ 2`) **별 매니페스트** |
 | PG | **금지** (Zero Direct Write). Pooler/DSN/`set_config` 미사용 |
-| 프로토콜 | Aura 내부 = NATS만 (§1 #12). Streamable HTTP는 Function 경계 Non-goal |
+| 프로토콜 | Aura 내부 = NATS만 (§1 #12). 외부 MCP = Streamable HTTP 클라이언트 ([`streamable-http.js`](streamable-http.js)) |
 | 금지 | `memory_*` 쓰기 · plaintext `secrets` · invoke payload에 bundle/cfg · **동일 Deployment에 0과 ≥2 혼합** |
 
 ---
@@ -57,7 +58,7 @@ resolve: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-re
 
 ## 공유 실행
 
-`handler.js`: `validateMcpRequest` → injectable `resolve`(kind=`mcp`) → `runTool`(기본=결정적 stub).  
+`handler.js`: `validateMcpRequest` → injectable `resolve`(kind=`mcp`) → `runTool`(injectable; 없으면 cfg `streamable_http`/`mcp_endpoint` → [`streamable-http.js`](streamable-http.js), 아니면 stub).  
 payload = §7 식별자만 (`server`/`version`/`tool`/`arguments`/`principal`).  
 plaintext `secrets` from resolve → 거부.
 
@@ -66,6 +67,8 @@ plaintext `secrets` from resolve → 거부.
 ## Commands
 
 ```bash
-bash deploy/scripts/check-mcp-invoke.sh
+bash deploy/scripts/check-mcp-invoke-dual.sh
+bash deploy/scripts/check-mcp-streamable-http.sh
 node services/mcp-invoke/handler.selftest.js
+node services/mcp-invoke/streamable-http.selftest.js
 ```

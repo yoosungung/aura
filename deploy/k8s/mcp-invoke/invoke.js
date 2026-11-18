@@ -1,15 +1,224 @@
 'use strict';
 
 /**
+ * Fission Package entry for mcp_invoke (ARCHITECTURE §1 #10·#11·#12 · §3.2 · §3.3).
+ * Source of truth: services/mcp-invoke/handler.js + streamable-http.js
+ * Single-file literal (streamable-http inlined). PG forbidden.
+ */
+
+
+/**
+ * MCP Spec 2025-06-18 Streamable HTTP client — mcp_invoke Function boundary only.
+ * Injectable fetch; no plaintext secret logging (no console of credentials).
+ */
+
+const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
+const JSONRPC_VERSION = '2.0';
+
+function nextRequestId() {
+  return `mcp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * @param {{ tool: string, arguments?: object, id?: string|number }} opts
+ */
+function buildToolsCallRequest(opts) {
+  const tool = opts && opts.tool;
+  if (!tool || typeof tool !== 'string') {
+    throw new Error('tool_required');
+  }
+  const reqId = opts && opts.id != null ? opts.id : nextRequestId();
+  const args =
+    opts && opts.arguments && typeof opts.arguments === 'object'
+      ? opts.arguments
+      : {};
+  return {
+    id: reqId,
+    body: {
+      jsonrpc: JSONRPC_VERSION,
+      id: reqId,
+      method: 'tools/call',
+      params: { name: tool, arguments: args },
+    },
+  };
+}
+
+function tryParseJsonRpc(line) {
+  const s = String(line).trim();
+  if (!s) return null;
+  try {
+    const msg = JSON.parse(s);
+    if (msg && typeof msg === 'object' && msg.jsonrpc === JSONRPC_VERSION) {
+      return msg;
+    }
+  } catch (_) {
+    /* ignore partial SSE chunks */
+  }
+  return null;
+}
+
+/**
+ * @param {{ bodyText: string, contentType?: string, wantId?: string|number }} opts
+ * @returns {{ ok: true, message: object } | { ok: false, error: string }}
+ */
+function parseJsonOrSseResponse(opts) {
+  const bodyText = (opts && opts.bodyText) != null ? String(opts.bodyText) : '';
+  const contentType = String((opts && opts.contentType) || '').toLowerCase();
+  const wantId = opts && opts.wantId;
+
+  if (!bodyText.trim()) {
+    return { ok: false, error: 'empty_response_body' };
+  }
+
+  const isSse =
+    contentType.includes('text/event-stream') ||
+    (!contentType.includes('application/json') &&
+      /(^|\n)\s*data:\s*/m.test(bodyText));
+
+  if (!isSse) {
+    let msg;
+    try {
+      msg = JSON.parse(bodyText);
+    } catch (err) {
+      return { ok: false, error: 'invalid_json_body' };
+    }
+    if (!msg || typeof msg !== 'object' || msg.jsonrpc !== JSONRPC_VERSION) {
+      return { ok: false, error: 'invalid_jsonrpc_response' };
+    }
+    if (wantId != null && msg.id !== wantId) {
+      return { ok: false, error: 'jsonrpc_id_mismatch' };
+    }
+    return { ok: true, message: msg };
+  }
+
+  const messages = [];
+  for (const rawLine of bodyText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    const msg = tryParseJsonRpc(payload);
+    if (msg) messages.push(msg);
+  }
+
+  if (messages.length === 0) {
+    return { ok: false, error: 'no_sse_jsonrpc_messages' };
+  }
+
+  let chosen = null;
+  if (wantId != null) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].id === wantId) {
+        chosen = messages[i];
+        break;
+      }
+    }
+    if (!chosen) {
+      return { ok: false, error: 'sse_id_not_found' };
+    }
+  } else {
+    chosen = messages[messages.length - 1];
+  }
+
+  return { ok: true, message: chosen };
+}
+
+function headerContentType(res) {
+  if (!res || !res.headers) return '';
+  if (typeof res.headers.get === 'function') {
+    return res.headers.get('content-type') || '';
+  }
+  const h = res.headers;
+  return h['content-type'] || h['Content-Type'] || '';
+}
+
+/**
+ * @param {{
+ *   endpoint: string,
+ *   tool: string,
+ *   arguments?: object,
+ *   sessionId?: string,
+ *   protocolVersion?: string,
+ *   fetchImpl?: typeof fetch,
+ *   id?: string|number,
+ * }} opts
+ */
+async function callToolViaStreamableHttp(opts) {
+  const o = opts || {};
+  const fetchFn = o.fetchImpl || globalThis.fetch;
+  if (typeof fetchFn !== 'function') {
+    return { ok: false, error: 'fetch_required' };
+  }
+  if (!o.endpoint || typeof o.endpoint !== 'string') {
+    return { ok: false, error: 'endpoint_required' };
+  }
+  if (!o.tool || typeof o.tool !== 'string') {
+    return { ok: false, error: 'tool_required' };
+  }
+
+  let built;
+  try {
+    built = buildToolsCallRequest({
+      tool: o.tool,
+      arguments: o.arguments,
+      id: o.id,
+    });
+  } catch (err) {
+    return { ok: false, error: String(err && err.message) };
+  }
+
+  const headers = {
+    Accept: 'application/json, text/event-stream',
+    'Content-Type': 'application/json',
+    'MCP-Protocol-Version': o.protocolVersion || DEFAULT_PROTOCOL_VERSION,
+  };
+  if (o.sessionId && typeof o.sessionId === 'string') {
+    headers['Mcp-Session-Id'] = o.sessionId;
+  }
+
+  let res;
+  try {
+    res = await fetchFn(o.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(built.body),
+    });
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+
+  const bodyText =
+    res && typeof res.text === 'function' ? await res.text() : '';
+  const parsed = parseJsonOrSseResponse({
+    bodyText,
+    contentType: headerContentType(res),
+    wantId: built.id,
+  });
+  if (!parsed.ok) {
+    return parsed;
+  }
+
+  const msg = parsed.message;
+  if (msg.error != null) {
+    return { ok: false, error: msg.error };
+  }
+  return { ok: true, result: msg.result != null ? msg.result : {} };
+}
+
+'use strict';
+
+/**
  * mcp_invoke dual entry — ARCHITECTURE §1 #10·#11·#12 · §3.2 · §3.3 · §7 · §8.
  *
  * Async MQT:  aura.tasks.mcp.invoke → HTTP 200 body → aura.events.mcp.invoke.done
  * Sync RPC:   aura.rpc.mcp.tool     → mcp.tool.done (Core RR; minReplicas ≥ 2)
  *
  * Zero Direct Write: no memory_* PG. Identifiers only; resolve → factory(cfg, secrets_ref).
- * Non-goals (this slice): live Streamable HTTP adapter · sandbox/egress · live NATS Core
- * subscribe wiring · control resolve bridge Deployment · live LLM.
+ * Streamable HTTP: external MCP via injectable client when resolve cfg says so
+ * ([`streamable-http.js`](streamable-http.js); Fission invoke.js = single-file bundle).
+ * Non-goals (this slice): sandbox/egress · live NATS Core subscribe wiring ·
+ * control resolve bridge Deployment · live LLM · full MCP initialize lifecycle.
  */
+
 
 function parseBody(req) {
   let raw = (req && req.body) != null ? req.body : '';
@@ -60,6 +269,47 @@ function validateMcpRequest(req) {
   return { ok: true, req };
 }
 
+function cfgUsesStreamableHttp(cfg) {
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (cfg.transport === 'streamable_http') return true;
+  if (cfg.mcp_endpoint && typeof cfg.mcp_endpoint === 'string') return true;
+  return false;
+}
+
+function streamableEndpointFromCfg(cfg) {
+  if (!cfg || typeof cfg !== 'object') return '';
+  const ep = cfg.mcp_endpoint || cfg.endpoint;
+  return typeof ep === 'string' ? ep : '';
+}
+
+function buildStreamableRunTool(cfg, fetchImpl) {
+  const endpoint = streamableEndpointFromCfg(cfg);
+  const sessionId =
+    typeof cfg.mcp_session_id === 'string'
+      ? cfg.mcp_session_id
+      : typeof cfg.session_id === 'string'
+        ? cfg.session_id
+        : undefined;
+  const protocolVersion =
+    typeof cfg.mcp_protocol_version === 'string'
+      ? cfg.mcp_protocol_version
+      : undefined;
+  return async (ctx) => {
+    const out = await callToolViaStreamableHttp({
+      endpoint,
+      tool: ctx.tool,
+      arguments: ctx.arguments,
+      sessionId,
+      protocolVersion,
+      fetchImpl,
+    });
+    if (!out.ok) return out;
+    const payload =
+      out.result && typeof out.result === 'object' ? out.result : { value: out.result };
+    return { ok: true, mode: 'streamable_http', ...payload };
+  };
+}
+
 /** Deterministic stub factory — echoes arguments (no live MCP protocol / HTTP adapter). */
 async function defaultRunTool(ctx) {
   return {
@@ -90,7 +340,6 @@ async function invokeToolOnce(req, deps) {
     throw err;
   }
 
-  const runTool = d.runTool || defaultRunTool;
   const tenantId = req.principal.tenant_id;
 
   const resolved = await resolve({
@@ -106,13 +355,29 @@ async function invokeToolOnce(req, deps) {
     throw err;
   }
 
+  const cfg = (resolved && resolved.cfg) || {};
+  let runTool = d.runTool;
+  if (!runTool) {
+    if (cfgUsesStreamableHttp(cfg)) {
+      const ep = streamableEndpointFromCfg(cfg);
+      if (!ep) {
+        const err = new Error('mcp_endpoint_required');
+        err.status = 500;
+        throw err;
+      }
+      runTool = buildStreamableRunTool(cfg, d.fetchImpl);
+    } else {
+      runTool = defaultRunTool;
+    }
+  }
+
   const result = await runTool({
     server: req.server,
     version: req.version,
     tool: req.tool,
     arguments: req.arguments && typeof req.arguments === 'object' ? req.arguments : {},
     principal: req.principal,
-    cfg: (resolved && resolved.cfg) || {},
+    cfg,
     secrets_ref: (resolved && resolved.secrets_ref) || null,
   });
 
@@ -222,6 +487,7 @@ module.exports = async function (context) {
   const deps = {
     resolve: context && context.resolve,
     runTool: context && context.runTool,
+    fetchImpl: context && context.fetchImpl,
   };
 
   // Default in-process stubs so Package literal can load without NATS (live RR = Non-goal).
@@ -246,3 +512,5 @@ module.exports.handleTask = handleTask;
 module.exports.handleRpc = handleRpc;
 module.exports.defaultRunTool = defaultRunTool;
 module.exports.isRpcContext = isRpcContext;
+module.exports.cfgUsesStreamableHttp = cfgUsesStreamableHttp;
+module.exports.buildStreamableRunTool = buildStreamableRunTool;

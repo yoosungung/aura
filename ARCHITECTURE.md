@@ -666,7 +666,7 @@ AND (valid_until IS NULL OR valid_until > now())
 }
 ```
 
-Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를 받고 `factory(cfg, secrets)`를 호출한다. 메타 쓰기는 `svc-control`만. 시크릿 취급은 §9.2. wire·DDL: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md). 브리지 Warm: [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md). MCP MQT·RPC: [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) · [`services/mcp-invoke/`](services/mcp-invoke/).
+Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를 받고 `factory(cfg, secrets)`를 호출한다. 메타 쓰기는 `svc-control`만. 시크릿 취급은 §9.2. wire·DDL: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md). 브리지 Warm: [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md). MCP MQT·RPC: [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) · 외부 Streamable HTTP: [`deploy/docs/mcp-streamable-http.md`](deploy/docs/mcp-streamable-http.md) · [`services/mcp-invoke/`](services/mcp-invoke/).
 
 **실행 격리:** 테넌트 커스텀/비신뢰 번들은 §9.1 샌드박스에서만 로드한다. 플랫폼 서명 번들도 Egress NetworkPolicy는 동일하게 적용한다.
 

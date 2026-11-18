@@ -6,7 +6,7 @@
 요청자(agent): [`agent-invoke-mqt.md`](agent-invoke-mqt.md) · resolve: [`svc-control-resolve.md`](svc-control-resolve.md).
 
 **이 문서 범위:** 태스크/RPC payload · done/error envelope · MQT·Warm 이름표 · **분리 배포** 불변.  
-**Non-goals:** Streamable HTTP 어댑터 · 샌드박스/Egress · live NATS SDK 배선 · live LLM · F1. (resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))
+**Non-goals:** 샌드박스/Egress · live NATS SDK 배선 · live LLM · F1. 외부 Streamable HTTP: [`mcp-streamable-http.md`](mcp-streamable-http.md). (resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))
 
 ---
 
@@ -69,7 +69,7 @@
 |------|------|
 | `principal.tenant_id` | 필수 — resolve·감사 테넌트 키 |
 | resolve | injectable `aura.rpc.control.resolve` (kind=`mcp`) → `cfg` + `secrets_ref` only |
-| factory | `(cfg, secrets_ref)` stub — 라이브 번들/HTTP 어댑터 Non-goal |
+| factory | `(cfg, secrets_ref)` — stub 또는 Streamable HTTP ([`mcp-streamable-http.md`](mcp-streamable-http.md)) |
 | 선택 `id` | async 멱등/이벤트 `id` (없으면 핸들러 생성) |
 
 ---
