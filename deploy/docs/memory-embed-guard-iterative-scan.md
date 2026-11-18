@@ -6,7 +6,7 @@
 
 **이 문서 범위:** (1) `short_term` → `memory_embeddings` **거부** 경로(DDL SoR + 앱 계약) 명시.  
 (2) 공유 HNSW recall용 **pgvector ≥ 0.8** · `hnsw.iterative_scan` · `ef_search` · `max_scan_tuples` 수치 **고정**.  
-**Non-goals:** 왜곡 테넌트 HNSW 픽스처(ON≥1/OFF 대조) · 생산 `AURA_EMBEDDING_*` 실값 · `svc-memory` store/embed/recall 본구현 · T1/T2 테넌트 파티션.
+**Non-goals:** 왜곡 테넌트 HNSW 픽스처(ON≥1/OFF 대조) → [`memory-hnsw-multitenant-fixture.md`](memory-hnsw-multitenant-fixture.md) · 생산 `AURA_EMBEDDING_*` 실값 · `svc-memory` store/embed/recall 본구현 · T1/T2 테넌트 파티션.
 
 수치 출처: ARCHITECTURE §6.3 초안(`ef_search` 예: 40+) · §6.2.3 · pgvector 0.8 기본값. 운영 튜닝은 M2/M4 픽스처·부하 후 결정 로그 1행 + 이 문서·§6.2.3/§6.3을 **같이** 고친다 — 여기서 새 숫자를 발명하지 않는다.
 
@@ -47,14 +47,14 @@ SET LOCAL hnsw.max_scan_tuples = 20000;
 
 `relaxed_order`로 거리 순서가 약간 흐트러일 수 있으면, 필요 시 materialized CTE로 재정렬(§6.3 / pgvector 문서). M1은 **모드·수치만** 고정한다.
 
-왜곡 테넌트 픽스처(대형 A / 소형 B · ON≥1 / OFF 대조)는 **별도** ROADMAP 체크 — 이 문서 Non-goals.
+왜곡 테넌트 픽스처(대형 A / 소형 B · ON≥1 / OFF 대조): [`memory-hnsw-multitenant-fixture.md`](memory-hnsw-multitenant-fixture.md).
 
 ---
 
 ## V1.x 매핑
 
 ROADMAP M1: *short_term embed 거부 가드; pgvector ≥ 0.8; ef_search / iterative_scan DESIGN* → 이 문서 + DDL CHECK + `check-memory-embed-guard.sh` / `smoke-memory-embed-guard.sh`.  
-멀티테넌트 픽스처·생산 dims·embed Function 본문은 후속 체크.
+멀티테넌트 픽스처: [`memory-hnsw-multitenant-fixture.md`](memory-hnsw-multitenant-fixture.md). 생산 dims·embed Function 본문은 후속 체크.
 
 ---
 

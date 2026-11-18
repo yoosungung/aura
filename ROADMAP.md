@@ -31,6 +31,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **그래프 순회 한도 M1 고정** — `idx_memory_edges_out`/`in` partial(`valid_until IS NULL`); max_depth=**2** · per_hop_limit=**50** · max_nodes_total=**100** · max_edges_total=**200** · supernode_degree_cap=**64** · visited; walk 구현=M4 | §6.2.4·[`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)·`check-memory-graph-traversal.sh` |
 | 2026-11-18 | **memory_embeddings 세대 교체 절차 M1 고정** — LIST(`model_key`)+파티션 `halfvec(N)` HNSW; ATTACH→active 전환→DETACH; 생산 `AURA_EMBEDDING_*` 실값은 별도 체크 | §6.2.1·[`deploy/docs/memory-embeddings-generation.md`](deploy/docs/memory-embeddings-generation.md)·`check-memory-embeddings.sh` |
 | 2026-11-18 | **short_term embed 거부 + iterative_scan/ef_search M1 고정** — DDL CHECK로 `short_term` 제외; embed Function 스킵=M2; pgvector **≥0.8**; `hnsw.iterative_scan=relaxed_order`; `hnsw.ef_search=**40**`; `max_scan_tuples=**20000**`; 앱 post-filter 금지 | §6.2.3·§6.3·[`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md)·`check-memory-embed-guard.sh` |
+| 2026-11-18 | **멀티테넌트 HNSW 픽스처 PASS (L2)** — A=2000 + B=2 · `halfvec_l2` · `LIMIT 10` · ON(`relaxed_order`) B≥1 · OFF B=0; 기본=공유 `model_key`+iterative_scan. **갭:** 생산 `halfvec_cosine` 동일 왜곡은 ON 미달 관측 → cosine 재실측 또는 T1/T2 후보(스키마 미적용) | §6.2.3·[`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md)·`check-memory-hnsw-multitenant.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -107,7 +108,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] edges **`idx_memory_edges_out` / `idx_memory_edges_in`** (partial `valid_until IS NULL`); 순회 한도 DESIGN(§6.2.4) — [`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md) · `check-memory-graph-traversal.sh`
 - [x] **`memory_embeddings` 차원/파티션 DDL 확정**: LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW; **모델 세대 교체**(새 파티션 ATTACH → 전환 → 구형 DETACH) 절차를 DESIGN/런북에 고정 — [`deploy/docs/memory-embeddings-generation.md`](deploy/docs/memory-embeddings-generation.md) · `check-memory-embeddings.sh` · `smoke-memory-embeddings.sh` (fixture만; 생산 dims=별도 체크)
 - [x] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN — [`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md) · `check-memory-embed-guard.sh` · `smoke-memory-embed-guard.sh`
-- [ ] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2
+- [x] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2 — [`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md) · `check-memory-hnsw-multitenant.sh` · `smoke-memory-hnsw-multitenant.sh`
 - [ ] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정)
 - [ ] `services/memory/DESIGN.md` + store MQT — 매 트랜잭션 `set_config(..., true)`
 - [x] (스모크) 무차원 HNSW 실패; short_term→embed 거부 (`smoke-memory-embed-guard.sh`; live 또는 `SMOKE_MEMORY_EMBED_GUARD_STATIC=1`)
@@ -238,7 +239,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 ## 미결정
 
 - 활성 임베딩 모델·version·dims(N) 실값 — **M1** (레이아웃 방안 B·halfvec는 결정됨)
-- iterative_scan만으로 충분한지 vs T1/T2 승격 — **M1 픽스처 결과**
+- iterative_scan만으로 충분한지 vs T1/T2 승격 — **M1 픽스처 PASS**(공유+iterative_scan 유지; T1/T2=실패·KPI 시에만)
 - 그래프 `per_hop_limit` / `supernode_degree_cap` 운영 튜닝 — **M1 수치 고정**([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)) → **M4 부하 후 조정**
 - async 콜드스타트 p95 확정 수치 — **M0 측정 후**
 - sync RPC 상한 스케일(HPA 메트릭: CPU vs RPS) — M2/M3 직전

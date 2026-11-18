@@ -497,7 +497,7 @@ Agent는 이 응답만 컨텍스트에 넣는다.
 | 금지 | 전역 Top-K 결과 집합을 앱에서 테넌트 필터링 |
 | short_term | `memory_embeddings` DDL CHECK + embed 앱 사전 거부로 **비적재**; recall은 최근순만 (§6.2.1·위 문서) |
 
-**M1 검증 픽스처 (합격 조건)**
+**M1 검증 픽스처 (합격 조건)** — 본문 [`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md) · `smoke-memory-hnsw-multitenant.sh`
 
 1. 대형 테넌트 A에 대량 embed, 소형 테넌트 B에 소수 embed(의도적으로 유사 벡터가 A에 더 많게).
 2. B로 recall 시 **≥1건** 반환 (이상적으로 요청 top_k까지 B 행).
