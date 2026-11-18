@@ -1,12 +1,13 @@
 # agent_invoke (내부 설계)
 
-계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #10 · #11 · #13 · §2 · §3.2 · §3.5 · §7 · §8.  
+계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #10 · #11 · #13 · §2 · §3.2 · §3.5 · §6.1.2 · §7 · §8.  
 일정: [ROADMAP.md](../../ROADMAP.md) M3 — `agent_invoke` MQT + 스트림 프레임.  
 와이어·프레임 정본: [`deploy/docs/agent-invoke-mqt.md`](../../deploy/docs/agent-invoke-mqt.md).  
-주입 예산: [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md).
+주입 예산: [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md).  
+체크포인트 DDL: [`deploy/docs/agent-checkpoints.md`](../../deploy/docs/agent-checkpoints.md) · [`deploy/sql/agent_checkpoints.sql`](../../deploy/sql/agent_checkpoints.sql).
 
 **이 문서 범위:** Fission MQT 핸들러 경계 · RPC 의존(주입) · `aura.stream.<run_id>` publish · done envelope · **우회 시 쿼터 재확인**(§2.2).  
-**Non-goals (본 슬라이스):** live LLM Gateway HTTP · live NATS Core 클라이언트 배선 · `agent_checkpoints` DDL · Gateway Token Bucket 본구현. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))  
+**Non-goals (본 슬라이스):** live LLM Gateway HTTP · live NATS Core 클라이언트 배선 · `agent_checkpoints` **Pooler writer/resume** · Gateway Token Bucket 본구현. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))  
 **`mcp_invoke` 이원화:** 완료 — [`../mcp-invoke/DESIGN.md`](../mcp-invoke/DESIGN.md) · [`deploy/docs/mcp-invoke-dual.md`](../../deploy/docs/mcp-invoke-dual.md) · `check-mcp-invoke-dual.sh` (라이브 RR 주입=`mcpTool` injectable).  
 Gateway SSE/WS·principal·쿼터: [`../gateway/DESIGN.md`](../gateway/DESIGN.md) · [`../../deploy/docs/gateway-fair-queue.md`](../../deploy/docs/gateway-fair-queue.md).
 
@@ -18,7 +19,7 @@ Gateway SSE/WS·principal·쿼터: [`../gateway/DESIGN.md`](../gateway/DESIGN.md
 |------|-----|
 | 역할 | 턴 실행: resolve → recall → (stub) turn → 선택 mcp tool; 스트림 프레임; done/error |
 | 실행 계급 | **async** MQT · `minReplicaCount=0` |
-| PG | **금지** (Zero Direct Write). 체크포인트 예외 테이블은 후속 M3 항목 |
+| PG | 도메인 메모리 **금지** (Zero Direct Write). 예외=`agent_checkpoints`만 Pooler([`agent-checkpoints.md`](../../deploy/docs/agent-checkpoints.md); writer 본구현=후속) |
 | LLM | 생산 = LLM Gateway만(§9.4). 본 슬라이스 = **주입 가능 `runTurn`**(기본=결정적 stub) |
 | 스트림 | `publishStream(run_id, frame)` 주입 — 대상 subject `aura.stream.<run_id>` (Core, 유실 허용) |
 | 금지 | `memory_*` 직접 쓰기 · plaintext `secrets` · JetStream에 토큰 적재 · invoke payload에 bundle/cfg |
@@ -71,5 +72,6 @@ inflight 감산 정본은 Gateway `release` 훅([`gateway-fair-queue.md`](../../
 
 ```bash
 bash deploy/scripts/check-agent-invoke.sh
+bash deploy/scripts/check-agent-checkpoints.sh
 node services/agent-invoke/handler.selftest.js
 ```

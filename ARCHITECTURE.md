@@ -296,7 +296,7 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 | `memory_items`, `memory_embeddings`, `memory_nodes`, `memory_edges`, `memory_audit` | **`svc-memory`만** |
 | `source_meta`, `user_meta` (DDL·resolve wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
 | tenants/ACL (후속) | **`svc-control`만** |
-| `agent_checkpoints` (이름 확정은 M3) | **`agent_invoke`만** (예외) |
+| `agent_checkpoints` (DDL·소유: [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md) · [`deploy/sql/agent_checkpoints.sql`](deploy/sql/agent_checkpoints.sql)) | **`agent_invoke`만** (예외) |
 
 ### 6.1.1 컨트롤 메타 DDL (`source_meta` / `user_meta`)
 
@@ -333,6 +333,31 @@ CREATE TABLE user_meta (
 ```
 
 resolve 성공 응답 `type=control.resolve.done` 은 `source` + `user`(nullable) + `cfg`(1-depth merge, user wins) + `secrets_ref` 만 담는다. `aura.rpc.control.resolve` 브리지 Warm(minReplicas ≥ 2): [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) · `deploy/k8s/control-resolve/`.
+
+### 6.1.2 런타임 체크포인트 DDL (`agent_checkpoints`)
+
+정본 DDL: [`deploy/sql/agent_checkpoints.sql`](deploy/sql/agent_checkpoints.sql). 소유·`content_ref`/시크릿 규칙: [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md).
+
+```sql
+-- 요약 (FORCE RLS + set_config('app.tenant_id', $1, true) — §2.1)
+-- Zero Direct Write 예외: agent_invoke만 INSERT (Pooler). memory_*/Gateway 쓰기 금지.
+CREATE TABLE agent_checkpoints (
+  id                   UUID PRIMARY KEY,
+  tenant_id            UUID NOT NULL,
+  run_id               TEXT NOT NULL,     -- Gateway UUIDv7
+  session_id           TEXT NOT NULL,
+  principal_id         TEXT NOT NULL,
+  seq                  BIGINT NOT NULL,   -- UNIQUE (tenant_id, run_id, seq)
+  parent_id            UUID,
+  kind                 TEXT NOT NULL,     -- 'turn' | 'tool' | 'final'
+  state_schema_version INTEGER NOT NULL DEFAULT 1,
+  state                JSONB NOT NULL DEFAULT '{}',  -- 작은 재개 스냅샷; 시크릿 plaintext 금지
+  content_ref          TEXT,              -- 대용량/PII → Object Store (§8)
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+append-only. resume는 동일 `(tenant_id, run_id)`의 최대 `seq`(후속 구현). writer·TTL GC는 본 절 Non-goal.
 
 ### 6.2 메모리 DDL
 
