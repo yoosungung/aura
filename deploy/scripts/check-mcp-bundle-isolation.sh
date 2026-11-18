@@ -29,7 +29,8 @@ grep -Eqi 'object store|Garage|aura-content' "$DOC" || fail "doc allowlist must 
 grep -Eqi 'mcp.*(host|endpoint)|허용 MCP|Streamable' "$DOC" || fail "doc allowlist must cover allowed MCP hosts"
 grep -Eqi '서명|signature|checksum' "$DOC" || fail "doc must define platform signature vs custom"
 grep -Eqi '미서명|unsigned|커스텀' "$DOC" || fail "doc must forbid unsigned custom without sandbox"
-grep -Eqi '실측|live|본구현' "$DOC" || fail "doc must mark live Egress/RuntimeClass as Non-goal or follow-up"
+grep -q 'egress-block-verify' "$DOC" || fail "doc must link egress-block-verify.md"
+grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals for LLM Gateway 본구현"
 
 [[ -f "$ARCH" ]] || fail "missing $ARCH"
 grep -q 'mcp-bundle-isolation.md' "$ARCH" || fail "ARCHITECTURE must link mcp-bundle-isolation.md"

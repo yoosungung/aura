@@ -5,8 +5,8 @@
 관련: [`mcp-streamable-http.md`](mcp-streamable-http.md) · [`mcp-invoke-dual.md`](mcp-invoke-dual.md) · [`../services/mcp-invoke/DESIGN.md`](../../services/mcp-invoke/DESIGN.md).
 
 **이 문서 범위:** RuntimeClass 선택 · Egress **deny-default allowlist** · 플랫폼 서명 vs 커스텀 차등을 **수치·이름과 함께 고정**.  
-**Non-goals:** RuntimeClass/NetworkPolicy **라이브 apply·실측** · LLM Gateway **본구현** · NATS mTLS · F1 테넌트 샤딩 · Streamable HTTP initialize 세션 서버.  
-실측 스모크(비허용 Egress 차단)는 후속 child (`ROADMAP` «Egress 차단 검증»).
+**Non-goals:** LLM Gateway **본구현** · NATS mTLS · F1 테넌트 샤딩 · Streamable HTTP initialize 세션 서버 · gVisor `runsc` **노드 설치**.  
+Egress **매니페스트·오프라인 검증**: [`egress-block-verify.md`](egress-block-verify.md) · `check-egress-block-verify.sh` (live 클러스터는 Non-goal for CI PASS).
 
 ---
 
@@ -32,7 +32,7 @@
 
 **선택 근거 (결정 로그):** Fission/KEDA scale-to-zero·콜드 민감 → **gVisor(`runsc`)** 를 M3 기본. Kata는 하드웨어 격리 티어로 유지(고위험·M5). 동등 런타임 교체 시 이 문서·§9.1·결정 로그를 **같이** 고친다.
 
-매니페스트에 `runtimeClassName: gvisor`(또는 `kata`)를 붙이는 apply·노드 라벨은 **후속**(본 슬라이스 Non-goal).
+RuntimeClass 매니페스트: [`../k8s/sandbox-egress/`](../k8s/sandbox-egress/). 파드에 `runtimeClassName` 부착·노드 handler 설치는 클러스터 적용 시.
 
 ---
 
@@ -51,7 +51,7 @@
 
 **금지 예:** 임의 인터넷 · 메타데이터 엔드포인트 · 타 테넌트 Service · PG primary 직접 · 공급자 LLM URL · 미등록 MCP.
 
-Ingress는 본 정책 범위 밖(내부 NATS/Gateway만 호출). NetworkPolicy YAML·실측은 후속 child.
+Ingress는 본 정책 범위 밖(내부 NATS/Gateway만 호출). NetworkPolicy YAML: [`deploy/k8s/sandbox-egress/`](../k8s/sandbox-egress/) · 검증: [`egress-block-verify.md`](egress-block-verify.md).
 
 ---
 
@@ -71,7 +71,7 @@ Ingress는 본 정책 범위 밖(내부 NATS/Gateway만 호출). NetworkPolicy Y
 
 ## V3.3 매핑
 
-ROADMAP M3 V3.3: *커스텀/외부 MCP Egress·샌드박스* → **이 문서(정책)** + 후속 «Egress 차단 검증» 스모크.  
+ROADMAP M3 V3.3: *커스텀/외부 MCP Egress·샌드박스* → **이 문서(정책)** + [`egress-block-verify.md`](egress-block-verify.md) 스모크 증거.  
 본 슬라이스 합격 = 정책 문서 + `check-mcp-bundle-isolation.sh` PASS + 결정 로그(gVisor 기본).
 
 ---
@@ -80,4 +80,5 @@ ROADMAP M3 V3.3: *커스텀/외부 MCP Egress·샌드박스* → **이 문서(�
 
 ```bash
 bash deploy/scripts/check-mcp-bundle-isolation.sh
+bash deploy/scripts/check-egress-block-verify.sh
 ```

@@ -705,7 +705,8 @@ Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를
 | 격리 강화 | 고위험 테넌트/번들은 **Kata RuntimeClass/전용 노드풀** 또는 전용 Deployment (Fair Queue F1·M5와 병행 가능) |
 | 플랫폼 번들 | 서명·checksum 검증 필수. 미서명 커스텀은 샌드박스 없이 금지. **서명 번들도 Egress NP는 동일** |
 
-정책 정본(이름·allowlist·차등): [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md). RuntimeClass/NP 라이브 apply·실측은 M3 후속.
+정책 정본(이름·allowlist·차등): [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md).  
+Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md) · `deploy/k8s/sandbox-egress/`. CNI FQDN/egress-proxy 라이브 프로브·LLM Gateway 본구현은 후속.
 
 ### 9.2 시크릿 전송 · 캐시
 
