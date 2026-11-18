@@ -27,9 +27,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **BM25/전문 = stock `tsvector` + `GIN` + `ts_rank`/`ts_rank_cd`** (`content_tsv`). ParadeDB/`pg_search` **M1 비채택** | §6 DDL 기본과 일치; 추가 확장·`shared_preload`·CNPG ImageVolume(PG18+) 없이 Pooler/RLS M1과 병행 가능. 순수 Okapi BM25 품질 갭이 실측되면 이후 `pg_search` 재평가 |
 | 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only** (`aura-pg-pooler…`). standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator; §2.1·[`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/)·`check-pg-pooler.sh`. V1.1 RLS 실측은 `92cccf21` |
 | 2026-11-18 | **PG Multi-AZ / PITR 토폴로지 초안** — instances=3 + zone anti-affinity; Barman Cloud WAL+base; **RPO ≤ 5m · RTO ≤ 1h**; recall = RO Pooler(`type: ro`) | §9.6·[`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)·`cluster-ha.draft.yaml`. 라이브 apply·PITR 드릴 실측은 후속/M4. 비용·리전 실값 비범위 |
-| 2026-11-18 | **메모리 TTL 수치 M1 고정** — short_term 핫 **14일** · episodic 핫 **24개월** · audit 핫 **12개월**; DROP 담당=`aura.tasks.memory.ttl` (구현=M4) | §6.2.2·[`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)·`check-memory-ttl.sh`. Soft-delete-only 방치 금지 |
+| 2026-11-18 | **메모리 TTL 수치 M1 고정** — short_term 핫 **14일** · episodic 핫 **24개월** · audit 핫 **12개월**; DROP 판정=`U <= now()-핫간격`; DROP 주기 **일 1회**; 담당=`aura.tasks.memory.ttl` (구현=M4) | §6.2.2·[`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)·`check-memory-ttl.sh`. Soft-delete-only 방치 금지 |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
-| 2026-11-18 | **short_term TTL**: 핫 **14일**; 월 RANGE는 `upper_exclusive + 14d` 이후 DETACH/DROP; DROP 주기 **일 1회**; 담당 **`aura.tasks.memory.ttl`** (구현 M4). 정본 [`services/memory/DESIGN.md`](services/memory/DESIGN.md) | §6.2.2 초안 확정; 월 파티션 경계에 맞춤; DELETE+VACUUM·soft-only 방치 금지 |
 
 ---
 

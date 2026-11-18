@@ -47,7 +47,9 @@
 | `aura.tasks.memory.ttl` | `aura_memory_ttl` / `svc-memory` ttl | 만료 **short_term**·(정책상) **audit** 월 파티션 DROP; episodic는 archive 경로와 조율 | `aura.events.memory.ttl.done` / `.error` |
 | `aura.tasks.memory.archive` | `aura_memory_archive` / `svc-memory` archive | 콜드 episodic Parquet export → object store → DETACH/DROP | `aura.events.memory.archived` / archive error |
 
-MQT·scale-to-zero OK (ARCHITECTURE §3.2). M1은 **이름·수치·판정만** 고정하고 Function/스케줄 CR은 만들지 않는다.
+**DROP 주기 (M1 고정):** `aura.tasks.memory.ttl` 발행 **일 1회**(UTC). 스케줄 CR·Function 본문은 M4.
+
+MQT·scale-to-zero OK (ARCHITECTURE §3.2). M1은 **이름·수치·판정·주기만** 고정하고 Function/스케줄 CR은 만들지 않는다.
 
 ---
 
