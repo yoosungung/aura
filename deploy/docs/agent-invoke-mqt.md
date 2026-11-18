@@ -7,7 +7,7 @@
 resolve wire: [`svc-control-resolve.md`](svc-control-resolve.md).
 
 **이 문서 범위:** 태스크 payload · 스트림 프레임 타입 · RPC 순서 · done/error envelope · MQT 이름표 · **우회 쿼터 재확인**.  
-**Non-goals:** live LLM Gateway · live NATS Core publisher 구현 · 체크포인트 DDL · Gateway Token Bucket 본구현. (resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))  
+**Non-goals:** live LLM Gateway · live NATS Core publisher 구현 · 체크포인트 **Pooler writer/resume** · Gateway Token Bucket 본구현. (DDL: [`agent-checkpoints.md`](agent-checkpoints.md) · resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))  
 **`mcp_invoke`:** [`mcp-invoke-dual.md`](mcp-invoke-dual.md) (MQT+RPC 완료; 본 문서는 `mcpTool` injectable만).  
 Gateway SSE/WS·`run_id`·principal·Fair Queue: [`gateway-sse-ws.md`](gateway-sse-ws.md) · [`gateway-fair-queue.md`](gateway-fair-queue.md).
 

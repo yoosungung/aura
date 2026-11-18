@@ -390,19 +390,6 @@ bash deploy/scripts/check-agent-invoke.sh   # DESIGN + MQT + stream frames + sel
 ### `agent_checkpoints` 예외 테이블 DDL (M3 · §6)
 
 ```bash
-bash deploy/scripts/check-agent-checkpoints.sh   # DDL + doc + cross-links (no cluster)
-```
-
-| 항목 | M3 고정 |
-|------|---------|
-| 문서 | [`docs/agent-checkpoints.md`](docs/agent-checkpoints.md) · [`../services/agent-invoke/DESIGN.md`](../services/agent-invoke/DESIGN.md) |
-| DDL | [`sql/agent_checkpoints.sql`](sql/agent_checkpoints.sql) — FORCE RLS · UNIQUE `(tenant_id, run_id, seq)` |
-| 쓰기 | **`agent_invoke` only** · Pooler + `set_config('app.tenant_id', $1, true)` |
-| Non-goals | live Pooler INSERT/resume · TTL GC · MQT for checkpoints |
-
-### `agent_checkpoints` 예외 테이블 DDL (M3 · §6)
-
-```bash
 bash deploy/scripts/check-agent-checkpoints.sh   # DDL + FORCE RLS + ownership doc (no cluster)
 ```
 
