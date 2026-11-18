@@ -1,0 +1,34 @@
+# Fission KEDA MQT — aura.tasks.agent.invoke (ARCHITECTURE §3.2 · §4.1 · §3.5).
+# minReplicaCount=0 → scale-to-zero when AURA_TASKS lag is idle.
+# PG 금지: Function은 Pooler/DSN env를 받지 않는다. Stream frames ≠ respTopic.
+apiVersion: fission.io/v1
+kind: MessageQueueTrigger
+metadata:
+  name: aura-agent-invoke
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: agent-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-agent-invoke
+spec:
+  functionref:
+    name: aura-agent-invoke
+    type: name
+  messageQueueType: nats-jetstream
+  mqtkind: keda
+  topic: aura.tasks.agent.invoke
+  respTopic: aura.events.agent.invoke.done
+  errorTopic: aura.events.agent.invoke.error
+  maxRetries: 3
+  contentType: application/json
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0
+  maxReplicaCount: 8
+  metadata:
+    stream: AURA_TASKS
+    consumer: aura_agent_invoke
+    account: "$G"
+    natsServer: nats://nats.aura.svc.cluster.local:4222
+    natsServerMonitoringEndpoint: nats.aura.svc.cluster.local:8222

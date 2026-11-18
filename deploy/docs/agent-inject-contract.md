@@ -5,7 +5,8 @@
 전제: `aura.rpc.memory.recall` hybrid RRF ([`../services/memory/DESIGN.md`](../../services/memory/DESIGN.md)).
 
 **이 문서 범위:** Agent가 recall 응답을 프롬프트에 넣는 **슬롯 분리·토큰 예산·금지 규칙**을 수치와 함께 고정.  
-**Non-goals:** `agent_invoke` 패킹 본구현 · LLM Gateway 호출 · Object Store/`content_ref` 제품·GC · graph walk(M4) · tokenizer 제품 확정.
+**Non-goals:** LLM Gateway 호출 · Object Store/`content_ref` 제품·GC · graph walk(M4) · tokenizer 제품 확정.  
+**패킹 구현:** M3 [`agent-invoke-mqt.md`](agent-invoke-mqt.md) · `services/agent-invoke` (`packRecallItems`, utf8/4 추정).
 
 수치 출처: ARCHITECTURE §6.3 유형 예산 + recall 기본 `top_k=12` / short_term 슬롯 **4**. 운영 튜닝은 M3 부하 후 결정 로그 1행 + 이 문서·§6.3을 **같이** 고친다 — 여기서 새 숫자를 발명하지 않는다.
 
@@ -81,7 +82,7 @@ recall 기본과 동일. Agent는 이 상한을 넘긴 items를 추가로 요청
 ## V2.3 매핑
 
 ROADMAP M2 V2.3: *Agent 주입 슬롯·토큰 예산* → 이 문서 + ARCHITECTURE §6.3 수치.  
-패킹·스모크는 M3 `agent_invoke`.
+패킹 본구현=`services/agent-invoke` (`packRecallItems`) · 게이트 `check-agent-invoke.sh`.
 
 ---
 

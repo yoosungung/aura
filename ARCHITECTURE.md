@@ -212,6 +212,8 @@ RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에
 | `error` | 스트림상 오류 힌트(정본은 `aura.events.agent.invoke.error`) |
 | `run.completed` | 스트림 종료 신호; **내구 완료는 반드시** `aura.events.agent.invoke.done` |
 
+MQT·프레임·RPC 순서 고정: [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · 핸들러 [`services/agent-invoke/`](services/agent-invoke/).
+
 규칙:
 
 - JetStream/`AURA_EVENTS`에 토큰을 쌓지 않는다. 재연결 시 Gateway는 버퍼·replay를 보장하지 않는다(유실 허용). 필요 시 클라이언트는 done 이벤트·체크포인트로 최종 문구를 맞춘다.

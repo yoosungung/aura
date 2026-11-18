@@ -1,0 +1,25 @@
+# Async agent_invoke Function — scale-to-zero owned by MessageQueueTrigger (ARCHITECTURE §4.1).
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-agent-invoke
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: agent-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-agent-invoke
+spec:
+  environment:
+    name: aura-agent-invoke-nodejs
+    namespace: default
+  package:
+    packageref:
+      name: aura-agent-invoke
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+  functionTimeout: 120
+  idletimeout: 120

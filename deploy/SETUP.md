@@ -369,7 +369,23 @@ bash deploy/scripts/check-agent-inject-contract.sh   # doc gate: slots + 2048/51
 | 소스 | `aura.rpc.memory.recall` `items[]`만 · 원문/`content_ref` 덤프 금지 |
 | 토큰 | 합 **2048** · short_term **512** · episodic **768** · long_term+semantic **768** |
 | 아이템 | short_term **4** · `top_k` **12** |
-| 구현 | 패킹=`agent_invoke` M3 |
+| 구현 | 패킹=`agent_invoke` M3 (`services/agent-invoke` · `packRecallItems`) |
+
+### `agent_invoke` MQT · 스트림 프레임 (M3)
+
+```bash
+bash deploy/scripts/check-agent-invoke.sh   # DESIGN + MQT + stream frames + selftest (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/agent-invoke-mqt.md`](docs/agent-invoke-mqt.md) · [`../services/agent-invoke/DESIGN.md`](../services/agent-invoke/DESIGN.md) |
+| topic / consumer | `aura.tasks.agent.invoke` / `aura_agent_invoke` |
+| resp / error | `aura.events.agent.invoke.done` / `aura.events.agent.invoke.error` |
+| 스트림 | Core `aura.stream.<run_id>` — `run.started` / `token` / `tool.*` / `run.completed` |
+| RPC | resolve · recall · mcp.tool (injectable; live RR 후속) |
+| 매니페스트 | `k8s/agent-invoke/` · `minReplicaCount=0` |
+| Non-goals | Gateway SSE/Fair Queue · live LLM Gateway · live NATS Core publisher |
 
 ### Object Store · `content_ref` (M2 / V2.1 · provision 비범위)
 
