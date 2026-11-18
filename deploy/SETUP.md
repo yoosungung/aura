@@ -204,7 +204,22 @@ bash deploy/scripts/smoke-memory-items.sh              # live via pooler: seed m
 | DDL | `deploy/sql/memory_items.sql` — LIST(`memory_type`); short_term/episodic → 월 RANGE; long_term/semantic 리프 |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
 | 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH (TTL 수치·DROP 주기는 후속 티켓) |
-| Non-goals | `memory_audit` · embeddings · `svc-memory` store 본문 |
+| Non-goals | embeddings · `svc-memory` store 본문 · TTL DROP 수치 |
+
+### memory_audit 월 RANGE + RLS (M1)
+
+```bash
+bash deploy/scripts/check-memory-audit.sh              # static: RANGE(created_at) + FORCE RLS
+SMOKE_MEMORY_AUDIT_STATIC=1 bash deploy/scripts/smoke-memory-audit.sh
+bash deploy/scripts/smoke-memory-audit.sh              # live via pooler: seed months + RLS
+```
+
+| 항목 | 값 |
+|------|-----|
+| DDL | `deploy/sql/memory_audit.sql` — `PARTITION BY RANGE (created_at)`; PK `(id, created_at)` |
+| RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
+| 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH (핫 12개월·DROP 주기는 후속 TTL 티켓) |
+| Non-goals | soft delete · `memory_items` FK · embeddings · `svc-memory` store 본문 |
 
 ### PG Multi-AZ / PITR (M1 초안 · apply 비범위)
 
