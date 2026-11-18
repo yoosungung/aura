@@ -23,6 +23,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-17 | **P2 엔터프라이즈**: 샌드박스(gVisor/Kata)+Egress NP; NATS mTLS·시크릿 TTL 캐시; GDPR content_ref+crypto-shred; **LLM Gateway**; sync Warm p95 < 1–2s; PG Multi-AZ/PITR; MaxDeliver+AURA_DLQ | 1만+/10년 보안·비용·컴플라이언스 |
 | (M1) | 활성 임베딩 실값 + BM25 + Pooler 제품 + iterative_scan + **PG HA/RPO/RTO 초안** | M1에서 고정 |
 | 2026-11-17 | **sync Warm 단일 홉 p95 ≈ 0.6ms** (`smoke-sync-rpc.sh` n=20, Core local). 연쇄 목표 p95 < 1–2s 유지. async 콜드 p95는 별도 기입 | V0.2 스모크 |
+| 2026-11-18 | **PG + Pooler 스모크 계획** 문서화 — [`deploy/docs/pg-pooler-smoke-plan.md`](deploy/docs/pg-pooler-smoke-plan.md) (설치·제품 확정·실측은 M1 V1.1) | M0 권장 체크 |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -40,7 +41,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **Async poison**: 파싱 불가/고의 실패 → 유한 재시도 + **`errortopic` 잔존** (`smoke-async-poison.sh`; `AURA_DLQ` 택일은 `1632b9ee`)
 - [x] **Sync**: 샘플 RPC — `aura.rpc.smoke`, **`minReplicas >= 2`**, JetStream MQT·lag scaler **미연결** (`aura-rpc-smoke-rr` · `smoke-sync-rpc.sh`)
 - [x] pull consumer·RPC queue-group·DLQ subject·분리 배포 이름 문서화 (`deploy/SETUP.md`)
-- [ ] (권장) PG + Pooler 스모크 계획 — 본문은 M1
+- [x] (권장) PG + Pooler 스모크 계획 — 본문은 M1 ([`deploy/docs/pg-pooler-smoke-plan.md`](deploy/docs/pg-pooler-smoke-plan.md))
 - [x] **DLQ 적재 경로 확정**(아래 유의사항) → 결정 로그 1행 · `smoke-dlq-term.sh`
 
 **구현 유의사항 (착수 시 확인)**
