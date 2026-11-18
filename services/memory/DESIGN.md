@@ -1,13 +1,13 @@
 # svc-memory (내부 설계)
 
-계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#5 · §2.1 · §3.2–§3.3 · §4.2 · §6.  
-일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · **recall RPC Warm**).  
+계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#5 · §2.1 · §3.2–§3.3 · §4.2 · §6.3.  
+일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**).  
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md).
 
-**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR) 배포 경계.  
-**Non-goals (본 슬라이스):** hybrid RRF / short_term 최근순 SQL · graph walk · consolidate/ttl/archive 본구현 · 라이브 TEI HTTP · 실 `halfvec` INSERT · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만).
+**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT).  
+**Non-goals (본 슬라이스):** graph walk 본구현(M4 · stub만) · consolidate/ttl/archive · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec` INSERT · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만).
 
-수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED). recall 본구현(SELECT)은 sibling.
+수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED).
 
 ---
 
@@ -75,18 +75,26 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 | 트리거 | 기동 시 NATS Core `nats reply -q` — **MQT 없음** · **JetStream lag ScaledObject 없음** |
 | 매니페스트 | [`deploy/k8s/memory-recall/`](../../deploy/k8s/memory-recall/) |
 
-요청 envelope: ARCHITECTURE §6.3 (`tenant_id` · `query` · 선택 `types`/`top_k`/`session_id`/`principal_id`).  
-본 슬라이스 핸들러(`services/memory/recall/handler.js`): 검증 후 `type: memory.recall.done` · `mode: stub` · `items: []` · **PG 미접속**.  
-Sibling(hybrid RRF): short_term=최근순 · 나머지 RRF(+ graph stub) · `SET LOCAL hnsw.iterative_scan` / `ef_search=40` + tenant WHERE · Pooler + `set_config('app.tenant_id', $1, true)`.
+요청 envelope: ARCHITECTURE §6.3 (`tenant_id` · `query` · 선택 `types`/`top_k`/`session_id`/`principal_id` · 선택 `query_embedding[]`).  
+핸들러(`services/memory/recall/handler.js`): `mode: hybrid_rrf` · `type: memory.recall.done`.
 
-Agent는 이 RPC만 사용한다(§1 #9). App post-filter 금지(§6.2.3).
+| 단계 | 동작 |
+|------|------|
+| GUC | `withTenantTx` → `set_config('app.tenant_id', $1, true)` → `SET LOCAL hnsw.iterative_scan=relaxed_order` · `ef_search=40` · `max_scan_tuples=20000` |
+| `short_term` | HNSW 없이 `ORDER BY created_at DESC` · 선택 `session_id` · **tenant WHERE 동일 SQL** · 슬롯 예산 기본 4 |
+| BM25 | `content_tsv @@ plainto_tsquery` · `memory_type IN (episodic,long_term,semantic)` · tenant WHERE |
+| vector | `query_embedding` 있을 때만 · 활성 `model_key` · `(embedding::halfvec(N)) <=> q` · tenant WHERE **동일 SQL**(앱 post-filter 금지) |
+| graph | **stub** `{ mode: stub, candidates: [] }` — M4 walk가 RRF 분기로 합류 |
+| fuse | RRF `k=60` · BM25+vector(+graph stub weight 0.5) → short_term 블록 앞 + hybrid 나머지 = `top_k` |
+
+`AURA_DATABASE_HOST`는 `aura-pg-pooler`만(RO pooler OK). Agent는 이 RPC만 사용한다(§1 #9).
 
 ---
 
 ## 트랜잭션 헬퍼
 
 `services/memory/store/tenant-tx.js` — `BEGIN` → `set_config('app.tenant_id', $1, true)` → work → `COMMIT`/`ROLLBACK`.  
-store·embed handler는 이 헬퍼만 경유한다(short_term skip 제외). recall stub은 헬퍼 미사용(sibling SELECT에서 재사용).
+store·embed·**recall** handler는 이 헬퍼만 경유한다(short_term embed skip 제외).
 
 ---
 
@@ -95,16 +103,16 @@ store·embed handler는 이 헬퍼만 경유한다(short_term skip 제외). reca
 ```bash
 bash deploy/scripts/check-memory-store.sh          # DESIGN + store MQT + set_config(..., true) + selftests
 bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_term skip + selftests
-bash deploy/scripts/check-memory-recall.sh         # DESIGN + recall Warm Pool + Core QG + no MQT + selftests
+bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + GUCs + Warm Pool + no MQT + selftests
 node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
 node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
-node services/memory/recall/handler.selftest.js    # Core RR stub · no PG
+node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant WHERE · graph stub
 ```
 
 ---
 
 ## 관련 링크
 
-- §2.1 Pooler · §3.2 store/embed · §3.3 recall subject · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
-- ROADMAP M1 store · M2 «embed Function (MQT) — short_term 스킵» · M2 «recall RPC Function 별도 배포»
+- §2.1 Pooler · §3.2 store/embed · §3.3 recall subject · §6.3 hybrid · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
+- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF»

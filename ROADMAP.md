@@ -139,7 +139,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `memory_capture` Function (PG 금지, MQT) → `aura.events.memory.candidates` (`services/memory-capture/` · `deploy/k8s/memory-capture/` · `check-memory-capture.sh`)
 - [x] embed Function (MQT) — **short_term 스킵**; episodic/long_term/semantic만 HNSW/BM25 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`)
 - [x] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음 (`services/memory/recall/` · `deploy/k8s/memory-recall/` · `check-memory-recall.sh`)
-- [ ] recall: short_term=최근순; 나머지 hybrid RRF (+ graph stub); iterative_scan + tenant WHERE
+- [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph stub); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
 - [ ] Agent 주입 계약(프롬프트 슬롯·토큰 예산)
 - [ ] **Object Store 제품 확정**(Garage/S3/NCP 등) → 결정 로그; `content_ref` 스키마·권한
 - [ ] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — DESIGN에 알고리즘 고정(구현은 M4와 맞춰도 됨)
