@@ -1,14 +1,14 @@
 # memory_embeddings 모델 세대 교체 (M1)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3 · **§6.2.1**.  
-일정: [ROADMAP.md](../../ROADMAP.md) M1 (DDL·절차 고정) · 활성 모델 실값 = **별도** ROADMAP 체크(`AURA_EMBEDDING_*`).  
+일정: [ROADMAP.md](../../ROADMAP.md) M1 (DDL·절차 고정) · 활성 모델 실값 = [`memory-embedding-active.md`](memory-embedding-active.md).  
 전제 DDL: [`../sql/memory_embeddings.sql`](../sql/memory_embeddings.sql).
 
 **이 문서 범위:** LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW 형태와 **ATTACH → 전환 → DETACH** 절차 고정.  
-**Non-goals:** 생산 임베딩 모델·version·dims 실값 발명 · HNSW 왜곡 픽스처 · `svc-memory` store 본문 · T1/T2 테넌트 파티션.  
+**Non-goals:** 활성 핀 재발명(→ active 문서) · HNSW 왜곡 픽스처 · `svc-memory` store 본문 · T1/T2 테넌트 파티션.  
 short_term 거부·`iterative_scan`/`ef_search` 수치는 [`memory-embed-guard-iterative-scan.md`](memory-embed-guard-iterative-scan.md).
 
-스모크는 **`fixture:v*`** model_key만 사용한다. fixture ≠ production `AURA_EMBEDDING_MODEL`/`version`/`dims`.
+스모크는 **`fixture:v*`** model_key만 사용한다. fixture ≠ production `AURA_EMBEDDING_MODEL`/`version`/`dims`(생산=`BAAI/bge-m3:1` · dims=1024).
 
 ---
 
@@ -22,7 +22,7 @@ short_term 거부·`iterative_scan`/`ef_search` 수치는 [`memory-embed-guard-i
 | 인덱스 | `USING hnsw ((embedding::halfvec(<N>)) halfvec_cosine_ops)` — **파티션마다** |
 | 상한 | `dims ≤ 4000` (`halfvec` HNSW). `vector` HNSW 경로 비채택 |
 
-`<N>`·`<model>`·`<version>` 생산 실값은 이 문서에 쓰지 않는다 — ROADMAP「활성 `AURA_EMBEDDING_*` → 결정 로그」티켓에서 고정.
+`<N>`·`<model>`·`<version>` 생산 실값 SoR = [`memory-embedding-active.md`](memory-embedding-active.md) (`BAAI/bge-m3` / `1` / `1024`). 이 문서는 절차만.
 
 ---
 
@@ -54,5 +54,6 @@ ROADMAP M1 V1.2: *임베딩 세대 교체 DDL* → 이 문서 + [`../sql/memory_
 
 ## 관련 링크
 
-- §6.2.1 · §6 DDL · 결정 로그 (2026-11-17 방안 B · 2026-11-18 세대 교체 절차 M1 고정)
+- §6.2.1 · §6 DDL · 결정 로그 (2026-11-17 방안 B · 2026-11-18 세대 교체 절차 · 활성 핀)
+- 활성 핀: [`memory-embedding-active.md`](memory-embedding-active.md) · `check-memory-embedding-active.sh`
 - 정적 게이트: `bash deploy/scripts/check-memory-embeddings.sh`
