@@ -39,7 +39,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Deployment는 후속 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | 2026-11-19 | **`agent_invoke` MQT + 스트림 프레임 M3 고정** — topic `aura.tasks.agent.invoke` · Core `aura.stream.<run_id>` (`run.started`/`token`/`tool.*`/`run.completed`) · resolve/recall/mcp RPC injectable · done=`aura.events.agent.invoke.done` · V3.1 token-before-done · Gateway SSE/Fair Queue/live LLM=후속 | [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md)·`check-agent-invoke.sh` · [`services/agent-invoke/`](services/agent-invoke/) |
 | 2026-11-19 | **Gateway `run_id`/SSE/WS/principal M3 고정** — UUIDv7 발급 · exact `aura.stream.<run_id>` · 소유 principal만 구독 · Deployment replicas≥2 · Fair Queue/live NATS=후속 | [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md)·`check-gateway-sse-ws.sh` · [`services/gateway/`](services/gateway/) |
-| 2026-11-19 | **Gateway Fair Queue/RL M3 고정** — Token Bucket 10/s·burst 30·max_inflight 20 · `quota:{tenant_id}` KV shape · 429 · 노이지 픽스처(A 기아≠B) · live NATS KV·done 구독=후속 | [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md)·`check-gateway-fair-queue.sh` |
+| 2026-11-19 | **Gateway Fair Queue/RL M3 고정** — Token Bucket 10/s·burst 30·maxInflight 20 · CAS KV `quota.{tenant_id}` · 429 · 노이지 픽스처(A 기아≠B) · live NATS KV·done 구독=후속 | [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md)·`check-gateway-fair-queue.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---

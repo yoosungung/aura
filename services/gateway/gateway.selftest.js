@@ -18,10 +18,23 @@ const {
   handleSseHttp,
   TASK_AGENT_INVOKE,
   STREAM_FRAME_TYPES,
-  createMemoryQuotaStore,
-  releaseInflight,
-  DEFAULT_PLAN,
+  DEFAULT_LIMITS,
+  createMemoryKv,
+  createTenantRateLimiter,
 } = require('./gateway');
+
+function rateLimiterDeps(kv, limits, nowMs) {
+  const t = nowMs;
+  return {
+    kv,
+    rateLimiter: createTenantRateLimiter({
+      kv,
+      limits,
+      now: () => t,
+    }),
+    nowMs: t,
+  };
+}
 
 async function main() {
   const src = fs.readFileSync(path.join(__dirname, 'gateway.js'), 'utf8');
@@ -79,12 +92,15 @@ async function main() {
   assert.strictEqual(published[0].subject, TASK_AGENT_INVOKE);
   assert.strictEqual(published[0].task.run_id, accepted.run_id);
 
+  const kvBridge = createMemoryKv();
+  const rlBridge = createTenantRateLimiter({ kv: kvBridge });
   const frames = [];
   const bridge = await openStreamBridge(
     accepted.run_id,
     principal,
     {
       registry,
+      rateLimiter: rlBridge,
       subscribeStream: async (subject, onFrame) => {
         assert.strictEqual(subject, buildStreamSubject(accepted.run_id));
         await onFrame({
@@ -217,12 +233,12 @@ async function main() {
   assert.strictEqual(denySse.status, 403);
 
   // --- Fair Queue / Rate Limit (§2.2 · V3.2) ---
-  assert.strictEqual(DEFAULT_PLAN.rate_per_sec, 10);
-  assert.strictEqual(DEFAULT_PLAN.burst, 30);
-  assert.strictEqual(DEFAULT_PLAN.max_inflight, 20);
+  assert.strictEqual(DEFAULT_LIMITS.ratePerSec, 10);
+  assert.strictEqual(DEFAULT_LIMITS.burst, 30);
+  assert.strictEqual(DEFAULT_LIMITS.maxInflight, 20);
 
-  const store = createMemoryQuotaStore();
-  const planTight = { rate_per_sec: 1, burst: 1, max_inflight: 1 };
+  const limitsTight = { ratePerSec: 1, burst: 1, maxInflight: 1 };
+  const kvShared = createMemoryKv();
   const regA = createRunRegistry();
   const pubsA = [];
   const tenantA = { id: 'noisy', tenant_id: 'tenant-noisy' };
@@ -237,9 +253,7 @@ async function main() {
       publishTask: async (_s, task) => {
         pubsA.push(task);
       },
-      quotaStore: store,
-      plan: planTight,
-      nowMs: t,
+      ...rateLimiterDeps(kvShared, limitsTight, t),
     },
   );
   assert.ok(isUuidV7(okA.run_id));
@@ -255,9 +269,7 @@ async function main() {
         publishTask: async () => {
           throw new Error('must_not_publish');
         },
-        quotaStore: store,
-        plan: planTight,
-        nowMs: t,
+        ...rateLimiterDeps(kvShared, limitsTight, t),
       },
     );
   } catch (err) {
@@ -277,42 +289,38 @@ async function main() {
       publishTask: async (_s, task) => {
         pubsB.push(task);
       },
-      quotaStore: store,
-      plan: planTight,
-      nowMs: t,
+      ...rateLimiterDeps(kvShared, limitsTight, t),
     },
   );
   assert.ok(isUuidV7(okB.run_id));
   assert.strictEqual(pubsB.length, 1, 'quiet tenant must still publish');
 
-  await releaseInflight(tenantA.tenant_id, okA.run_id, {
-    store,
-    plan: planTight,
-    nowMs: t,
+  const rlA = createTenantRateLimiter({
+    kv: kvShared,
+    limits: limitsTight,
+    now: () => t,
   });
+  await rlA.release(tenantA.tenant_id, okA.run_id);
   const okA2 = await submitAgentInvoke(
     { agent: 'demo', version: '1.0.0' },
     tenantA,
     {
       registry: regA,
       publishTask: async () => {},
-      quotaStore: store,
-      plan: planTight,
-      nowMs: t + 2000,
+      ...rateLimiterDeps(kvShared, limitsTight, t + 2000),
     },
   );
   assert.ok(isUuidV7(okA2.run_id));
 
-  const store2 = createMemoryQuotaStore();
+  const kv2 = createMemoryKv();
   const httpReg2 = createRunRegistry();
+  const rlDeps = rateLimiterDeps(kv2, limitsTight, t);
   await handleSubmitHttp(
     { principal: tenantA, body: { agent: 'demo', version: '1' } },
     {
       registry: httpReg2,
       publishTask: async () => {},
-      quotaStore: store2,
-      plan: planTight,
-      nowMs: t,
+      ...rlDeps,
     },
   );
   const denied = await handleSubmitHttp(
@@ -322,9 +330,7 @@ async function main() {
       publishTask: async () => {
         throw new Error('nope');
       },
-      quotaStore: store2,
-      plan: planTight,
-      nowMs: t,
+      ...rlDeps,
     },
   );
   assert.strictEqual(denied.status, 429);

@@ -9,10 +9,11 @@
 
 const crypto = require('crypto');
 const {
-  DEFAULT_PLAN,
-  createMemoryQuotaStore,
-  acquireForRun,
-  releaseInflight,
+  DEFAULT_LIMITS,
+  createMemoryKv,
+  createTenantRateLimiter,
+  isTerminalStreamFrame,
+  isTerminalInvokeEvent,
 } = require('./rate-limit');
 
 const TASK_AGENT_INVOKE = 'aura.tasks.agent.invoke';
@@ -180,12 +181,19 @@ async function submitAgentInvoke(body, principal, deps) {
     throw err;
   }
 
-  const quotaStore = d.quotaStore || createMemoryQuotaStore();
-  const admitted = await acquireForRun(principal.tenant_id, runId, {
-    store: quotaStore,
-    plan: d.plan,
-    nowMs: d.nowMs,
-  });
+  const rateLimiter =
+    d.rateLimiter ||
+    createTenantRateLimiter({
+      kv: d.kv || createMemoryKv(),
+      limits: d.limits,
+      now:
+        typeof d.nowMs === 'number'
+          ? () => d.nowMs
+          : typeof d.now === 'function'
+            ? d.now
+            : undefined,
+    });
+  const admitted = await rateLimiter.tryAcquire(principal.tenant_id, runId);
   if (!admitted.ok) {
     const err = new Error(admitted.error);
     err.status = admitted.status || 429;
@@ -209,11 +217,7 @@ async function submitAgentInvoke(body, principal, deps) {
   try {
     await publishTask(TASK_AGENT_INVOKE, task);
   } catch (pubErr) {
-    await releaseInflight(principal.tenant_id, runId, {
-      store: quotaStore,
-      plan: d.plan,
-      nowMs: d.nowMs,
-    });
+    await rateLimiter.release(principal.tenant_id, runId);
     throw pubErr;
   }
 
@@ -226,26 +230,11 @@ async function submitAgentInvoke(body, principal, deps) {
   };
 }
 
-function isTerminalStreamFrame(frame) {
-  return !!(frame && (frame.type === 'run.completed' || frame.type === 'error'));
-}
-
-function isTerminalInvokeEvent(subjectOrType) {
-  if (!subjectOrType || typeof subjectOrType !== 'string') return false;
-  return (
-    subjectOrType === 'aura.events.agent.invoke.done' ||
-    subjectOrType === 'aura.events.agent.invoke.error' ||
-    subjectOrType === 'run.completed' ||
-    subjectOrType === 'error'
-  );
-}
-
 async function openStreamBridge(runId, principal, deps, onFrame) {
   const d = deps || {};
   const registry = d.registry;
   const subscribeStream = d.subscribeStream;
-  const quotaStore = d.quotaStore;
-  const plan = d.plan;
+  const rateLimiter = d.rateLimiter;
   if (!registry) {
     const err = new Error('registry_required');
     err.status = 500;
@@ -286,12 +275,9 @@ async function openStreamBridge(runId, principal, deps, onFrame) {
       frame = { type: 'error', message: 'invalid_frame' };
     }
     await onFrame(frame);
-    if (!released && quotaStore && owned && isTerminalStreamFrame(frame)) {
+    if (!released && rateLimiter && owned && isTerminalStreamFrame(frame)) {
       released = true;
-      await releaseInflight(owned.tenant_id, runId, {
-        store: quotaStore,
-        plan,
-      });
+      await rateLimiter.release(owned.tenant_id, runId);
     }
   });
 
@@ -308,7 +294,15 @@ async function releaseInflightFromEvent(subject, tenantId, runId, deps) {
   if (!isTerminalInvokeEvent(subject)) {
     return { ok: true, released: false, skipped: true };
   }
-  return releaseInflight(tenantId, runId, deps);
+  const d = deps || {};
+  const rateLimiter =
+    d.rateLimiter ||
+    createTenantRateLimiter({
+      kv: d.kv || createMemoryKv(),
+      limits: d.limits,
+      now: typeof d.now === 'function' ? d.now : undefined,
+    });
+  return rateLimiter.release(tenantId, runId);
 }
 
 function formatSseFrame(frame) {
@@ -383,8 +377,7 @@ module.exports = {
   TASK_AGENT_INVOKE,
   STREAM_PREFIX,
   STREAM_FRAME_TYPES,
-  DEFAULT_PLAN,
-  createMemoryQuotaStore,
-  acquireForRun,
-  releaseInflight,
+  DEFAULT_LIMITS,
+  createMemoryKv,
+  createTenantRateLimiter,
 };

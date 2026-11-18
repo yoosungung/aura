@@ -414,7 +414,7 @@ bash deploy/scripts/check-gateway-fair-queue.sh   # Token Bucket + max_inflight 
 | 알고리즘 | Token Bucket + `max_inflight` · 키=`tenant_id` |
 | 기본 수치 | rate **10**/s · burst **30** · inflight **20** |
 | 거부 | **429** (`rate_limited` / `max_inflight_exceeded`) · JetStream 미적재 |
-| 상태 | KV shape `quota:{tenant_id}` (memory 테스트 · NATS KV 권장) |
+| 상태 | CAS KV `quota.{tenant_id}` (memory 테스트 · NATS KV 권장) |
 | Non-goals | live NATS KV 클라이언트 · done/error 구독 감산 배선 · F1 샤딩 |
 
 ### Object Store · `content_ref` (M2 / V2.1 · provision 비범위)

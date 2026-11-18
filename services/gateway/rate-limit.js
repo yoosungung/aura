@@ -2,30 +2,44 @@
 
 /**
  * Tenant Fair Queue / Rate Limit — Token Bucket + max_inflight (ARCHITECTURE §2.2).
- * Store is KV-shaped (`get`/`put`); tests use memory. Production = NATS JetStream KV.
+ * Store is CAS KV (`get` + `cas`); tests use memory. Production = NATS JetStream KV.
  */
 
 /** M3 DESIGN defaults (§2.2 draft). */
-const DEFAULT_PLAN = Object.freeze({
-  rate_per_sec: 10,
+const DEFAULT_LIMITS = Object.freeze({
+  ratePerSec: 10,
   burst: 30,
-  max_inflight: 20,
+  maxInflight: 20,
 });
 
 /**
- * In-memory quota store (NATS KV stand-in).
- * @returns {{ get(key): Promise<any|null>, put(key, value): Promise<void> }}
+ * In-memory CAS KV (NATS JetStream KV stand-in).
+ * @returns {{ get(key): Promise<{ value, revision }|null>, cas(key, expectedRevision, value): Promise<{ ok: boolean, revision?: number }> }}
  */
-function createMemoryQuotaStore() {
-  /** @type {Map<string, any>} */
+function createMemoryKv() {
+  /** @type {Map<string, { value: any, revision: number }>} */
   const map = new Map();
   return {
     async get(key) {
       if (!map.has(key)) return null;
-      return JSON.parse(JSON.stringify(map.get(key)));
+      const entry = map.get(key);
+      return {
+        value: JSON.parse(JSON.stringify(entry.value)),
+        revision: entry.revision,
+      };
     },
-    async put(key, value) {
-      map.set(key, JSON.parse(JSON.stringify(value)));
+    async cas(key, expectedRevision, value) {
+      const cur = map.get(key);
+      const curRev = cur ? cur.revision : 0;
+      if (curRev !== expectedRevision) {
+        return { ok: false };
+      }
+      const nextRev = expectedRevision + 1;
+      map.set(key, {
+        value: JSON.parse(JSON.stringify(value)),
+        revision: nextRev,
+      });
+      return { ok: true, revision: nextRev };
     },
     size() {
       return map.size;
@@ -37,18 +51,28 @@ function quotaKey(tenantId) {
   if (!tenantId || typeof tenantId !== 'string') {
     throw new Error('tenant_id_required');
   }
-  return `quota:${tenantId}`;
+  return `quota.${tenantId}`;
 }
 
-function normalizePlan(plan) {
-  const p = plan && typeof plan === 'object' ? plan : {};
-  const rate_per_sec = p.rate_per_sec != null ? Number(p.rate_per_sec) : DEFAULT_PLAN.rate_per_sec;
-  const burst = p.burst != null ? Number(p.burst) : DEFAULT_PLAN.burst;
-  const max_inflight = p.max_inflight != null ? Number(p.max_inflight) : DEFAULT_PLAN.max_inflight;
-  if (!(rate_per_sec > 0) || !(burst >= 1) || !(max_inflight >= 1)) {
-    throw new Error('plan_invalid');
+function normalizeLimits(limits) {
+  const l = limits && typeof limits === 'object' ? limits : {};
+  const ratePerSec =
+    l.ratePerSec != null
+      ? Number(l.ratePerSec)
+      : l.rate_per_sec != null
+        ? Number(l.rate_per_sec)
+        : DEFAULT_LIMITS.ratePerSec;
+  const burst = l.burst != null ? Number(l.burst) : DEFAULT_LIMITS.burst;
+  const maxInflight =
+    l.maxInflight != null
+      ? Number(l.maxInflight)
+      : l.max_inflight != null
+        ? Number(l.max_inflight)
+        : DEFAULT_LIMITS.maxInflight;
+  if (!(ratePerSec > 0) || !(burst >= 1) || !(maxInflight >= 1)) {
+    throw new Error('limits_invalid');
   }
-  return { rate_per_sec, burst, max_inflight };
+  return { ratePerSec, burst, maxInflight };
 }
 
 function emptyState(burst, nowMs) {
@@ -60,10 +84,10 @@ function emptyState(burst, nowMs) {
   };
 }
 
-function refill(state, nowMs, plan) {
+function refill(state, nowMs, limits) {
   const elapsedMs = Math.max(0, nowMs - (state.updated_at_ms || 0));
-  const added = (plan.rate_per_sec * elapsedMs) / 1000;
-  const tokens = Math.min(plan.burst, (state.tokens || 0) + added);
+  const added = (limits.ratePerSec * elapsedMs) / 1000;
+  const tokens = Math.min(limits.burst, (state.tokens || 0) + added);
   return {
     tokens,
     updated_at_ms: nowMs,
@@ -72,113 +96,160 @@ function refill(state, nowMs, plan) {
   };
 }
 
-function retryAfterMs(state, plan) {
-  if (state.inflight >= plan.max_inflight) return 1000;
+function retryAfterMs(state, limits) {
+  if (state.inflight >= limits.maxInflight) return 1000;
   if (state.tokens >= 1) return 1;
   const need = 1 - state.tokens;
-  return Math.max(1, Math.ceil((need / plan.rate_per_sec) * 1000));
+  return Math.max(1, Math.ceil((need / limits.ratePerSec) * 1000));
 }
 
-/**
- * Reserve 1 token + 1 inflight slot for runId.
- */
-async function acquireForRun(tenantId, runId, opts) {
-  const o = opts || {};
-  const store = o.store;
-  if (!store || typeof store.get !== 'function' || typeof store.put !== 'function') {
-    throw new Error('quota_store_required');
-  }
-  if (!runId || typeof runId !== 'string') {
-    return { ok: false, error: 'run_id_required', status: 400, retry_after_ms: 1 };
-  }
-  const plan = normalizePlan(o.plan);
-  const nowMs = typeof o.nowMs === 'number' ? o.nowMs : Date.now();
-  const key = quotaKey(tenantId);
+const MAX_CAS_ATTEMPTS = 32;
 
-  const raw = await store.get(key);
-  let state = raw
-    ? refill(
+/**
+ * @param {{ kv, limits?, now?: () => number }} opts
+ */
+function createTenantRateLimiter(opts) {
+  const o = opts || {};
+  const kv = o.kv;
+  if (!kv || typeof kv.get !== 'function' || typeof kv.cas !== 'function') {
+    throw new Error('kv_required');
+  }
+  const limits = normalizeLimits(o.limits);
+  const now = typeof o.now === 'function' ? o.now : () => Date.now();
+
+  async function tryAcquire(tenantId, runId) {
+    if (!runId || typeof runId !== 'string') {
+      return { ok: false, error: 'run_id_required', status: 400, retry_after_ms: 1 };
+    }
+    const key = quotaKey(tenantId);
+    const nowMs = now();
+
+    for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+      const raw = await kv.get(key);
+      const revision = raw ? raw.revision : 0;
+      const prev = raw ? raw.value : null;
+
+      let state = prev
+        ? refill(
+            {
+              tokens: typeof prev.tokens === 'number' ? prev.tokens : limits.burst,
+              updated_at_ms:
+                typeof prev.updated_at_ms === 'number' ? prev.updated_at_ms : nowMs,
+              inflight: typeof prev.inflight === 'number' ? prev.inflight : 0,
+              runs: prev.runs && typeof prev.runs === 'object' ? prev.runs : {},
+            },
+            nowMs,
+            limits,
+          )
+        : emptyState(limits.burst, nowMs);
+
+      if (state.runs[runId]) {
+        return { ok: true };
+      }
+
+      if (state.tokens < 1) {
+        return {
+          ok: false,
+          error: 'rate_limited',
+          status: 429,
+          retry_after_ms: retryAfterMs(state, limits),
+        };
+      }
+      if (state.inflight >= limits.maxInflight) {
+        return {
+          ok: false,
+          error: 'max_inflight_exceeded',
+          status: 429,
+          retry_after_ms: retryAfterMs(state, limits),
+        };
+      }
+
+      state.tokens -= 1;
+      state.inflight += 1;
+      state.runs[runId] = true;
+      state.updated_at_ms = nowMs;
+
+      const cas = await kv.cas(key, revision, state);
+      if (cas.ok) {
+        return { ok: true };
+      }
+    }
+
+    return {
+      ok: false,
+      error: 'quota_cas_contention',
+      status: 503,
+      retry_after_ms: 50,
+    };
+  }
+
+  async function release(tenantId, runId) {
+    if (!runId || typeof runId !== 'string') {
+      return { ok: true, released: false };
+    }
+    const key = quotaKey(tenantId);
+    const nowMs = now();
+
+    for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+      const raw = await kv.get(key);
+      if (!raw) {
+        return { ok: true, released: false };
+      }
+      const revision = raw.revision;
+      let state = refill(
         {
-          tokens: typeof raw.tokens === 'number' ? raw.tokens : plan.burst,
-          updated_at_ms: typeof raw.updated_at_ms === 'number' ? raw.updated_at_ms : nowMs,
-          inflight: typeof raw.inflight === 'number' ? raw.inflight : 0,
-          runs: raw.runs && typeof raw.runs === 'object' ? raw.runs : {},
+          tokens:
+            typeof raw.value.tokens === 'number' ? raw.value.tokens : limits.burst,
+          updated_at_ms:
+            typeof raw.value.updated_at_ms === 'number' ? raw.value.updated_at_ms : nowMs,
+          inflight: typeof raw.value.inflight === 'number' ? raw.value.inflight : 0,
+          runs:
+            raw.value.runs && typeof raw.value.runs === 'object'
+              ? { ...raw.value.runs }
+              : {},
         },
         nowMs,
-        plan,
-      )
-    : emptyState(plan.burst, nowMs);
+        limits,
+      );
 
-  if (state.runs[runId]) {
-    return { ok: true };
+      if (!state.runs[runId]) {
+        return { ok: true, released: false };
+      }
+      delete state.runs[runId];
+      state.inflight = Math.max(0, state.inflight - 1);
+      state.updated_at_ms = nowMs;
+
+      const cas = await kv.cas(key, revision, state);
+      if (cas.ok) {
+        return { ok: true, released: true };
+      }
+    }
+
+    return { ok: false, released: false, error: 'quota_cas_contention' };
   }
 
-  if (state.tokens < 1) {
-    return {
-      ok: false,
-      error: 'rate_limited',
-      status: 429,
-      retry_after_ms: retryAfterMs(state, plan),
-    };
-  }
-  if (state.inflight >= plan.max_inflight) {
-    return {
-      ok: false,
-      error: 'max_inflight_exceeded',
-      status: 429,
-      retry_after_ms: retryAfterMs(state, plan),
-    };
-  }
-
-  state.tokens -= 1;
-  state.inflight += 1;
-  state.runs[runId] = true;
-  state.updated_at_ms = nowMs;
-  await store.put(key, state);
-  return { ok: true };
+  return { tryAcquire, release, kv, limits };
 }
 
-/**
- * Release inflight for runId (idempotent).
- */
-async function releaseInflight(tenantId, runId, opts) {
-  const o = opts || {};
-  const store = o.store;
-  if (!store || typeof store.get !== 'function' || typeof store.put !== 'function') {
-    throw new Error('quota_store_required');
-  }
-  const plan = normalizePlan(o.plan);
-  const nowMs = typeof o.nowMs === 'number' ? o.nowMs : Date.now();
-  const key = quotaKey(tenantId);
-  const raw = await store.get(key);
-  if (!raw) {
-    return { ok: true, released: false };
-  }
-  let state = refill(
-    {
-      tokens: typeof raw.tokens === 'number' ? raw.tokens : plan.burst,
-      updated_at_ms: typeof raw.updated_at_ms === 'number' ? raw.updated_at_ms : nowMs,
-      inflight: typeof raw.inflight === 'number' ? raw.inflight : 0,
-      runs: raw.runs && typeof raw.runs === 'object' ? { ...raw.runs } : {},
-    },
-    nowMs,
-    plan,
-  );
+function isTerminalStreamFrame(frame) {
+  return !!(frame && (frame.type === 'run.completed' || frame.type === 'error'));
+}
 
-  if (!state.runs[runId]) {
-    return { ok: true, released: false };
-  }
-  delete state.runs[runId];
-  state.inflight = Math.max(0, state.inflight - 1);
-  state.updated_at_ms = nowMs;
-  await store.put(key, state);
-  return { ok: true, released: true };
+function isTerminalInvokeEvent(subjectOrType) {
+  if (!subjectOrType || typeof subjectOrType !== 'string') return false;
+  return (
+    subjectOrType === 'aura.events.agent.invoke.done' ||
+    subjectOrType === 'aura.events.agent.invoke.error' ||
+    subjectOrType === 'run.completed' ||
+    subjectOrType === 'error'
+  );
 }
 
 module.exports = {
-  DEFAULT_PLAN,
-  createMemoryQuotaStore,
-  acquireForRun,
-  releaseInflight,
+  DEFAULT_LIMITS,
+  createMemoryKv,
+  createTenantRateLimiter,
   quotaKey,
+  isTerminalStreamFrame,
+  isTerminalInvokeEvent,
 };

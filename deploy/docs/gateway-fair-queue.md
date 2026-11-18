@@ -5,7 +5,7 @@
 내부: [`../../services/gateway/DESIGN.md`](../../services/gateway/DESIGN.md).  
 제출/SSE: [`gateway-sse-ws.md`](gateway-sse-ws.md).
 
-**이 문서 범위:** Token Bucket + max_inflight · 쿼터 키/상태(KV shape) · 429 · 노이지 픽스처 · `releaseInflight` API.  
+**이 문서 범위:** Token Bucket + max_inflight · 쿼터 키/상태(CAS KV) · 429 · 노이지 픽스처 · `release` API.  
 **Non-goals:** live NATS JetStream KV 클라이언트 배선 · done/error 이벤트 구독기 전체 배선 · F1 subject 샤딩 · 우회 publish 재확인(`agent_invoke`) · live LLM · sandbox.
 
 ---
@@ -13,10 +13,10 @@
 ## 집행 위치
 
 1. 클라이언트 → Gateway `POST /v1/agent/invoke`.
-2. Gateway가 `tenant_id`에 대해 **Token Bucket** + **max_inflight** 검사 (`acquireForRun`).
+2. Gateway가 `tenant_id`에 대해 **Token Bucket** + **max_inflight** 검사 (`rateLimiter.tryAcquire`).
 3. 통과 시에만 `run_id` 등록 + `aura.tasks.agent.invoke` publish.
 4. 거부 → **429** (`rate_limited` | `max_inflight_exceeded`) · JetStream 미적재 · `retry_after_ms`.
-5. 완료/실패 시 `releaseInflight(tenant_id, run_id)` — 스트림 terminal / events 훅.
+5. 완료/실패 시 `rateLimiter.release(tenant_id, run_id)` — 스트림 terminal / events 훅.
 
 ---
 
@@ -24,19 +24,19 @@
 
 | 필드 | 값 | 비고 |
 |------|-----|------|
-| `rate_per_sec` | **10** | 지속 토큰 충전 |
+| `ratePerSec` | **10** | 지속 토큰 충전 |
 | `burst` | **30** | 버킷 상한 |
-| `max_inflight` | **20** | 동시 `run_id` |
+| `maxInflight` | **20** | 동시 `run_id` |
 
 ---
 
-## 상태 저장 (KV shape)
+## 상태 저장 (CAS KV shape)
 
 | 항목 | 계약 |
 |------|------|
-| 키 | `quota:{tenant_id}` |
+| 키 | `quota.{tenant_id}` |
 | 값 | `{ tokens, updated_at_ms, inflight, runs: { [run_id]: true } }` |
-| 백엔드 | **NATS JetStream KV 권장** — 본 슬라이스는 `get`/`put` injectable (`createMemoryQuotaStore` 테스트용) |
+| 백엔드 | **NATS JetStream KV 권장** — 본 슬라이스는 `get`/`cas` injectable (`createMemoryKv` 테스트용) |
 | 금지 | Redis를 큐 대용으로 쓰지 않음(§1.1) |
 
 ---
@@ -52,9 +52,10 @@
 
 | 심볼 | 역할 |
 |------|------|
-| `acquireForRun(tenant, runId, { store, plan, nowMs })` | 토큰 1 + inflight 1 예약 |
-| `releaseInflight(tenant, runId, …)` | 멱등 감산 |
-| `submitAgentInvoke` | acquire 실패 시 publish 금지; publish 실패 시 release |
+| `createTenantRateLimiter({ kv, limits, now })` | `tryAcquire` / `release` |
+| `tryAcquire(tenant, runId)` | CAS 루프로 토큰 1 + inflight 1 예약 |
+| `release(tenant, runId)` | 멱등 감산 |
+| `submitAgentInvoke` | tryAcquire 실패 시 publish 금지; publish 실패 시 release |
 
 ---
 
