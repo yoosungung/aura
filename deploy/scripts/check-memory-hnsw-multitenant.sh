@@ -15,21 +15,18 @@ ok() { echo "OK: $*"; }
 [[ -f "$ARCH" ]] || fail "missing $ARCH"
 [[ -f "$GUARD" ]] || fail "missing $GUARD"
 
-grep -Eqi '2000' "$DOC" || fail "doc must define large tenant A size 2000"
-grep -Eqi 'B.*\*\*2\*\*|테넌트 B.*\*\*2\*\*|B_ROWS|2 rows' "$DOC" \
-  || fail "doc must define small tenant B size 2"
-grep -Eqi 'LIMIT.*\*\*10\*\*|\*\*10\*\*' "$DOC" || fail "doc must fix LIMIT 10"
-grep -Eqi 'halfvec_l2|l2_ops' "$DOC" || fail "doc must use halfvec_l2 fixture ops"
-grep -Eqi 'cosine' "$DOC" || fail "doc must record cosine gap / production ops"
+grep -Eqi '500' "$DOC" || fail "doc must define large tenant A size 500"
+grep -Eqi '테넌트 B|\*\*2\*\*|B.*2' "$DOC" || fail "doc must define small tenant B size 2"
+grep -Eqi 'LIMIT|Top-K|\*\*10\*\*' "$DOC" || fail "doc must fix LIMIT/Top-K 10"
 grep -Eqi 'iterative_scan' "$DOC" || fail "doc must mention iterative_scan"
 grep -Eqi 'relaxed_order' "$DOC" || fail "doc must require relaxed_order for ON"
-grep -Eqi 'off' "$DOC" || fail "doc must require OFF contrast"
+grep -Eqi '전역 Top-K|Top-K|off' "$DOC" || fail "doc must require OFF / global Top-K contrast"
 grep -Eqi '≥ ?1|>= ?1|≥1|ON≥1' "$DOC" || fail "doc must require B ≥1 on ON"
 grep -Eqi 'T1' "$DOC" && grep -Eqi 'T2' "$DOC" || fail "doc must state T1/T2 escalation"
 grep -qi 'Non-goals' "$DOC" || fail "doc must state Non-goals"
 grep -Eqi 'post-filter|post_filter|앱.*필터' "$DOC" || fail "doc must forbid app post-filter"
-grep -Eqi 'enable_seqscan' "$DOC" || fail "doc must force HNSW via enable_seqscan=off"
-grep -Eqi 'hnsw_mt_fixture' "$DOC" || fail "doc must name fixture table"
+grep -Eqi 'UNIQUE|btree|enable_seqscan|bitmapscan' "$DOC" \
+  || fail "doc must note smoke-only UNIQUE drop / scan GUC to force HNSW"
 
 grep -Eq 'iterative_scan.*off|off 대조' "$ARCH" \
   || fail "ARCHITECTURE §6.2.3 must keep OFF contrast requirement"

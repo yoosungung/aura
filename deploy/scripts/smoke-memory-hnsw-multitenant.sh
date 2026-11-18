@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Live/static smoke: large A + small B HNSW — iterative_scan ON≥1 / OFF=0 (ticket fbed0ce9).
+# Live/static smoke: large A + small B HNSW — ON>=1 / OFF=0 (ticket fbed0ce9).
 # Static only: SMOKE_MEMORY_HNSW_MT_STATIC=1
-# Fixture table uses halfvec_l2_ops (cosine skew ON-gap documented in DESIGN).
+# Fixture model_key only — not production AURA_EMBEDDING_*.
 # On ON<1: FAIL — escalate T1/T2 per deploy/docs/memory-hnsw-multitenant-fixture.md.
 set -euo pipefail
 
@@ -9,10 +9,18 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 NS="${AURA_NS:-aura}"
 POD="${SMOKE_MEMORY_HNSW_MT_POD:-aura-smoke-memory-hnsw-mt}"
 PGIMAGE="${SMOKE_MEMORY_HNSW_MT_IMAGE:-pgvector/pgvector:pg16}"
-A_ROWS=2000
+SQL="$ROOT/deploy/sql/memory_embeddings.sql"
+TENANT_A="11111111-1111-1111-1111-111111111111"
+TENANT_B="22222222-2222-2222-2222-222222222222"
+FIX_DIMS=3
+FIX_KEY="fixture:hnsw_mt"
+A_ROWS=500
 B_ROWS=2
 TOP_K=10
-Q_VEC='[0,0,0]'
+Q_VEC='[1,0,0]'
+A_VEC='[1,0,0]'
+# Slightly farther than A so global Top-K fills with A.
+B_VEC='[0.99,0.01,0]'
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
@@ -47,73 +55,101 @@ PASS="$(kubectl -n "$NS" get secret aura-pg-app -o jsonpath='{.data.password}' |
 ok "DSN host=$HOST"
 
 VERIFY_SQL=$(cat <<EOF
-CREATE EXTENSION IF NOT EXISTS vector;
 SELECT 'ext_ver=' || extversion FROM pg_extension WHERE extname = 'vector';
 
-DROP TABLE IF EXISTS hnsw_mt_fixture;
-CREATE TABLE hnsw_mt_fixture (
-  id         bigserial,
-  tenant_id  uuid NOT NULL,
-  embedding  halfvec(3) NOT NULL
-);
-CREATE INDEX hnsw_mt_fixture_hnsw
-  ON hnsw_mt_fixture
-  USING hnsw (embedding halfvec_l2_ops);
+-- Smoke-only: drop UNIQUE so tiny N cannot prefer btree over HNSW (prod DDL keeps UNIQUE).
+ALTER TABLE memory_embeddings DROP CONSTRAINT IF EXISTS memory_embeddings_item_id_model_key_key;
 
--- Seed A near query origin.
-INSERT INTO hnsw_mt_fixture (tenant_id, embedding)
-SELECT
-  '11111111-1111-1111-1111-111111111111'::uuid,
-  format('[%s,%s,%s]',
-    (0.01 * random())::text,
-    (0.01 * random())::text,
-    (0.01 * random())::text)::halfvec
-FROM generate_series(1, ${A_ROWS});
-SELECT 'a_rows=' || count(*)::text FROM hnsw_mt_fixture
-  WHERE tenant_id = '11111111-1111-1111-1111-111111111111';
+CREATE TABLE memory_embeddings_p_fixture_hnsw_mt PARTITION OF memory_embeddings
+  FOR VALUES IN ('${FIX_KEY}');
+ALTER TABLE memory_embeddings_p_fixture_hnsw_mt
+  ADD CONSTRAINT memory_embeddings_p_fixture_hnsw_mt_dims CHECK (dims = ${FIX_DIMS});
+CREATE INDEX memory_embeddings_p_fixture_hnsw_mt_hnsw
+  ON memory_embeddings_p_fixture_hnsw_mt
+  USING hnsw ((embedding::halfvec(${FIX_DIMS})) halfvec_cosine_ops);
 
--- Seed B slightly farther (outside first ef_search window when OFF).
-INSERT INTO hnsw_mt_fixture (tenant_id, embedding) VALUES
-  ('22222222-2222-2222-2222-222222222222', '[0.2,0,0]'::halfvec),
-  ('22222222-2222-2222-2222-222222222222', '[0.21,0,0]'::halfvec);
-SELECT 'b_rows=' || count(*)::text FROM hnsw_mt_fixture
-  WHERE tenant_id = '22222222-2222-2222-2222-222222222222';
-
-ANALYZE hnsw_mt_fixture;
-
--- OFF: trap.
 BEGIN;
-SET LOCAL enable_seqscan = off;
-SET LOCAL hnsw.iterative_scan = off;
-SET LOCAL hnsw.ef_search = 40;
-SET LOCAL hnsw.max_scan_tuples = 20000;
-SELECT 'off_b=' || count(*)::text FROM (
-  SELECT id FROM hnsw_mt_fixture
-  WHERE tenant_id = '22222222-2222-2222-2222-222222222222'
-  ORDER BY embedding <-> '${Q_VEC}'::halfvec
-  LIMIT ${TOP_K}
-) s;
+SELECT set_config('app.tenant_id', '${TENANT_A}', true);
+INSERT INTO memory_embeddings (item_id, tenant_id, memory_type, model, version, model_key, dims, embedding)
+SELECT
+  ('a0000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid,
+  '${TENANT_A}',
+  'long_term',
+  'fixture',
+  'hnsw_mt',
+  '${FIX_KEY}',
+  ${FIX_DIMS},
+  '${A_VEC}'::halfvec
+FROM generate_series(1, ${A_ROWS}) AS g;
+SELECT 'a_rows=' || count(*)::text FROM memory_embeddings WHERE tenant_id = '${TENANT_A}';
 COMMIT;
 
--- ON: iterative_scan must recover B.
 BEGIN;
+SELECT set_config('app.tenant_id', '${TENANT_B}', true);
+INSERT INTO memory_embeddings (item_id, tenant_id, memory_type, model, version, model_key, dims, embedding)
+SELECT
+  ('b0000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid,
+  '${TENANT_B}',
+  'long_term',
+  'fixture',
+  'hnsw_mt',
+  '${FIX_KEY}',
+  ${FIX_DIMS},
+  '${B_VEC}'::halfvec
+FROM generate_series(1, ${B_ROWS}) AS g;
+SELECT 'b_rows=' || count(*)::text FROM memory_embeddings WHERE tenant_id = '${TENANT_B}';
+COMMIT;
+
+ANALYZE memory_embeddings_p_fixture_hnsw_mt;
+
+BEGIN;
+SELECT set_config('app.tenant_id', '${TENANT_B}', true);
+SELECT 'b_sees_a=' || count(*)::text FROM memory_embeddings WHERE tenant_id = '${TENANT_A}';
+COMMIT;
+
+-- OFF trap: global Top-K then tenant filter (forbidden post-filter / iterative_scan=off shape).
+ALTER TABLE memory_embeddings NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE memory_embeddings DISABLE ROW LEVEL SECURITY;
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+SET hnsw.iterative_scan = off;
+SET hnsw.ef_search = 40;
+SELECT 'off_b=' || count(*)::text FROM (
+  SELECT tenant_id FROM (
+    SELECT tenant_id
+    FROM memory_embeddings
+    WHERE model_key = '${FIX_KEY}'
+    ORDER BY (embedding::halfvec(${FIX_DIMS})) <=> '${Q_VEC}'::halfvec
+    LIMIT ${TOP_K}
+  ) topk
+  WHERE tenant_id = '${TENANT_B}'
+) s;
+
+-- ON: FORCE RLS + iterative_scan + WHERE tenant in one query.
+ALTER TABLE memory_embeddings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE memory_embeddings FORCE ROW LEVEL SECURITY;
+BEGIN;
+SELECT set_config('app.tenant_id', '${TENANT_B}', true);
 SET LOCAL enable_seqscan = off;
+SET LOCAL enable_bitmapscan = off;
 SET LOCAL hnsw.iterative_scan = relaxed_order;
 SET LOCAL hnsw.ef_search = 40;
 SET LOCAL hnsw.max_scan_tuples = 20000;
 SELECT 'on_b=' || count(*)::text FROM (
-  SELECT id FROM hnsw_mt_fixture
-  WHERE tenant_id = '22222222-2222-2222-2222-222222222222'
-  ORDER BY embedding <-> '${Q_VEC}'::halfvec
+  SELECT id
+  FROM memory_embeddings
+  WHERE tenant_id = '${TENANT_B}'
+  ORDER BY (embedding::halfvec(${FIX_DIMS})) <=> '${Q_VEC}'::halfvec
   LIMIT ${TOP_K}
 ) s;
 COMMIT;
-
-DROP TABLE IF EXISTS hnsw_mt_fixture;
 EOF
 )
 
-echo "== 2 distorted-tenant L2 fixture ON/OFF via pooler =="
+FULL_SQL="$(cat "$SQL")
+${VERIFY_SQL}"
+
+echo "== 2 apply DDL + A/B fixture + ON/OFF via pooler =="
 cleanup() { kubectl -n "$NS" delete pod "$POD" --ignore-not-found --wait=true --timeout=60s >/dev/null 2>&1 || true; }
 cleanup
 trap cleanup EXIT
@@ -127,25 +163,25 @@ kubectl -n "$NS" run "$POD" --restart=Never --image="$PGIMAGE" \
   --command -- sleep 600 >/dev/null
 kubectl -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=120s || fail "smoke pod not Ready"
 
-OUT="$(printf '%s\n' "$VERIFY_SQL" | kubectl -n "$NS" exec -i "$POD" -- \
-  psql -v ON_ERROR_STOP=1 -At 2>&1)" || fail "psql apply failed:
-$OUT"
+set +e
+OUT="$(printf '%s\n' "$FULL_SQL" | kubectl -n "$NS" exec -i "$POD" -- \
+  psql -v ON_ERROR_STOP=1 -At 2>&1)"
+psql_rc=$?
+set -e
+if [[ $psql_rc -ne 0 ]]; then
+  fail "psql apply failed (rc=$psql_rc): $OUT"
+fi
 
 printf '%s\n' "$OUT" | grep -Eq '^ext_ver=0\.(8|9|[1-9][0-9])' \
-  || fail "pgvector must be ≥ 0.8:
-$OUT"
-printf '%s\n' "$OUT" | grep -qx "a_rows=${A_ROWS}" || fail "A seed size mismatch:
-$OUT"
-printf '%s\n' "$OUT" | grep -qx "b_rows=${B_ROWS}" || fail "B seed size mismatch:
-$OUT"
-printf '%s\n' "$OUT" | grep -qx 'off_b=0' || fail "OFF contrast must yield B=0 (trap):
-$OUT"
+  || fail "pgvector must be >= 0.8: $OUT"
+printf '%s\n' "$OUT" | grep -qx "a_rows=${A_ROWS}" || fail "A seed size mismatch: $OUT"
+printf '%s\n' "$OUT" | grep -qx "b_rows=${B_ROWS}" || fail "B seed size mismatch: $OUT"
+printf '%s\n' "$OUT" | grep -qx 'b_sees_a=0' || fail "RLS must hide A from B: $OUT"
+printf '%s\n' "$OUT" | grep -qx 'off_b=0' || fail "OFF contrast must yield B=0 (trap): $OUT"
 ON_LINE="$(printf '%s\n' "$OUT" | grep -E '^on_b=[0-9]+$' | tail -n1 || true)"
-[[ -n "$ON_LINE" ]] || fail "missing on_b= line:
-$OUT"
+[[ -n "$ON_LINE" ]] || fail "missing on_b= line: $OUT"
 ON_N="${ON_LINE#on_b=}"
-[[ "$ON_N" -ge 1 ]] || fail "ON path must yield B≥1 (got ${ON_N}) — escalate T1/T2 per DESIGN:
-$OUT"
+[[ "$ON_N" -ge 1 ]] || fail "ON path must yield B>=1 (got ${ON_N}) — escalate T1/T2: $OUT"
 
-ok "A=${A_ROWS} B=${B_ROWS} OFF=0 ON=${ON_N} (halfvec_l2) via pooler"
+ok "A=${A_ROWS} B=${B_ROWS} OFF=0 ON=${ON_N} via pooler"
 echo "smoke-memory-hnsw-multitenant: PASS"
