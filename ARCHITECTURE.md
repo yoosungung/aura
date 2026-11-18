@@ -13,7 +13,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
    - **비동기 파이프라인** (`aura.tasks.*`): Fission MessageQueueTrigger(`mqtype=nats-jetstream`, `mqtkind=keda`). KEDA lag 스케일, idle 시 **scale-to-zero 허용** (`minReplicaCount = 0`). 내구성·완료 감사는 여기.
    - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. 응답자는 **상시 워밍** — Fission Function(또는 동일 이미지 Deployment)에 **`minReplicaCount >= 2`(HA)**. Core RR은 JetStream lag가 없으므로 scale-to-zero와 **함께 쓰지 않는다**.
    - **실시간 스트림** (`aura.stream.*`): NATS **Core** pub/sub. LLM 토큰·툴 상태 등 UX용. **유실 허용**(JetStream에 넣지 않음). 완료의 정본은 `aura.events.agent.invoke.done` / error다.
-3. **단일 PostgreSQL + 필수 Connection Pooler.** 관계형 + pgvector + BM25(전문) + 그래프 엣지를 한 클러스터 ACID로 다룬다. 메모리 전용 외부 DB를 두지 않는다. 임베딩 인덱스는 **`halfvec` + `(model, version)` LIST 파티션** 패턴만 쓴다(§6.2.1). 차원 미지정 컬럼에 HNSW를 직접 걸지 않는다. FaaS/런타임 파드는 PG에 **직접 붙지 않고** **PgBouncer 또는 CloudNativePG Pooler**만 경유한다(§2.1). Pooler는 **transaction pooling**을 기본으로 한다.
+3. **단일 PostgreSQL + 필수 Connection Pooler.** 관계형 + pgvector + BM25(전문) + 그래프 엣지를 한 클러스터 ACID로 다룬다. 메모리 전용 외부 DB를 두지 않는다. 임베딩 인덱스는 **`halfvec` + `(model, version)` LIST 파티션** 패턴만 쓴다(§6.2.1). 차원 미지정 컬럼에 HNSW를 직접 걸지 않는다. FaaS/런타임 파드는 PG에 **직접 붙지 않고** **CloudNativePG `Pooler`**(transaction)만 경유한다(§2.1). standalone PgBouncer는 CNPG 미도입 폴백만.
 4. **RLS 테넌트 GUC는 트랜잭션 로컬만.** `SELECT set_config('app.tenant_id', $1, true)` (세 번째 인자 `is_local = true`)만 허용한다. 세션 수명 `SET`/`set_config(..., false)` 금지 — transaction pooling에서 커넥션 재사용 시 테넌트 오염을 막는다.
 5. **`svc-memory`가 메모리 PG 유일 쓰기 소유자.** `memory_items`·임베딩/BM25 문서·`memory_nodes`/`memory_edges`·메모리 감사에 INSERT/UPDATE/DELETE 하는 프로세스는 `svc-memory`뿐이다.
 6. **`svc-control`이 컨트롤 메타 유일 쓰기 소유자.** `source_meta`/`user_meta`/테넌트·ACL 등 메타 쓰기는 `svc-control`만. 런타임 Function은 resolve **read**만.
@@ -83,7 +83,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
 | `svc-memory` recall | hybrid Top-K | **sync** 상시 ≥2 | 메모리 SELECT → **Pooler** |
 | `svc-control` + resolve 브리지 | 메타 쓰기(HTTP); `aura.rpc.control.resolve` | 관리 HTTP + **sync** 상시 ≥2 | 컨트롤 메타 **유일 쓰기** → **Pooler** |
-| **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | PgBouncer 또는 CNPG Pooler, **transaction** 모드 |
+| **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | **CloudNativePG `Pooler`**, **transaction** 모드 |
 
 ### 2.1 Connection Pooler · RLS GUC
 
@@ -91,10 +91,10 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 
 | 규칙 | 내용 |
 |------|------|
-| 제품 | **PgBouncer** 또는 **CloudNativePG Pooler** (동등 transaction pooler). 앱 DSN 호스트는 pooler Service만. |
+| 제품 | **CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트는 **pooler Service DNS만** (예: `*.pooler.<ns>.svc`). standalone PgBouncer는 CNPG 미도입 폴백만. |
 | 모드 | **transaction pooling** 기본. session pooling을 RLS+GUC 경로에 쓰지 않는다. |
 | 테넌트 바인딩 | 매 요청/트랜잭션 시작: `SELECT set_config('app.tenant_id', $1, true);` 후 쿼리. `is_local=true` → COMMIT/ROLLBACK 시 GUC 해제. |
-| 금지 | Function → PG Pod IP/직접 포트; `SET app.tenant_id = ...`; `set_config(..., false)`; 요청 간 커넥션에 테넌트 상태 의존 |
+| 금지 | Function → PG Pod IP/직접 포트·primary Service; `SET app.tenant_id = ...`; `set_config(..., false)`; 요청 간 커넥션에 테넌트 상태 의존 |
 | 클라이언트 | 짧은 트랜잭션; 트랜잭션 밖 prepared statement·세션 advisory lock에 의존하지 않음(transaction pool 제약). 필요 시 DESIGN에 예외를 명시. |
 
 ### 2.2 Noisy Neighbor · 테넌트 Fair Queue / Rate Limit
