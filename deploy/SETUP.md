@@ -387,6 +387,21 @@ bash deploy/scripts/check-agent-invoke.sh   # DESIGN + MQT + stream frames + sel
 | 매니페스트 | `k8s/agent-invoke/` · `minReplicaCount=0` |
 | Non-goals | Fair Queue · live LLM Gateway · live NATS Core publisher (Gateway SSE → 아래 절) |
 
+### `mcp_invoke` 이원화 · MQT + RPC (M3)
+
+```bash
+bash deploy/scripts/check-mcp-invoke-dual.sh   # DESIGN + MQT + RPC Warm≥2 + selftest (no cluster)
+```
+
+| 항목 | M3 고정 |
+|------|---------|
+| 문서 | [`docs/mcp-invoke-dual.md`](docs/mcp-invoke-dual.md) · [`../services/mcp-invoke/DESIGN.md`](../services/mcp-invoke/DESIGN.md) |
+| async | `aura.tasks.mcp.invoke` / `aura_mcp_invoke` → `aura.events.mcp.invoke.done`/`error` |
+| sync | `aura.rpc.mcp.tool` · queue `aura-mcp-invoke` · **MinScale≥2** + Deployment `aura-mcp-invoke-rr` **replicas≥2** |
+| 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (Warm + RR; **MQT 없음**) |
+| PG | **금지** (Zero Direct Write) |
+| Non-goals | 외부 Streamable HTTP MCP · sandbox egress · live resolve 브리지 · live NATS SDK |
+
 ### Gateway · `run_id` · SSE/WS · principal (M3)
 
 ```bash

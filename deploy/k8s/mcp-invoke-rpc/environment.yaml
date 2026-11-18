@@ -1,0 +1,20 @@
+# Warm Node env for mcp_invoke RPC Function (ARCHITECTURE §4.2).
+# Core RR subscribe: see rpc-responder.yaml (nats reply queue-group).
+apiVersion: fission.io/v1
+kind: Environment
+metadata:
+  name: aura-mcp-invoke-rpc-nodejs
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke-rpc
+spec:
+  version: 3
+  runtime:
+    image: ghcr.io/fission/node-env:latest
+  builder:
+    image: ghcr.io/fission/node-builder:latest
+  poolsize: 2
+  resources: {}

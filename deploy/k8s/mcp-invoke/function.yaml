@@ -1,0 +1,25 @@
+# Async mcp_invoke MQT Function — scale-to-zero owned by MessageQueueTrigger (ARCHITECTURE §4.1).
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-mcp-invoke
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke
+spec:
+  environment:
+    name: aura-mcp-invoke-nodejs
+    namespace: default
+  package:
+    packageref:
+      name: aura-mcp-invoke
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+  functionTimeout: 60
+  idletimeout: 120

@@ -41,6 +41,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **Gateway `run_id`/SSE/WS/principal M3 고정** — UUIDv7 발급 · exact `aura.stream.<run_id>` · 소유 principal만 구독 · Deployment replicas≥2 · Fair Queue/live NATS=후속 | [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md)·`check-gateway-sse-ws.sh` · [`services/gateway/`](services/gateway/) |
 | 2026-11-19 | **Gateway Fair Queue/RL M3 고정** — Token Bucket 10/s·burst 30·maxInflight 20 · CAS KV `quota.{tenant_id}` · 429 · 노이지 픽스처(A 기아≠B) · live NATS KV·done 구독=후속 | [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md)·`check-gateway-fair-queue.sh` |
 | 2026-11-19 | **inflight `release` + `ensureAdmitted` 우회 재확인 M3 고정** — terminal stream/event → `release`(멱등) · `agent_invoke` poison 429 · live done 구독 Deployment=후속 | [`deploy/docs/gateway-inflight-release.md`](deploy/docs/gateway-inflight-release.md)·`check-gateway-inflight-release.sh` |
+| 2026-11-19 | **`mcp_invoke` 이원화 M3 고정** — MQT `aura.tasks.mcp.invoke`/`aura_mcp_invoke`/`minReplicaCount=0` · sync `aura.rpc.mcp.tool` Warm **MinScale≥2**+`aura-mcp-invoke-rr` · PG 금지 · 외부 Streamable HTTP=후속 | [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md)·`check-mcp-invoke-dual.sh` · [`services/mcp-invoke/`](services/mcp-invoke/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -179,7 +180,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] Gateway: **테넌트별 Rate Limiting** — Token Bucket + max_inflight(§2.2); NATS KV; 429; 노이지 픽스처 — [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md) · `services/gateway/rate-limit.js` · `check-gateway-fair-queue.sh` (10/s·burst30·inflight20)
 - [x] done/error 시 inflight 감산; 우회 시 `agent_invoke` 재확인 — [`deploy/docs/gateway-inflight-release.md`](deploy/docs/gateway-inflight-release.md) · `ensureAdmitted` · `check-gateway-inflight-release.sh`
 - [x] 프레임 계약 확정: `run.started` / `token` / `tool.*` / `run.completed` + events done — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · `check-agent-invoke.sh`
-- [ ] `mcp_invoke` **이원화**: task(MQT) + rpc(`aura.rpc.mcp.tool`, minReplicas ≥ 2)
+- [x] `mcp_invoke` **이원화**: task(MQT) + rpc(`aura.rpc.mcp.tool`, minReplicas ≥ 2) — [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) · [`services/mcp-invoke/`](services/mcp-invoke/) · `deploy/k8s/mcp-invoke/` · `deploy/k8s/mcp-invoke-rpc/` · `check-mcp-invoke-dual.sh`
 - [ ] `aura.rpc.control.resolve` 브리지 minReplicas ≥ 2
 - [ ] 체크포인트 예외 테이블 DDL (§6)
 - [ ] 외부 MCP Streamable HTTP 어댑터
