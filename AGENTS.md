@@ -21,7 +21,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/k8s/async-smoke/` |
 | `deploy/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/k8s/sync-smoke/` |
 | `deploy/k8s/pg-pooler/` | CNPG `Cluster` `aura-pg` + `Pooler` `aura-pg-pooler` (transaction) + DSN ConfigMap | `deploy/k8s/pg-pooler/` |
-| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `check-pg-pooler.sh` · `smoke-*.sh` | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-split-deploy.sh` · `check-pg-pooler.sh` · `smoke-pg-pooler.sh` · `smoke-*.sh` | `deploy/scripts/` |
 
 규칙:
 
