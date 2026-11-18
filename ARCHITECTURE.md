@@ -438,7 +438,8 @@ RLS: `tenant_id::text = current_setting('app.tenant_id', true)` (또는 동등)�
 3. vector: **활성 `model_key`만** + `memory_type IN ('episodic','long_term','semantic')` + **`tenant_id`를 같은 SQL WHERE에** — `(embedding::halfvec(N)) <=> …`. 혼비교 금지. 트랜잭션 시작 시 필수:
    ```sql
    SET LOCAL hnsw.iterative_scan = relaxed_order;  -- pgvector >= 0.8
-   SET LOCAL hnsw.ef_search = <M1 확정값>;         -- 예: 40+
+   SET LOCAL hnsw.ef_search = 40;                  -- M1 고정 · deploy/docs/memory-embed-guard-iterative-scan.md
+   SET LOCAL hnsw.max_scan_tuples = 20000;
    ```
    **앱 단 post-filter 금지.** 상세·폴백은 §6.2.3.
 4. BM25: `content_tsv` (핫 파티션)
@@ -486,14 +487,15 @@ Agent는 이 응답만 컨텍스트에 넣는다.
 
 **문제.** 수백~수천 테넌트가 하나의 `model_key` HNSW를 공유할 때, ANN이 전역 이웃 K개만 모은 뒤 `tenant_id = $1`로 걸러내면, 행 수가 적은 테넌트는 K 안에 한 건도 없어 **Recall = 0**이 된다.
 
-**기본 완화 (필수)**
+**기본 완화 (필수)** — 수치 본문 [`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md)
 
 | 항목 | 계약 |
 |------|------|
 | pgvector | **≥ 0.8** (iterative_scan 지원) |
-| 세션/트랜잭션 | 매 recall: `SET LOCAL hnsw.iterative_scan = relaxed_order` (+ 필요 시 max_scan_tuples 등 M1 DESIGN 수치) |
+| 세션/트랜잭션 | 매 recall: `SET LOCAL hnsw.iterative_scan = relaxed_order`; `ef_search = **40**`; `max_scan_tuples = **20000**` |
 | SQL | `WHERE tenant_id = $1 AND … ORDER BY embedding <=> $q LIMIT $k` — 필터와 ANN을 **한 쿼리**로 |
 | 금지 | 전역 Top-K 결과 집합을 앱에서 테넌트 필터링 |
+| short_term | `memory_embeddings` DDL CHECK + embed 앱 사전 거부로 **비적재**; recall은 최근순만 (§6.2.1·위 문서) |
 
 **M1 검증 픽스처 (합격 조건)**
 

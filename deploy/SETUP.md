@@ -253,7 +253,22 @@ bash deploy/scripts/smoke-memory-embeddings.sh              # live via pooler: f
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
 | 세대 교체 | [`docs/memory-embeddings-generation.md`](docs/memory-embeddings-generation.md) — ATTACH → active 전환 → DETACH |
 | 스모크 | fixture `fixture:v1`/`v2` · dims=3 only (≠ production `AURA_EMBEDDING_*`); Cluster에 pgvector 필요 |
-| Non-goals | 생산 모델 실값 · iterative_scan 픽스처 · short_term 가드 본구현 · `svc-memory` store |
+| Non-goals | 생산 모델 실값 · HNSW 왜곡 픽스처 · `svc-memory` store |
+
+### short_term embed 가드 + iterative_scan / ef_search (M1)
+
+```bash
+bash deploy/scripts/check-memory-embed-guard.sh              # static: DDL CHECK + DESIGN numbers
+SMOKE_MEMORY_EMBED_GUARD_STATIC=1 bash deploy/scripts/smoke-memory-embed-guard.sh
+bash deploy/scripts/smoke-memory-embed-guard.sh              # live via pooler: short_term reject + undim HNSW fail + GUCs
+```
+
+| 항목 | 값 |
+|------|-----|
+| 문서 | [`docs/memory-embed-guard-iterative-scan.md`](docs/memory-embed-guard-iterative-scan.md) |
+| DDL | `memory_embeddings.memory_type` CHECK — `short_term` 제외 |
+| GUC | `iterative_scan=relaxed_order` · `ef_search=40` · `max_scan_tuples=20000` · pgvector **≥0.8** |
+| Non-goals | HNSW 왜곡 픽스처 · 생산 dims · store/recall 본구현 |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 

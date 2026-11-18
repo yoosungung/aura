@@ -5,7 +5,8 @@
 전제 DDL: [`../sql/memory_embeddings.sql`](../sql/memory_embeddings.sql).
 
 **이 문서 범위:** LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW 형태와 **ATTACH → 전환 → DETACH** 절차 고정.  
-**Non-goals:** 생산 임베딩 모델·version·dims 실값 발명 · short_term embed 거부 가드/픽스처 · `iterative_scan` 왜곡 픽스처 · `svc-memory` store 본문 · T1/T2 테넌트 파티션.
+**Non-goals:** 생산 임베딩 모델·version·dims 실값 발명 · HNSW 왜곡 픽스처 · `svc-memory` store 본문 · T1/T2 테넌트 파티션.  
+short_term 거부·`iterative_scan`/`ef_search` 수치는 [`memory-embed-guard-iterative-scan.md`](memory-embed-guard-iterative-scan.md).
 
 스모크는 **`fixture:v*`** model_key만 사용한다. fixture ≠ production `AURA_EMBEDDING_MODEL`/`version`/`dims`.
 
