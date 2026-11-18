@@ -7,7 +7,7 @@ resolve: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-re
 요청자: [`../agent-invoke/DESIGN.md`](../agent-invoke/DESIGN.md) (`aura.rpc.mcp.tool`).
 
 **이 문서 범위:** 공유 툴 핸들러 · **async MQT**(`aura.tasks.mcp.invoke`) · **sync Core RR**(`aura.rpc.mcp.tool`, minReplicas ≥ 2) · 분리 배포.  
-**Non-goals (본 슬라이스):** 외부 MCP Streamable HTTP 어댑터 · 샌드박스/Egress · live NATS Core 클라이언트 배선 · `aura.rpc.control.resolve` 브리지 Deployment · live LLM · F1 샤딩.
+**Non-goals (본 슬라이스):** 외부 MCP Streamable HTTP 어댑터 · 샌드박스/Egress · live NATS Core 클라이언트 배선 · live LLM · F1 샤딩. (`aura.rpc.control.resolve` 브리지: [`../control/DESIGN.md`](../control/DESIGN.md))
 
 ---
 
