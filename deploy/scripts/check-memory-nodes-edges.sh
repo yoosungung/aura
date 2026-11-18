@@ -19,10 +19,10 @@ grep -q 'CHECK (source_node_id <> target_node_id)' "$SQL" || fail "self-loop CHE
 grep -q 'FORCE ROW LEVEL SECURITY' "$SQL" || fail "must FORCE ROW LEVEL SECURITY"
 grep -q "current_setting('app.tenant_id'" "$SQL" || fail "RLS must use app.tenant_id GUC"
 
-# Edge indexes + traversal DESIGN are a separate ROADMAP slice.
-if grep -Eq 'idx_memory_edges_out|idx_memory_edges_in' "$SQL"; then
-  fail "edge indexes belong to separate ticket (idx_memory_edges_out/in)"
-fi
+# Edge partial indexes required (ticket 8d3fb9cd / §6.2.4). Detail gate: check-memory-graph-traversal.sh
+grep -q 'CREATE INDEX idx_memory_edges_out' "$SQL" || fail "idx_memory_edges_out required"
+grep -q 'CREATE INDEX idx_memory_edges_in' "$SQL" || fail "idx_memory_edges_in required"
+grep -q 'WHERE valid_until IS NULL' "$SQL" || fail "edge indexes must be partial (valid_until IS NULL)"
 
 # Forbidden: FK to memory_items; session-scoped tenant GUC.
 if grep -Eiq 'REFERENCES[[:space:]]+memory_items' "$SQL"; then

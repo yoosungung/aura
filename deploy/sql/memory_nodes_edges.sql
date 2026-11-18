@@ -1,6 +1,7 @@
--- memory_nodes / memory_edges + RLS
--- Contract: ARCHITECTURE §1 #5 · §6 DDL · Pooler + set_config(..., true)
--- Ticket: fa6351fa. Non-goals: edge partial indexes + 순회 한도 DESIGN (별도) · embeddings/HNSW · TTL job · svc-memory store body.
+-- memory_nodes / memory_edges + RLS + hot-path edge indexes
+-- Contract: ARCHITECTURE §1 #5·#15 · §6 DDL · §6.2.4 · Pooler + set_config(..., true)
+-- Tickets: fa6351fa (tables+RLS) · 8d3fb9cd (idx out/in + 순회 한도 DESIGN).
+-- Non-goals: embeddings/HNSW · TTL job · svc-memory store / graph walk 본구현 (M4).
 -- Idempotent for M1 smoke/dev (DROP CASCADE).
 
 BEGIN;
@@ -31,6 +32,14 @@ CREATE TABLE memory_edges (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (source_node_id <> target_node_id)
 );
+
+-- Hot-path valid edges only. valid_until IS NULL = currently valid (or no expiry).
+CREATE INDEX idx_memory_edges_out
+  ON memory_edges (tenant_id, source_node_id, relation_type)
+  WHERE valid_until IS NULL;
+CREATE INDEX idx_memory_edges_in
+  ON memory_edges (tenant_id, target_node_id, relation_type)
+  WHERE valid_until IS NULL;
 
 ALTER TABLE memory_nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE memory_nodes FORCE ROW LEVEL SECURITY;

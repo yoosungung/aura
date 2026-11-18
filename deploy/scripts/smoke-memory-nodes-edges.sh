@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Live smoke: apply memory_nodes/edges DDL via pooler + RLS (ticket fa6351fa).
-# Static only: SMOKE_MEMORY_NODES_EDGES_STATIC=1
+# Live smoke: apply memory_nodes/edges DDL via pooler + RLS + edge indexes
+# (tickets fa6351fa · 8d3fb9cd). Static only: SMOKE_MEMORY_NODES_EDGES_STATIC=1
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -17,6 +17,7 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "need $1"; }
 
 echo "== 0 static =="
 bash "$ROOT/deploy/scripts/check-memory-nodes-edges.sh"
+bash "$ROOT/deploy/scripts/check-memory-graph-traversal.sh"
 
 if [[ "${SMOKE_MEMORY_NODES_EDGES_STATIC:-}" == "1" ]]; then
   echo "smoke-memory-nodes-edges: PASS (static only)"
@@ -70,6 +71,15 @@ SELECT set_config('app.tenant_id', '${TENANT_A}', true);
 SELECT 'a_nodes=' || count(*)::text FROM memory_nodes WHERE tenant_id = '${TENANT_A}';
 SELECT 'a_edges=' || count(*)::text FROM memory_edges WHERE tenant_id = '${TENANT_A}';
 COMMIT;
+
+SELECT 'idx_out=' || count(*)::text FROM pg_indexes
+  WHERE tablename = 'memory_edges' AND indexname = 'idx_memory_edges_out';
+SELECT 'idx_in=' || count(*)::text FROM pg_indexes
+  WHERE tablename = 'memory_edges' AND indexname = 'idx_memory_edges_in';
+SELECT 'idx_out_pred=' || CASE WHEN indexdef ILIKE '%valid_until IS NULL%' THEN 'partial' ELSE 'missing' END
+  FROM pg_indexes WHERE indexname = 'idx_memory_edges_out';
+SELECT 'idx_in_pred=' || CASE WHEN indexdef ILIKE '%valid_until IS NULL%' THEN 'partial' ELSE 'missing' END
+  FROM pg_indexes WHERE indexname = 'idx_memory_edges_in';
 EOF
 )
 
@@ -104,6 +114,14 @@ printf '%s\n' "$OUT" | grep -qx 'a_nodes=2' || fail "A must see 2 nodes:
 $OUT"
 printf '%s\n' "$OUT" | grep -qx 'a_edges=1' || fail "A must see 1 edge:
 $OUT"
+printf '%s\n' "$OUT" | grep -qx 'idx_out=1' || fail "idx_memory_edges_out missing:
+$OUT"
+printf '%s\n' "$OUT" | grep -qx 'idx_in=1' || fail "idx_memory_edges_in missing:
+$OUT"
+printf '%s\n' "$OUT" | grep -qx 'idx_out_pred=partial' || fail "idx_memory_edges_out not partial:
+$OUT"
+printf '%s\n' "$OUT" | grep -qx 'idx_in_pred=partial' || fail "idx_memory_edges_in not partial:
+$OUT"
 
-ok "nodes/edges + RLS via pooler"
+ok "nodes/edges + RLS + out/in partial indexes via pooler"
 echo "smoke-memory-nodes-edges: PASS"
