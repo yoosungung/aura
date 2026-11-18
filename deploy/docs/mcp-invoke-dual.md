@@ -6,7 +6,9 @@
 요청자(agent): [`agent-invoke-mqt.md`](agent-invoke-mqt.md) · resolve: [`svc-control-resolve.md`](svc-control-resolve.md).
 
 **이 문서 범위:** 태스크/RPC payload · done/error envelope · MQT·Warm 이름표 · **분리 배포** 불변.  
-**Non-goals:** 샌드박스/Egress · live NATS SDK 배선 · live LLM · F1. 외부 Streamable HTTP: [`mcp-streamable-http.md`](mcp-streamable-http.md). (resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))
+**Non-goals:** RuntimeClass/Egress **라이브 실측** · live NATS SDK 배선 · live LLM · F1.  
+격리 정책: [`mcp-bundle-isolation.md`](mcp-bundle-isolation.md).  
+외부 Streamable HTTP: [`mcp-streamable-http.md`](mcp-streamable-http.md). (resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))
 
 ---
 
