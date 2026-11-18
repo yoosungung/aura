@@ -268,7 +268,23 @@ bash deploy/scripts/smoke-memory-embed-guard.sh              # live via pooler: 
 | 문서 | [`docs/memory-embed-guard-iterative-scan.md`](docs/memory-embed-guard-iterative-scan.md) |
 | DDL | `memory_embeddings.memory_type` CHECK — `short_term` 제외 |
 | GUC | `iterative_scan=relaxed_order` · `ef_search=40` · `max_scan_tuples=20000` · pgvector **≥0.8** |
-| Non-goals | HNSW 왜곡 픽스처 · 생산 dims · store/recall 본구현 |
+| Non-goals | 생산 dims · store/recall 본구현 (왜곡 픽스처는 아래) |
+
+### 멀티테넌트 HNSW 왜곡 픽스처 (M1)
+
+```bash
+bash deploy/scripts/check-memory-hnsw-multitenant.sh              # static: DESIGN A/B · ON≥1/OFF · T1/T2
+SMOKE_MEMORY_HNSW_MT_STATIC=1 bash deploy/scripts/smoke-memory-hnsw-multitenant.sh
+bash deploy/scripts/smoke-memory-hnsw-multitenant.sh              # live via pooler: A=2000 B=2 L2 · OFF=0 · ON≥1
+```
+
+| 항목 | 값 |
+|------|-----|
+| 문서 | [`docs/memory-hnsw-multitenant-fixture.md`](docs/memory-hnsw-multitenant-fixture.md) |
+| 픽스처 | `hnsw_mt_fixture` · dims=3 · **halfvec_l2** · A=2000 · B=2 · `LIMIT 10` |
+| 합격 | ON(`relaxed_order`) B≥1 · OFF B=0; 실패 시 T1/T2(§6.2.3) |
+| 갭 | 생산 cosine 왜곡 ON 미달 → 재실측/T1/T2 후보 (스키마 미적용) |
+| Non-goals | 생산 dims · T1/T2 스키마 구현 · `svc-memory` store · cosine→L2 교체 |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 

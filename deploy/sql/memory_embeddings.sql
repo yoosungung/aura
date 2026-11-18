@@ -1,7 +1,8 @@
 -- memory_embeddings: LIST(model_key) + partition-local halfvec(N) HNSW + RLS
 -- Contract: ARCHITECTURE §1 #3·#14 · §6 DDL · §6.2.1 · Pooler + set_config(..., true)
 -- Ticket: 0d7a4200 (+ 6dfc4c4a short_term CHECK / iterative_scan DESIGN).
--- Non-goals: production AURA_EMBEDDING_* 실값 · HNSW 왜곡 픽스처 · svc-memory store.
+-- Non-goals: production AURA_EMBEDDING_* 실값 · svc-memory store.
+-- HNSW distorted-tenant fixture: deploy/docs/memory-hnsw-multitenant-fixture.md (fbed0ce9).
 -- Generation: deploy/docs/memory-embeddings-generation.md
 -- Guards: deploy/docs/memory-embed-guard-iterative-scan.md
 -- Idempotent for M1 smoke/dev (DROP CASCADE). Production ATTACH uses runbook + env dims.
