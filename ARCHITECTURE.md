@@ -275,7 +275,7 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 
 ## 6. PostgreSQL 스키마 (초안)
 
-확장: `vector`(pgvector — 저장·`halfvec` 포함), `pg_trgm`(보조). BM25/전문 검색은 M1에서 `tsvector`+가중치 또는 ParadeDB/`pg_search` 중 **하나를 ROADMAP 결정 로그에 고정**한다. 아래 DDL은 `tsvector` 경로를 기본으로 둔다.
+확장: `vector`(pgvector — 저장·`halfvec` 포함), `pg_trgm`(보조). BM25/전문 검색은 **stock `tsvector` + GIN + `ts_rank`/`ts_rank_cd`** 로 고정한다(ROADMAP 결정 로그 2026-11-18). ParadeDB/`pg_search`는 M1 비채택(품질 갭 실측 시 재평가). 아래 DDL의 `content_tsv` 경로가 정본이다.
 
 **pgvector 인덱스 제약 (계약에 반영)**
 
