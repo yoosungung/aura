@@ -252,8 +252,9 @@ bash deploy/scripts/smoke-memory-embeddings.sh              # live via pooler: f
 | DDL | `deploy/sql/memory_embeddings.sql` — LIST(`model_key`); 부모 `halfvec` (typemod 없음); `memory_type` CHECK로 short_term 제외 |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
 | 세대 교체 | [`docs/memory-embeddings-generation.md`](docs/memory-embeddings-generation.md) — ATTACH → active 전환 → DETACH |
+| 활성 핀 | [`docs/memory-embedding-active.md`](docs/memory-embedding-active.md) — `BAAI/bge-m3` / `1` / `1024` · `check-memory-embedding-active.sh` |
 | 스모크 | fixture `fixture:v1`/`v2` · dims=3 only (≠ production `AURA_EMBEDDING_*`); Cluster에 pgvector 필요 |
-| Non-goals | 생산 모델 실값 · HNSW 왜곡 픽스처 · `svc-memory` store |
+| Non-goals | TEI 매니페스트 · HF digest 핀 · HNSW 왜곡 픽스처 · `svc-memory` store |
 
 ### short_term embed 가드 + iterative_scan / ef_search (M1)
 
@@ -285,6 +286,18 @@ bash deploy/scripts/smoke-memory-hnsw-multitenant.sh              # live via poo
 | 합격 | ON(`relaxed_order`) B≥1 · OFF B=0; 실패 시 T1/T2(§6.2.3) |
 | 갭 | 생산 cosine 왜곡 ON 미달 → 재실측/T1/T2 후보 (스키마 미적용) |
 | Non-goals | 생산 dims · T1/T2 스키마 구현 · `svc-memory` store · cosine→L2 교체 |
+
+### 활성 AURA_EMBEDDING_* 핀 (M1 · TEI/store 비범위)
+
+```bash
+bash deploy/scripts/check-memory-embedding-active.sh   # doc gate: BAAI/bge-m3 · version=1 · dims=1024
+```
+
+| 항목 | M1 고정 |
+|------|---------|
+| 문서 | [`docs/memory-embedding-active.md`](docs/memory-embedding-active.md) |
+| MODEL / VERSION / DIMS | `BAAI/bge-m3` / `1` / `1024` (`model_key=BAAI/bge-m3:1`) |
+| TTL | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (14d/24mo/12mo · 재고정 아님) |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 

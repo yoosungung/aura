@@ -455,6 +455,7 @@ Agent는 이 응답만 컨텍스트에 넣는다.
 | 저장 타입 | 부모 `embedding halfvec` (typemod 없음). 인덱스 경로만 `halfvec(N)` 캐스트 |
 | 파티션 키 | `model_key = model \|\| ':' \|\| version` |
 | 파티션당 인덱스 | 해당 `dims = N` CHECK + `hnsw ((embedding::halfvec(N)) halfvec_cosine_ops)` |
+| **활성 핀 (M1)** | `AURA_EMBEDDING_MODEL=BAAI/bge-m3` · `version=1` · `dims=1024` · `model_key=BAAI/bge-m3:1` — [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md) |
 | 새 모델 | `ATTACH`/`CREATE PARTITION` + HNSW 생성 후 embed 워커의 active `model_key` 전환 |
 | 폐기 | `DETACH PARTITION` → `DROP TABLE` (테이블 rewrite 없이 제거) |
 | 금지 | 부모 테이블에 차원 없는 `hnsw(embedding)`; `vector` 타입 HNSW(2000 상한·용량); 다모델 단일 인덱스; **`short_term` embed** |
