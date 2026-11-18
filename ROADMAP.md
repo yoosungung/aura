@@ -28,6 +28,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **Pooler 제품 = CloudNativePG `Pooler`** (`spec.pgbouncer.poolMode: transaction`). 앱 DSN 호스트 = **pooler Service only** (`aura-pg-pooler…`). standalone PgBouncer는 CNPG 미도입 폴백만 | M1 PG HA/PITR과 동일 operator; §2.1·[`deploy/k8s/pg-pooler`](deploy/k8s/pg-pooler/)·`check-pg-pooler.sh`. V1.1 RLS 실측은 `92cccf21` |
 | 2026-11-18 | **PG Multi-AZ / PITR 토폴로지 초안** — instances=3 + zone anti-affinity; Barman Cloud WAL+base; **RPO ≤ 5m · RTO ≤ 1h**; recall = RO Pooler(`type: ro`) | §9.6·[`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md)·`cluster-ha.draft.yaml`. 라이브 apply·PITR 드릴 실측은 후속/M4. 비용·리전 실값 비범위 |
 | 2026-11-18 | **메모리 TTL 수치 M1 고정** — short_term 핫 **14일** · episodic 핫 **24개월** · audit 핫 **12개월**; DROP 판정=`U <= now()-핫간격`; DROP 주기 **일 1회**; 담당=`aura.tasks.memory.ttl` (구현=M4) | §6.2.2·[`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)·`check-memory-ttl.sh`. Soft-delete-only 방치 금지 |
+| 2026-11-18 | **그래프 순회 한도 M1 고정** — `idx_memory_edges_out`/`in` partial(`valid_until IS NULL`); max_depth=**2** · per_hop_limit=**50** · max_nodes_total=**100** · max_edges_total=**200** · supernode_degree_cap=**64** · visited; walk 구현=M4 | §6.2.4·[`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)·`check-memory-graph-traversal.sh` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -101,7 +102,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `memory_audit` **월 RANGE** 파티션 + RLS (`deploy/sql/memory_audit.sql` · `check-memory-audit.sh` · `smoke-memory-audit.sh`)
 - [x] **short_term 만료 정리 정책** 문서화: 핫 일수·월 파티션 DROP 주기·담당 태스크(`aura.tasks.memory.ttl`) — [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md) · `check-memory-ttl.sh`
 - [x] `memory_nodes` / `memory_edges` 마이그레이션 + RLS (`deploy/sql/memory_nodes_edges.sql` · `check-memory-nodes-edges.sh` · `smoke-memory-nodes-edges.sh`)
-- [ ] edges **`idx_memory_edges_out` / `idx_memory_edges_in`** (partial `valid_until IS NULL`); 순회 한도 DESIGN(§6.2.4)
+- [x] edges **`idx_memory_edges_out` / `idx_memory_edges_in`** (partial `valid_until IS NULL`); 순회 한도 DESIGN(§6.2.4) — [`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md) · `check-memory-graph-traversal.sh`
 - [ ] **`memory_embeddings` 차원/파티션 DDL 확정**: LIST(`model_key`) + 파티션별 `halfvec(N)` HNSW; **모델 세대 교체**(새 파티션 ATTACH → 전환 → 구형 DETACH) 절차를 DESIGN/런북에 고정
 - [ ] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN
 - [ ] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2
@@ -236,7 +237,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 - 활성 임베딩 모델·version·dims(N) 실값 — **M1** (레이아웃 방안 B·halfvec는 결정됨)
 - iterative_scan만으로 충분한지 vs T1/T2 승격 — **M1 픽스처 결과**
-- 그래프 `per_hop_limit` / `supernode_degree_cap` 최종 수치 — **M1 DESIGN 초안 → M4 부하 테스트**
+- 그래프 `per_hop_limit` / `supernode_degree_cap` 운영 튜닝 — **M1 수치 고정**([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)) → **M4 부하 후 조정**
 - async 콜드스타트 p95 확정 수치 — **M0 측정 후**
 - sync RPC 상한 스케일(HPA 메트릭: CPU vs RPS) — M2/M3 직전
 - Object store **아카이브 Parquet 경로가 번들/`content_ref`와 버킷 공유인지** — **M2 제품 확정 시** 같이 기록 (GC 설계는 M2, 아카이브 구현은 M4)

@@ -223,33 +223,21 @@ bash deploy/scripts/smoke-memory-audit.sh              # live via pooler: seed m
 | TTL | audit 핫 **12개월** — [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (DROP 구현=M4) |
 | Non-goals | soft delete · `memory_items` FK · embeddings · `svc-memory` store 본문 |
 
-### memory_nodes / memory_edges + RLS (M1)
+### memory_nodes / memory_edges + RLS + edge indexes (M1)
 
 ```bash
-bash deploy/scripts/check-memory-nodes-edges.sh              # static: tables + FORCE RLS
+bash deploy/scripts/check-memory-nodes-edges.sh              # static: tables + FORCE RLS + out/in indexes
+bash deploy/scripts/check-memory-graph-traversal.sh          # static: partial indexes + 순회 한도 DESIGN
 SMOKE_MEMORY_NODES_EDGES_STATIC=1 bash deploy/scripts/smoke-memory-nodes-edges.sh
-bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: RLS + CASCADE
+bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: RLS + indexes
 ```
 
 | 항목 | 값 |
 |------|-----|
-| DDL | `deploy/sql/memory_nodes_edges.sql` — nodes UNIQUE(tenant, type, name); edges FK CASCADE + self-edge CHECK |
-| RLS | 양 테이블 `FORCE` + `app.tenant_id` GUC |
-| Non-goals | `idx_memory_edges_out`/`in`(별도 슬라이스) · embeddings · `svc-memory` store 본문 |
-
-### memory_nodes / memory_edges + RLS (M1)
-
-```bash
-bash deploy/scripts/check-memory-nodes-edges.sh              # static: tables + FORCE RLS
-SMOKE_MEMORY_NODES_EDGES_STATIC=1 bash deploy/scripts/smoke-memory-nodes-edges.sh
-bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: insert + RLS
-```
-
-| 항목 | 값 |
-|------|-----|
-| DDL | `deploy/sql/memory_nodes_edges.sql` — nodes UNIQUE(tenant,type,name); edges FK→nodes + self-loop CHECK |
+| DDL | `deploy/sql/memory_nodes_edges.sql` — nodes UNIQUE(tenant,type,name); edges FK→nodes + self-loop CHECK; `idx_memory_edges_out`/`in` partial(`valid_until IS NULL`) |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` (양 테이블) |
-| Non-goals | `idx_memory_edges_out`/`in` · 순회 한도 DESIGN · embeddings · `svc-memory` store 본문 |
+| 순회 한도 | [`docs/memory-graph-traversal.md`](docs/memory-graph-traversal.md) (walk 구현=M4) |
+| Non-goals | embeddings · `svc-memory` store/graph walk 본문 |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 

@@ -530,10 +530,10 @@ AND (valid_until IS NULL OR valid_until > now())
 
 핫 인덱스는 `valid_until IS NULL` partial과 맞춘다. 만료 임박 행은 배치가 `valid_until`을 설정해 핫 집합에서 제외한다.
 
-**순회 한도 (초안 — M1 DESIGN에 수치 고정, M4 구현)**
+**순회 한도 (M1 고정 · 구현=M4)** — 본문 [`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)
 
-| 가드 | 초안 값 | 의미 |
-|------|---------|------|
+| 가드 | 값 | 의미 |
+|------|----|------|
 | `max_depth` | **2** | 재귀/반복 상한. 3+ 금지 |
 | `per_hop_limit` | **50** | 노드당 확장 엣지 상한(방향·relation 합산) |
 | `max_nodes_total` | **100** | 한 recall 그래프 확장 노드 상한 |
