@@ -24,6 +24,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | (M1) | 활성 임베딩 실값 + BM25 + Pooler 제품 + iterative_scan + **PG HA/RPO/RTO 초안** | M1에서 고정 |
 | 2026-11-17 | **sync Warm 단일 홉 p95 ≈ 0.6ms** (`smoke-sync-rpc.sh` n=20, Core local). 연쇄 목표 p95 < 1–2s 유지. async 콜드 p95는 별도 기입 | V0.2 스모크 |
 | 2026-11-18 | **PG + Pooler 스모크 계획** 문서화 — [`deploy/docs/pg-pooler-smoke-plan.md`](deploy/docs/pg-pooler-smoke-plan.md) (설치·제품 확정·실측은 M1 V1.1) | M0 권장 체크 |
+| 2026-11-18 | **BM25/전문 = stock `tsvector` + `GIN` + `ts_rank`/`ts_rank_cd`** (`content_tsv`). ParadeDB/`pg_search` **M1 비채택** | §6 DDL 기본과 일치; 추가 확장·`shared_preload`·CNPG ImageVolume(PG18+) 없이 Pooler/RLS M1과 병행 가능. 순수 Okapi BM25 품질 갭이 실측되면 이후 `pg_search` 재평가 |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -89,7 +90,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [ ] BM25 구현체 결정 → 결정 로그 기입
+- [x] BM25 구현체 결정 → 결정 로그 기입 (`tsvector`+`ts_rank`; ParadeDB M1 비채택)
 - [ ] **PgBouncer(또는 CNPG Pooler) Transaction Pooling** 설치; 앱 DSN = pooler only → 결정 로그에 제품명 기입
 - [ ] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출
 - [ ] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획)
@@ -232,7 +233,6 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 - 활성 임베딩 모델·version·dims(N) 실값 — **M1** (레이아웃 방안 B·halfvec는 결정됨)
 - Pooler 제품(PgBouncer vs CNPG Pooler) — **M1** (Pooler 필수·transaction·GUC `is_local`은 결정됨)
-- BM25 구현체 (`tsvector` vs ParadeDB/`pg_search`) — **M1**
 - iterative_scan만으로 충분한지 vs T1/T2 승격 — **M1 픽스처 결과**
 - 그래프 `per_hop_limit` / `supernode_degree_cap` 최종 수치 — **M1 DESIGN 초안 → M4 부하 테스트**
 - async 콜드스타트 p95 확정 수치 — **M0 측정 후**
