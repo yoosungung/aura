@@ -93,7 +93,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 - [x] BM25 구현체 결정 → 결정 로그 기입 (`tsvector`+`ts_rank`; ParadeDB M1 비채택)
 - [x] **CloudNativePG `Pooler`** Transaction Pooling 설치 매니페스트; 앱 DSN = pooler only → 결정 로그에 제품명 기입 (`deploy/k8s/pg-pooler` · `install-pg-pooler.sh` · `check-pg-pooler.sh`; V1.1 RLS 실측=`92cccf21`)
-- [ ] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출
+- [x] **통합 테스트**: Pooler + `SELECT set_config('app.tenant_id', $1, true)` + RLS — 커넥션 재사용 후 타 테넌트 행 미노출 (`rls-smoke-fixture.sql` · `smoke-pg-pooler.sh`)
 - [ ] PG **Multi-AZ / PITR** 토폴로지 + RPO/RTO 초안 (recall Read Replica 계획)
 - [ ] `memory_items` **LIST(memory_type)** + short_term/episodic **월 RANGE** 파티션 + RLS
 - [ ] `memory_audit` **월 RANGE** 파티션

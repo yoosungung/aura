@@ -4,7 +4,7 @@
 
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
 **후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  
-**M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh`. V1.1 RLS 실측=`smoke-pg-pooler.sh`(후속).
+**M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh` / **V1.1** `smoke-pg-pooler.sh`(+ `rls-smoke-fixture.sql`).
 
 ## 전제
 
@@ -173,7 +173,22 @@ bash deploy/scripts/smoke-sync-rpc.sh       # Warm RR · scale-0 No Responders �
 | Fission Function | `aura-rpc-smoke` newdeploy MinScale≥2 — Warm Pool 불변(V0.1); NATS 구독은 Deployment |
 | MQT / lag | **미연결** |
 
-**하지 않음(후속):** Fission MQT에 Term 미들웨어 이식(프로덕션 consumer); PG 스모크(M1).
+**하지 않음(후속):** Fission MQT에 Term 미들웨어 이식(프로덕션 consumer).
+
+### PG + Pooler / V1.1 (`set_config` + RLS)
+
+```bash
+bash deploy/scripts/install-pg-pooler.sh   # CNPG operator + aura-pg + Pooler
+bash deploy/scripts/check-pg-pooler.sh     # static: transaction + pooler-only DSN
+SMOKE_PG_POOLER_STATIC=1 bash deploy/scripts/smoke-pg-pooler.sh  # (d) + fixture gate
+bash deploy/scripts/smoke-pg-pooler.sh     # live (a)–(c) via aura-pg-pooler Service
+```
+
+| 항목 | 값 |
+|------|-----|
+| 픽스처 | `deploy/k8s/pg-pooler/rls-smoke-fixture.sql` (`FORCE ROW LEVEL SECURITY`) |
+| 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` |
+| 합격 | 풀 재사용 후 타 테넌트 미노출; `set_config(..., false)` 경로 없음 |
 
 ## 제거 (개발 클러스터만)
 
