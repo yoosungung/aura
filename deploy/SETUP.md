@@ -340,7 +340,21 @@ bash deploy/scripts/check-memory-embed.sh   # DESIGN + MQT + short_term skip sel
 | 매니페스트 | [`k8s/memory-embed/`](k8s/memory-embed/) — topic `aura.tasks.memory.embed` · consumer `aura_memory_embed` · resp/error `aura.events.memory.embedded` / `.embed.error` · `minReplicaCount=0` |
 | short_term | **스킵** — PG INSERT 미시도 (`skipped_short_term`) |
 | embeddable | episodic/long_term/semantic → `set_config(..., true)` + 활성 `model_key` stub (HNSW); BM25=`content_tsv` |
-| Non-goals | 라이브 TEI · 실 halfvec INSERT · recall · live apply 필수 |
+| Non-goals | 라이브 TEI · 실 halfvec INSERT · hybrid RRF recall · live apply 필수 |
+
+### svc-memory recall RPC (M2 · Warm Pool · no MQT)
+
+```bash
+bash deploy/scripts/check-memory-recall.sh   # DESIGN + Core RR deploy + stub selftest (no cluster)
+```
+
+| 항목 | 값 |
+|------|-----|
+| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Recall RPC 절) |
+| 코드 | `services/memory/recall/handler.js` (stub · PG 미접속) |
+| 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` `newdeploy` **MinScale≥2** · Deployment `aura-memory-recall-rr` **replicas≥2** · subject `aura.rpc.memory.recall` · queue-group `aura-memory-recall` |
+| 금지 | MessageQueueTrigger · JetStream lag ScaledObject |
+| Non-goals | hybrid RRF / iterative_scan SQL · graph walk · live apply 필수 |
 
 ### memory TTL 정책 (M1 수치 고정 · job 비범위)
 

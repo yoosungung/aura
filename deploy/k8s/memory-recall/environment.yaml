@@ -1,0 +1,19 @@
+# Warm Node env for memory recall Function (ARCHITECTURE §4.2).
+# Core RR subscribe: see rpc-responder.yaml (nats reply queue-group).
+apiVersion: fission.io/v1
+kind: Environment
+metadata:
+  name: aura-memory-recall-nodejs
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+spec:
+  version: 3
+  runtime:
+    image: ghcr.io/fission/node-env:latest
+  builder:
+    image: ghcr.io/fission/node-builder:latest
+  poolsize: 2
+  resources: {}
