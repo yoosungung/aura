@@ -706,7 +706,7 @@ Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를
 | 플랫폼 번들 | 서명·checksum 검증 필수. 미서명 커스텀은 샌드박스 없이 금지. **서명 번들도 Egress NP는 동일** |
 
 정책 정본(이름·allowlist·차등): [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md).  
-Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md) · `deploy/k8s/sandbox-egress/`. CNI FQDN/egress-proxy 라이브 프로브·LLM Gateway 본구현은 후속.
+Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md) · `deploy/k8s/sandbox-egress/`. CNI FQDN/egress-proxy 라이브 프로브는 후속.
 
 ### 9.2 시크릿 전송 · 캐시
 
@@ -734,7 +734,9 @@ Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs
 | 범위 | **모델 서빙(가중치 호스팅)은 여전히 범위 밖**. Aura Function은 공급자 API를 **직접 호출하지 않고** 클러스터 내 **LLM Gateway**만 호출 |
 | 기능 | 테넌트/플랜 **Rate limit**, **Fallback 모델**, **Circuit Breaker**, **토큰·비용 로깅**(과금·이상 탐지) |
 | 적용 | `agent_invoke`, `memory_capture`, consolidate 등 모든 LLM 호출 |
-| 배포 | `services/llm-gateway` (또는 동등 관리형). Egress Policy의 유일한 LLM 출구 |
+| 배포 | `services/llm-gateway` (또는 동등 관리형). Egress Policy의 유일한 LLM 출구. 최소 와이어: [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh` |
+
+M3 최소 경로·Function 클라이언트 egress 가드: [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh`. Fallback/과금 대시보드·live provider 배선 고도화는 M5.
 
 ### 9.5 콜드스타트 · Warm Pool SLA
 
