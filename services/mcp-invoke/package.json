@@ -1,5 +1,11 @@
 {
   "name": "aura-mcp-invoke",
   "private": true,
-  "type": "commonjs"
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "nats": "^2.29.0"
+  }
 }

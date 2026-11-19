@@ -36,6 +36,22 @@ function buildToolsCallRequest(opts) {
   };
 }
 
+/**
+ * @param {{ id?: string|number }} opts
+ */
+function buildToolsListRequest(opts) {
+  const reqId = opts && opts.id != null ? opts.id : nextRequestId();
+  return {
+    id: reqId,
+    body: {
+      jsonrpc: JSONRPC_VERSION,
+      id: reqId,
+      method: 'tools/list',
+      params: {},
+    },
+  };
+}
+
 function tryParseJsonRpc(line) {
   const s = String(line).trim();
   if (!s) return null;
@@ -135,7 +151,7 @@ function headerContentType(res) {
  *   id?: string|number,
  * }} opts
  */
-async function callToolViaStreamableHttp(opts) {
+async function postJsonRpc(opts, built) {
   const o = opts || {};
   const fetchFn = o.fetchImpl || globalThis.fetch;
   if (typeof fetchFn !== 'function') {
@@ -143,20 +159,6 @@ async function callToolViaStreamableHttp(opts) {
   }
   if (!o.endpoint || typeof o.endpoint !== 'string') {
     return { ok: false, error: 'endpoint_required' };
-  }
-  if (!o.tool || typeof o.tool !== 'string') {
-    return { ok: false, error: 'tool_required' };
-  }
-
-  let built;
-  try {
-    built = buildToolsCallRequest({
-      tool: o.tool,
-      arguments: o.arguments,
-      id: o.id,
-    });
-  } catch (err) {
-    return { ok: false, error: String(err && err.message) };
   }
 
   const headers = {
@@ -194,12 +196,51 @@ async function callToolViaStreamableHttp(opts) {
   if (msg.error != null) {
     return { ok: false, error: msg.error };
   }
-  return { ok: true, result: msg.result != null ? msg.result : {} };
+  return { ok: true, message: msg, result: msg.result != null ? msg.result : {} };
+}
+
+async function callToolViaStreamableHttp(opts) {
+  const o = opts || {};
+  if (!o.tool || typeof o.tool !== 'string') {
+    return { ok: false, error: 'tool_required' };
+  }
+  let built;
+  try {
+    built = buildToolsCallRequest({
+      tool: o.tool,
+      arguments: o.arguments,
+      id: o.id,
+    });
+  } catch (err) {
+    return { ok: false, error: String(err && err.message) };
+  }
+  const out = await postJsonRpc(o, built);
+  if (!out.ok) return out;
+  return { ok: true, result: out.result };
+}
+
+/**
+ * @param {{ endpoint: string, sessionId?: string, protocolVersion?: string, fetchImpl?: Function, id?: string|number }} opts
+ */
+async function listToolsViaStreamableHttp(opts) {
+  const o = opts || {};
+  const built = buildToolsListRequest({ id: o.id });
+  const out = await postJsonRpc(o, built);
+  if (!out.ok) return out;
+  const tools =
+    out.result && Array.isArray(out.result.tools)
+      ? out.result.tools
+      : Array.isArray(out.result)
+        ? out.result
+        : [];
+  return { ok: true, tools };
 }
 
 module.exports = {
   DEFAULT_PROTOCOL_VERSION,
   buildToolsCallRequest,
+  buildToolsListRequest,
   parseJsonOrSseResponse,
   callToolViaStreamableHttp,
+  listToolsViaStreamableHttp,
 };

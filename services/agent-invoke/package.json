@@ -1,5 +1,15 @@
 {
   "name": "aura-agent-invoke",
   "private": true,
-  "type": "commonjs"
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "langchain": "^1.0.0",
+    "@langchain/core": "^1.0.0",
+    "nats": "^2.29.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.0"
+  }
 }

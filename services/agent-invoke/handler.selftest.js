@@ -17,10 +17,9 @@ const {
 
 async function main() {
   const src = fs.readFileSync(path.join(__dirname, 'handler.js'), 'utf8');
-  assert.ok(!/\brequire\(['"]pg['"]\)/.test(src), 'handler must not require pg');
-  assert.ok(!/set_config/.test(src), 'handler must not call set_config');
-  assert.ok(!/AURA_DATABASE_HOST/.test(src), 'handler must not reference AURA_DATABASE_HOST');
-  assert.ok(!/\.query\s*\(/.test(src), 'handler must not call .query(');
+  assert.ok(!/\brequire\(['"]pg['"]\)/.test(src), 'handler must not require pg directly');
+  assert.ok(!/set_config/.test(src), 'handler must not call set_config (checkpoints.js owns it)');
+  assert.ok(!/memory_items|memory_embeddings/.test(src), 'handler must not touch memory_*');
 
   // validate: identifiers only + principal.tenant_id required
   const ok = validateInvokeTask({

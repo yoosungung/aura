@@ -1,4 +1,4 @@
-# literal = base64(skeleton.js). check-mcp-invoke-dual.sh asserts match.
+# M3.5: Warm Function package shares mcp-invoke archive (handler entry).
 apiVersion: fission.io/v1
 kind: Package
 metadata:
@@ -9,10 +9,17 @@ metadata:
     aura.service: mcp-invoke
     app.kubernetes.io/part-of: aura
     app.kubernetes.io/name: aura-mcp-invoke-rpc
+  annotations:
+    aura.package/build: deploy/scripts/build-mcp-invoke-archive.sh
+    aura.package/archive: deploy/k8s/mcp-invoke-rpc/archive.zip
 spec:
   environment:
     name: aura-mcp-invoke-rpc-nodejs
     namespace: default
+  source:
+    type: archive
+    archive:
+      type: url
+      url: file:///fission-archives/aura-mcp-invoke.zip
   deployment:
-    type: literal
-    literal: bW9kdWxlLmV4cG9ydHMgPSBhc3luYyBmdW5jdGlvbiAoKSB7CiAgcmV0dXJuIHsgc3RhdHVzOiAyMDAsIGJvZHk6ICdhdXJhLW1jcC1pbnZva2UtcnBjLXdhcm0nIH07Cn07
+    type: archive

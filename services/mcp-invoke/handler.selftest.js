@@ -23,8 +23,8 @@ async function main() {
   assert.ok(src.includes('mcp.invoke.done'), 'handler must emit mcp.invoke.done');
   assert.ok(src.includes('mcp.tool.done'), 'handler must emit mcp.tool.done');
   assert.ok(
-    src.includes('streamable_http') || src.includes('callToolViaStreamableHttp'),
-    'handler must wire streamable HTTP adapter',
+    src.includes('buildFactory') || src.includes('streamable_http'),
+    'handler must wire factory / streamable HTTP',
   );
 
   const base = {
@@ -37,6 +37,17 @@ async function main() {
       tenant_id: '11111111-1111-1111-1111-111111111111',
     },
   };
+
+  // action=list does not require tool
+  assert.strictEqual(
+    validateMcpRequest({
+      action: 'list',
+      server: 'demo-mcp',
+      version: '1.0.0',
+      principal: base.principal,
+    }).ok,
+    true,
+  );
 
   assert.strictEqual(validateMcpRequest(base).ok, true);
   assert.strictEqual(validateMcpRequest({ ...base, server: '' }).ok, false);
@@ -89,6 +100,24 @@ async function main() {
   assert.strictEqual(resolveCalls, 1);
   assert.strictEqual(toolOut.ok, true);
   assert.deepStrictEqual(toolOut.result.echo, { x: 1 });
+
+  const listOut = await invokeToolOnce(
+    {
+      action: 'list',
+      server: 'demo-mcp',
+      version: '1.0.0',
+      principal: base.principal,
+    },
+    {
+      resolve: deps.resolve,
+      listTools: async () => ({
+        ok: true,
+        tools: [{ name: 'echo', description: 'Echo', inputSchema: {} }],
+      }),
+    },
+  );
+  assert.strictEqual(listOut.action, 'list');
+  assert.strictEqual(listOut.tools[0].name, 'echo');
 
   let httpFetchCalls = 0;
   const httpDeps = {

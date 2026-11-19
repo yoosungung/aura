@@ -45,7 +45,7 @@ grep -Eqi 'Pooler|set_config' "$DOC" || fail "doc must require Pooler + set_conf
 grep -Eqi 'FORCE RLS|ROW LEVEL SECURITY|app\.tenant_id' "$DOC" \
   || fail "doc must lock FORCE RLS / app.tenant_id"
 grep -Eqi 'Zero Direct Write|예외' "$DOC" || fail "doc must frame Zero Direct Write exception"
-grep -Eqi 'Non-goals|본구현|후속' "$DOC" || fail "doc must state Non-goals (writer/resume deferred)"
+grep -Eqi 'Non-goals|writer|resume|Pooler' "$DOC" || fail "doc must cover writer/resume/Pooler scope"
 grep -Eqi 'content_ref|256KB|PII' "$DOC" || fail "doc must route large/PII state via content_ref"
 grep -Eqi 'plaintext|secrets_ref|시크릿' "$DOC" || fail "doc must forbid plaintext secrets in state"
 

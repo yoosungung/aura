@@ -60,6 +60,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **NATS mTLS + 시크릿 마스킹/TTL 캐시 M3 고정** — overlay `tls { verify: true }` · `maskSecrets` · `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 · live cert 클러스터 CI 필수 아님 | §9.2 · [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md)·`check-nats-mtls-secrets.sh` · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 M3 고정** — Core RR `aura-control-resolve-rr` **replicas≥2** · Warm `MinScale≥2` · queue-group `aura-control-resolve` · stub/injectable `bridge.js` · Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`agent_checkpoints` 예외 테이블 DDL M3 고정** — 이름=`agent_checkpoints` · FORCE RLS · UNIQUE(tenant,run,seq) · kind turn/tool/final · state JSONB+`content_ref`(256KB+) · writer=`agent_invoke` only · Pooler+`set_config` · writer/resume=후속 | §1 #10·§6.1.2 · [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md)·`agent_checkpoints.sql`·`check-agent-checkpoints.sh` |
+| 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -221,6 +222,27 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - 번들/시크릿 plaintext invoke 없음; Agent→MCP는 NATS RR만.
 - agent MQT는 0 가능, sync RPC는 0 불가.
 - V3.1–V3.3 합격; LLM 직접 호출·시크릿 평문 로그 없음.
+
+---
+
+## M3.5 — Agent/MCP 본구현 (Node `createAgent` → 이후 multi-env)
+
+**목표**: `invokeOnce` 셸 유지 하에 **`runTurn` = LangChain.js `createAgent`**, MCP **`tools/list`+실경로**, live NATS·checkpoints writer/resume. Package는 **archive**. 이후 `python-env`/`rust-env`.
+
+**작업**
+
+- [x] 결정·문서 — archive 패키징 · `createAgent`+LLM egress · `tools/list` · PG 게이트(`memory_*` 금지·`agent_checkpoints`만) — [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md)
+- [x] Phase A — `createAgent` runTurn + Gateway egress 강제 TDD · MCP `tools/list` 스켈레톤 · archive Package + `check-*.sh` 개정
+- [x] Phase B — live NATS helpers(`nats-deps.js`) · `aura-mcp-invoke-rr` nats-box→Node queue-group 워커(`rpc-worker.js`)
+- [x] Phase C — `agent_checkpoints` writer/resume · MCP factory 실경로 + list/call + Streamable HTTP
+- [ ] M3.6 (후속) — `python-env` Function 이식 패리티
+- [ ] (후속) — `rust-env` 핫패스 PoC
+
+**성공 기준**
+
+- Function→공급자 직접 호출 없음(`assertFunctionLlmEgress`).
+- MQT connector ≠ Function 언어; archive 배포; RPC MinScale≥2 / MQT min=0 유지.
+- `tools/list`로 스키마 수집 후 Agent 툴 바인딩 가능; checkpoints INSERT는 `agent_invoke`+Pooler만.
 
 ---
 
