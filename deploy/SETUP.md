@@ -205,7 +205,7 @@ bash deploy/scripts/smoke-memory-items.sh              # live via pooler: seed m
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
 | 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH |
 | TTL | 핫/DROP 수치 = [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) · job = [`docs/memory-ttl-drop.md`](docs/memory-ttl-drop.md) |
-| Non-goals | embeddings · `svc-memory` store 본문 · TTL job 본구현 |
+| Non-goals | embeddings · `svc-memory` store 본문 · live DROP 스모크(클러스터 적용 시) |
 
 ### memory_audit 월 RANGE + RLS (M1)
 
