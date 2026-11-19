@@ -49,6 +49,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **MCP·번들 격리 수준 M3 고정** — RuntimeClass **기본=`gvisor`(`runsc`)** · 고위험=`kata` · Egress deny-default allowlist(NATS·Pooler·LLM Gateway·`aura-content`·등록 MCP·DNS) · 플랫폼 서명 vs 커스텀 차등(서명도 Egress 동일; 미서명+비샌드박스 금지). 라이브 NP/실측=후속 | §9.1 · [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)·`check-mcp-bundle-isolation.sh` |
 | 2026-11-19 | **Egress 차단 검증 M3 고정** — NP deny-default + allow(NATS·Pooler·LLM Gateway·object-store·DNS·MCP proxy) · RuntimeClass 매니페스트 · 오프라인 `evaluate-egress` + `egress-allowlist` 스모크. CNI FQDN 라이브 프로브=후속 | §9.1 · [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md)·`check-egress-block-verify.sh` · `deploy/k8s/sandbox-egress/` |
 | 2026-11-19 | **memory consolidate 유형 승격 규칙 M4 고정** — 허용 `short_term`→`episodic`→`long_term`/`semantic` · `similarity_only` 금지 · soft_close+insert_promoted · recurrence `evidence_count`≥3 · MQT `aura.tasks.memory.consolidate` | §5 · [`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md)·`check-memory-consolidate.sh` · `services/memory/consolidate/` |
+| 2026-11-19 | **recall graph 방어적 1–2홉 M4 고정** — visited · per_hop_limit=50 · supernode_degree_cap=64 · 유효 predicate · out+in · RRF graph 분기; 슈퍼노드 픽스처=후속 | §6.2.4 · [`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)·`check-memory-graph-traversal.sh` · `services/memory/recall/graph-walk.js` |
 | 2026-11-19 | **LLM Gateway 최소 M3 고정** — `POST /v1/chat/completions` · Function 클라이언트 provider blocklist · tenant RL · circuit · usage/cost 로그 · Deployment `aura-llm-gateway` replicas≥2. Fallback/과금 대시보드·live provider=후속(M5) | §9.4 · [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md)·`check-llm-gateway.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
 | 2026-11-19 | **NATS mTLS + 시크릿 마스킹/TTL 캐시 M3 고정** — overlay `tls { verify: true }` · `maskSecrets` · `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 · live cert 클러스터 CI 필수 아님 | §9.2 · [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md)·`check-nats-mtls-secrets.sh` · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 M3 고정** — Core RR `aura-control-resolve-rr` **replicas≥2** · Warm `MinScale≥2` · queue-group `aura-control-resolve` · stub/injectable `bridge.js` · Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · [`services/control/`](services/control/) |
@@ -159,7 +160,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `memory_capture` Function (PG 금지, MQT) → `aura.events.memory.candidates` (`services/memory-capture/` · `deploy/k8s/memory-capture/` · `check-memory-capture.sh`)
 - [x] embed Function (MQT) — **short_term 스킵**; episodic/long_term/semantic만 HNSW/BM25 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`)
 - [x] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음 (`services/memory/recall/` · `deploy/k8s/memory-recall/` · `check-memory-recall.sh`)
-- [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph stub); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
+- [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph walk M4); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
 - [x] Agent 주입 계약(프롬프트 슬롯·토큰 예산) — [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · `check-agent-inject-contract.sh` (패킹 구현=M3)
 - [x] **Object Store 제품 확정**(Garage/S3/NCP 등) → 결정 로그; `content_ref` 스키마·권한 — **Garage** · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh` (라이브 provision 보류)
 - [x] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · `check-object-store-orphan-gc.sh` (구현=M4)
@@ -224,7 +225,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] `aura.tasks.memory.consolidate` — 유형 승격 규칙 ([`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md) · `check-memory-consolidate.sh` · `services/memory/consolidate/`)
-- [ ] recall graph **방어적** 1–2홉: visited, per_hop_limit, supernode_degree_cap, 유효 predicate, out+in 인덱스 사용
+- [x] recall graph **방어적** 1–2홉: visited, per_hop_limit, supernode_degree_cap, 유효 predicate, out+in 인덱스 사용 ([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md) · `check-memory-graph-traversal.sh` · `services/memory/recall/graph-walk.js`)
 - [ ] 슈퍼노드 픽스처: 허브 1노드에 엣지 ≫ cap → 쿼리 시간/반환 상한 준수(폭발 없음)
 - [ ] `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션 DROP**
 - [ ] `aura.tasks.memory.archive` — 콜드 episodic → Object Storage Parquet → DETACH/DROP + `aura.events.memory.archived`
