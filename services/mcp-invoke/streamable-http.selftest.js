@@ -4,8 +4,10 @@ const assert = require('assert');
 const {
   DEFAULT_PROTOCOL_VERSION,
   buildToolsCallRequest,
+  buildToolsListRequest,
   parseJsonOrSseResponse,
   callToolViaStreamableHttp,
+  listToolsViaStreamableHttp,
 } = require('./streamable-http');
 
 async function main() {
@@ -21,6 +23,9 @@ async function main() {
   assert.strictEqual(built.body.params.name, 'echo');
   assert.deepStrictEqual(built.body.params.arguments, { x: 1 });
   assert.throws(() => buildToolsCallRequest({}), /tool_required/);
+
+  const listBuilt = buildToolsListRequest({ id: 'list-1' });
+  assert.strictEqual(listBuilt.body.method, 'tools/list');
 
   const jsonOk = parseJsonOrSseResponse({
     bodyText: JSON.stringify({
@@ -110,6 +115,25 @@ async function main() {
   });
   assert.strictEqual(missing.ok, false);
   assert.strictEqual(missing.error, 'endpoint_required');
+
+  const listOut = await listToolsViaStreamableHttp({
+    endpoint: 'https://mcp.example/mcp',
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.strictEqual(body.method, 'tools/list');
+      return {
+        headers: { get: () => 'application/json' },
+        text: async () =>
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: { tools: [{ name: 'echo', description: 'Echo' }] },
+          }),
+      };
+    },
+  });
+  assert.strictEqual(listOut.ok, true);
+  assert.strictEqual(listOut.tools[0].name, 'echo');
 
   console.log('mcp-invoke streamable-http.selftest: PASS');
 }

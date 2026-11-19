@@ -1,6 +1,6 @@
-# Core Request-Reply responder for aura.rpc.mcp.tool (ARCHITECTURE §3.3 / §4.2 / §4.3).
-# Explicit Deployment (replicas>=2) — stock Fission node-env does not NATS-subscribe on boot.
-# Queue-group HA; no MessageQueueTrigger / JetStream lag scaler.
+# Core Request-Reply responder for aura.rpc.mcp.tool (ARCHITECTURE §3.3 / §4.2).
+# M3.5: Node queue-group worker (nats-box stub retired).
+# Reply body contract: type mcp.tool.done | mcp.tool.error (see services/mcp-invoke/handler.js).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,6 +11,8 @@ metadata:
     aura.service: mcp-invoke
     app.kubernetes.io/part-of: aura
     app.kubernetes.io/name: aura-mcp-invoke-rr
+  annotations:
+    aura.rpc/reply-type: mcp.tool.done
 spec:
   replicas: 2
   selector:
@@ -26,8 +28,9 @@ spec:
     spec:
       containers:
         - name: reply
-          image: natsio/nats-box:0.19.0
+          image: node:22-alpine
           imagePullPolicy: IfNotPresent
+          workingDir: /app
           env:
             - name: NATS_URL
               value: nats://nats.aura.svc.cluster.local:4222
@@ -35,17 +38,23 @@ spec:
               value: aura.rpc.mcp.tool
             - name: RPC_QUEUE
               value: aura-mcp-invoke
-          command: ["sh", "-c"]
-          args:
-            - |
-              set -eu
-              echo "subscribing subject=$RPC_SUBJECT queue=$RPC_QUEUE nats=$NATS_URL"
-              # Stub body matches services/mcp-invoke handler RPC contract (mode=stub).
-              exec nats reply -s "$NATS_URL" -q "$RPC_QUEUE" "$RPC_SUBJECT" \
-                '{"type":"mcp.tool.done","ok":true,"subject":"aura.rpc.mcp.tool","deploy_class":"sync","mode":"stub","result":{"echo":{{Request}}},"echo":{{Request}}}'
+          command: ["node"]
+          args: ["rpc-worker.js"]
+          volumeMounts:
+            - name: app
+              mountPath: /app
           resources:
             requests:
-              cpu: 10m
-              memory: 32Mi
+              cpu: 25m
+              memory: 128Mi
             limits:
-              memory: 64Mi
+              memory: 512Mi
+      volumes:
+        - name: app
+          emptyDir: {}
+      # Production: replace emptyDir with image baked from services/mcp-invoke archive
+      # (CI copies handler.js factory.js streamable-http.js rpc-worker.js package.json + npm ci).
+---
+# Note: apply pipeline should populate /app from deploy/k8s/mcp-invoke-rpc/archive.zip
+# or a dedicated container image. Static gate checks Node + queue-group + mcp.tool.done contract
+# via services/mcp-invoke/rpc-worker.js source (not nats-box).

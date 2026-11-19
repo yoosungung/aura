@@ -2,18 +2,10 @@
 
 /**
  * mcp_invoke dual entry — ARCHITECTURE §1 #10·#11·#12 · §3.2 · §3.3 · §7 · §8.
- *
- * Async MQT:  aura.tasks.mcp.invoke → HTTP 200 body → aura.events.mcp.invoke.done
- * Sync RPC:   aura.rpc.mcp.tool     → mcp.tool.done (Core RR; minReplicas ≥ 2)
- *
- * Zero Direct Write: no memory_* PG. Identifiers only; resolve → factory(cfg, secrets_ref).
- * Streamable HTTP: external MCP via injectable client when resolve cfg says so
- * ([`streamable-http.js`](streamable-http.js); Fission invoke.js = single-file bundle).
- * Non-goals (this slice): sandbox/egress · live NATS Core subscribe wiring ·
- * control resolve bridge Deployment · live LLM · full MCP initialize lifecycle.
+ * M3.5: action=list|call · archive package · factory.js.
  */
 
-const { callToolViaStreamableHttp } = require('./streamable-http');
+const { buildFactory } = require('./factory');
 
 function parseBody(req) {
   let raw = (req && req.body) != null ? req.body : '';
@@ -44,8 +36,15 @@ function validateMcpRequest(req) {
   if (!req.version || typeof req.version !== 'string') {
     req.version = '1.0.0';
   }
-  if (!req.tool || typeof req.tool !== 'string') {
-    return { ok: false, error: 'tool_required' };
+  const action = req.action == null ? 'call' : req.action;
+  if (action !== 'call' && action !== 'list') {
+    return { ok: false, error: 'action_invalid' };
+  }
+  req.action = action;
+  if (action === 'call') {
+    if (!req.tool || typeof req.tool !== 'string') {
+      return { ok: false, error: 'tool_required' };
+    }
   }
   const principal = req.principal;
   if (!principal || typeof principal !== 'object') {
@@ -57,68 +56,12 @@ function validateMcpRequest(req) {
   if (!principal.tenant_id || typeof principal.tenant_id !== 'string') {
     return { ok: false, error: 'principal_tenant_id_required' };
   }
-  // Identifiers only — reject accidental bundle/config dumps (§1 #11).
   if (req.bundle || req.bundle_uri || req.cfg || req.config || req.secrets) {
     return { ok: false, error: 'identifiers_only' };
   }
   return { ok: true, req };
 }
 
-function cfgUsesStreamableHttp(cfg) {
-  if (!cfg || typeof cfg !== 'object') return false;
-  if (cfg.transport === 'streamable_http') return true;
-  if (cfg.mcp_endpoint && typeof cfg.mcp_endpoint === 'string') return true;
-  return false;
-}
-
-function streamableEndpointFromCfg(cfg) {
-  if (!cfg || typeof cfg !== 'object') return '';
-  const ep = cfg.mcp_endpoint || cfg.endpoint;
-  return typeof ep === 'string' ? ep : '';
-}
-
-function buildStreamableRunTool(cfg, fetchImpl) {
-  const endpoint = streamableEndpointFromCfg(cfg);
-  const sessionId =
-    typeof cfg.mcp_session_id === 'string'
-      ? cfg.mcp_session_id
-      : typeof cfg.session_id === 'string'
-        ? cfg.session_id
-        : undefined;
-  const protocolVersion =
-    typeof cfg.mcp_protocol_version === 'string'
-      ? cfg.mcp_protocol_version
-      : undefined;
-  return async (ctx) => {
-    const out = await callToolViaStreamableHttp({
-      endpoint,
-      tool: ctx.tool,
-      arguments: ctx.arguments,
-      sessionId,
-      protocolVersion,
-      fetchImpl,
-    });
-    if (!out.ok) return out;
-    const payload =
-      out.result && typeof out.result === 'object' ? out.result : { value: out.result };
-    return { ok: true, mode: 'streamable_http', ...payload };
-  };
-}
-
-/** Deterministic stub factory — echoes arguments (no live MCP protocol / HTTP adapter). */
-async function defaultRunTool(ctx) {
-  return {
-    ok: true,
-    echo: ctx.arguments && typeof ctx.arguments === 'object' ? ctx.arguments : {},
-    mode: 'stub',
-  };
-}
-
-/**
- * Shared tool path: resolve → runTool (injectable).
- * @param {object} req
- * @param {object} deps
- */
 async function invokeToolOnce(req, deps) {
   const d = deps || {};
   const v = validateMcpRequest(req);
@@ -136,7 +79,6 @@ async function invokeToolOnce(req, deps) {
   }
 
   const tenantId = req.principal.tenant_id;
-
   const resolved = await resolve({
     tenant_id: tenantId,
     kind: 'mcp',
@@ -151,22 +93,33 @@ async function invokeToolOnce(req, deps) {
   }
 
   const cfg = (resolved && resolved.cfg) || {};
-  let runTool = d.runTool;
-  if (!runTool) {
-    if (cfgUsesStreamableHttp(cfg)) {
-      const ep = streamableEndpointFromCfg(cfg);
-      if (!ep) {
-        const err = new Error('mcp_endpoint_required');
-        err.status = 500;
-        throw err;
-      }
-      runTool = buildStreamableRunTool(cfg, d.fetchImpl);
-    } else {
-      runTool = defaultRunTool;
-    }
+  const factory = buildFactory(cfg, {
+    fetchImpl: d.fetchImpl,
+    runTool: d.runTool,
+    listTools: d.listTools,
+  });
+
+  if (req.action === 'list') {
+    const listed = await factory.listTools({
+      server: req.server,
+      version: req.version,
+      principal: req.principal,
+      cfg,
+      secrets_ref: (resolved && resolved.secrets_ref) || null,
+    });
+    return {
+      ok: !(listed && listed.ok === false),
+      action: 'list',
+      tools: (listed && listed.tools) || [],
+      result: listed,
+      server: req.server,
+      version: req.version,
+      tool: null,
+      tenant_id: tenantId,
+    };
   }
 
-  const result = await runTool({
+  const result = await factory.runTool({
     server: req.server,
     version: req.version,
     tool: req.tool,
@@ -178,6 +131,7 @@ async function invokeToolOnce(req, deps) {
 
   return {
     ok: !(result && result.ok === false),
+    action: 'call',
     result: result == null ? {} : result,
     server: req.server,
     version: req.version,
@@ -186,15 +140,27 @@ async function invokeToolOnce(req, deps) {
   };
 }
 
-/**
- * Async MQT path — success body becomes aura.events.mcp.invoke.done.
- */
 async function handleTask(req, deps) {
   try {
     const out = await invokeToolOnce(req, deps);
     const id =
       (req && typeof req.id === 'string' && req.id) ||
       `mcp-${Date.now().toString(36)}`;
+    const payload =
+      out.action === 'list'
+        ? {
+            server: out.server,
+            version: out.version,
+            action: 'list',
+            tools: out.tools,
+          }
+        : {
+            server: out.server,
+            version: out.version,
+            action: 'call',
+            tool: out.tool,
+            result: out.result,
+          };
     return {
       status: 200,
       body: JSON.stringify({
@@ -202,12 +168,7 @@ async function handleTask(req, deps) {
         type: 'mcp.invoke.done',
         tenant_id: out.tenant_id,
         occurred_at: new Date().toISOString(),
-        payload: {
-          server: out.server,
-          version: out.version,
-          tool: out.tool,
-          result: out.result,
-        },
+        payload,
         content_ref: null,
       }),
     };
@@ -222,17 +183,29 @@ async function handleTask(req, deps) {
   }
 }
 
-/**
- * Sync RPC path — aura.rpc.mcp.tool reply body (mcp.tool.done).
- */
 async function handleRpc(req, deps) {
   try {
     const out = await invokeToolOnce(req, deps);
+    if (out.action === 'list') {
+      return {
+        status: 200,
+        body: JSON.stringify({
+          type: 'mcp.tool.done',
+          ok: out.ok,
+          action: 'list',
+          server: out.server,
+          version: out.version,
+          tools: out.tools,
+          subject: 'aura.rpc.mcp.tool',
+        }),
+      };
+    }
     return {
       status: 200,
       body: JSON.stringify({
         type: 'mcp.tool.done',
         ok: out.ok,
+        action: 'call',
         server: out.server,
         version: out.version,
         tool: out.tool,
@@ -282,10 +255,10 @@ module.exports = async function (context) {
   const deps = {
     resolve: context && context.resolve,
     runTool: context && context.runTool,
+    listTools: context && context.listTools,
     fetchImpl: context && context.fetchImpl,
   };
 
-  // Default in-process stubs so Package literal can load without NATS (live RR = Non-goal).
   if (!deps.resolve) {
     deps.resolve = async (r) => ({
       type: 'control.resolve.done',
@@ -305,7 +278,5 @@ module.exports.validateMcpRequest = validateMcpRequest;
 module.exports.invokeToolOnce = invokeToolOnce;
 module.exports.handleTask = handleTask;
 module.exports.handleRpc = handleRpc;
-module.exports.defaultRunTool = defaultRunTool;
 module.exports.isRpcContext = isRpcContext;
-module.exports.cfgUsesStreamableHttp = cfgUsesStreamableHttp;
-module.exports.buildStreamableRunTool = buildStreamableRunTool;
+module.exports.buildFactory = buildFactory;

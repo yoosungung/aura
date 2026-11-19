@@ -6,10 +6,11 @@
  * Done 정본 → HTTP 200 body → MQT respTopic aura.events.agent.invoke.done.
  *
  * Quota: injectable rateLimiter.tryAcquire / ensureAdmitted (§2.2 bypass defense).
- * Non-goals (this slice): Gateway SSE/WS · live LLM Gateway HTTP ·
- * live NATS Core client wiring · mcp_invoke Function · control resolve bridge Deployment ·
- * agent_checkpoints DDL · Gateway Token Bucket ownership.
+ * M3.5: runTurn defaults to createAgent; checkpoints via checkpoints.js (not memory_*).
  */
+
+const { createAgentRunTurn } = require('./run-turn-create-agent');
+const { createCheckpointStore } = require('./checkpoints');
 
 const SHORT_TERM_ITEM_CAP = 4;
 
@@ -222,7 +223,8 @@ async function invokeOnce(task, deps) {
   const resolve = d.resolve;
   const recall = d.recall;
   const mcpTool = d.mcpTool;
-  const runTurn = d.runTurn || defaultRunTurn;
+  const runTurn = d.runTurn || createAgentRunTurn;
+  const checkpoints = d.checkpoints || null;
 
   if (typeof resolve !== 'function') {
     const err = new Error('resolve_rpc_required');
@@ -287,6 +289,11 @@ async function invokeOnce(task, deps) {
   const packed = packRecallItems(recallRes && recallRes.items);
   const memoryText = packedContextText(packed);
 
+  let resumeState = null;
+  if (checkpoints && typeof checkpoints.loadLatest === 'function' && task.resume) {
+    resumeState = await checkpoints.loadLatest(tenantId, task.run_id);
+  }
+
   let turnOut;
   try {
     turnOut = await runTurn({
@@ -303,6 +310,11 @@ async function invokeOnce(task, deps) {
       stream,
       publishStream,
       mcpTool,
+      resumeState,
+      llmGatewayBaseUrl: d.llmGatewayBaseUrl || process.env.AURA_LLM_GATEWAY_URL,
+      llmTransport: d.llmTransport,
+      createAgent: d.createAgent,
+      chatModel: d.chatModel,
     });
   } catch (turnErr) {
     if (stream) {
@@ -312,6 +324,26 @@ async function invokeOnce(task, deps) {
       });
     }
     throw turnErr;
+  }
+
+  if (checkpoints && typeof checkpoints.write === 'function') {
+    const seq =
+      resumeState && resumeState.seq != null ? Number(resumeState.seq) + 1 : 1;
+    await checkpoints.write({
+      tenant_id: tenantId,
+      run_id: task.run_id,
+      session_id: task.session_id || '',
+      principal_id: task.principal.id,
+      seq,
+      parent_id: resumeState && resumeState.id ? resumeState.id : null,
+      kind: 'final',
+      state: {
+        output_text: (turnOut && turnOut.text) || '',
+        agent: task.agent,
+        version: task.version,
+      },
+      content_ref: null,
+    });
   }
 
   if (stream) {
@@ -359,7 +391,24 @@ module.exports = async function (context) {
     publishStream: context && context.publishStream,
     runTurn: context && context.runTurn,
     rateLimiter: context && context.rateLimiter,
+    checkpoints: context && context.checkpoints,
+    llmGatewayBaseUrl: context && context.llmGatewayBaseUrl,
+    llmTransport: context && context.llmTransport,
+    createAgent: context && context.createAgent,
+    chatModel: context && context.chatModel,
   };
+
+  if (!deps.checkpoints && process.env.AURA_DATABASE_URL) {
+    try {
+      const { createPoolerQuery, createCheckpointStore } = require('./checkpoints');
+      const q = createPoolerQuery({
+        connectionString: process.env.AURA_DATABASE_URL,
+      });
+      deps.checkpoints = createCheckpointStore({ query: q.query.bind(q) });
+    } catch (_) {
+      /* optional until Pooler wired */
+    }
+  }
 
   // Default in-process stubs so Package literal can load without NATS (live RR = Non-goal).
   if (!deps.resolve) {
@@ -406,3 +455,5 @@ module.exports.ensureInvokeAdmitted = ensureInvokeAdmitted;
 module.exports.noopRateLimiterStub = noopRateLimiterStub;
 module.exports.STREAM_FRAME_TYPES = STREAM_FRAME_TYPES;
 module.exports.defaultRunTurn = defaultRunTurn;
+module.exports.createAgentRunTurn = createAgentRunTurn;
+module.exports.createCheckpointStore = createCheckpointStore;

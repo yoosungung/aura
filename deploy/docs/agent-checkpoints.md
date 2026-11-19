@@ -1,12 +1,12 @@
 # `agent_checkpoints` 예외 테이블 DDL (M3 · Zero Direct Write)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #10 · §2.1 · §6.1 · §7 · §8.  
-일정: [ROADMAP.md](../../ROADMAP.md) M3 — 체크포인트 예외 테이블 DDL.  
+일정: [ROADMAP.md](../../ROADMAP.md) M3 DDL · **M3.5 writer/resume**.  
 DDL: [`../sql/agent_checkpoints.sql`](../sql/agent_checkpoints.sql).  
-내부: [`../../services/agent-invoke/DESIGN.md`](../../services/agent-invoke/DESIGN.md).
+내부: [`../../services/agent-invoke/DESIGN.md`](../../services/agent-invoke/DESIGN.md) · [`../../services/agent-invoke/checkpoints.js`](../../services/agent-invoke/checkpoints.js).
 
-**이 문서 범위:** `agent_checkpoints` **테이블·인덱스·RLS** · 쓰기 소유 · `state`/`content_ref` 규칙.  
-**Non-goals (본 슬라이스):** live Pooler INSERT 배선 · resume/load API 본구현 · TTL/partition GC · JetStream replay 소스 · MQT 본구현. writer·reader 경로는 후속 M3 항목.
+**이 문서 범위:** `agent_checkpoints` **테이블·인덱스·RLS** · 쓰기 소유 · `state`/`content_ref` · **Pooler writer/resume**.  
+**Non-goals:** TTL/partition GC · JetStream replay 소스 · `memory_*` 접근.
 
 ---
 
