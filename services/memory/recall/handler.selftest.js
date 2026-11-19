@@ -27,6 +27,12 @@ function fakeClient(rowsByKind) {
       if (/halfvec|<=>|memory_embeddings/i.test(t)) {
         return { rows: rowsByKind.vector || [] };
       }
+      if (/FROM memory_nodes/i.test(t) && /item_id/i.test(t)) {
+        return { rows: rowsByKind.graph_nodes || [] };
+      }
+      if (/FROM memory_edges/i.test(t)) {
+        return { rows: rowsByKind.graph_edges || [] };
+      }
       return { rows: [] };
     },
   };
@@ -64,7 +70,7 @@ async function main() {
     assert.strictEqual(fused.length, 3);
   }
 
-  // happy path: short_term recent + BM25/vector RRF + graph stub; GUCs + tenant WHERE
+  // happy path: short_term recent + BM25/vector RRF + graph walk; GUCs + tenant WHERE
   {
     const { client, calls } = fakeClient({
       short_term: [
@@ -83,6 +89,16 @@ async function main() {
       vector: [
         { id: 'lt-1', memory_type: 'long_term', content: 'vec hit', rank: 1 },
         { id: 'sem-1', memory_type: 'semantic', content: 'vec second', rank: 2 },
+      ],
+      graph_nodes: [{ node_id: 'n-ep', item_id: 'ep-1' }],
+      graph_edges: [
+        {
+          edge_id: 'e1',
+          source_node_id: 'n-ep',
+          target_node_id: 'n-g',
+          relation_type: 'relates',
+          neighbor_item_id: 'graph-1',
+        },
       ],
     });
 
@@ -106,7 +122,10 @@ async function main() {
     assert.ok(Array.isArray(body.items));
     assert.ok(body.items.some((it) => it.id === 'st-1' && it.memory_type === 'short_term'));
     assert.ok(body.items.some((it) => it.id === 'lt-1'), 'RRF should surface id in both branches');
-    assert.deepStrictEqual(body.graph, { mode: 'stub', candidates: [] });
+    assert.strictEqual(body.graph.mode, 'walk');
+    assert.ok(Array.isArray(body.graph.candidates));
+    assert.ok(body.graph.candidates.some((c) => c.id === 'graph-1'));
+    assert.deepStrictEqual(body.rrf.branches, ['bm25', 'vector', 'graph']);
 
     const texts = calls.map((c) => c.text);
     assert.strictEqual(texts[0], 'BEGIN');
@@ -131,6 +150,10 @@ async function main() {
     assert.ok(/tenant_id\s*=\s*\$/i.test(vecSql.text), 'tenant WHERE must be in same vector SQL');
     assert.ok(/model_key/i.test(vecSql.text));
     assert.ok(/iterative_scan|ef_search|SET LOCAL/i.test(texts.join('\n')));
+
+    assert.ok(texts.some((t) => /FROM memory_nodes/i.test(t)), 'graph seed resolve');
+    assert.ok(texts.some((t) => /FROM memory_edges/i.test(t) && /valid_from/i.test(t)));
+    assert.ok(!texts.some((t) => /WITH\s+RECURSIVE/i.test(t)));
 
     assert.strictEqual(texts[texts.length - 1], 'COMMIT');
   }
@@ -177,7 +200,7 @@ async function main() {
     });
   }
 
-  console.log('OK: recall hybrid RRF selftest');
+  console.log('OK: recall hybrid RRF + graph walk selftest');
 }
 
 main().catch((err) => {

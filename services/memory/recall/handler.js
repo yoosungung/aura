@@ -1,16 +1,17 @@
 'use strict';
 
 /**
- * Core Request-Reply handler — aura.rpc.memory.recall (M2 hybrid RRF).
+ * Core Request-Reply handler — aura.rpc.memory.recall (M2 hybrid RRF + M4 graph walk).
  *
  * short_term = session recent (no HNSW).
- * episodic/long_term/semantic = BM25 + vector RRF (+ graph stub).
+ * episodic/long_term/semantic = BM25 + vector RRF (+ defensive graph 1–2 hop).
  * Pooler + set_config(..., true) + SET LOCAL iterative_scan/ef_search.
  *
- * Non-goals: live TEI HTTP · full graph walk (M4) · Agent prompt inject · live apply.
+ * Non-goals: live TEI HTTP · Agent prompt inject · live apply · unbounded recursive CTE.
  */
 
 const { withTenantTx } = require('../store/tenant-tx');
+const { walkGraph, GRAPH_LIMITS } = require('./graph-walk');
 
 const SUBJECT = 'aura.rpc.memory.recall';
 const RRF_K = 60;
@@ -191,9 +192,40 @@ LIMIT $5`;
   }));
 }
 
-/** Graph walk is M4; M2 returns empty stub so RRF shape stays stable. */
-function graphStub() {
-  return { mode: 'stub', candidates: [] };
+/**
+ * Seed graph walk from BM25/vector hit item ids (ARCHITECTURE §6.2.4).
+ * @param {{ query: Function }} client
+ * @param {string} tenantId
+ * @param {Array<{ id: string }>} bm25
+ * @param {Array<{ id: string }>} vector
+ */
+async function runGraphWalk(client, tenantId, bm25, vector) {
+  const seedIds = [
+    ...new Set(
+      [...(bm25 || []), ...(vector || [])]
+        .map((x) => (x && x.id != null ? String(x.id) : null))
+        .filter(Boolean)
+    ),
+  ];
+  if (seedIds.length === 0) {
+    return {
+      mode: 'walk',
+      candidates: [],
+      stats: {
+        depth_reached: 0,
+        nodes_total: 0,
+        edges_read: 0,
+        truncated: false,
+        seed_nodes: 0,
+      },
+      limits: GRAPH_LIMITS,
+    };
+  }
+  const walked = await walkGraph(client, {
+    tenant_id: tenantId,
+    seed_item_ids: seedIds,
+  });
+  return { ...walked, limits: GRAPH_LIMITS };
 }
 
 function applyTypeBudgets(shortItems, hybridItems, topK) {
@@ -246,8 +278,7 @@ async function recallOnce(request, opts) {
       const shortItems = await selectShortTerm(c, req, Math.min(SHORT_TERM_BUDGET_DEFAULT, topK));
       const bm25 = await selectBm25(c, req, embedTypes, ANN_WINDOW);
       const vector = await selectVector(c, req, embedTypes, pin, ANN_WINDOW);
-      const graph = graphStub();
-      // graph stub contributes no ranks yet (M4 walk will feed fuseRrf).
+      const graph = await runGraphWalk(c, tenantId, bm25, vector);
       const hybrid = fuseRrf([bm25, vector, graph.candidates], {
         k: RRF_K,
         weights: [1, 1, 0.5],
@@ -271,7 +302,7 @@ async function recallOnce(request, opts) {
         top_k: topK,
         model_key: pin.model_key,
         dims: pin.dims,
-        rrf: { k: RRF_K, branches: ['bm25', 'vector', 'graph_stub'] },
+        rrf: { k: RRF_K, branches: ['bm25', 'vector', 'graph'] },
         graph: result.graph,
         items: result.items,
       }),
@@ -296,6 +327,7 @@ module.exports = {
   poolerHostOk,
   activePin,
   recallOnce,
+  runGraphWalk,
   withTenantTx,
   // Fission HTTP specialize placeholder (Warm Pool Function); Core RR is Deployment.
   handler: async function fissionWarmRecall(context) {

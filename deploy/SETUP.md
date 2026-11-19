@@ -236,8 +236,8 @@ bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: 
 |------|-----|
 | DDL | `deploy/sql/memory_nodes_edges.sql` — nodes UNIQUE(tenant,type,name); edges FK→nodes + self-loop CHECK; `idx_memory_edges_out`/`in` partial(`valid_until IS NULL`) |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` (양 테이블) |
-| 순회 한도 | [`docs/memory-graph-traversal.md`](docs/memory-graph-traversal.md) (walk 구현=M4) |
-| Non-goals | embeddings · `svc-memory` store/graph walk 본문 |
+| 순회 한도·walk | [`docs/memory-graph-traversal.md`](docs/memory-graph-traversal.md) · `services/memory/recall/graph-walk.js` (M4) |
+| Non-goals | embeddings · 슈퍼노드 픽스처 하네스 · live apply |
 
 ### memory_embeddings LIST(model_key) + halfvec HNSW (M1)
 
@@ -366,11 +366,11 @@ bash deploy/scripts/check-memory-recall.sh   # DESIGN + hybrid RRF + GUCs + Core
 | 항목 | 값 |
 |------|-----|
 | DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Recall RPC 절) |
-| 코드 | `services/memory/recall/handler.js` (`mode: hybrid_rrf` · short_term 최근순 + BM25/vector RRF + graph stub) |
+| 코드 | `services/memory/recall/handler.js` (`mode: hybrid_rrf` · short_term 최근순 + BM25/vector RRF + graph walk) · `graph-walk.js` |
 | 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` `newdeploy` **MinScale≥2** · Deployment `aura-memory-recall-rr` **replicas≥2** · subject `aura.rpc.memory.recall` · queue-group `aura-memory-recall` |
 | GUC | Pooler + `set_config(..., true)` · `SET LOCAL hnsw.iterative_scan/ef_search/max_scan_tuples` |
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject · 앱 post-filter |
-| Non-goals | 라이브 TEI · graph walk 본구현(M4) · live apply 필수 |
+| Non-goals | 라이브 TEI · 슈퍼노드 픽스처 · live apply 필수 |
 
 ### Agent 주입 계약 (M2 수치 고정 · 패킹 비범위)
 
