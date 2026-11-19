@@ -235,8 +235,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] Phase A — `createAgent` runTurn + Gateway egress 강제 TDD · MCP `tools/list` 스켈레톤 · archive Package + `check-*.sh` 개정
 - [x] Phase B — live NATS helpers(`nats-deps.js`) · `aura-mcp-invoke-rr` nats-box→Node queue-group 워커(`rpc-worker.js`)
 - [x] Phase C — `agent_checkpoints` writer/resume · MCP factory 실경로 + list/call + Streamable HTTP
-- [ ] M3.6 (후속) — `python-env` Function 이식 패리티
-- [ ] (후속) — `rust-env` 핫패스 PoC
+- [~] M3.6 (후속) — `python-env` Function 이식 패리티
+- [~] (후속) — `rust-env` 핫패스 PoC
 
 **성공 기준**
 
