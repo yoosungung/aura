@@ -204,7 +204,7 @@ bash deploy/scripts/smoke-memory-items.sh              # live via pooler: seed m
 | DDL | `deploy/sql/memory_items.sql` — LIST(`memory_type`); short_term/episodic → 월 RANGE; long_term/semantic 리프 |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
 | 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH |
-| TTL | 핫/DROP 수치 = [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (구현=M4) |
+| TTL | 핫/DROP 수치 = [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) · job = [`docs/memory-ttl-drop.md`](docs/memory-ttl-drop.md) |
 | Non-goals | embeddings · `svc-memory` store 본문 · TTL job 본구현 |
 
 ### memory_audit 월 RANGE + RLS (M1)
@@ -220,7 +220,7 @@ bash deploy/scripts/smoke-memory-audit.sh              # live via pooler: seed m
 | DDL | `deploy/sql/memory_audit.sql` — `PARTITION BY RANGE (created_at)`; PK `(id, created_at)` |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` |
 | 시드 월 | smoke가 UTC prev/current/next 월 파티션 ATTACH |
-| TTL | audit 핫 **12개월** — [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (DROP 구현=M4) |
+| TTL | audit 핫 **12개월** — [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) · DROP [`docs/memory-ttl-drop.md`](docs/memory-ttl-drop.md) |
 | Non-goals | soft delete · `memory_items` FK · embeddings · `svc-memory` store 본문 |
 
 ### memory_nodes / memory_edges + RLS + edge indexes (M1)
@@ -529,19 +529,19 @@ bash deploy/scripts/check-object-store-orphan-gc.sh     # doc gate: 90d orphan G
 | 고아 GC | grace **90일** · `aura.tasks.memory.object_gc` · live 참조 시 스킵 (구현=M4) |
 | Non-goals | 라이브 provision · SDK 업로드 · GC Function 본구현 |
 
-### memory TTL 정책 (M1 수치 고정 · job 비범위)
+### memory TTL 정책 + 월 파티션 DROP (M1 수치 · M4 job)
 
 ```bash
-bash deploy/scripts/check-memory-ttl.sh   # doc gate: 14d / 24mo / 12mo + aura.tasks.memory.ttl
+bash deploy/scripts/check-memory-ttl.sh   # 14d/24mo/12mo + DROP MQT + needs_archive + selftests
 ```
 
-| 항목 | M1 고정 |
-|------|---------|
-| 문서 | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) |
-| short_term | 핫 **14일** → 월 파티션 DROP |
-| episodic | 핫 **24개월** → archive 후 DETACH/DROP |
-| audit | 핫 **12개월** → 월 파티션 DROP |
-| 태스크 | `aura.tasks.memory.ttl` (구현·스케줄=M4) |
+| 항목 | 고정 |
+|------|------|
+| 수치 | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) — short **14일** · epi **24개월** · audit **12개월** · 일 1회 |
+| M4 DROP | [`docs/memory-ttl-drop.md`](docs/memory-ttl-drop.md) · `services/memory/ttl/` · `k8s/memory-ttl/` |
+| short_term / audit | 만료 월 파티션 **DROP RESTRICT** |
+| episodic | 콜드 → `needs_archive` (archive 후 DROP) |
+| 태스크 | `aura.tasks.memory.ttl` / consumer `aura_memory_ttl` |
 
 ### PG Multi-AZ / PITR (M1 초안 · apply 비범위)
 
