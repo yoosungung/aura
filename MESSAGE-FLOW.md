@@ -3,8 +3,8 @@
 Aura **전체 시스템 메시지·호출 흐름** 다이어그램이다.  
 계약·스키마·subject 표의 정본은 [ARCHITECTURE.md](ARCHITECTURE.md). 컴포넌트 내부는 각 `DESIGN.md` / `deploy/docs/*`.
 
-**이 문서 범위:** 채널 분류 · 대화형 invoke E2E · MQT 파드 관계 · 메모리 파이프라인 · sync RPC.  
-**Non-goals:** DDL·페이로드 필드 상세·배포 런북·Fair Queue 수치(→ ARCHITECTURE / `deploy/docs`).
+**이 문서 범위:** 채널 분류 · 대화형 invoke E2E(`createAgent` 턴) · MQT 파드 관계 · 메모리 파이프라인 · sync RPC.  
+**Non-goals:** DDL·페이로드 필드·archive 패키징·Fair Queue 수치(→ ARCHITECTURE / `deploy/docs`).
 
 ---
 
@@ -128,12 +128,20 @@ sequenceDiagram
     AI->>St: run.started
     AI->>RR: aura.rpc.memory.recall
     RR-->>AI: items[]
-    AI->>LLM: chat/completions
-    LLM-->>AI: tokens
-    AI->>St: token / tool.*
-    opt tool
-      AI->>RR: aura.rpc.mcp.tool
-      RR-->>AI: tool result
+    Note over AI: runTurn = createAgent (Node)
+    opt tools list
+      AI->>RR: aura.rpc.mcp.tool action=list
+      RR-->>AI: tools[]
+    end
+    loop model tool loop
+      AI->>LLM: chat/completions via Gateway only
+      LLM-->>AI: completion
+      AI->>St: token
+      opt tool call
+        AI->>RR: aura.rpc.mcp.tool action=call
+        RR-->>AI: tool result
+        AI->>St: tool.started / tool.finished
+      end
     end
     AI->>St: run.completed
     AI-->>Conn: HTTP 2xx done body
@@ -145,7 +153,7 @@ sequenceDiagram
 
 실패 시 Function 비-2xx → connector가 `aura.events.agent.invoke.error`로 적재. poison은 MaxDeliver 후 `aura.dlq.>` Term(ARCHITECTURE §3.2).
 
-와이어 상세: [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md).
+와이어 상세: [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md).
 
 ---
 
@@ -180,10 +188,12 @@ sequenceDiagram
 
 | 파드 | 하는 일 | Aura async 스케일 |
 |------|---------|-------------------|
-| **MQT connector** | JetStream pull → Router HTTP → resp/error publish | MQT `minReplicaCount=0` |
-| **Function** | 핸들러 실행 (Node env + fetcher) | executor(`poolmgr`)·env pool — 커넥터와 독립 |
+| **MQT connector** | JetStream pull → Router HTTP → resp/error publish (**언어 비선택**, Fission/KEDA 이미지) | MQT `minReplicaCount=0` |
+| **Function** | 핸들러 실행 (env + fetcher). **현재=`node-env`**; 후속 `python-env` / `rust-env` 가능 — connector와 독립 | executor(`poolmgr`)·env pool |
 
-동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders).
+동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders). MCP sync 응답자는 Warm Deployment(Node queue-group 워커; nats-box stub 아님).
+
+multi-env 후속: [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md).
 
 ---
 
