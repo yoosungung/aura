@@ -1,0 +1,33 @@
+# Fission KEDA MQT — aura.tasks.memory.ttl (ARCHITECTURE §3.2 · §6.2.2).
+# minReplicaCount=0 → scale-to-zero when AURA_TASKS lag is idle.
+apiVersion: fission.io/v1
+kind: MessageQueueTrigger
+metadata:
+  name: aura-memory-ttl
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-ttl
+spec:
+  functionref:
+    name: aura-memory-ttl
+    type: name
+  messageQueueType: nats-jetstream
+  mqtkind: keda
+  topic: aura.tasks.memory.ttl
+  respTopic: aura.events.memory.ttl.done
+  errorTopic: aura.events.memory.ttl.error
+  maxRetries: 3
+  contentType: application/json
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0
+  maxReplicaCount: 4
+  metadata:
+    stream: AURA_TASKS
+    consumer: aura_memory_ttl
+    account: "$G"
+    natsServer: nats://nats.aura.svc.cluster.local:4222
+    natsServerMonitoringEndpoint: nats.aura.svc.cluster.local:8222

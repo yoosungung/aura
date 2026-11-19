@@ -5,7 +5,8 @@
 전제 DDL: [`../sql/memory_items.sql`](../sql/memory_items.sql) · [`../sql/memory_audit.sql`](../sql/memory_audit.sql).
 
 **이 문서 범위:** 핫 유지 일수·월 파티션 DROP 판정·담당 태스크 이름을 **수치와 함께 고정**.  
-**Non-goals:** TTL/archive Function 본구현 · embeddings/HNSW · nodes/edges · `svc-memory` store 본문 · Soft-delete-only 대량 정리.
+**M4 구현:** [`memory-ttl-drop.md`](memory-ttl-drop.md) · `services/memory/ttl/` · `deploy/k8s/memory-ttl/`.  
+**Non-goals (본 정책 문서):** archive Parquet 본문 · embeddings/HNSW · nodes/edges · Soft-delete-only 대량 정리.
 
 수치 출처: ARCHITECTURE §6.2.2 (기획 확정 초안). 운영 튜닝은 M4 부하 후 결정 로그 1행 + 이 문서·§6.2.2를 **같이** 고친다 — 여기서 새 숫자를 발명하지 않는다.
 
@@ -47,16 +48,16 @@
 | `aura.tasks.memory.ttl` | `aura_memory_ttl` / `svc-memory` ttl | 만료 **short_term**·(정책상) **audit** 월 파티션 DROP; episodic는 archive 경로와 조율 | `aura.events.memory.ttl.done` / `.error` |
 | `aura.tasks.memory.archive` | `aura_memory_archive` / `svc-memory` archive | 콜드 episodic Parquet export → object store → DETACH/DROP | `aura.events.memory.archived` / archive error |
 
-**DROP 주기 (M1 고정):** `aura.tasks.memory.ttl` 발행 **일 1회**(UTC). 스케줄 CR·Function 본문은 M4.
+**DROP 주기 (M1 고정):** `aura.tasks.memory.ttl` 발행 **일 1회**(UTC).
 
-MQT·scale-to-zero OK (ARCHITECTURE §3.2). M1은 **이름·수치·판정·주기만** 고정하고 Function/스케줄 CR은 만들지 않는다.
+MQT·scale-to-zero OK (ARCHITECTURE §3.2). Function/MQT 본구현·게이트: [`memory-ttl-drop.md`](memory-ttl-drop.md) · `check-memory-ttl.sh`.
 
 ---
 
 ## V1.3 매핑
 
 ROADMAP M1 V1.3: *items/audit 파티션 + short_term 만료 정책* → 비파티션 힙 없음(DDL 티켓) + **이 문서 수치**.  
-구현·스모크(실 DROP)는 M4 «`aura.tasks.memory.ttl` — 만료 short_term/episodic/audit 월 파티션 DROP».
+M4 구현·정적 게이트: [`memory-ttl-drop.md`](memory-ttl-drop.md) · `check-memory-ttl.sh` (live DROP 스모크는 클러스터 적용 시).
 
 ---
 
@@ -65,3 +66,4 @@ ROADMAP M1 V1.3: *items/audit 파티션 + short_term 만료 정책* → 비파�
 - §6.2.2 · §3.2 task 표
 - ROADMAP 결정 로그 (2026-11-18 TTL 수치 M1 고정)
 - 정적 게이트: `bash deploy/scripts/check-memory-ttl.sh`
+- M4 DROP 구현: [`memory-ttl-drop.md`](memory-ttl-drop.md)

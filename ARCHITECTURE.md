@@ -559,7 +559,7 @@ Agent는 **이 recall 응답 `items[]`만** 메모리 컨텍스트에 넣는다.
 - `aura.tasks.memory.archive` — 콜드 episodic export(Parquet) → object store → DETACH/DROP; 완료 이벤트 `aura.events.memory.archived`
 - `aura.tasks.memory.object_gc` — 유예(90일) 경과 미참조 `content_ref` 객체 삭제 배치 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)
 
-**수치 (M1 고정 · 구현=M4)** — 본문 [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md)
+**수치 (M1 고정 · 구현=M4)** — 본문 [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md) · DROP job [`deploy/docs/memory-ttl-drop.md`](deploy/docs/memory-ttl-drop.md)
 
 - short_term 핫: **14일** — DROP iff 파티션 상한 `U <= now() - interval '14 days'`
 - episodic 핫: **24개월**; 이후 archive 대상

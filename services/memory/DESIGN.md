@@ -1,11 +1,11 @@
 # svc-memory (내부 설계)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#5 · §2.1 · §3.2–§3.3 · §4.2 · §5 · §6.3.  
-일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk**).  
-DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md).
+일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk** · **ttl 월 파티션 DROP**).  
+DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
-**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙).  
-**Non-goals (본 슬라이스):** ttl/archive · LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
+**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP).  
+**Non-goals (본 슬라이스):** archive Parquet 본문 · LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
 
 수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED).
 
@@ -63,6 +63,30 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 활성 핀(기본=env 또는 M1 고정): `AURA_EMBEDDING_MODEL` / `VERSION` / `DIMS` → `model_key=model:version`.  
 입력: §8 + `payload.memory_type` · `payload.item_id` · (선택) `content`. 성공 본문 `type: memory.embedded`.
+
+---
+
+## TTL MQT (§3.2 · §6.2.2 · M4)
+
+| 필드 | 값 |
+|------|-----|
+| topic | `aura.tasks.memory.ttl` |
+| consumer | `aura_memory_ttl` |
+| stream | `AURA_TASKS` |
+| respTopic | `aura.events.memory.ttl.done` |
+| errorTopic | `aura.events.memory.ttl.error` |
+| mqtype / kind | `nats-jetstream` / `keda` |
+| 매니페스트 | [`deploy/k8s/memory-ttl/`](../../deploy/k8s/memory-ttl/) |
+
+**정본:** [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md) · 수치 [`memory-ttl-policy.md`](../../deploy/docs/memory-ttl-policy.md)
+
+| kind | 핫 | 액션 |
+|------|----|------|
+| `short_term` | 14일 | 만료 월 파티션 **DROP RESTRICT** |
+| `audit` | 12개월 | 만료 월 파티션 **DROP RESTRICT** |
+| `episodic` | 24개월 | 콜드 → **`needs_archive`** (archive 완료·`archived=true` 후에만 DROP) |
+
+금지: Soft-delete-only · `DROP … CASCADE` · 미허용 테이블명. DDL은 공유 스키마(테넌트 RLS 밖). Pooler host만.
 
 ---
 
@@ -135,6 +159,7 @@ store·embed·consolidate·**recall** handler는 이 헬퍼만 경유한다(shor
 bash deploy/scripts/check-memory-store.sh          # DESIGN + store MQT + set_config(..., true) + selftests
 bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_term skip + selftests
 bash deploy/scripts/check-memory-consolidate.sh    # 승격 규칙 + similarity_only 금지 + MQT + selftests
+bash deploy/scripts/check-memory-ttl.sh            # TTL DROP 14d/24mo/12mo + needs_archive + MQT + selftests
 bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + graph walk + GUCs + Warm Pool + no MQT
 bash deploy/scripts/check-memory-graph-traversal.sh # edges out/in + 순회 한도 + walk 구현
 bash deploy/scripts/check-memory-graph-supernode.sh # hub≫cap · LIMIT/반환 상한 · 폭증 없음
@@ -146,6 +171,8 @@ node services/memory/store/handler.selftest.js     # MQT handler → withTenantT
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
 node services/memory/consolidate/promote.selftest.js  # 허용 전이 · similarity_only 거부
 node services/memory/consolidate/handler.selftest.js  # consolidate MQT · withTenantTx · no UPDATE type
+node services/memory/ttl/partition-plan.selftest.js   # 14d/24mo/12mo · needs_archive
+node services/memory/ttl/handler.selftest.js          # DROP RESTRICT · episodic skip · unsafe name
 node services/memory/recall/graph-walk.selftest.js # visited · depth≤2 · caps · 유효 predicate
 node services/memory/recall/supernode-fixture.selftest.js # hub_degree=500 · candidates≤50 · LIMIT≤cap
 node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant WHERE · graph walk
@@ -155,5 +182,5 @@ node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant
 
 ## 관련 링크
 
-- §2.1 Pooler · §3.2 store/embed/consolidate/object_gc · §3.3 recall subject · §5 승격 [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · §6.2.4 graph [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · 슈퍼노드 [`deploy/docs/memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md) · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · 고아 GC [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
-- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2» · M4 consolidate 유형 승격 · M4 recall graph walk · M4 슈퍼노드 픽스처
+- §2.1 Pooler · §3.2 store/embed/consolidate/ttl/object_gc · §3.3 recall subject · §5 승격 [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · §6.2.2 TTL [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md) · §6.2.4 graph [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · 슈퍼노드 [`deploy/docs/memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md) · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · 고아 GC [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
+- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2» · M4 consolidate 유형 승격 · M4 recall graph walk · M4 슈퍼노드 픽스처 · M4 ttl 월 파티션 DROP
