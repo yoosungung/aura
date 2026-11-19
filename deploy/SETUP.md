@@ -458,6 +458,7 @@ bash deploy/scripts/check-egress-block-verify.sh   # NP+RuntimeClass 매니페�
 bash deploy/scripts/check-llm-gateway.sh          # LLM Gateway 최소 + Function egress guard (no cluster)
 bash deploy/scripts/check-nats-mtls-secrets.sh  # NATS mTLS overlay + secrets mask/TTL cache (no live cert)
 bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG attrs + allowlist (no live collector)
+bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-shred draft (no live OpenBao)
 ```
 
 | 항목 | M3 고정 |
@@ -471,6 +472,7 @@ bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG at
 | LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) |
 | NATS TLS | overlay [`k8s/nats-mtls/`](k8s/nats-mtls/) · mask/TTL [`docs/nats-mtls-secrets.md`](docs/nats-mtls-secrets.md) · `check-nats-mtls-secrets.sh` |
 | OTel (M4) | Function·NATS·PG attrs + mask [`docs/otel-function-nats-pg.md`](docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`../services/otel/`](../services/otel/) |
+| erase (M4) | crypto-shred + content_ref [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · [`../services/compliance/`](../services/compliance/) · `k8s/compliance-erase/` |
 | Non-goals | CNI FQDN/egress-proxy **라이브 프로브** · live provider 키 CI · Fallback/과금 대시보드 · live NATS SDK · full MCP initialize (Streamable HTTP client: `streamable-http.js`) · **live cert apply CI 필수** (mTLS 매니페스트·selftest만) · **OTel Collector live apply CI 필수** |
 
 ### Gateway · `run_id` · SSE/WS · principal (M3)
@@ -520,6 +522,7 @@ bash deploy/scripts/check-gateway-inflight-release.sh   # terminal release + ens
 ```bash
 bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: Garage + 256KB ref-only + schema
 bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([docs/memory-object-gc.md](docs/memory-object-gc.md))     # doc gate: 90d orphan GC + object_gc + skip-if-ref
+bash deploy/scripts/check-compliance-erase.sh          # OpenBao Transit crypto-shred + refs/ erase draft
 ```
 
 | 항목 | M2 고정 |
@@ -529,7 +532,8 @@ bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([doc
 | 버킷 | **`aura-content` 단일** — `refs/` · `archive/` · `bundles/` prefix 공유; Barman=`aura-pg` 분리 |
 | 규칙 | >256KB 또는 PII → `content_ref` only · public ACL 금지 · `enc.kid` |
 | 고아 GC | grace **90일** · `aura.tasks.memory.object_gc` · live 참조 시 스킵 (구현=M4) |
-| Non-goals | 라이브 provision · SDK 업로드 · GC Function 본구현 |
+| erase 초안 | KMS=**OpenBao Transit** · [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · shred→PG redact→`refs/` Delete |
+| Non-goals | 라이브 provision · SDK 업로드 · live OpenBao destroy CI |
 
 ### memory TTL 정책 + 월 파티션 DROP (M1 수치 · M4 job)
 

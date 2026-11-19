@@ -82,7 +82,7 @@ NATS envelope `content_ref` 필드(§8). `null` = 인라인 `payload`만 사용.
 | `key` | Y | 반드시 `tenants/{tenant_id}/…` 로 시작. 테넌트 교차 키 금지 |
 | `size_bytes` | Y | 암호문 바이트(헤더 제외 시 구현 DESIGN에 명시) |
 | `content_type` | N | 기본 `application/octet-stream` |
-| `enc` | Y (핫 PII/본문) | `alg`+`kid`. 평문 업로드 금지(§9.3). erase=키 파기(crypto-shred) |
+| `enc` | Y (핫 PII/본문) | `alg`+`kid`. 평문 업로드 금지(§9.3). erase=키 파기(crypto-shred) — [`compliance-erase.md`](compliance-erase.md) |
 | URI 단축 | — | 로그용 `s3://{bucket}/{key}` 허용. SoR은 위 JSON |
 
 **256KB 규칙 (V2.1)**

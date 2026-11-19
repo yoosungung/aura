@@ -59,6 +59,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **LLM Gateway 최소 M3 고정** — `POST /v1/chat/completions` · Function 클라이언트 provider blocklist · tenant RL · circuit · usage/cost 로그 · Deployment `aura-llm-gateway` replicas≥2. Fallback/과금 대시보드·live provider=후속(M5) | §9.4 · [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md)·`check-llm-gateway.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
 | 2026-11-19 | **NATS mTLS + 시크릿 마스킹/TTL 캐시 M3 고정** — overlay `tls { verify: true }` · `maskSecrets` · `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 · live cert 클러스터 CI 필수 아님 | §9.2 · [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md)·`check-nats-mtls-secrets.sh` · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) |
 | 2026-11-19 | **OTel (Function·NATS·PG) + 시크릿 마스킹 검증 M4** — `aura.tenant_id`/`session_id`/`run_id` 필수 · attribute 허용 목록 · `maskSecrets` 재사용 · DSN/`db.query.parameter.*` 금지 · Collector live=후속 | §9.2 · [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md)·`check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/) |
+| 2026-11-19 | **compliance.erase 초안 M4** — KMS=**OpenBao Transit** · kid `tenant:…:vN` / `tenant:…:user:…:vN` · shred→cache invalidate→PG redact→`refs/` Delete · 복호 가능 ciphertext 부재 · pending 24h · live OpenBao=후속 | §9.3 · [`deploy/docs/compliance-erase.md`](deploy/docs/compliance-erase.md)·`check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/` |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 M3 고정** — Core RR `aura-control-resolve-rr` **replicas≥2** · Warm `MinScale≥2` · queue-group `aura-control-resolve` · stub/injectable `bridge.js` · Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`agent_checkpoints` 예외 테이블 DDL M3 고정** — 이름=`agent_checkpoints` · FORCE RLS · UNIQUE(tenant,run,seq) · kind turn/tool/final · state JSONB+`content_ref`(256KB+) · writer=`agent_invoke` only · Pooler+`set_config` · writer/resume=후속 | §1 #10·§6.1.2 · [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md)·`agent_checkpoints.sql`·`check-agent-checkpoints.sh` |
 | 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
@@ -261,7 +262,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `aura.tasks.memory.object_gc` — 유예 90일 미참조 `content_ref` 삭제 ([`object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · [`memory-object-gc.md`](deploy/docs/memory-object-gc.md) · `check-object-store-orphan-gc.sh` · `services/memory/object-gc/`)
 - [x] object store 버킷/경로 계약(번들 스토어와 공유 가능) → 결정 로그 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh`)
 - [x] OTel (Function·NATS·PG) + 시크릿 마스킹 검증 — [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/)
-- [ ] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름
+- [x] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름 ([`compliance-erase.md`](deploy/docs/compliance-erase.md) · `check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/`)
 - [ ] PG 복구 드릴 1회(PITR) — RPO/RTO 실측
 
 **성공 기준**
@@ -304,7 +305,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - ~~gVisor vs Kata 최종 선택~~ — **M3 고정:** 기본=`gvisor`(`runsc`) · 고위험=`kata` ([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)); 라이브 apply·실측=후속
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**
 - RPO/RTO **드릴 실측으로 초안 교체** — 초안(≤5m/≤1h)은 M1 고정; 확정 실측 **M4**
-- 암호화 키 KMS 제품 — **M4 erase 직전**
+- ~~암호화 키 KMS 제품~~ — **M4 고정:** OpenBao Transit (`openbao-transit`); 클라우드 KMS·live apply=`@eric`/M5
 
 ---
 

@@ -1,0 +1,25 @@
+# Async compliance.erase Function — scale-to-zero owned by MessageQueueTrigger.
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-compliance-erase
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: compliance
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-compliance-erase
+spec:
+  environment:
+    name: aura-compliance-erase-nodejs
+    namespace: default
+  package:
+    packageref:
+      name: aura-compliance-erase
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+  functionTimeout: 120
+  idletimeout: 120
