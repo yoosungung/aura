@@ -522,6 +522,7 @@ bash deploy/scripts/check-gateway-inflight-release.sh   # terminal release + ens
 ```bash
 bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: Garage + 256KB ref-only + schema
 bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([docs/memory-object-gc.md](docs/memory-object-gc.md))     # doc gate: 90d orphan GC + object_gc + skip-if-ref
+bash deploy/scripts/check-compliance-erase.sh          # OpenBao Transit crypto-shred + refs/ erase draft
 ```
 
 | 항목 | M2 고정 |
@@ -531,7 +532,8 @@ bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([doc
 | 버킷 | **`aura-content` 단일** — `refs/` · `archive/` · `bundles/` prefix 공유; Barman=`aura-pg` 분리 |
 | 규칙 | >256KB 또는 PII → `content_ref` only · public ACL 금지 · `enc.kid` |
 | 고아 GC | grace **90일** · `aura.tasks.memory.object_gc` · live 참조 시 스킵 (구현=M4) |
-| Non-goals | 라이브 provision · SDK 업로드 · GC Function 본구현 |
+| erase 초안 | KMS=**OpenBao Transit** · [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · shred→PG redact→`refs/` Delete |
+| Non-goals | 라이브 provision · SDK 업로드 · live OpenBao destroy CI |
 
 ### memory TTL 정책 + 월 파티션 DROP (M1 수치 · M4 job)
 
