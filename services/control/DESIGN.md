@@ -28,7 +28,7 @@
 |------|------|
 | `resolve.js` | `validateResolveRequest` · `mergeConfigs` · `buildResolveResponse` |
 | `resolve.selftest.js` | wire·merge·active-only·secrets_ref-only 게이트 |
-| `secrets-mask.js` | `maskSecrets` — 로그·OTel용 시크릿 필드 마스킹 (§9.2) |
+| `secrets-mask.js` | `maskSecrets` — 로그·OTel용 시크릿 필드 마스킹 (§9.2; M4 attrs는 [`../otel/`](../otel/)가 재사용) |
 | `secrets-cache.js` | `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 |
 | `nats-tls.js` | `buildNatsTlsOptions` · `assertNatsMtlsConnect` — 클라이언트 mTLS |
 
