@@ -1,7 +1,7 @@
 # services/ops — 운영 드릴·측정 헬퍼
 
-**범위:** 플랫폼 운영 검증용 소형 유틸(PG PITR 드릴 측정 · DLQ Replay 플래너).  
-**Non-goals:** 라이브 CNPG apply · Barman 자격증명 · M5 훈련 캘린더 UI · Advisory DLQ 이관 · 자동 replay 루프.
+**범위:** 플랫폼 운영 검증용 소형 유틸(PG PITR 드릴 측정·캘린더 · DLQ Replay 플래너).  
+**Non-goals:** 라이브 CNPG apply · Barman 자격증명 · 훈련 캘린더 UI · Advisory DLQ 이관 · 자동 replay 루프.
 
 ## PITR drill
 
@@ -10,8 +10,12 @@
 | `pitr-drill/measure.js` | RPO/RTO 계산·예산(≤5m/≤1h) 판정 |
 | `pitr-drill/measure.selftest.js` | 단위 + committed `drill-1.record.json` PASS |
 | `pitr-drill/drill-1.record.json` | lab-1 실측 기록 (커밋) |
+| `pitr-drill/calendar.js` | 분기 cadence·스택변경 14일 준수 평가 |
+| `pitr-drill/calendar.selftest.js` | 캘린더 단위 |
+| `pitr-drill/calendar.json` | 정책 시드 + history (lab-1=2026-Q4) |
 
-절차·클러스터 draft: [`deploy/docs/pg-pitr-drill.md`](../../deploy/docs/pg-pitr-drill.md).
+절차·클러스터 draft: [`deploy/docs/pg-pitr-drill.md`](../../deploy/docs/pg-pitr-drill.md).  
+정기 훈련: [`deploy/docs/pg-pitr-drill-calendar.md`](../../deploy/docs/pg-pitr-drill-calendar.md).
 
 ## DLQ Replay
 
@@ -28,6 +32,8 @@
 node services/ops/pitr-drill/measure.selftest.js
 bash deploy/scripts/run-pg-pitr-lab-drill.sh   # Docker Postgres WAL PITR → record
 bash deploy/scripts/check-pg-pitr-drill.sh
+node services/ops/pitr-drill/calendar.selftest.js
+bash deploy/scripts/check-pg-pitr-drill-calendar.sh
 node services/ops/dlq-replay/replay.selftest.js
 bash deploy/scripts/check-dlq-replay.sh
 ```

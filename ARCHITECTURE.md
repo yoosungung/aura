@@ -766,7 +766,7 @@ M5 Fallback + 테넌트 과금 대시보드: [`deploy/docs/llm-gateway-fallback-
 | 토폴로지 | **Multi-AZ** 단일 논리 클러스터(CNPG/동등). “디스크 1장” 단일 장애점 금지 |
 | Read | recall·읽기 많은 경로 **Read Replica** 오프로드 가능(쓰기 `svc-memory`는 primary). 앱은 **RO Pooler**만 — `-ro` Service 직접 연결 금지(§2.1) |
 | 백업 | **PITR** 연속 백업(Barman Cloud object store). **RPO ≤ 5m · RTO ≤ 1h** — 토폴로지 [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md). **M4 확정**(lab drill #1 충족) [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) · `check-pg-pitr-drill.sh` |
-| 훈련 | 정기 복구 드릴(분기 1회 이상) — M4 lab-1 완료; 프로덕션 CNPG/Barman 스케일=M5 |
+| 훈련 | 정기 복구 드릴(**분기 1회 이상**) + 스택변경 후 ≤14일 — 캘린더 [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh`. M4 lab-1=2026-Q4 시드; cluster(CNPG/Barman) 선호·lab 허용 |
 
 ### 9.7 DLQ · Poison Pill
 
