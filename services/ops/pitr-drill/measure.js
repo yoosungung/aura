@@ -3,7 +3,7 @@
 /**
  * PG PITR drill measurement — RPO/RTO from recovered data + full restore path.
  * Budgets: ARCHITECTURE §9.6 / M1 draft — RPO ≤ 5m · RTO ≤ 1h (M4 drill confirms).
- * Non-goals: live CNPG Multi-AZ apply · Barman Cloud credentials · M5 calendar.
+ * Non-goals: live CNPG Multi-AZ apply · Barman Cloud credentials (calendar = calendar.js).
  */
 
 const fs = require('fs');

@@ -62,6 +62,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **LLM Gateway Fallback + 테넌트 과금 대시보드 M5 고정** — `providers[]` 순서 Fallback · `fallbackModels` · `aura.attempts` · `GET /v1/billing/usage` 집계 · `renderBillingDashboard` · live provider 키 CI 비필수 | §9.4 · [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md)·`check-llm-gateway-fallback-billing.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
 | 2026-11-19 | **고위험 테넌트 전용 RuntimeClass/노드풀 M5 고정** — `risk_tier=high`→`kata`+`aura.sandbox/pool=kata` label/taint/`scheduling` · standard=`gvisor` · Kata 풀 점유 금지 · 오프라인 placement selftest. live pool provision=후속 | §9.1 · [`deploy/docs/high-risk-tenant-nodepool.md`](deploy/docs/high-risk-tenant-nodepool.md)·`check-high-risk-tenant-nodepool.sh` · `deploy/k8s/sandbox-egress/` |
 | 2026-11-19 | **DLQ Replay 운영 도구+런북 M5 고정** — Term envelope `src`/`echo` · dry-run/confirm · max_batch=20 · `aura.dlq.*` 거부 · Advisory/자동 루프 비채택 · live NATS CI 비필수 | §3.2·§9.7 · [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md)·`check-dlq-replay.sh` · `dlq-replay.sh` · [`services/ops/dlq-replay/`](services/ops/dlq-replay/) |
+| 2026-11-19 | **정기 PG 복구 훈련 캘린더 M5 고정** — cadence **quarterly≥1** · soft due_by=분기 말월 1일 UTC · 스택변경 follow-up **≤14일** · mode `cluster` 선호/`lab` 허용 · UI·자동 apply 비채택 · lab-1=2026-Q4 시드 | §9.6 · [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md)·`check-pg-pitr-drill-calendar.sh` · [`services/ops/pitr-drill/calendar.js`](services/ops/pitr-drill/calendar.js) |
 | 2026-11-19 | **NATS mTLS + 시크릿 마스킹/TTL 캐시 M3 고정** — overlay `tls { verify: true }` · `maskSecrets` · `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 · live cert 클러스터 CI 필수 아님 | §9.2 · [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md)·`check-nats-mtls-secrets.sh` · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) |
 | 2026-11-19 | **OTel (Function·NATS·PG) + 시크릿 마스킹 검증 M4** — `aura.tenant_id`/`session_id`/`run_id` 필수 · attribute 허용 목록 · `maskSecrets` 재사용 · DSN/`db.query.parameter.*` 금지 · Collector live=후속 | §9.2 · [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md)·`check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/) |
 | 2026-11-19 | **compliance.erase 초안 M4** — KMS=**OpenBao Transit** · kid `tenant:…:vN` / `tenant:…:user:…:vN` · shred→cache invalidate→PG redact→`refs/` Delete · 복호 가능 ciphertext 부재 · pending 24h · live OpenBao=후속 | §9.3 · [`deploy/docs/compliance-erase.md`](deploy/docs/compliance-erase.md)·`check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/` |
@@ -290,7 +291,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] LLM Gateway Fallback 모델 + 테넌트 과금 대시보드 — [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` · [`services/llm-gateway/`](services/llm-gateway/)
 - [x] 고위험 테넌트 전용 RuntimeClass/노드풀 정책 — [`deploy/docs/high-risk-tenant-nodepool.md`](deploy/docs/high-risk-tenant-nodepool.md) · `check-high-risk-tenant-nodepool.sh` · `deploy/k8s/sandbox-egress/runtimeclass-kata.yaml` · `services/sandbox-egress/high-risk-placement.js`
 - [x] DLQ Replay 운영 도구 + 런북 — [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md) · `check-dlq-replay.sh` · `dlq-replay.sh` · [`services/ops/dlq-replay/`](services/ops/dlq-replay/)
-- [ ] 정기 PG 복구 훈련 캘린더
+- [x] 정기 PG 복구 훈련 캘린더 — [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh` · [`services/ops/pitr-drill/calendar.js`](services/ops/pitr-drill/calendar.js) (분기≥1 · 스택변경≤14일 · lab-1이 2026-Q4 시드)
 - [ ] (출시 후 후보) NATS Account 격리 설계 착수
 
 ---
@@ -309,7 +310,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - F1 테넌트 subject 샤딩 — **M3 노이지 픽스처 후**
 - ~~gVisor vs Kata 최종 선택~~ — **M3 고정:** 기본=`gvisor`(`runsc`) · 고위험=`kata` ([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)); 라이브 apply·실측=후속
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**
-- ~~RPO/RTO **드릴 실측으로 초안 교체**~~ — **M4 확정:** 예산 **RPO ≤ 5m · RTO ≤ 1h**(lab-1 ≈3.2s/3.1s 충족) · [`pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md). CNPG/Barman 스케일 재드릴=M5
+- ~~RPO/RTO **드릴 실측으로 초안 교체**~~ — **M4 확정:** 예산 **RPO ≤ 5m · RTO ≤ 1h**(lab-1 ≈3.2s/3.1s 충족) · [`pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md). ~~CNPG/Barman 스케일 재드릴=M5~~ → **M5 캘린더** [`pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) (cluster 드릴은 슬롯·Barman live 시)
 - ~~암호화 키 KMS 제품~~ — **M4 고정:** OpenBao Transit (`openbao-transit`); 클라우드 KMS·live apply=`@eric`/M5
 
 ---

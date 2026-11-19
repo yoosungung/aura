@@ -5,7 +5,8 @@
 코드: [`services/ops/pitr-drill/`](../../services/ops/pitr-drill/) · 게이트 [`../scripts/check-pg-pitr-drill.sh`](../scripts/check-pg-pitr-drill.sh) · lab 러너 [`../scripts/run-pg-pitr-lab-drill.sh`](../scripts/run-pg-pitr-lab-drill.sh) · restore draft [`../k8s/pg-pooler/cluster-pitr-restore.draft.yaml`](../k8s/pg-pooler/cluster-pitr-restore.draft.yaml) · smoke [`../scripts/smoke-pg-pitr-drill.sh`](../scripts/smoke-pg-pitr-drill.sh).
 
 **이 문서 범위:** 복구 드릴 **1회** 런북 · RPO/RTO **실측 기록** · 예산 확정.  
-**Non-goals:** live Multi-AZ apply · Garage `aura-pg` provision · M5 정기 캘린더 · 다른 M4 체크리스트 재오픈.
+**Non-goals:** live Multi-AZ apply · Garage `aura-pg` provision · 다른 M4 체크리스트 재오픈.  
+**정기 일정:** M5 캘린더 [`pg-pitr-drill-calendar.md`](pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh`.
 
 ---
 
@@ -76,4 +77,5 @@ CI 게이트는 **커밋된 레코드 + measure selftest**만 요구한다(live 
 
 | 날짜 | 결정 |
 |------|------|
-| 2026-11-19 | M4 drill #1(lab): measured RPO≈3.2s · RTO≈3.1s → **RPO ≤ 5m · RTO ≤ 1h 확정**(초안 유지·충족). 프로덕션 CNPG/Barman 재드릴·스케일=M5. |
+| 2026-11-19 | M4 drill #1(lab): measured RPO≈3.2s · RTO≈3.1s → **RPO ≤ 5m · RTO ≤ 1h 확정**(초안 유지·충족). 프로덕션 CNPG/Barman 재드릴·스케일 → M5 캘린더. |
+| 2026-11-19 | lab-1을 **2026-Q4** 정기 슬롯 시드로 등록 — [`pg-pitr-drill-calendar.md`](pg-pitr-drill-calendar.md). |

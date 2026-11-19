@@ -44,7 +44,8 @@
 | 복구 | 신규 `Cluster` + `bootstrap.recovery.source` + `recoveryTarget.targetTime` (inplace 인플레이스 overwrite 금지) |
 | 시크릿 | object-store 자격증명 Secret — git에 값 금지; draft YAML은 키 이름만 |
 
-M4 «PG 복구 드릴 1회(PITR)» 실측·게이트: [`pg-pitr-drill.md`](pg-pitr-drill.md) · `check-pg-pitr-drill.sh`.
+M4 «PG 복구 드릴 1회(PITR)» 실측·게이트: [`pg-pitr-drill.md`](pg-pitr-drill.md) · `check-pg-pitr-drill.sh`.  
+M5 정기 훈련 캘린더: [`pg-pitr-drill-calendar.md`](pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh`.
 
 ---
 
@@ -73,7 +74,7 @@ ARCHITECTURE §9.6과 동일. lab drill #1이 예산을 **충족**해 확정(프
 2. `cluster-ha.draft.yaml`을 실환경 값으로 채운 뒤 `instances`/`backup` 적용(또는 동등 패치). 스모크용 `instances: 1` 매니페스트와 **경로를 섞지 않음**.
 3. `aura-pg-pooler-ro` 추가 → recall DSN만 전환(store DSN 불변).
 4. `check-pg-pooler.sh` / `smoke-pg-pooler.sh` 회귀(RW) + RO 스모크(후속).
-5. ~~M4: PITR 드릴 실측~~ — **완료** [`pg-pitr-drill.md`](pg-pitr-drill.md). 프로덕션 CNPG/Barman 재드릴=M5.
+5. ~~M4: PITR 드릴 실측~~ — **완료** [`pg-pitr-drill.md`](pg-pitr-drill.md). ~~M5 정기 캘린더~~ — **완료** [`pg-pitr-drill-calendar.md`](pg-pitr-drill-calendar.md) (cluster 드릴은 Barman live 시 슬롯).
 
 ---
 
@@ -81,5 +82,6 @@ ARCHITECTURE §9.6과 동일. lab drill #1이 예산을 **충족**해 확정(프
 
 - Pooler+RLS: [`pg-pooler-smoke-plan.md`](pg-pooler-smoke-plan.md) · [`../k8s/pg-pooler`](../k8s/pg-pooler/)
 - M4 PITR 드릴: [`pg-pitr-drill.md`](pg-pitr-drill.md) · restore draft `cluster-pitr-restore.draft.yaml`
+- M5 정기 캘린더: [`pg-pitr-drill-calendar.md`](pg-pitr-drill-calendar.md)
 - CNPG backup/PITR: [Backup on object stores](https://cloudnative-pg.io/documentation/1.23/backup_barmanobjectstore/) · [Recovery](https://cloudnative-pg.io/documentation/1.23/recovery/)
 - 티켓: `f320c964-2f59-43af-a5db-484f2713b691` · 드릴 `996b3f7e-82d9-48a4-8196-b8e949fe401d`
