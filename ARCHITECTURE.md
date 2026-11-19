@@ -763,8 +763,8 @@ M3 최소 경로·Function 클라이언트 egress 가드: [`deploy/docs/llm-gate
 |------|------|
 | 토폴로지 | **Multi-AZ** 단일 논리 클러스터(CNPG/동등). “디스크 1장” 단일 장애점 금지 |
 | Read | recall·읽기 많은 경로 **Read Replica** 오프로드 가능(쓰기 `svc-memory`는 primary). 앱은 **RO Pooler**만 — `-ro` Service 직접 연결 금지(§2.1) |
-| 백업 | **PITR** 연속 백업(Barman Cloud object store). **M1 초안** RPO ≤ 5m, RTO ≤ 1h — 수치·토폴로지 본문 [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md). 드릴 실측·확정은 M4 |
-| 훈련 | 정기 복구 드릴(분기 1회 이상) |
+| 백업 | **PITR** 연속 백업(Barman Cloud object store). **RPO ≤ 5m · RTO ≤ 1h** — 토폴로지 [`deploy/docs/pg-ha-pitr-topology.md`](deploy/docs/pg-ha-pitr-topology.md). **M4 확정**(lab drill #1 충족) [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) · `check-pg-pitr-drill.sh` |
+| 훈련 | 정기 복구 드릴(분기 1회 이상) — M4 lab-1 완료; 프로덕션 CNPG/Barman 스케일=M5 |
 
 ### 9.7 DLQ · Poison Pill
 
