@@ -5,7 +5,8 @@
 샌드박스 Egress: [`egress-block-verify.md`](egress-block-verify.md) · NP peer `app: aura-llm-gateway`.
 
 **이 문서 범위:** Function Egress는 Gateway만 · `POST /v1/chat/completions` · 테넌트 rate limit · circuit breaker · 토큰·비용 로그.  
-**Non-goals:** Fallback 모델 + 테넌트 과금 대시보드(M5) · live 공급자 키 CI 필수 · 모델 가중치 호스팅 · F1. (NATS mTLS·시크릿 mask/TTL → [`nats-mtls-secrets.md`](nats-mtls-secrets.md).)
+**M5 확장:** Fallback + 테넌트 과금 대시보드 → [`llm-gateway-fallback-billing.md`](llm-gateway-fallback-billing.md).  
+**Non-goals:** live 공급자 키 CI 필수 · 모델 가중치 호스팅 · F1. (NATS mTLS·시크릿 mask/TTL → [`nats-mtls-secrets.md`](nats-mtls-secrets.md).)
 
 ---
 

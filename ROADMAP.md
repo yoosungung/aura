@@ -58,7 +58,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **PG PITR 드릴 #1(lab)** — measured RPO≈3.2s · RTO≈3.1s → 예산 **RPO ≤ 5m · RTO ≤ 1h 확정**(lab≠prod scale; CNPG/Barman 재드릴=M5) | §9.6 · [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md)·`check-pg-pitr-drill.sh` |
 | 2026-11-19 | **슈퍼노드 픽스처 M4 고정** — hub_degree=**500** ≫ cap(64/50) · ON: candidates≤50·truncated·LIMIT≤50·wall&lt;2s · OFF=500 · `walkGraph` 폭증 없음 | §6.2.4·[`deploy/docs/memory-graph-supernode-fixture.md`](deploy/docs/memory-graph-supernode-fixture.md)·`check-memory-graph-supernode.sh` · `services/memory/recall/supernode-fixture.js` |
 | 2026-11-19 | **memory TTL 월 파티션 DROP M4 고정** — short_term 14d / audit 12mo **DROP RESTRICT** · episodic 24mo cold=`needs_archive`(archive 후 DROP) · Soft-delete-only 금지 · MQT `aura.tasks.memory.ttl` / `aura_memory_ttl` · scale-to-zero | §6.2.2 · [`deploy/docs/memory-ttl-drop.md`](deploy/docs/memory-ttl-drop.md)·`check-memory-ttl.sh` · `services/memory/ttl/` · `deploy/k8s/memory-ttl/` |
-| 2026-11-19 | **LLM Gateway 최소 M3 고정** — `POST /v1/chat/completions` · Function 클라이언트 provider blocklist · tenant RL · circuit · usage/cost 로그 · Deployment `aura-llm-gateway` replicas≥2. Fallback/과금 대시보드·live provider=후속(M5) | §9.4 · [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md)·`check-llm-gateway.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
+| 2026-11-19 | **LLM Gateway 최소 M3 고정** — `POST /v1/chat/completions` · Function 클라이언트 provider blocklist · tenant RL · circuit · usage/cost 로그 · Deployment `aura-llm-gateway` replicas≥2. Fallback/과금 대시보드=M5 · live provider=후속 | §9.4 · [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md)·`check-llm-gateway.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
+| 2026-11-19 | **LLM Gateway Fallback + 테넌트 과금 대시보드 M5 고정** — `providers[]` 순서 Fallback · `fallbackModels` · `aura.attempts` · `GET /v1/billing/usage` 집계 · `renderBillingDashboard` · live provider 키 CI 비필수 | §9.4 · [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md)·`check-llm-gateway-fallback-billing.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
 | 2026-11-19 | **NATS mTLS + 시크릿 마스킹/TTL 캐시 M3 고정** — overlay `tls { verify: true }` · `maskSecrets` · `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 · live cert 클러스터 CI 필수 아님 | §9.2 · [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md)·`check-nats-mtls-secrets.sh` · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) |
 | 2026-11-19 | **OTel (Function·NATS·PG) + 시크릿 마스킹 검증 M4** — `aura.tenant_id`/`session_id`/`run_id` 필수 · attribute 허용 목록 · `maskSecrets` 재사용 · DSN/`db.query.parameter.*` 금지 · Collector live=후속 | §9.2 · [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md)·`check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/) |
 | 2026-11-19 | **compliance.erase 초안 M4** — KMS=**OpenBao Transit** · kid `tenant:…:vN` / `tenant:…:user:…:vN` · shred→cache invalidate→PG redact→`refs/` Delete · 복호 가능 ciphertext 부재 · pending 24h · live OpenBao=후속 | §9.3 · [`deploy/docs/compliance-erase.md`](deploy/docs/compliance-erase.md)·`check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/` |
@@ -209,7 +210,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] 외부 MCP Streamable HTTP 어댑터 — [`deploy/docs/mcp-streamable-http.md`](deploy/docs/mcp-streamable-http.md) · [`services/mcp-invoke/streamable-http.js`](services/mcp-invoke/streamable-http.js) · `check-mcp-streamable-http.sh`
 - [x] **외부/커스텀 MCP·번들 격리 수준 정의(문서+정책)**: Egress deny-default allowlist; gVisor(`runsc`) 기본 · Kata 고위험 RuntimeClass; 플랫폼 서명 vs 커스텀 차등 — [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md) · `check-mcp-bundle-isolation.sh`
 - [x] **Egress 차단 검증**: 샌드박스에서 LLM Gateway·NATS·Pooler·허용 MCP 호스트 외 연결 실패 — [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md) · `deploy/k8s/sandbox-egress/` · `check-egress-block-verify.sh` · `evaluate-egress.selftest.js` · `egress-allowlist.selftest.js`
-- [x] **LLM Gateway** 최소 + Function Egress는 Gateway만 — [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · [`services/llm-gateway/`](services/llm-gateway/) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh` (Fallback/과금 대시보드=M5)
+- [x] **LLM Gateway** 최소 + Function Egress는 Gateway만 — [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · [`services/llm-gateway/`](services/llm-gateway/) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh` (Fallback/과금 → [`llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md))
 - [x] **NATS mTLS** + 시크릿 마스킹/TTL 캐시 무효화 — [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · [`services/control/`](services/control/) (`secrets-mask.js` · `secrets-cache.js` · `nats-tls.js`) · `deploy/k8s/nats-mtls/` · `check-nats-mtls-secrets.sh` (live cert apply=운영)
 - [-] (선택 F1) 테넌트 subject 샤딩 — SLO 미달 시만 (미실시·SLO 게이트 미발화)
 
@@ -284,7 +285,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [ ] LLM Gateway Fallback 모델 + 테넌트 과금 대시보드
+- [x] LLM Gateway Fallback 모델 + 테넌트 과금 대시보드 — [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` · [`services/llm-gateway/`](services/llm-gateway/)
 - [ ] 고위험 테넌트 전용 RuntimeClass/노드풀 정책
 - [ ] DLQ Replay 운영 도구 + 런북
 - [ ] 정기 PG 복구 훈련 캘린더

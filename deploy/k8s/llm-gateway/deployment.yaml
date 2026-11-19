@@ -54,6 +54,15 @@ spec:
                   }));
                   return;
                 }
+                if (req.method === 'GET' && req.url && req.url.startsWith('/v1/billing/usage')) {
+                  res.writeHead(200, { 'content-type': 'application/json' });
+                  res.end(JSON.stringify({
+                    tenants: [],
+                    window: { from_ms: null, to_ms: null, tenant_id: null },
+                    hint: 'services/llm-gateway handleBillingUsage · llm-gateway-fallback-billing.md',
+                  }));
+                  return;
+                }
                 res.writeHead(404, { 'content-type': 'application/json' });
                 res.end(JSON.stringify({ error: 'not_found' }));
               }).listen(port, () => console.log('aura-llm-gateway health on', port));

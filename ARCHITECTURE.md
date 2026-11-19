@@ -747,7 +747,8 @@ M4 OTel (Function·NATS·PG) attribute allowlist + 상관 ID + `maskSecrets` 재
 | 적용 | `agent_invoke`, `memory_capture`, consolidate 등 모든 LLM 호출 |
 | 배포 | `services/llm-gateway` (또는 동등 관리형). Egress Policy의 유일한 LLM 출구. 최소 와이어: [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh` |
 
-M3 최소 경로·Function 클라이언트 egress 가드: [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh`. Fallback/과금 대시보드·live provider 배선 고도화는 M5.
+M3 최소 경로·Function 클라이언트 egress 가드: [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh`.  
+M5 Fallback + 테넌트 과금 대시보드: [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh`. live provider 배선 고도화는 후속.
 
 ### 9.5 콜드스타트 · Warm Pool SLA
 
