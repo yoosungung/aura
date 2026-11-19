@@ -66,9 +66,6 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 ---
 
-
----
-
 ## Object GC MQT (§3.2 · §8 · M4)
 
 | 필드 | 값 |
@@ -212,7 +209,7 @@ bash deploy/scripts/check-memory-graph-traversal.sh # edges out/in + 순회 한�
 bash deploy/scripts/check-memory-graph-supernode.sh # hub≫cap · LIMIT/반환 상한 · 폭증 없음
 bash deploy/scripts/check-agent-inject-contract.sh # Agent 주입 슬롯·토큰 예산 문서 게이트
 bash deploy/scripts/check-object-store-content-ref.sh # Object Store=Garage · content_ref · 256KB
-bash deploy/scripts/check-object-store-orphan-gc.sh # 90d · object_gc MQT · skip-if-ref   # 고아 GC 90d · object_gc · skip-if-ref
+bash deploy/scripts/check-object-store-orphan-gc.sh # 90d · object_gc MQT · skip-if-ref
 node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
 node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
@@ -220,6 +217,8 @@ node services/memory/consolidate/promote.selftest.js  # 허용 전이 · similar
 node services/memory/consolidate/handler.selftest.js  # consolidate MQT · withTenantTx · no UPDATE type
 node services/memory/ttl/partition-plan.selftest.js   # 14d/24mo/12mo · needs_archive
 node services/memory/ttl/handler.selftest.js          # DROP RESTRICT · episodic skip · unsafe name
+node services/memory/object-gc/plan.selftest.js       # 90d · refs/ · batch 100
+node services/memory/object-gc/handler.selftest.js    # live skip · Delete 404=ok
 node services/memory/recall/graph-walk.selftest.js # visited · depth≤2 · caps · 유효 predicate
 node services/memory/recall/supernode-fixture.selftest.js # hub_degree=500 · candidates≤50 · LIMIT≤cap
 node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant WHERE · graph walk
@@ -230,4 +229,4 @@ node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant
 ## 관련 링크
 
 - §2.1 Pooler · §3.2 store/embed/consolidate/ttl/object_gc · §3.3 recall subject · §5 승격 [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · §6.2.2 TTL [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md) · §6.2.4 graph [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · 슈퍼노드 [`deploy/docs/memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md) · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · 고아 GC [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
-- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2» · M4 consolidate 유형 승격 · M4 recall graph walk · M4 슈퍼노드 픽스처 · M4 ttl 월 파티션 DROP
+- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2» · M4 consolidate · M4 graph walk · M4 슈퍼노드 · M4 ttl · M4 archive · M4 object_gc
