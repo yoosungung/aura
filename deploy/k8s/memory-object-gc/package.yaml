@@ -1,4 +1,4 @@
-# literal = base64(object-gc.js). check-object-store-orphan-gc.sh asserts match.
+# literal = base64(object-gc.js). check-object-store-orphan-gc.sh / check-memory-object-gc.sh asserts they match.
 apiVersion: fission.io/v1
 kind: Package
 metadata:
