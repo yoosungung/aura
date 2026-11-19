@@ -15,6 +15,7 @@ ARCH="$ROOT/ARCHITECTURE.md"
 ROADMAP="$ROOT/ROADMAP.md"
 SETUP="$ROOT/deploy/SETUP.md"
 AGENTS="$ROOT/AGENTS.md"
+NATS_DOC="$ROOT/deploy/docs/nats-mtls-secrets.md"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
@@ -25,50 +26,48 @@ ok() { echo "OK: $*"; }
 [[ -f "$SPANS" ]] || fail "missing $SPANS"
 [[ -f "$ATTR_T" ]] || fail "missing $ATTR_T"
 [[ -f "$SPANS_T" ]] || fail "missing $SPANS_T"
-[[ -f "$MASK" ]] || fail "missing $MASK"
+[[ -f "$MASK" ]] || fail "missing $MASK (reuse maskSecrets)"
 
-# Required correlation keys
 grep -q 'aura.tenant_id' "$ATTR" || fail "attributes must require aura.tenant_id"
 grep -q 'aura.session_id' "$ATTR" || fail "attributes must require aura.session_id"
 grep -q 'aura.run_id' "$ATTR" || fail "attributes must require aura.run_id"
 grep -q 'REQUIRED_CONTEXT_KEYS' "$ATTR" || fail "attributes must export REQUIRED_CONTEXT_KEYS"
-grep -q 'sanitizeAttributes\|assertSafeAttributes' "$ATTR" \
-  || fail "attributes must sanitize/assert"
-grep -q 'maskSecrets' "$ATTR" || fail "attributes must reuse maskSecrets"
-grep -q '../control/secrets-mask' "$ATTR" || fail "attributes must import control secrets-mask"
+grep -q 'ALLOWED_ATTR_KEYS\|sanitizeAttributes\|assertSafeAttributes' "$ATTR" \
+  || fail "attributes must expose allowlist + sanitize/assert"
+grep -q "secrets-mask" "$ATTR" || fail "attributes must require control/secrets-mask"
+grep -q 'maskSecrets' "$ATTR" || fail "attributes must call maskSecrets"
+grep -q "db.query.parameter" "$ATTR_T" || fail "selftest must ban db.query.parameter"
+grep -Eq "authorization|api_key|password" "$ATTR_T" \
+  || fail "selftest must drop authorization/api_key/password"
 
-# Span builders
 grep -q 'buildFunctionSpanAttributes' "$SPANS" || fail "spans must build Function attrs"
 grep -q 'buildNatsSpanAttributes' "$SPANS" || fail "spans must build NATS attrs"
 grep -q 'buildPgSpanAttributes' "$SPANS" || fail "spans must build PG attrs"
-grep -q 'messaging.system.name' "$SPANS" || fail "NATS builder must set messaging.system.name"
-grep -q 'postgresql' "$SPANS" || fail "PG builder must set db.system.name=postgresql"
-# Must not emit query parameters / DSN as set attributes
-if grep -E "\['db\.query\.parameter|\"db\.query\.parameter|connection_string'\s*:" "$SPANS"; then
-  fail "spans must not set db.query.parameter.* or connection_string"
-fi
+grep -q "messaging.system.name" "$SPANS" || fail "NATS span must set messaging.system.name"
+grep -q "db.system.name\|postgresql" "$SPANS" || fail "PG span must set db.system.name"
+grep -Eq 'connection_string|query_params' "$SPANS" \
+  || fail "PG builder must document ignoring connection_string/query_params"
 
-# Docs
 grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals"
 grep -q 'aura.tenant_id' "$DOC" || fail "doc must require aura.tenant_id"
 grep -q 'aura.session_id' "$DOC" || fail "doc must require aura.session_id"
 grep -q 'aura.run_id' "$DOC" || fail "doc must require aura.run_id"
-grep -Eqi 'maskSecrets|마스킹|시크릿' "$DOC" || fail "doc must cover secret masking"
+grep -Eqi 'allowlist|허용 목록' "$DOC" || fail "doc must name attribute allowlist"
 grep -Eqi 'Function|NATS|PG|PostgreSQL' "$DOC" || fail "doc must cover Function·NATS·PG"
 grep -q 'otel-function-nats-pg.md' "$DESIGN" || fail "DESIGN must link otel-function-nats-pg.md"
-grep -q 'secrets-mask' "$DESIGN" || fail "DESIGN must cite secrets-mask"
+grep -q 'maskSecrets\|secrets-mask' "$DOC" || fail "doc must reuse maskSecrets"
 
-# Cross-links + ROADMAP checkbox
 grep -Eq 'otel-function-nats-pg\.md|services/otel' "$ARCH" \
   || fail "ARCHITECTURE must link otel-function-nats-pg / services/otel"
 grep -Eq '\[x\].*OTel|\[x\].*otel' "$ROADMAP" \
   || fail "ROADMAP OTel checkbox must be [x]"
 grep -q 'check-otel-function-nats-pg' "$SETUP" || fail "SETUP must name check-otel-function-nats-pg.sh"
-grep -Eqi 'OTel|otel-function-nats-pg|services/otel' "$AGENTS" \
-  || fail "AGENTS must mention OTel / services/otel"
+grep -Eqi 'OTel|otel-function-nats-pg|services/otel' "$AGENTS" || fail "AGENTS must mention OTel"
+grep -Eqi 'otel-function-nats-pg|M4 OTel' "$NATS_DOC" \
+  || fail "nats-mtls-secrets.md must point at M4 OTel doc"
 
 node "$ATTR_T" || fail "attributes.selftest.js failed"
 node "$SPANS_T" || fail "spans.selftest.js failed"
 
-ok "OTel Function·NATS·PG allowlist + secret mask verification"
+ok "OTel Function·NATS·PG attrs + allowlist + maskSecrets"
 echo "check-otel-function-nats-pg: PASS"

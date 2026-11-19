@@ -5,7 +5,7 @@
 정본: [`deploy/docs/otel-function-nats-pg.md`](../../deploy/docs/otel-function-nats-pg.md).  
 마스킹: [`../control/secrets-mask.js`](../control/secrets-mask.js) (M3).
 
-**이 문서 범위:** 스팬 attribute **허용 목록** · 필수 상관 ID · Function/NATS/PG 빌더 · `maskSecrets` 재사용.  
+**이 문서 범위:** 스팬 attribute **allowlist** · 필수 상관 ID · Function/NATS/PG 빌더 · `maskSecrets` 재사용.  
 **Non-goals:** live OTLP exporter · Collector 배포 CI · erase · PITR · M5 대시보드 · SDK auto-instrumentation 본배선.
 
 ---

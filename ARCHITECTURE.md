@@ -725,7 +725,8 @@ M3 와이어(오버레이·mask/cache/tls 가드·체크): [`deploy/docs/nats-mt
 
 M3 최소 경로·NATS mTLS overlay·마스킹/TTL 캐시: [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) (`secrets-mask.js` · `secrets-cache.js` · `nats-tls.js`) · `check-nats-mtls-secrets.sh`. live cert apply·Vault 본구현은 후속.
 
-M4 OTel (Function·NATS·PG) attribute 허용 목록·상관키(`aura.tenant_id`/`session_id`/`run_id`)·시크릿 평문 검증: [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · [`services/otel/`](services/otel/) · `check-otel-function-nats-pg.sh`. Collector 라이브 배선은 후속.
+
+M4 OTel (Function·NATS·PG) attribute allowlist + 상관 ID + `maskSecrets` 재사용: [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · [`services/otel/`](services/otel/) · `check-otel-function-nats-pg.sh`. live Collector/OTLP CI 필수는 Non-goal.
 
 ### 9.3 GDPR · 잊힐 권리
 
