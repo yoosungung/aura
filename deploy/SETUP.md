@@ -228,6 +228,7 @@ bash deploy/scripts/smoke-memory-audit.sh              # live via pooler: seed m
 ```bash
 bash deploy/scripts/check-memory-nodes-edges.sh              # static: tables + FORCE RLS + out/in indexes
 bash deploy/scripts/check-memory-graph-traversal.sh          # static: partial indexes + 순회 한도 DESIGN
+bash deploy/scripts/check-memory-graph-supernode.sh        # static: hub ≫ cap → bounded walk (no cluster)
 SMOKE_MEMORY_NODES_EDGES_STATIC=1 bash deploy/scripts/smoke-memory-nodes-edges.sh
 bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: RLS + indexes
 ```
@@ -237,7 +238,8 @@ bash deploy/scripts/smoke-memory-nodes-edges.sh              # live via pooler: 
 | DDL | `deploy/sql/memory_nodes_edges.sql` — nodes UNIQUE(tenant,type,name); edges FK→nodes + self-loop CHECK; `idx_memory_edges_out`/`in` partial(`valid_until IS NULL`) |
 | RLS | `FORCE` + `tenant_id::text = current_setting('app.tenant_id', true)` (양 테이블) |
 | 순회 한도·walk | [`docs/memory-graph-traversal.md`](docs/memory-graph-traversal.md) · `services/memory/recall/graph-walk.js` (M4) |
-| Non-goals | embeddings · 슈퍼노드 픽스처 하네스 · live apply |
+| 슈퍼노드 픽스처 | [`docs/memory-graph-supernode-fixture.md`](docs/memory-graph-supernode-fixture.md) · `check-memory-graph-supernode.sh` |
+| Non-goals | embeddings · live apply |
 
 ### memory_embeddings LIST(model_key) + halfvec HNSW (M1)
 
@@ -370,7 +372,8 @@ bash deploy/scripts/check-memory-recall.sh   # DESIGN + hybrid RRF + GUCs + Core
 | 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` `newdeploy` **MinScale≥2** · Deployment `aura-memory-recall-rr` **replicas≥2** · subject `aura.rpc.memory.recall` · queue-group `aura-memory-recall` |
 | GUC | Pooler + `set_config(..., true)` · `SET LOCAL hnsw.iterative_scan/ef_search/max_scan_tuples` |
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject · 앱 post-filter |
-| Non-goals | 라이브 TEI · 슈퍼노드 픽스처 · live apply 필수 |
+| 슈퍼노드 | [`docs/memory-graph-supernode-fixture.md`](docs/memory-graph-supernode-fixture.md) |
+| Non-goals | 라이브 TEI · live apply 필수 |
 
 ### Agent 주입 계약 (M2 수치 고정 · 패킹 비범위)
 
