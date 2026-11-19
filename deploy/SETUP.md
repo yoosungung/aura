@@ -5,7 +5,7 @@
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
 **후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  
 **M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh` / **V1.1** `smoke-pg-pooler.sh`(+ `rls-smoke-fixture.sql`).  
-**M1 PG HA 초안:** [docs/pg-ha-pitr-topology.md](docs/pg-ha-pitr-topology.md) · `k8s/pg-pooler/cluster-ha.draft.yaml` · `check-pg-ha.sh` — **RPO ≤ 5m · RTO ≤ 1h** (드릴 실측=M4).
+**M1 PG HA 초안:** [docs/pg-ha-pitr-topology.md](docs/pg-ha-pitr-topology.md) · `k8s/pg-pooler/cluster-ha.draft.yaml` · `check-pg-ha.sh` — **RPO ≤ 5m · RTO ≤ 1h**. **M4 드릴(확정):** [docs/pg-pitr-drill.md](docs/pg-pitr-drill.md) · `check-pg-pitr-drill.sh` · lab-1 실측 충족(CNPG/Barman 스케일=M5).
 
 ## 전제
 
@@ -553,7 +553,9 @@ bash deploy/scripts/check-memory-archive.sh   # Parquet → DETACH/DROP + MQT
 ### PG Multi-AZ / PITR (M1 초안 · apply 비범위)
 
 ```bash
-bash deploy/scripts/check-pg-ha.sh   # draft shape + RPO/RTO doc gate (no cluster)
+bash deploy/scripts/check-pg-ha.sh          # draft shape + RPO/RTO doc gate (no cluster)
+bash deploy/scripts/check-pg-pitr-drill.sh  # M4 drill runbook + restore draft (no Barman)
+SMOKE_PITR_STATIC=1 bash deploy/scripts/smoke-pg-pitr-drill.sh
 ```
 
 | 항목 | M1 초안 |
@@ -563,7 +565,7 @@ bash deploy/scripts/check-pg-ha.sh   # draft shape + RPO/RTO doc gate (no cluste
 | **RPO** | **≤ 5분** (연속 WAL archive 전제) |
 | **RTO** | **≤ 1시간** (페일오버 또는 PITR 신규 Cluster+DSN 전환) |
 | recall | 옵트인 `aura-pg-pooler-ro` (`type: ro`); store는 RW Pooler only |
-| 실측 | M4 PITR 복구 드릴 — 초안 수치 교체 |
+| 실측 | M4 lab-1 완료 — [`docs/pg-pitr-drill.md`](docs/pg-pitr-drill.md) · restore draft `cluster-pitr-restore.draft.yaml` · 선택 재측정 `run-pg-pitr-lab-drill.sh` · CNPG 라이브=`AURA_PITR_LIVE=1` (M5) |
 
 ## 제거 (개발 클러스터만)
 

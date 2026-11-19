@@ -1,0 +1,36 @@
+# DRAFT ONLY — not in kustomization.yaml. Do not kubectl apply as-is.
+# Fill targetTime + barman endpoint/credentials before AURA_PITR_LIVE drill.
+# Procedure: ../../docs/pg-pitr-drill.md · topology: ../../docs/pg-ha-pitr-topology.md
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: aura-pg-pitr
+  namespace: aura
+  labels:
+    aura.db/role: cluster-pitr-restore
+    aura.db/ha: pitr-drill-draft
+spec:
+  instances: 1
+  storage:
+    size: 10Gi
+    # storageClass: <same as source or drill class>
+  bootstrap:
+    recovery:
+      source: aura-pg-barman
+      recoveryTarget:
+        # RFC3339 with explicit timezone — set to marker time from drill log
+        targetTime: "1970-01-01T00:00:00Z"
+  externalClusters:
+    - name: aura-pg-barman
+      barmanObjectStore:
+        destinationPath: s3://REPLACE_BUCKET/aura-pg/
+        # endpointURL: https://REPLACE_S3_ENDPOINT
+        s3Credentials:
+          accessKeyId:
+            name: aura-pg-backup-creds
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: aura-pg-backup-creds
+            key: ACCESS_SECRET_KEY
+        wal:
+          maxParallel: 2

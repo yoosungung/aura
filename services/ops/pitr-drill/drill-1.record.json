@@ -1,0 +1,17 @@
+{
+  "drill_id": "lab-1",
+  "mode": "lab",
+  "ticket": "996b3f7e",
+  "bucket": "aura-pg",
+  "method": "postgres-16-wal-archive-pitr",
+  "incident_at": "2026-11-19T06:21:05.144Z",
+  "newest_verified_at": "2026-11-19T06:21:01.895Z",
+  "recovery_target_time": "2026-11-19T06:21:04.041Z",
+  "phases": {
+    "restore_start": "2026-11-19T06:21:06.404Z",
+    "replay_end": "2026-11-19T06:21:08.239Z",
+    "verify_end": "2026-11-19T06:21:08.313Z",
+    "dsn_cutover_end": "2026-11-19T06:21:09.499Z"
+  },
+  "notes": "Local Docker Postgres WAL archive PITR (CNPG Barman Cloud path stand-in). Production cutover = Pooler DSN flip on recovered Cluster."
+}

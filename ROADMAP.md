@@ -47,6 +47,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **`mcp_invoke` 이원화 M3 고정** — MQT `aura.tasks.mcp.invoke`/`aura_mcp_invoke`/`minReplicaCount=0` · sync `aura.rpc.mcp.tool` Warm **MinScale≥2**+`aura-mcp-invoke-rr` · PG 금지 · 외부 Streamable HTTP=후속 | [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md)·`check-mcp-invoke-dual.sh` · [`services/mcp-invoke/`](services/mcp-invoke/) |
 | 2026-11-19 | **외부 MCP Streamable HTTP 어댑터 M3 고정** — Spec `2025-06-18` · `tools/call` POST · JSON/SSE · cfg `transport`/`mcp_endpoint` · injectable fetch · initialize/sandbox/Egress=후속 | [`deploy/docs/mcp-streamable-http.md`](deploy/docs/mcp-streamable-http.md)·`check-mcp-streamable-http.sh` · [`services/mcp-invoke/streamable-http.js`](services/mcp-invoke/streamable-http.js) |
 | 2026-11-19 | **MCP·번들 격리 수준 M3 고정** — RuntimeClass **기본=`gvisor`(`runsc`)** · 고위험=`kata` · Egress deny-default allowlist(NATS·Pooler·LLM Gateway·`aura-content`·등록 MCP·DNS) · 플랫폼 서명 vs 커스텀 차등(서명도 Egress 동일; 미서명+비샌드박스 금지). 라이브 NP/실측=후속 | §9.1 · [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)·`check-mcp-bundle-isolation.sh` |
+| 2026-11-19 | **PG PITR 드릴 런북·게이트 M4** — restore draft `bootstrap.recovery`/`targetTime` · `check-pg-pitr-drill.sh` · smoke static | §9.6 · [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) |
 | 2026-11-19 | **Egress 차단 검증 M3 고정** — NP deny-default + allow(NATS·Pooler·LLM Gateway·object-store·DNS·MCP proxy) · RuntimeClass 매니페스트 · 오프라인 `evaluate-egress` + `egress-allowlist` 스모크. CNI FQDN 라이브 프로브=후속 | §9.1 · [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md)·`check-egress-block-verify.sh` · `deploy/k8s/sandbox-egress/` |
 | 2026-11-19 | **memory consolidate 유형 승격 규칙 M4 고정** — 허용 `short_term`→`episodic`→`long_term`/`semantic` · `similarity_only` 금지 · soft_close+insert_promoted · recurrence `evidence_count`≥3 · MQT `aura.tasks.memory.consolidate` | §5 · [`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md)·`check-memory-consolidate.sh` · `services/memory/consolidate/` |
 | 2026-11-19 | **recall graph 방어적 1–2홉 M4 고정** — visited · per_hop_limit=50 · supernode_degree_cap=64 · 유효 predicate · out+in · RRF graph 분기; 슈퍼노드 픽스처=후속 | §6.2.4 · [`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)·`check-memory-graph-traversal.sh` · `services/memory/recall/graph-walk.js` |
@@ -54,6 +55,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **memory archive Parquet M4** — cold episodic → `aura-content` `archive/episodic/…` Put → DETACH/DROP · `aura.events.memory.archived` · Put 전 DROP 금지 | §6.2.2·§8·[`deploy/docs/memory-archive.md`](deploy/docs/memory-archive.md)·`check-memory-archive.sh` · `services/memory/archive/` |
 | 2026-11-19 | **memory object_gc M4** — refs/ · grace 90d · batch 100 · live content_ref skip · DeleteObject · 멱등 `object-gc:{tenant}:{yyyy-mm-dd}` | §8·[`deploy/docs/memory-object-gc.md`](deploy/docs/memory-object-gc.md)·`check-object-store-orphan-gc.sh` · `services/memory/object-gc/` |
 | 2026-11-19 | **Object Store 버킷/경로 M4 봉인** — 앱=`aura-content` **단일 버킷** · prefix `refs/`·`archive/`·`bundles/` 공유(번들 스토어 포함) · 용도별 버킷 비채택 · Barman=`aura-pg` 비공유 · `object_gc`=`refs/` only | §8 · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)·`check-object-store-content-ref.sh` |
+| 2026-11-19 | **PG PITR 드릴 #1(lab)** — measured RPO≈3.2s · RTO≈3.1s → 예산 **RPO ≤ 5m · RTO ≤ 1h 확정**(lab≠prod scale; CNPG/Barman 재드릴=M5) | §9.6 · [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md)·`check-pg-pitr-drill.sh` |
 | 2026-11-19 | **슈퍼노드 픽스처 M4 고정** — hub_degree=**500** ≫ cap(64/50) · ON: candidates≤50·truncated·LIMIT≤50·wall&lt;2s · OFF=500 · `walkGraph` 폭증 없음 | §6.2.4·[`deploy/docs/memory-graph-supernode-fixture.md`](deploy/docs/memory-graph-supernode-fixture.md)·`check-memory-graph-supernode.sh` · `services/memory/recall/supernode-fixture.js` |
 | 2026-11-19 | **memory TTL 월 파티션 DROP M4 고정** — short_term 14d / audit 12mo **DROP RESTRICT** · episodic 24mo cold=`needs_archive`(archive 후 DROP) · Soft-delete-only 금지 · MQT `aura.tasks.memory.ttl` / `aura_memory_ttl` · scale-to-zero | §6.2.2 · [`deploy/docs/memory-ttl-drop.md`](deploy/docs/memory-ttl-drop.md)·`check-memory-ttl.sh` · `services/memory/ttl/` · `deploy/k8s/memory-ttl/` |
 | 2026-11-19 | **LLM Gateway 최소 M3 고정** — `POST /v1/chat/completions` · Function 클라이언트 provider blocklist · tenant RL · circuit · usage/cost 로그 · Deployment `aura-llm-gateway` replicas≥2. Fallback/과금 대시보드·live provider=후속(M5) | §9.4 · [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md)·`check-llm-gateway.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
@@ -263,7 +265,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] object store 버킷/경로 계약(번들 스토어와 공유 가능) → 결정 로그 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh`)
 - [x] OTel (Function·NATS·PG) + 시크릿 마스킹 검증 — [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/)
 - [x] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름 ([`compliance-erase.md`](deploy/docs/compliance-erase.md) · `check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/`)
-- [ ] PG 복구 드릴 1회(PITR) — RPO/RTO 실측
+- [x] PG 복구 드릴 1회(PITR) — RPO/RTO 실측 ([`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) · `check-pg-pitr-drill.sh` · `services/ops/pitr-drill/` · lab-1 RPO≈3.2s · RTO≈3.1s → 예산 ≤5m/≤1h 확정; CNPG/Barman 스케일 재드릴=M5)
 
 **성공 기준**
 
@@ -304,7 +306,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - F1 테넌트 subject 샤딩 — **M3 노이지 픽스처 후**
 - ~~gVisor vs Kata 최종 선택~~ — **M3 고정:** 기본=`gvisor`(`runsc`) · 고위험=`kata` ([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)); 라이브 apply·실측=후속
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**
-- RPO/RTO **드릴 실측으로 초안 교체** — 초안(≤5m/≤1h)은 M1 고정; 확정 실측 **M4**
+- ~~RPO/RTO **드릴 실측으로 초안 교체**~~ — **M4 확정:** 예산 **RPO ≤ 5m · RTO ≤ 1h**(lab-1 ≈3.2s/3.1s 충족) · [`pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md). CNPG/Barman 스케일 재드릴=M5
 - ~~암호화 키 KMS 제품~~ — **M4 고정:** OpenBao Transit (`openbao-transit`); 클라우드 KMS·live apply=`@eric`/M5
 
 ---
