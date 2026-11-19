@@ -1,11 +1,11 @@
-# Object Store 제품 · `content_ref` 스키마·권한 (M2 / V2.1)
+# Object Store 제품 · `content_ref` 스키마·권한 (M2 / V2.1 · M4 경로 봉인)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #17 · §3.3 · **§8** · §9.1 · §9.3.  
-일정: [ROADMAP.md](../../ROADMAP.md) M2 (제품·스키마 고정) · 고아 GC 알고리즘=[`object-store-orphan-gc.md`](object-store-orphan-gc.md) · 아카이브 구현=M4.  
+일정: [ROADMAP.md](../../ROADMAP.md) M2 (제품·스키마) · M4 (공유 버킷/`bundles/` 경로 봉인) · 고아 GC=[`object-store-orphan-gc.md`](object-store-orphan-gc.md).  
 전제: NATS envelope §8 · CNPG Barman 초안 [`pg-ha-pitr-topology.md`](pg-ha-pitr-topology.md).
 
-**이 문서 범위:** Object Store **제품명** · S3 클라이언트 계약 · 버킷/경로 · `content_ref` JSON · 권한/암호화 · **256KB 초과 시 ref-only**.  
-**Non-goals:** 라이브 버킷·Garage 클러스터 **provision** · SDK 업로드 본구현 · 고아 GC 배치 본구현(알고리즘은 [`object-store-orphan-gc.md`](object-store-orphan-gc.md)) · Barman 자격증명 실값. Parquet job=M4 [`memory-archive.md`](memory-archive.md).
+**이 문서 범위:** Object Store **제품명** · S3 클라이언트 계약 · **버킷/경로(번들 공유 포함)** · `content_ref` JSON · 권한/암호화 · **256KB 초과 시 ref-only**.  
+**Non-goals:** 라이브 버킷·Garage 클러스터 **provision** · SDK 업로드 본구현 · Barman 자격증명 실값. GC 본구현=[`memory-object-gc.md`](memory-object-gc.md) · Parquet=[`memory-archive.md`](memory-archive.md).
 
 수치·제품 출처: ARCHITECTURE §8 256KB · ROADMAP V2.1. 운영 endpoint/비용 교체는 결정 로그 1행 + 이 문서·§8을 **같이** 고친다 — 여기서 새 스키마를 발명하지 않는다.
 
@@ -48,6 +48,12 @@
 | PG Barman WAL/base | **`aura-pg`** (별도) | `aura-pg/…` ([`cluster-ha.draft.yaml`](../k8s/pg-pooler/cluster-ha.draft.yaml)) | **자격증명·버킷 비공유** — 앱 content 키로 백업 버킷 접근 금지 |
 
 `s3://aura-content/tenants/{tenant_id}/refs/…` 가 정본 경로 가정이다.
+
+### M4 계약 봉인 (공유 버킷 · prefix 격리)
+
+**결정 (2026-11-19, M4):** 앱 Object Store는 **단일 버킷 `aura-content`** 를 content_ref · archive Parquet · **번들 스토어**가 **공유**한다. 격리는 **키 prefix만** (`refs/` · `archive/` · `bundles/`). 용도별 별도 버킷 **비채택**(Garage grant·Egress allowlist·자격증명 단순화).  
+**불변:** Barman/`aura-pg` 는 content와 **버킷·자격증명 비공유**. `object_gc` 는 `refs/` only — `archive/`·`bundles/` 미나열([`object-store-orphan-gc.md`](object-store-orphan-gc.md)).  
+**대안 기각:** 번들 전용 버킷 — Egress/시크릿 이중화 대비 이득 없음(샌드박스 격리는 RuntimeClass·NP, 버킷 분리가 아님).
 
 ---
 

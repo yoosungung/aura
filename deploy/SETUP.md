@@ -524,7 +524,7 @@ bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([doc
 |------|---------|
 | 문서 | [`docs/object-store-content-ref.md`](docs/object-store-content-ref.md) · [`docs/object-store-orphan-gc.md`](docs/object-store-orphan-gc.md) |
 | 제품 | **Garage** (S3-compatible / SigV4); NCP/AWS는 endpoint 스왑 |
-| 버킷 | `aura-content` (`tenants/{tenant_id}/refs/…`); Barman=`aura-pg` 분리 |
+| 버킷 | **`aura-content` 단일** — `refs/` · `archive/` · `bundles/` prefix 공유; Barman=`aura-pg` 분리 |
 | 규칙 | >256KB 또는 PII → `content_ref` only · public ACL 금지 · `enc.kid` |
 | 고아 GC | grace **90일** · `aura.tasks.memory.object_gc` · live 참조 시 스킵 (구현=M4) |
 | Non-goals | 라이브 provision · SDK 업로드 · GC Function 본구현 |

@@ -691,7 +691,7 @@ Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를
 
 `id`는 멱등 키. NATS 페이로드 **256KB(262144) 초과** 또는 PII 본문은 **`content_ref`만** 넣고 `payload`에 원문을 두지 않는다(§9.3).
 
-**Object Store 제품 (M2 / V2.1):** **Garage** (S3-compatible / SigV4). 버킷 가정 `aura-content`; 키 `tenants/{tenant_id}/refs/…`. PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals.
+**Object Store 제품 (M2 / V2.1 · M4 경로 봉인):** **Garage** (S3-compatible / SigV4). 앱 버킷 **`aura-content` 단일** — prefix `tenants/{tenant_id}/refs/…` · `archive/…` · `bundles/…` 공유(용도별 버킷 분리 금지). PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals.
 
 **고아 객체 GC (M2 / V2.2 · 구현=M4):** `aura.tasks.memory.object_gc` — `refs/` prefix만, 객체 age **≥ 90일**(`AURA_EVENTS` retention 정합)이고 PG live 참조가 없을 때만 `DeleteObject`. 참조 존재 시 **스킵**. 알고리즘·멱등 키·배치: [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md).
 

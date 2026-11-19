@@ -49,14 +49,28 @@ grep -Eqi '공개|public|ACL.*금지|no public' "$DOC" \
 grep -Eqi 'aura-content|Barman|aura-pg|backup' "$DOC" \
   || fail "doc must separate content bucket from PG backup"
 
+# M4: shared aura-content with refs/ + archive/ + bundles/ (no per-use bucket).
+grep -Eq 'aura-content' "$DOC" || fail "doc must name aura-content bucket"
+grep -Eq 'refs/' "$DOC" || fail "doc must lock refs/ prefix"
+grep -Eq 'archive/' "$DOC" || fail "doc must lock archive/ prefix (shared bucket)"
+grep -Eq 'bundles/' "$DOC" || fail "doc must lock bundles/ prefix (shared with bundle store)"
+grep -Eqi '버킷 공유|동일 버킷|공유 버킷|shared bucket|single bucket' "$DOC" \
+  || fail "doc must state shared single aura-content bucket across refs/archive/bundles"
+grep -Eqi 'aura-pg|Barman' "$DOC" \
+  || fail "doc must keep Barman/aura-pg non-shared"
+grep -Eq 'refs/|archive/|bundles/' "$ARCH" \
+  || fail "ARCHITECTURE §8 must name shared prefixes (refs/archive/bundles)"
+
 # ARCHITECTURE + ROADMAP pointers.
 grep -Eq 'object-store-content-ref\.md' "$ARCH" \
   || fail "ARCHITECTURE must link deploy/docs/object-store-content-ref.md"
 grep -q '256' "$ARCH" || fail "ARCHITECTURE must keep 256KB ceiling"
 grep -Eqi 'Garage|object-store-content-ref' "$ROADMAP" \
   || fail "ROADMAP decision log / M2 must cite Garage or object-store doc"
+grep -Eqi 'bundles/|번들 스토어|공유 버킷|aura-content' "$ROADMAP" \
+  || fail "ROADMAP must seal shared-bucket / bundles path contract"
 grep -Eqi 'content_ref|Object Store|object.store' "$DESIGN" \
   || fail "services/memory/DESIGN.md must point at Object Store / content_ref"
 
-ok "object-store-content-ref.md product + schema + 256KB + ARCHITECTURE link"
+ok "object-store-content-ref.md product + schema + 256KB + shared bucket/prefixes + ARCHITECTURE link"
 echo "check-object-store-content-ref: PASS"
