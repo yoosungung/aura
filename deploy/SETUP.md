@@ -517,7 +517,7 @@ bash deploy/scripts/check-gateway-inflight-release.sh   # terminal release + ens
 
 ```bash
 bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: Garage + 256KB ref-only + schema
-bash deploy/scripts/check-object-store-orphan-gc.sh     # doc gate: 90d orphan GC + object_gc + skip-if-ref
+bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([docs/memory-object-gc.md](docs/memory-object-gc.md))     # doc gate: 90d orphan GC + object_gc + skip-if-ref
 ```
 
 | 항목 | M2 고정 |

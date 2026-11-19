@@ -4,7 +4,7 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk** · **ttl 월 파티션 DROP**).  
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
-**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP) + **archive**(async MQT · Parquet→DETACH/DROP).  
+**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP) + **archive**(async MQT · Parquet→DETACH/DROP) + **object_gc**(async MQT · 고아 refs/).  
 **Non-goals (본 슬라이스):** LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
 
 수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED).
@@ -65,6 +65,31 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 입력: §8 + `payload.memory_type` · `payload.item_id` · (선택) `content`. 성공 본문 `type: memory.embedded`.
 
 ---
+
+
+---
+
+## Object GC MQT (§3.2 · §8 · M4)
+
+| 필드 | 값 |
+|------|-----|
+| topic | `aura.tasks.memory.object_gc` |
+| consumer | `aura_memory_object_gc` |
+| stream | `AURA_TASKS` |
+| respTopic | `aura.events.memory.object_gc.done` |
+| errorTopic | `aura.events.memory.object_gc.error` |
+| 매니페스트 | [`deploy/k8s/memory-object-gc/`](../../deploy/k8s/memory-object-gc/) |
+
+**정본:** [`object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · 구현 [`memory-object-gc.md`](../../deploy/docs/memory-object-gc.md)
+
+| 항목 | 규칙 |
+|------|------|
+| 대상 | `aura-content` · `tenants/{tenant}/refs/` only · grace **90일** · batch **100** |
+| 스킵 | PG `metadata.content_ref` live hit · young · archive/bundles |
+| GUC | `withTenantTx` → `set_config(..., true)` |
+| 멱등 | `object-gc:{tenant}:{yyyy-mm-dd}` · DeleteObject 404=OK |
+
+성공 본문 `type: memory.object_gc.done`.
 
 ## Archive MQT (§3.2 · §6.2.2 · §8 · M4)
 
@@ -187,7 +212,7 @@ bash deploy/scripts/check-memory-graph-traversal.sh # edges out/in + 순회 한�
 bash deploy/scripts/check-memory-graph-supernode.sh # hub≫cap · LIMIT/반환 상한 · 폭증 없음
 bash deploy/scripts/check-agent-inject-contract.sh # Agent 주입 슬롯·토큰 예산 문서 게이트
 bash deploy/scripts/check-object-store-content-ref.sh # Object Store=Garage · content_ref · 256KB
-bash deploy/scripts/check-object-store-orphan-gc.sh   # 고아 GC 90d · object_gc · skip-if-ref
+bash deploy/scripts/check-object-store-orphan-gc.sh # 90d · object_gc MQT · skip-if-ref   # 고아 GC 90d · object_gc · skip-if-ref
 node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
 node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
