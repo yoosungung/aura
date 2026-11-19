@@ -262,7 +262,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `aura.tasks.memory.object_gc` — 유예 90일 미참조 `content_ref` 삭제 ([`object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · [`memory-object-gc.md`](deploy/docs/memory-object-gc.md) · `check-object-store-orphan-gc.sh` · `services/memory/object-gc/`)
 - [x] object store 버킷/경로 계약(번들 스토어와 공유 가능) → 결정 로그 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh`)
 - [x] OTel (Function·NATS·PG) + 시크릿 마스킹 검증 — [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/)
-- [x] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름 ([`compliance-erase.md`](deploy/docs/compliance-erase.md) · `check-compliance-erase.sh` · [`services/compliance/erase/`](services/compliance/erase/))
+- [x] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름 ([`compliance-erase.md`](deploy/docs/compliance-erase.md) · `check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/`)
 - [ ] PG 복구 드릴 1회(PITR) — RPO/RTO 실측
 
 **성공 기준**
@@ -305,7 +305,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - ~~gVisor vs Kata 최종 선택~~ — **M3 고정:** 기본=`gvisor`(`runsc`) · 고위험=`kata` ([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)); 라이브 apply·실측=후속
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**
 - RPO/RTO **드릴 실측으로 초안 교체** — 초안(≤5m/≤1h)은 M1 고정; 확정 실측 **M4**
-- 암호화 키 KMS 제품 — **OpenBao Transit** (M4 erase 초안 봉인 · live apply=후속)
+- ~~암호화 키 KMS 제품~~ — **M4 고정:** OpenBao Transit (`openbao-transit`); 클라우드 KMS·live apply=`@eric`/M5
 
 ---
 
