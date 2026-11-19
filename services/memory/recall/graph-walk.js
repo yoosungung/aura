@@ -4,7 +4,8 @@
  * Defensive memory_edges walk for recall (M4).
  * Contract: ARCHITECTURE §1 #15 · §6.2.4 · deploy/docs/memory-graph-traversal.md
  *
- * Non-goals: live apply · unbounded recursive CTE · supernode fixture harness (별 티켓).
+ * Non-goals: live apply · unbounded recursive CTE.
+ * Supernode proof: deploy/docs/memory-graph-supernode-fixture.md · supernode-fixture.js.
  */
 
 const GRAPH_LIMITS = Object.freeze({

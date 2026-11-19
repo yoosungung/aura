@@ -6,7 +6,8 @@
 구현: [`../../services/memory/recall/graph-walk.js`](../../services/memory/recall/graph-walk.js) · DESIGN: [`../../services/memory/DESIGN.md`](../../services/memory/DESIGN.md).
 
 **이 문서 범위:** 핫 경로 partial 인덱스 · 순회 가드 수치 · M4 walk 알고리즘·게이트.  
-**Non-goals:** embeddings/HNSW · TTL job · RRF 가중치 튜닝 · Soft-delete 이력 btree(선택) · 슈퍼노드 픽스처 하네스(별 티켓) · live 클러스터 apply · `WITH RECURSIVE`.
+**Non-goals:** embeddings/HNSW · TTL job · RRF 가중치 튜닝 · Soft-delete 이력 btree(선택) · live 클러스터 apply · `WITH RECURSIVE`.  
+슈퍼노드 폭증 증명: [`memory-graph-supernode-fixture.md`](memory-graph-supernode-fixture.md).
 
 수치 출처: ARCHITECTURE §6.2.4 (기획 확정 초안 → M1 잠금). 운영 튜닝은 M4 부하 후 결정 로그 1행 + 이 문서·§6.2.4를 **같이** 고친다 — 여기서 새 숫자를 발명하지 않는다.
 
@@ -65,6 +66,7 @@ AND (valid_until IS NULL OR valid_until > now())
 ```bash
 bash deploy/scripts/check-memory-graph-traversal.sh
 node services/memory/recall/graph-walk.selftest.js
+bash deploy/scripts/check-memory-graph-supernode.sh
 bash deploy/scripts/check-memory-recall.sh
 ```
 
@@ -73,4 +75,5 @@ bash deploy/scripts/check-memory-recall.sh
 ## 관련 링크
 
 - §6.2.4 · §1 #15
-- ROADMAP 결정 로그 (2026-11-17 그래프 순회 방어 · 2026-11-18 수치 M1 고정 · 2026-11-19 M4 walk)
+- 슈퍼노드 픽스처: [`memory-graph-supernode-fixture.md`](memory-graph-supernode-fixture.md)
+- ROADMAP 결정 로그 (2026-11-17 그래프 순회 방어 · 2026-11-18 수치 M1 고정 · 2026-11-19 M4 walk · 2026-11-19 슈퍼노드 픽스처)
