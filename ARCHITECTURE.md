@@ -556,7 +556,7 @@ Agent는 **이 recall 응답 `items[]`만** 메모리 컨텍스트에 넣는다.
 **태스크**
 
 - `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션** DROP 스케줄 (MQT, scale-to-zero OK)
-- `aura.tasks.memory.archive` — 콜드 episodic export(Parquet) → object store → DETACH/DROP; 완료 이벤트 `aura.events.memory.archived`
+- `aura.tasks.memory.archive` — 콜드 episodic export(Parquet) → object store → DETACH/DROP; 완료 이벤트 `aura.events.memory.archived` — [`deploy/docs/memory-archive.md`](deploy/docs/memory-archive.md)
 - `aura.tasks.memory.object_gc` — 유예(90일) 경과 미참조 `content_ref` 객체 삭제 배치 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)
 
 **수치 (M1 고정 · 구현=M4)** — 본문 [`deploy/docs/memory-ttl-policy.md`](deploy/docs/memory-ttl-policy.md) · DROP job [`deploy/docs/memory-ttl-drop.md`](deploy/docs/memory-ttl-drop.md)

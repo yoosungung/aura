@@ -46,7 +46,7 @@
 | Subject | Consumer / Function | 역할 (M4 구현) | 완료 이벤트 |
 |---------|---------------------|----------------|-------------|
 | `aura.tasks.memory.ttl` | `aura_memory_ttl` / `svc-memory` ttl | 만료 **short_term**·(정책상) **audit** 월 파티션 DROP; episodic는 archive 경로와 조율 | `aura.events.memory.ttl.done` / `.error` |
-| `aura.tasks.memory.archive` | `aura_memory_archive` / `svc-memory` archive | 콜드 episodic Parquet export → object store → DETACH/DROP | `aura.events.memory.archived` / archive error |
+| `aura.tasks.memory.archive` | `aura_memory_archive` / `svc-memory` archive | 콜드 episodic Parquet export → object store → DETACH/DROP ([`memory-archive.md`](memory-archive.md)) | `aura.events.memory.archived` / archive error |
 
 **DROP 주기 (M1 고정):** `aura.tasks.memory.ttl` 발행 **일 1회**(UTC).
 

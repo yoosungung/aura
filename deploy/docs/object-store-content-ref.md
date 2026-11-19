@@ -5,7 +5,7 @@
 전제: NATS envelope §8 · CNPG Barman 초안 [`pg-ha-pitr-topology.md`](pg-ha-pitr-topology.md).
 
 **이 문서 범위:** Object Store **제품명** · S3 클라이언트 계약 · 버킷/경로 · `content_ref` JSON · 권한/암호화 · **256KB 초과 시 ref-only**.  
-**Non-goals:** 라이브 버킷·Garage 클러스터 **provision** · SDK 업로드 본구현 · 고아 GC 배치 본구현(알고리즘은 [`object-store-orphan-gc.md`](object-store-orphan-gc.md)) · Parquet 아카이브 job(M4) · Barman 자격증명 실값.
+**Non-goals:** 라이브 버킷·Garage 클러스터 **provision** · SDK 업로드 본구현 · 고아 GC 배치 본구현(알고리즘은 [`object-store-orphan-gc.md`](object-store-orphan-gc.md)) · Barman 자격증명 실값. Parquet job=M4 [`memory-archive.md`](memory-archive.md).
 
 수치·제품 출처: ARCHITECTURE §8 256KB · ROADMAP V2.1. 운영 endpoint/비용 교체는 결정 로그 1행 + 이 문서·§8을 **같이** 고친다 — 여기서 새 스키마를 발명하지 않는다.
 
