@@ -262,11 +262,13 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 | `semantic` | 개념·관계는 무엇인가 | `memory_nodes` / `memory_edges` (+ embedding) | ego/k-hop + vector |
 | `long_term` | 오래 참인 사실·선호 | durable item, Mem0식 CRUD | hybrid: vector + BM25 + scalar(scope) + graph 신호 |
 
-**승격 규칙 (요약)**
+**승격 규칙 (요약)** — 본문 [`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md)
 
 - capture 후보는 기본적으로 `short_term` 또는 `episodic` 후보로 태깅한다.
-- `consolidate`만 `short_term`→`episodic`→`long_term` / `semantic` 승격·병합·삭제(soft)를 수행한다.
-- 유사도 점수만으로 `memory_type`을 UPDATE하지 않는다.
+- `aura.tasks.memory.consolidate`만 `short_term`→`episodic`→`long_term` / `semantic` 승격·병합·삭제(soft)를 수행한다.
+- 허용 전이(M4 고정): `short_term`→`episodic` · `episodic`→`long_term` · `episodic`→`semantic`. 건너뛰기·역방향 금지.
+- 유사도 점수만으로 `memory_type`을 바꾸지 않는다(`similarity_only` 거부). LIST 파티션이므로 in-place `UPDATE memory_type` 금지 — `soft_close` + `insert_promoted`(`supersedes_id`).
+- `recurrence` 사유는 `evidence_count` **≥ 3**.
 
 **파이프라인**
 

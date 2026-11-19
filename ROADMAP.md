@@ -48,6 +48,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **외부 MCP Streamable HTTP 어댑터 M3 고정** — Spec `2025-06-18` · `tools/call` POST · JSON/SSE · cfg `transport`/`mcp_endpoint` · injectable fetch · initialize/sandbox/Egress=후속 | [`deploy/docs/mcp-streamable-http.md`](deploy/docs/mcp-streamable-http.md)·`check-mcp-streamable-http.sh` · [`services/mcp-invoke/streamable-http.js`](services/mcp-invoke/streamable-http.js) |
 | 2026-11-19 | **MCP·번들 격리 수준 M3 고정** — RuntimeClass **기본=`gvisor`(`runsc`)** · 고위험=`kata` · Egress deny-default allowlist(NATS·Pooler·LLM Gateway·`aura-content`·등록 MCP·DNS) · 플랫폼 서명 vs 커스텀 차등(서명도 Egress 동일; 미서명+비샌드박스 금지). 라이브 NP/실측=후속 | §9.1 · [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)·`check-mcp-bundle-isolation.sh` |
 | 2026-11-19 | **Egress 차단 검증 M3 고정** — NP deny-default + allow(NATS·Pooler·LLM Gateway·object-store·DNS·MCP proxy) · RuntimeClass 매니페스트 · 오프라인 `evaluate-egress` + `egress-allowlist` 스모크. CNI FQDN 라이브 프로브=후속 | §9.1 · [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md)·`check-egress-block-verify.sh` · `deploy/k8s/sandbox-egress/` |
+| 2026-11-19 | **memory consolidate 유형 승격 규칙 M4 고정** — 허용 `short_term`→`episodic`→`long_term`/`semantic` · `similarity_only` 금지 · soft_close+insert_promoted · recurrence `evidence_count`≥3 · MQT `aura.tasks.memory.consolidate` | §5 · [`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md)·`check-memory-consolidate.sh` · `services/memory/consolidate/` |
 | 2026-11-19 | **LLM Gateway 최소 M3 고정** — `POST /v1/chat/completions` · Function 클라이언트 provider blocklist · tenant RL · circuit · usage/cost 로그 · Deployment `aura-llm-gateway` replicas≥2. Fallback/과금 대시보드·live provider=후속(M5) | §9.4 · [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md)·`check-llm-gateway.sh` · [`services/llm-gateway/`](services/llm-gateway/) |
 | 2026-11-19 | **NATS mTLS + 시크릿 마스킹/TTL 캐시 M3 고정** — overlay `tls { verify: true }` · `maskSecrets` · `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 · live cert 클러스터 CI 필수 아님 | §9.2 · [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md)·`check-nats-mtls-secrets.sh` · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 M3 고정** — Core RR `aura-control-resolve-rr` **replicas≥2** · Warm `MinScale≥2` · queue-group `aura-control-resolve` · stub/injectable `bridge.js` · Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · [`services/control/`](services/control/) |
@@ -222,7 +223,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [ ] `aura.tasks.memory.consolidate` — 유형 승격 규칙
+- [x] `aura.tasks.memory.consolidate` — 유형 승격 규칙 ([`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md) · `check-memory-consolidate.sh` · `services/memory/consolidate/`)
 - [ ] recall graph **방어적** 1–2홉: visited, per_hop_limit, supernode_degree_cap, 유효 predicate, out+in 인덱스 사용
 - [ ] 슈퍼노드 픽스처: 허브 1노드에 엣지 ≫ cap → 쿼리 시간/반환 상한 준수(폭발 없음)
 - [ ] `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션 DROP**
