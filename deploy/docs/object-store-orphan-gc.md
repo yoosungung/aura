@@ -5,7 +5,7 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M2 (알고리즘 고정) · **구현 = M4** (`aura.tasks.memory.object_gc`).
 
 **이 문서 범위:** 고아 객체 **판정·유예·배치·멱등 키·안전장치(참조 존재 시 스킵)** 를 수치와 함께 고정.  
-**Non-goals:** Function/스케줄 CR 본구현 · 라이브 Garage Delete · SDK 업로드 · Parquet `archive/` GC · `bundles/` GC · `aura.tasks.compliance.erase`(즉시 파기·crypto-shred는 별 경로).
+**Non-goals (M2 문서):** 라이브 Garage provision · Parquet `archive/` GC · `bundles/` GC · `aura.tasks.compliance.erase`. **M4 구현:** [`memory-object-gc.md`](memory-object-gc.md).
 
 수치 출처: ARCHITECTURE §3.1 `AURA_EVENTS` **90일** · ROADMAP V2.2. 운영 튜닝은 M4 부하 후 결정 로그 1행 + 이 문서·§3.2를 **같이** 고친다.
 
@@ -103,7 +103,7 @@ LIMIT 1;
 | 태스크 envelope `id` | `object-gc:{tenant_id\|all}:{yyyy-mm-dd}` | 동일 UTC 일자 재발행은 같은 작업으로 취급(중복 실행 OK — Delete 멱등) |
 | 객체 삭제 | `(bucket, key)` | `DeleteObject` 재시도·404 = 성공. 별도 tombstone 테이블 불필요(M2) |
 
-MQT·`MaxDeliver`·DLQ는 §3.2 공통. 스케줄 CR·Function 본문은 M4.
+MQT·`MaxDeliver`·DLQ는 §3.2 공통. Function/MQT 본문=M4 [`memory-object-gc.md`](memory-object-gc.md).
 
 ---
 
@@ -136,6 +136,6 @@ PASS = 본 문서에 90일 · `aura.tasks.memory.object_gc` · 참조 스킵 · 
 
 ## 참고
 
-- [`object-store-content-ref.md`](object-store-content-ref.md) · [`memory-ttl-policy.md`](memory-ttl-policy.md)
+- [`object-store-content-ref.md`](object-store-content-ref.md) · [`memory-ttl-policy.md`](memory-ttl-policy.md) · [`memory-object-gc.md`](memory-object-gc.md)
 - §3.1 `AURA_EVENTS` 90일 · §8 envelope · ROADMAP 결정 로그 (고아 GC V2.2)
 - wiki: Aura orphan GC 페이지 없음(2026-11-19 검색) — 본 L0가 정본
