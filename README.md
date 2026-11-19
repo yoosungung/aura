@@ -3,6 +3,7 @@
 **Agent + MCP Serverless Runtime** — NATS MSA + Fission. 태스크 MQT(+DLQ)·Fair Queue, sync Warm Pool, **`aura.stream.<run_id>`** + Gateway SSE, **LLM Gateway**, PG Pooler/HA, 샌드박스·mTLS. 메모리는 **`svc-memory`** + 파티션/TTL.
 
 계약·인터페이스: [ARCHITECTURE.md](ARCHITECTURE.md).  
+메시지·호출 흐름(다이어그램): [MESSAGE-FLOW.md](MESSAGE-FLOW.md).  
 일정: [ROADMAP.md](ROADMAP.md).  
 에이전트/기여 워크플로: [AGENTS.md](AGENTS.md).
 

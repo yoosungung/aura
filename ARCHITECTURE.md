@@ -53,6 +53,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 ## 2. 토폴로지와 서비스 경계
 
+전체 메시지·호출 흐름 다이어그램: [MESSAGE-FLOW.md](MESSAGE-FLOW.md).
+
 ```
 [Client]
    │  submit task          │  SSE / WebSocket (Gateway 브리지)
