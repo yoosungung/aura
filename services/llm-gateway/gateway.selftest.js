@@ -203,6 +203,202 @@ async function testDefaultsExported() {
   ok('default limits exported');
 }
 
+async function testFallbackOnPrimaryFailure() {
+  const usage = createUsageLog();
+  let primaryCalls = 0;
+  let fallbackCalls = 0;
+  const primary = {
+    name: 'primary',
+    async complete() {
+      primaryCalls += 1;
+      const err = new Error('primary_down');
+      err.code = 'provider_error';
+      throw err;
+    },
+  };
+  const fallback = {
+    name: 'fallback',
+    async complete(req) {
+      fallbackCalls += 1;
+      return {
+        id: 'chatcmpl-fb',
+        object: 'chat.completion',
+        created: 1,
+        model: req.model || 'aura-fallback',
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'from-fallback' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+        provider: 'fallback',
+      };
+    },
+  };
+  const { createLlmGateway: createGw } = require('./gateway');
+  const gw = createGw({
+    providers: [primary, fallback],
+    fallbackModels: { 'aura-default': 'aura-fallback' },
+    usageLog: usage,
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+  const res = await gw.handleChatCompletions({
+    tenant_id: 't-fb',
+    body: {
+      model: 'aura-default',
+      messages: [{ role: 'user', content: 'hi' }],
+    },
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(primaryCalls, 1);
+  assert.strictEqual(fallbackCalls, 1);
+  assert.ok(res.body.choices[0].message.content.includes('from-fallback'));
+  assert.ok(res.body.aura);
+  assert.strictEqual(res.body.aura.fallback_used, true);
+  assert.strictEqual(res.body.aura.provider, 'fallback');
+  assert.strictEqual(res.body.aura.model_served, 'aura-fallback');
+  assert.ok(Array.isArray(res.body.aura.attempts));
+  assert.ok(res.body.aura.attempts.length >= 2);
+  assert.strictEqual(usage.entries.length, 1);
+  assert.strictEqual(usage.entries[0].fallback_used, true);
+  assert.strictEqual(usage.entries[0].provider, 'fallback');
+  ok('fallback model after primary failure');
+}
+
+async function testFallbackSkipsOpenCircuit() {
+  let primaryCalls = 0;
+  let fallbackCalls = 0;
+  const primary = {
+    name: 'prim-open',
+    async complete() {
+      primaryCalls += 1;
+      throw Object.assign(new Error('should_not'), { code: 'provider_error' });
+    },
+  };
+  const fallback = {
+    name: 'fb-ok',
+    async complete(req) {
+      fallbackCalls += 1;
+      return {
+        id: 'ok',
+        object: 'chat.completion',
+        created: 1,
+        model: req.model || 'aura-fallback',
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'circuit-skip' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      };
+    },
+  };
+  const breaker = createCircuitBreaker({
+    failureThreshold: 1,
+    cooldownMs: 60_000,
+    now: () => 1_000_000,
+  });
+  breaker.recordFailure('prim-open');
+  const gw = createLlmGateway({
+    providers: [primary, fallback],
+    fallbackModels: { 'aura-default': 'aura-fallback' },
+    circuitBreaker: breaker,
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+  const res = await gw.handleChatCompletions({
+    tenant_id: 't-cb-fb',
+    body: {
+      model: 'aura-default',
+      messages: [{ role: 'user', content: 'x' }],
+    },
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(primaryCalls, 0, 'open circuit must skip primary');
+  assert.strictEqual(fallbackCalls, 1);
+  assert.strictEqual(res.body.aura.fallback_used, true);
+  ok('fallback skips open primary circuit');
+}
+
+async function testAllProvidersFail() {
+  const a = {
+    name: 'a',
+    async complete() {
+      throw Object.assign(new Error('a'), { code: 'provider_error' });
+    },
+  };
+  const b = {
+    name: 'b',
+    async complete() {
+      throw Object.assign(new Error('b'), { code: 'provider_error' });
+    },
+  };
+  const gw = createLlmGateway({
+    providers: [a, b],
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+  const res = await gw.handleChatCompletions({
+    tenant_id: 't-all',
+    body: { model: 'm', messages: [{ role: 'user', content: 'x' }] },
+  });
+  assert.strictEqual(res.status, 502);
+  assert.strictEqual(res.body.error, 'all_providers_failed');
+  assert.ok(Array.isArray(res.body.attempts));
+  assert.strictEqual(res.body.attempts.length, 2);
+  ok('all providers failed → 502 with attempts');
+}
+
+async function testBillingDashboardAggregate() {
+  const usage = createUsageLog();
+  const gw = createLlmGateway({
+    provider: createStubProvider({ content: 'bill' }),
+    usageLog: usage,
+    limits: { ratePerSec: 100, burst: 100 },
+    now: (() => {
+      let t = 1_700_000_000_000;
+      return () => t;
+    })(),
+  });
+  await gw.handleChatCompletions({
+    tenant_id: 'ten-a',
+    body: { model: 'm', messages: [{ role: 'user', content: 'aa' }] },
+  });
+  await gw.handleChatCompletions({
+    tenant_id: 'ten-a',
+    body: { model: 'm', messages: [{ role: 'user', content: 'bb' }] },
+  });
+  await gw.handleChatCompletions({
+    tenant_id: 'ten-b',
+    body: { model: 'm', messages: [{ role: 'user', content: 'cc' }] },
+  });
+
+  const all = gw.handleBillingUsage({});
+  assert.strictEqual(all.status, 200);
+  assert.ok(Array.isArray(all.body.tenants));
+  assert.strictEqual(all.body.tenants.length, 2);
+  const a = all.body.tenants.find((t) => t.tenant_id === 'ten-a');
+  const b = all.body.tenants.find((t) => t.tenant_id === 'ten-b');
+  assert.strictEqual(a.request_count, 2);
+  assert.strictEqual(b.request_count, 1);
+  assert.ok(a.cost_usd > 0);
+  assert.ok(a.total_tokens > 0);
+
+  const one = gw.handleBillingUsage({ tenant_id: 'ten-b' });
+  assert.strictEqual(one.status, 200);
+  assert.strictEqual(one.body.tenants.length, 1);
+  assert.strictEqual(one.body.tenants[0].tenant_id, 'ten-b');
+
+  const { renderBillingDashboard } = require('./gateway');
+  const dash = renderBillingDashboard(all.body);
+  assert.ok(typeof dash === 'string');
+  assert.ok(dash.includes('ten-a'));
+  assert.ok(dash.includes('cost_usd') || dash.includes('Cost'));
+  ok('tenant billing usage aggregate + dashboard render');
+}
+
 (async () => {
   try {
     await testEgressClientGuard();
@@ -212,6 +408,10 @@ async function testDefaultsExported() {
     await testCircuitBreaker();
     await testClientRoundTrip();
     await testDefaultsExported();
+    await testFallbackOnPrimaryFailure();
+    await testFallbackSkipsOpenCircuit();
+    await testAllProvidersFail();
+    await testBillingDashboardAggregate();
     console.log('llm-gateway.selftest: PASS');
   } catch (e) {
     fail(e && e.stack ? e.stack : String(e));

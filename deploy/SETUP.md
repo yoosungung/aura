@@ -456,6 +456,7 @@ bash deploy/scripts/check-mcp-streamable-http.sh   # Streamable HTTP adapter + s
 bash deploy/scripts/check-mcp-bundle-isolation.sh  # RuntimeClass/Egress/서명 정책 (doc-only)
 bash deploy/scripts/check-egress-block-verify.sh   # NP+RuntimeClass 매니페스트 + offline simulator (no live CNI)
 bash deploy/scripts/check-llm-gateway.sh          # LLM Gateway 최소 + Function egress guard (no cluster)
+bash deploy/scripts/check-llm-gateway-fallback-billing.sh  # Fallback 모델 + 테넌트 과금 대시보드 (no live provider)
 bash deploy/scripts/check-nats-mtls-secrets.sh  # NATS mTLS overlay + secrets mask/TTL cache (no live cert)
 bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG attrs + allowlist (no live collector)
 bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-shred draft (no live OpenBao)
@@ -469,11 +470,11 @@ bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-sh
 | 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (Warm + RR; **MQT 없음**) · `k8s/sandbox-egress/` (NP + RuntimeClass) · `k8s/llm-gateway/` (Deployment≥2) |
 | PG | **금지** (Zero Direct Write) |
 | 격리 | RuntimeClass 기본=`gvisor` · Egress deny-default allowlist · 서명 vs 커스텀 ([`docs/mcp-bundle-isolation.md`](docs/mcp-bundle-isolation.md)) · 차단 검증 ([`docs/egress-block-verify.md`](docs/egress-block-verify.md)) |
-| LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) |
+| LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) · M5 Fallback/과금 [`docs/llm-gateway-fallback-billing.md`](docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` |
 | NATS TLS | overlay [`k8s/nats-mtls/`](k8s/nats-mtls/) · mask/TTL [`docs/nats-mtls-secrets.md`](docs/nats-mtls-secrets.md) · `check-nats-mtls-secrets.sh` |
 | OTel (M4) | Function·NATS·PG attrs + mask [`docs/otel-function-nats-pg.md`](docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`../services/otel/`](../services/otel/) |
 | erase (M4) | crypto-shred + content_ref [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · [`../services/compliance/`](../services/compliance/) · `k8s/compliance-erase/` |
-| Non-goals | CNI FQDN/egress-proxy **라이브 프로브** · live provider 키 CI · Fallback/과금 대시보드 · live NATS SDK · full MCP initialize (Streamable HTTP client: `streamable-http.js`) · **live cert apply CI 필수** (mTLS 매니페스트·selftest만) · **OTel Collector live apply CI 필수** |
+| Non-goals | CNI FQDN/egress-proxy **라이브 프로브** · live provider 키 CI · SPA 과금 UI · live NATS SDK · full MCP initialize (Streamable HTTP client: `streamable-http.js`) · **live cert apply CI 필수** (mTLS 매니페스트·selftest만) · **OTel Collector live apply CI 필수** |
 
 ### Gateway · `run_id` · SSE/WS · principal (M3)
 

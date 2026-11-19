@@ -1,12 +1,12 @@
 # LLM Gateway (내부 설계)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #17 · §9.4 · Function→공급자 **직접 금지**.  
-일정: [ROADMAP.md](../../ROADMAP.md) M3 — **LLM Gateway 최소 + Function Egress는 Gateway만**.  
-와이어: [`deploy/docs/llm-gateway.md`](../../deploy/docs/llm-gateway.md).  
+일정: [ROADMAP.md](../../ROADMAP.md) M3 최소 · **M5 Fallback + 테넌트 과금 대시보드**.  
+와이어: [`deploy/docs/llm-gateway.md`](../../deploy/docs/llm-gateway.md) · [`deploy/docs/llm-gateway-fallback-billing.md`](../../deploy/docs/llm-gateway-fallback-billing.md).  
 Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block-verify.md) (`app: aura-llm-gateway`).
 
-**이 문서 범위:** OpenAI 호환 `POST /v1/chat/completions` · 테넌트 rate limit · provider circuit breaker · usage/cost 로그 · Function 클라이언트 egress 가드.  
-**Non-goals:** Fallback 모델/과금 대시보드(M5) · live provider API 키를 CI PASS 조건으로 두지 않음 · 가중치 서빙 · streaming SSE 본배선.
+**이 문서 범위:** OpenAI 호환 `POST /v1/chat/completions` · 테넌트 rate limit · provider circuit · **ordered Fallback** · usage/cost 로그 · **`GET /v1/billing/usage`** · Function 클라이언트 egress 가드.  
+**Non-goals:** live provider API 키를 CI PASS 조건으로 두지 않음 · 가중치 서빙 · streaming SSE 본배선 · PG/외부 invoice ledger · SPA.
 
 ---
 
@@ -26,10 +26,12 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 | 메서드 | 경로 | 의미 |
 |--------|------|------|
-| `GET` | `/healthz` |  readiness |
-| `POST` | `/v1/chat/completions` | 테넌트 쿼터 → circuit → provider → usage log |
+| `GET` | `/healthz` | readiness |
+| `POST` | `/v1/chat/completions` | 테넌트 쿼터 → Fallback chain(circuit skip) → usage log |
+| `GET` | `/v1/billing/usage` | 테넌트별 tokens/`cost_usd` 집계 |
 
-헤더: `X-Aura-Tenant-Id` (필수). 본문: `{ model, messages[] }` (OpenAI chat 최소).
+헤더: `X-Aura-Tenant-Id` (chat 필수). 본문: `{ model, messages[] }` (OpenAI chat 최소).  
+성공 chat 응답에 `aura.fallback_used` · `aura.attempts[]` 포함.
 
 ---
 
@@ -37,11 +39,12 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 | 파일 | 역할 |
 |------|------|
-| `gateway.js` | `createLlmGateway` · stub provider · bucket RL · circuit · usage |
+| `gateway.js` | `createLlmGateway` · stub · bucket RL · circuit · **providers[] Fallback** · usage · `handleBillingUsage` · `renderBillingDashboard` |
 | `client.js` | `createLlmGatewayClient` · `assertFunctionLlmEgress` (provider blocklist) |
-| `gateway.selftest.js` | egress 가드 · 429 · circuit_open · usage |
+| `gateway.selftest.js` | egress · 429 · circuit · **fallback** · **billing aggregate** |
 
-기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_LLM_LIMITS`).
+기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_LLM_LIMITS`).  
+Deps: `providers[]` (또는 단일 `provider`) · `fallbackModels: { [requested]: fallbackId }`.
 
 ---
 
@@ -49,5 +52,6 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 ```bash
 bash deploy/scripts/check-llm-gateway.sh
+bash deploy/scripts/check-llm-gateway-fallback-billing.sh
 node services/llm-gateway/gateway.selftest.js
 ```
