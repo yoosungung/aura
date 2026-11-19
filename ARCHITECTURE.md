@@ -706,10 +706,11 @@ Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를
 | 신뢰 경계 | 테넌트가 올린 커스텀 agent/mcp 번들은 **비신뢰 코드** |
 | 런타임 | **M3 기본 RuntimeClass=`gvisor`(`runsc`)**. 고위험 티어=`kata`(또는 동등). factory 로드·실행은 샌드박스에서만. 동일 노드 풀 공유 시에도 커널/네임스페이스 격리 |
 | 네트워크 | Pod **Egress NetworkPolicy deny-default**; allowlist = NATS·Pooler·**LLM Gateway**·허용 object store(`aura-content`)·**등록된 MCP 호스트**·클러스터 DNS |
-| 격리 강화 | 고위험 테넌트/번들은 **Kata RuntimeClass/전용 노드풀** 또는 전용 Deployment (Fair Queue F1·M5와 병행 가능) |
+| 격리 강화 | 고위험(`risk_tier=high`)은 **RuntimeClass=`kata` + 전용 노드풀** (`aura.sandbox/pool=kata` label · `NoSchedule` taint · RuntimeClass `scheduling`). standard는 `gvisor`만 · Kata 풀 점유 금지 |
 | 플랫폼 번들 | 서명·checksum 검증 필수. 미서명 커스텀은 샌드박스 없이 금지. **서명 번들도 Egress NP는 동일** |
 
 정책 정본(이름·allowlist·차등): [`deploy/docs/mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md).  
+고위험 전용 RuntimeClass/노드풀(M5): [`deploy/docs/high-risk-tenant-nodepool.md`](deploy/docs/high-risk-tenant-nodepool.md) · `check-high-risk-tenant-nodepool.sh`.  
 Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md) · `deploy/k8s/sandbox-egress/`. CNI FQDN/egress-proxy 라이브 프로브는 후속.
 
 ### 9.2 시크릿 전송 · 캐시

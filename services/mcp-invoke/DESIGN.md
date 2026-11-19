@@ -42,7 +42,11 @@
 bash deploy/scripts/check-mcp-invoke-dual.sh
 bash deploy/scripts/check-mcp-streamable-http.sh
 bash deploy/scripts/check-mcp-bundle-isolation.sh
+bash deploy/scripts/check-high-risk-tenant-nodepool.sh
 bash deploy/scripts/build-mcp-invoke-archive.sh
 node services/mcp-invoke/handler.selftest.js
 node services/mcp-invoke/streamable-http.selftest.js
 ```
+
+격리·Egress: [`deploy/docs/mcp-bundle-isolation.md`](../../deploy/docs/mcp-bundle-isolation.md) · [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block-verify.md) · `check-egress-block-verify.sh`.  
+고위험 전용 RuntimeClass/노드풀: [`deploy/docs/high-risk-tenant-nodepool.md`](../../deploy/docs/high-risk-tenant-nodepool.md).

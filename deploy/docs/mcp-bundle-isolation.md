@@ -27,7 +27,7 @@ LLM Gateway 최소: [`llm-gateway.md`](llm-gateway.md). Egress **매니페스트
 | 티어 | RuntimeClass 이름 | handler | 적용 |
 |------|-------------------|---------|------|
 | **기본 (M3)** | `gvisor` | `runsc` | 커스텀/미서명 번들 · 외부 MCP를 호출하는 `mcp_invoke` Function · short-lived agent tool 샌드박스 |
-| **고위험** | `kata` | Kata (`kata-qemu` 또는 동등; 클러스터 설치 시 DESIGN에 handler 고정) | 장기·적대적·고위험 테넌트/번들 · 전용 노드풀(§9.1 격리 강화 · M5) |
+| **고위험** | `kata` | Kata (`kata-qemu` 또는 동등; 클러스터 설치 시 DESIGN에 handler 고정) | 장기·적대적·고위험 테넌트/번들 · **전용 노드풀** — [`high-risk-tenant-nodepool.md`](high-risk-tenant-nodepool.md) (M5) |
 | **금지** | (default `runc`) | `runc` | 커스텀/미서명 테넌트 코드 |
 
 **선택 근거 (결정 로그):** Fission/KEDA scale-to-zero·콜드 민감 → **gVisor(`runsc`)** 를 M3 기본. Kata는 하드웨어 격리 티어로 유지(고위험·M5). 동등 런타임 교체 시 이 문서·§9.1·결정 로그를 **같이** 고친다.
