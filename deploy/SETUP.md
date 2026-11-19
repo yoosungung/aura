@@ -532,7 +532,8 @@ bash deploy/scripts/check-object-store-orphan-gc.sh     # doc gate: 90d orphan G
 ### memory TTL 정책 + 월 파티션 DROP (M1 수치 · M4 job)
 
 ```bash
-bash deploy/scripts/check-memory-ttl.sh   # 14d/24mo/12mo + DROP MQT + needs_archive + selftests
+bash deploy/scripts/check-memory-ttl.sh       # 14d/24mo/12mo + DROP MQT + needs_archive + selftests
+bash deploy/scripts/check-memory-archive.sh   # Parquet → DETACH/DROP + MQT
 ```
 
 | 항목 | 고정 |

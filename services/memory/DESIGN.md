@@ -4,8 +4,8 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk** · **ttl 월 파티션 DROP**).  
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
-**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP).  
-**Non-goals (본 슬라이스):** archive Parquet 본문 · LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
+**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP) + **archive**(async MQT · Parquet→DETACH/DROP).  
+**Non-goals (본 슬라이스):** LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
 
 수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED).
 
@@ -65,6 +65,27 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 입력: §8 + `payload.memory_type` · `payload.item_id` · (선택) `content`. 성공 본문 `type: memory.embedded`.
 
 ---
+
+## Archive MQT (§3.2 · §6.2.2 · §8 · M4)
+
+| 필드 | 값 |
+|------|-----|
+| topic | `aura.tasks.memory.archive` |
+| consumer | `aura_memory_archive` |
+| stream | `AURA_TASKS` |
+| respTopic | `aura.events.memory.archived` |
+| errorTopic | `aura.events.memory.archive.error` |
+| 매니페스트 | [`deploy/k8s/memory-archive/`](../../deploy/k8s/memory-archive/) |
+
+**정본:** [`deploy/docs/memory-archive.md`](../../deploy/docs/memory-archive.md) · 경로 [`object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md)
+
+| 항목 | 규칙 |
+|------|------|
+| 대상 | 콜드 `memory_items_episodic_YYYY_MM` only |
+| 순서 | export → PutObject(`aura-content`/`archive/episodic/…`) → verify → DETACH → DROP RESTRICT |
+| 금지 | Put 전 DROP · CASCADE · Soft-delete-only · 비-episodic 이름 |
+
+성공 본문 `type: memory.archived`. TTL `needs_archive` 핸드오프.
 
 ## TTL MQT (§3.2 · §6.2.2 · M4)
 
@@ -160,6 +181,7 @@ bash deploy/scripts/check-memory-store.sh          # DESIGN + store MQT + set_co
 bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_term skip + selftests
 bash deploy/scripts/check-memory-consolidate.sh    # 승격 규칙 + similarity_only 금지 + MQT + selftests
 bash deploy/scripts/check-memory-ttl.sh            # TTL DROP 14d/24mo/12mo + needs_archive + MQT + selftests
+bash deploy/scripts/check-memory-archive.sh        # Parquet Put → DETACH/DROP + MQT + selftests
 bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + graph walk + GUCs + Warm Pool + no MQT
 bash deploy/scripts/check-memory-graph-traversal.sh # edges out/in + 순회 한도 + walk 구현
 bash deploy/scripts/check-memory-graph-supernode.sh # hub≫cap · LIMIT/반환 상한 · 폭증 없음
