@@ -5,7 +5,8 @@
 매니페스트: [`deploy/k8s/nats-mtls/`](../k8s/nats-mtls/).
 
 **이 문서 범위:** NATS 클라이언트 **mTLS**(`verify: true`) · 로그/트레이스 **시크릿 마스킹** · Function 프로세스 시크릿 캐시 **TTL ≤ 60s** + `aura.events.control.secrets.rotated` 무효화.  
-**Non-goals:** (선택 F1) subject 샤딩 · live cert 발급을 CI PASS 필수 조건으로 두지 않음 · NATS Account 격리(출시 후) · OTel 전면 배선(M4) · 시크릿 스토어 본구현 · base `deploy/k8s/base/nats.yaml` 로컬 plaintext 스모크 제거.
+**Non-goals:** (선택 F1) subject 샤딩 · live cert 발급을 CI PASS 필수 조건으로 두지 않음 · NATS Account 격리(출시 후) · 시크릿 스토어 본구현 · base `deploy/k8s/base/nats.yaml` 로컬 plaintext 스모크 제거.  
+**M4 OTel:** Function·NATS·PG 스팬 allowlist + 상관 ID — [`otel-function-nats-pg.md`](otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh`(live Collector는 그 문서 Non-goals).
 
 ---
 

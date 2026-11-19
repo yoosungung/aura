@@ -717,13 +717,16 @@ Egress 차단 검증(NP 매니페스트·앱 allowlist 스모크): [`deploy/docs
 | 규칙 | 내용 |
 |------|------|
 | 전송 | NATS 클러스터·클라이언트 **mTLS** 필수(출시 전). resolve 응답의 시크릿은 암호화 채널만 |
-| 로그/트레이스 | API 키·토큰·`secrets` 필드 **마스킹**; OTel attribute 허용 목록 |
+| 로그/트레이스 | API 키·토큰·`secrets` 필드 **마스킹**; OTel attribute 허용 목록; 스팬에 `aura.tenant_id`/`aura.session_id`/`aura.run_id` 필수 |
 | 프로세스 캐시 | Function 메모리 캐시 **TTL 짧음**(초안 ≤ 60s) + **키 로테이션/revoke 이벤트** 시 무효화(`aura.events.control.secrets.rotated`) |
-| 금지 | 시크릿을 `AURA_EVENTS`·DLQ·스트림 프레임에 기록 |
+| 금지 | 시크릿을 `AURA_EVENTS`·DLQ·스트림 프레임·OTel attribute에 기록 |
 
 M3 와이어(오버레이·mask/cache/tls 가드·체크): [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · `deploy/k8s/nats-mtls/` · `check-nats-mtls-secrets.sh`. live cert 발급·시크릿 스토어 본구현은 후속.
 
 M3 최소 경로·NATS mTLS overlay·마스킹/TTL 캐시: [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · `deploy/k8s/nats-mtls/` · [`services/control/`](services/control/) (`secrets-mask.js` · `secrets-cache.js` · `nats-tls.js`) · `check-nats-mtls-secrets.sh`. live cert apply·Vault 본구현은 후속.
+
+
+M4 OTel (Function·NATS·PG) attribute allowlist + 상관 ID + `maskSecrets` 재사용: [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · [`services/otel/`](services/otel/) · `check-otel-function-nats-pg.sh`. live Collector/OTLP CI 필수는 Non-goal.
 
 ### 9.3 GDPR · 잊힐 권리
 

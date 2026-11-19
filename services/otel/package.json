@@ -1,0 +1,10 @@
+{
+  "name": "aura-otel",
+  "private": true,
+  "version": "0.0.0",
+  "description": "OTel attribute allowlist + Function/NATS/PG span builders (M4)",
+  "main": "spans.js",
+  "scripts": {
+    "test": "node attributes.selftest.js && node spans.selftest.js"
+  }
+}
