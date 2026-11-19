@@ -1,11 +1,11 @@
 # svc-memory (내부 설계)
 
-계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#5 · §2.1 · §3.2–§3.3 · §4.2 · §6.3.  
-일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**).  
-DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md).
+계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#5 · §2.1 · §3.2–§3.3 · §4.2 · §5 · §6.3.  
+일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 규칙).  
+DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md).
 
-**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT).  
-**Non-goals (본 슬라이스):** graph walk 본구현(M4 · stub만) · consolidate/ttl/archive · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec` INSERT · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만).
+**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT) + **consolidate**(async MQT · 유형 승격 규칙).  
+**Non-goals (본 슬라이스):** graph walk 본구현(M4 · stub만) · ttl/archive · LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만).
 
 수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED).
 
@@ -66,6 +66,33 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 ---
 
+## Consolidate MQT (§3.2 · §5 · M4)
+
+| 필드 | 값 |
+|------|-----|
+| topic | `aura.tasks.memory.consolidate` |
+| consumer | `aura_memory_consolidate` |
+| stream | `AURA_TASKS` |
+| respTopic | `aura.events.memory.consolidated` |
+| errorTopic | `aura.events.memory.consolidate.error` |
+| mqtype / kind | `nats-jetstream` / `keda` |
+| 매니페스트 | [`deploy/k8s/memory-consolidate/`](../../deploy/k8s/memory-consolidate/) |
+
+**승격 규칙 (정본):** [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md)
+
+| 항목 | 규칙 |
+|------|------|
+| 허용 전이 | `short_term`→`episodic` · `episodic`→`long_term` · `episodic`→`semantic` |
+| 사유 | `session_boundary` / `recurrence`(evidence_count **≥ 3**) / `llm_extract` / `operator` |
+| 금지 | `similarity_only` · reason 누락 · 건너뛰기·역방향 · in-place `UPDATE memory_type` |
+| 물리 | `soft_close`(`valid_until`) + `insert_promoted`(`supersedes_id`) — LIST 파티션 |
+| GUC | `withTenantTx` → `set_config('app.tenant_id', $1, true)` |
+
+입력: §8 + `payload.from_type` · `to_type` · `reason` · `item_id` · `created_at` · (선택) `evidence_count`/`similarity`.  
+성공 본문 `type: memory.consolidated`. store/embed/recall은 유형을 **승격하지 않는다**.
+
+---
+
 ## Recall RPC (§3.3 · §4.2 · M2)
 
 | 필드 | 값 |
@@ -98,7 +125,7 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 ## 트랜잭션 헬퍼
 
 `services/memory/store/tenant-tx.js` — `BEGIN` → `set_config('app.tenant_id', $1, true)` → work → `COMMIT`/`ROLLBACK`.  
-store·embed·**recall** handler는 이 헬퍼만 경유한다(short_term embed skip 제외).
+store·embed·consolidate·**recall** handler는 이 헬퍼만 경유한다(short_term embed skip 제외).
 
 ---
 
@@ -107,6 +134,7 @@ store·embed·**recall** handler는 이 헬퍼만 경유한다(short_term embed 
 ```bash
 bash deploy/scripts/check-memory-store.sh          # DESIGN + store MQT + set_config(..., true) + selftests
 bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_term skip + selftests
+bash deploy/scripts/check-memory-consolidate.sh    # 승격 규칙 + similarity_only 금지 + MQT + selftests
 bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + GUCs + Warm Pool + no MQT + selftests
 bash deploy/scripts/check-agent-inject-contract.sh # Agent 주입 슬롯·토큰 예산 문서 게이트
 bash deploy/scripts/check-object-store-content-ref.sh # Object Store=Garage · content_ref · 256KB
@@ -114,6 +142,8 @@ bash deploy/scripts/check-object-store-orphan-gc.sh   # 고아 GC 90d · object_
 node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
 node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
 node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
+node services/memory/consolidate/promote.selftest.js  # 허용 전이 · similarity_only 거부
+node services/memory/consolidate/handler.selftest.js  # consolidate MQT · withTenantTx · no UPDATE type
 node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant WHERE · graph stub
 ```
 
@@ -121,5 +151,5 @@ node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant
 
 ## 관련 링크
 
-- §2.1 Pooler · §3.2 store/embed/object_gc · §3.3 recall subject · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · 고아 GC [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
-- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2»
+- §2.1 Pooler · §3.2 store/embed/consolidate/object_gc · §3.3 recall subject · §5 승격 [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · §6.3 hybrid · §8 `content_ref` [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) · 고아 GC [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · Agent 주입 [`deploy/docs/agent-inject-contract.md`](../../deploy/docs/agent-inject-contract.md) · Pooler 스모크 [`deploy/docs/pg-pooler-smoke-plan.md`](../../deploy/docs/pg-pooler-smoke-plan.md)
+- ROADMAP M1 store · M2 embed · M2 recall RPC Warm · M2 «recall hybrid RRF» · M2 «Agent 주입 계약» · M2 «Object Store V2.1» · M2 «고아 GC V2.2» · M4 consolidate 유형 승격

@@ -342,6 +342,21 @@ bash deploy/scripts/check-memory-embed.sh   # DESIGN + MQT + short_term skip sel
 | embeddable | episodic/long_term/semantic → `set_config(..., true)` + 활성 `model_key` stub (HNSW); BM25=`content_tsv` |
 | Non-goals | 라이브 TEI · 실 halfvec INSERT · hybrid RRF recall · live apply 필수 |
 
+### svc-memory consolidate MQT (M4 · 유형 승격 규칙)
+
+```bash
+bash deploy/scripts/check-memory-consolidate.sh   # 승격 규칙 + similarity_only 금지 + MQT selftest (no cluster)
+```
+
+| 항목 | 값 |
+|------|-----|
+| 정책 | [`docs/memory-consolidate-promotion.md`](docs/memory-consolidate-promotion.md) |
+| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Consolidate MQT 절) |
+| 코드 | `services/memory/consolidate/{promote,handler}.js` (+ `store/tenant-tx.js`) |
+| 매니페스트 | [`k8s/memory-consolidate/`](k8s/memory-consolidate/) — topic `aura.tasks.memory.consolidate` · consumer `aura_memory_consolidate` · resp/error `aura.events.memory.consolidated` / `.consolidate.error` · `minReplicaCount=0` |
+| 불변식 | consolidate만 유형 변경 · `similarity_only` 거부 · soft_close+insert_promoted (no `UPDATE memory_type`) |
+| Non-goals | LLM extract 본문 · graph write · 실 UPSERT · ttl/archive · live apply 필수 |
+
 ### svc-memory recall RPC (M2 · Warm Pool · hybrid RRF)
 
 ```bash
