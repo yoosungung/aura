@@ -2,6 +2,8 @@
 
 Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITECTURE.md](ARCHITECTURE.md).
 
+체크리스트(factory `pm-roadmap-sync`): `- [ ]` 할 일 · `- [x]` 완료 · `- [-]` 취소/불필요/won't-do · `- [~]` 연기(임시; 가능하면 대상 `##`로 이동).
+
 ---
 
 ## 결정 로그
@@ -196,7 +198,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **Egress 차단 검증**: 샌드박스에서 LLM Gateway·NATS·Pooler·허용 MCP 호스트 외 연결 실패 — [`deploy/docs/egress-block-verify.md`](deploy/docs/egress-block-verify.md) · `deploy/k8s/sandbox-egress/` · `check-egress-block-verify.sh` · `evaluate-egress.selftest.js` · `egress-allowlist.selftest.js`
 - [x] **LLM Gateway** 최소 + Function Egress는 Gateway만 — [`deploy/docs/llm-gateway.md`](deploy/docs/llm-gateway.md) · [`services/llm-gateway/`](services/llm-gateway/) · `deploy/k8s/llm-gateway/` · `check-llm-gateway.sh` (Fallback/과금 대시보드=M5)
 - [x] **NATS mTLS** + 시크릿 마스킹/TTL 캐시 무효화 — [`deploy/docs/nats-mtls-secrets.md`](deploy/docs/nats-mtls-secrets.md) · [`services/control/`](services/control/) (`secrets-mask.js` · `secrets-cache.js` · `nats-tls.js`) · `deploy/k8s/nats-mtls/` · `check-nats-mtls-secrets.sh` (live cert apply=운영)
-- [x] (선택 F1) 테넌트 subject 샤딩 — SLO 미달 시만 (미실시·SLO 게이트 미발화)
+- [-] (선택 F1) 테넌트 subject 샤딩 — SLO 미달 시만 (미실시·SLO 게이트 미발화)
 
 **검증 체크리스트 (권고 반영)**
 
