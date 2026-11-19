@@ -157,6 +157,7 @@ bash deploy/scripts/smoke-dlq-term.sh      # MaxDeliver → Term → aura.dlq.>
 | 스모크 subject | `aura.tasks.dlq_term_smoke` → `aura.dlq.tasks.dlq_term_smoke` |
 | consumer | 전용 durable `aura_dlq_term_smoke` (MQT `aura_tasks_smoke` 비침범) |
 | errorTopic | V0.3과 **병행·비충돌** (본 스모크는 errorTopic 미사용) |
+| Replay (M5) | [`docs/dlq-replay.md`](docs/dlq-replay.md) · `dlq-replay.sh` · `check-dlq-replay.sh` — dry-run/confirm · 자동 루프 금지 |
 
 ### Sync Core RR / V0.2 (`aura.rpc.smoke`)
 
@@ -458,6 +459,7 @@ bash deploy/scripts/check-egress-block-verify.sh   # NP+RuntimeClass 매니페�
 bash deploy/scripts/check-llm-gateway.sh          # LLM Gateway 최소 + Function egress guard (no cluster)
 bash deploy/scripts/check-llm-gateway-fallback-billing.sh  # Fallback 모델 + 테넌트 과금 대시보드 (no live provider)
 bash deploy/scripts/check-high-risk-tenant-nodepool.sh  # 고위험 RuntimeClass=kata + 전용 노드풀 정책 (no live pool)
+bash deploy/scripts/check-dlq-replay.sh                 # DLQ Replay 런북 + plan selftest (no live NATS)
 bash deploy/scripts/check-nats-mtls-secrets.sh  # NATS mTLS overlay + secrets mask/TTL cache (no live cert)
 bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG attrs + allowlist (no live collector)
 bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-shred draft (no live OpenBao)
