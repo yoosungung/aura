@@ -1,0 +1,27 @@
+# DRAFT — operator checklist for the high-risk Kata node pool (M5 · §9.1).
+# Not applied by kustomize. Live provision = Non-goal for CI.
+# Policy: deploy/docs/high-risk-tenant-nodepool.md
+#
+# Required on every node in the dedicated pool:
+#   kubectl label node <node> aura.sandbox/pool=kata
+#   kubectl taint node <node> aura.sandbox/pool=kata:NoSchedule
+#
+# Verify:
+#   kubectl get nodes -l aura.sandbox/pool=kata
+#   kubectl describe node <node> | grep -A2 Taints
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aura-high-risk-nodepool-draft
+  labels:
+    app.kubernetes.io/part-of: aura
+    aura.sandbox/tier: high-risk
+  annotations:
+    aura.swfactory.io/draft: "true"
+    aura.swfactory.io/doc: deploy/docs/high-risk-tenant-nodepool.md
+data:
+  node_label: "aura.sandbox/pool: kata"
+  node_taint: "aura.sandbox/pool=kata:NoSchedule"
+  runtime_class: "kata"
+  handler: "kata-qemu"
