@@ -458,6 +458,7 @@ bash deploy/scripts/check-egress-block-verify.sh   # NP+RuntimeClass 매니페�
 bash deploy/scripts/check-llm-gateway.sh          # LLM Gateway 최소 + Function egress guard (no cluster)
 bash deploy/scripts/check-nats-mtls-secrets.sh  # NATS mTLS overlay + secrets mask/TTL cache (no live cert)
 bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG attrs + allowlist (no live collector)
+bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-shred draft (no live OpenBao)
 ```
 
 | 항목 | M3 고정 |
@@ -471,6 +472,7 @@ bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG at
 | LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) |
 | NATS TLS | overlay [`k8s/nats-mtls/`](k8s/nats-mtls/) · mask/TTL [`docs/nats-mtls-secrets.md`](docs/nats-mtls-secrets.md) · `check-nats-mtls-secrets.sh` |
 | OTel (M4) | Function·NATS·PG attrs + mask [`docs/otel-function-nats-pg.md`](docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`../services/otel/`](../services/otel/) |
+| erase (M4) | crypto-shred + content_ref [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · [`../services/compliance/`](../services/compliance/) · `k8s/compliance-erase/` |
 | Non-goals | CNI FQDN/egress-proxy **라이브 프로브** · live provider 키 CI · Fallback/과금 대시보드 · live NATS SDK · full MCP initialize (Streamable HTTP client: `streamable-http.js`) · **live cert apply CI 필수** (mTLS 매니페스트·selftest만) · **OTel Collector live apply CI 필수** |
 
 ### Gateway · `run_id` · SSE/WS · principal (M3)

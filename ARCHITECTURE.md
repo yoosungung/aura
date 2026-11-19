@@ -736,7 +736,7 @@ M4 OTel (Function·NATS·PG) attribute allowlist + 상관 ID + `maskSecrets` 재
 | 삭제 | 사용자/테넌트 탈퇴 → **crypto-shredding**(데이터 암호화 키 파기) + PG 파티션/행 삭제 배치 + object 삭제 |
 | `AURA_EVENTS` 90일 | 보관 중에도 PII 원문 최소화. 키 파기 후 잔존 ciphertext는 복호 불가 |
 | `memory_audit` | 무기한 원문 금지 — 요약/해시·ref만 또는 TTL 파티션(§6.2.2)과 정합 |
-| 작업 | `aura.tasks.compliance.erase` (MQT) — M4/M5 DESIGN |
+| 작업 | `aura.tasks.compliance.erase` (MQT) — M4 초안: OpenBao Transit DEK shred → 핫 PG redact → `refs/` Delete · [`deploy/docs/compliance-erase.md`](deploy/docs/compliance-erase.md) · [`services/compliance/`](services/compliance/) · `check-compliance-erase.sh` (live KMS/M5 운영화=후속) |
 
 ### 9.4 중앙 LLM Gateway
 
