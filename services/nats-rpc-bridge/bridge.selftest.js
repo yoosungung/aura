@@ -7,6 +7,7 @@ const {
   DEFAULT_FETCH_TIMEOUT_MS,
   DEFAULT_MAX_INFLIGHT,
   functionForSubject,
+  createFetchAbort,
   invokeFission,
   handleNatsMessage,
   createInflightGate,
@@ -70,7 +71,10 @@ async function testInvokeHttp() {
   assert.strictEqual(calls[0].init.method, 'POST');
   assert.ok(calls[0].init.signal, 'fetch must pass AbortSignal');
   assert.ok(DEFAULT_FETCH_TIMEOUT_MS >= 1000);
-  assert.ok(DEFAULT_MAX_INFLIGHT >= 1);
+  assert.ok(
+    DEFAULT_MAX_INFLIGHT >= 50 && DEFAULT_MAX_INFLIGHT <= 100,
+    `DEFAULT_MAX_INFLIGHT should be 50–100, got ${DEFAULT_MAX_INFLIGHT}`,
+  );
 }
 
 async function testFetchTimeoutAbort() {
@@ -94,6 +98,15 @@ async function testFetchTimeoutAbort() {
     /aborted|AbortError|timeout/i,
   );
   assert.ok(sawAbort);
+
+  const { signal, dispose } = createFetchAbort(25000);
+  assert.ok(signal);
+  dispose();
+  assert.ok(
+    /AbortSignal\.timeout/.test(
+      require('fs').readFileSync(require('path').join(__dirname, 'bridge.js'), 'utf8'),
+    ),
+  );
 }
 
 async function testDispatchParallelNoHol() {
@@ -240,7 +253,7 @@ async function testStartBridgeSubscribes() {
       })();
     },
   };
-  const { queue, subjects } = await startBridge({
+  const { queue, subjects, gate } = await startBridge({
     queue: 'aura-rpc-bridge',
     connect: async () => ({ nc: fakeNc, sc: sc() }),
     invoke: async () => ({ status: 200, body: '{}' }),
@@ -249,6 +262,17 @@ async function testStartBridgeSubscribes() {
   assert.strictEqual(subjects.length, 3);
   assert.strictEqual(subscribed.length, 3);
   assert.ok(subscribed.every((s) => s.queue === 'aura-rpc-bridge'));
+  assert.ok(gate && gate.max >= 50 && gate.max <= 100);
+}
+
+async function testStartBridgeLoopDoesNotAwaitHandle() {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'bridge.js'), 'utf8');
+  assert.ok(/void dispatchNatsMessage/.test(src), 'loop must fire-and-forget dispatch');
+  assert.ok(
+    !/for await \(const msg of sub\) \{\s*await /.test(src),
+    'loop must not await handle inside for-await',
+  );
+  assert.ok(/AbortSignal\.timeout/.test(src), 'invokeFission must use AbortSignal.timeout');
 }
 
 (async () => {
@@ -261,6 +285,7 @@ async function testStartBridgeSubscribes() {
   await testUnknownSubject();
   await testInvokeErrorBody();
   await testStartBridgeSubscribes();
+  await testStartBridgeLoopDoesNotAwaitHandle();
   console.log('OK: nats-rpc-bridge.selftest');
 })().catch((err) => {
   console.error(err);

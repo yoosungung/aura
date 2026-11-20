@@ -36,6 +36,12 @@ spec:
               value: http://router-internal.fission.svc:8889
             - name: RPC_QUEUE
               value: aura-rpc-bridge
+            # Throughput: parallel dispatch + per-pod in-flight cap (HOL mitigation).
+            - name: RPC_MAX_INFLIGHT
+              value: "64"
+            # Hang isolation: abort fetch before Function timeout (30s).
+            - name: RPC_FETCH_TIMEOUT_MS
+              value: "25000"
           resources:
             requests:
               cpu: 25m

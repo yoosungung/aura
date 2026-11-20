@@ -24,8 +24,8 @@ const SUBJECTS = Object.freeze(Object.keys(SUBJECT_TO_FUNCTION));
 
 /** Sync Function timeout is 30s — bridge fetch aborts slightly earlier. */
 const DEFAULT_FETCH_TIMEOUT_MS = Number(process.env.RPC_FETCH_TIMEOUT_MS || 25000);
-/** Per-pod concurrent in-flight RPC handles (HOL mitigation). */
-const DEFAULT_MAX_INFLIGHT = Number(process.env.RPC_MAX_INFLIGHT || 32);
+/** Per-pod concurrent in-flight RPC handles (HOL mitigation; target 50–100). */
+const DEFAULT_MAX_INFLIGHT = Number(process.env.RPC_MAX_INFLIGHT || 64);
 
 function parseRuntimeFromPayload(payload) {
   if (payload == null) return 'nodejs';
@@ -111,14 +111,7 @@ async function invokeFission(functionName, payload, opts) {
   const url = `${routerBase(o)}/fission-function/${functionName}`;
   const timeoutMs =
     o.fetchTimeoutMs != null ? o.fetchTimeoutMs : DEFAULT_FETCH_TIMEOUT_MS;
-  // Prefer AbortController+clearTimeout over AbortSignal.timeout (unref timer).
-  let signal;
-  let timer;
-  if (timeoutMs > 0 && typeof AbortController !== 'undefined') {
-    const ac = new AbortController();
-    signal = ac.signal;
-    timer = setTimeout(() => ac.abort(), timeoutMs);
-  }
+  const { signal, dispose } = createFetchAbort(timeoutMs);
   try {
     const res = await fetchImpl(url, {
       method: 'POST',
@@ -129,8 +122,33 @@ async function invokeFission(functionName, payload, opts) {
     const text = await res.text();
     return { status: res.status, body: text };
   } finally {
-    if (timer) clearTimeout(timer);
+    dispose();
   }
+}
+
+/**
+ * AbortSignal.timeout (hang isolation) + ref'd timer (Node timeout timer is unref'd).
+ * @param {number} timeoutMs
+ * @returns {{ signal?: AbortSignal, dispose: () => void }}
+ */
+function createFetchAbort(timeoutMs) {
+  if (!(timeoutMs > 0) || typeof AbortController === 'undefined') {
+    return { signal: undefined, dispose: () => {} };
+  }
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  const parts = [ac.signal];
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    parts.unshift(AbortSignal.timeout(timeoutMs));
+  }
+  const signal =
+    parts.length > 1 && typeof AbortSignal.any === 'function'
+      ? AbortSignal.any(parts)
+      : parts[0];
+  return {
+    signal,
+    dispose: () => clearTimeout(timer),
+  };
 }
 
 /**
@@ -302,6 +320,7 @@ module.exports = {
   parseRuntimeFromPayload,
   functionForSubject,
   createInflightGate,
+  createFetchAbort,
   invokeFission,
   handleNatsMessage,
   dispatchNatsMessage,

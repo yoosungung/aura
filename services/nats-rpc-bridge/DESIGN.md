@@ -15,8 +15,8 @@
 | Deployment | `aura-nats-rpc-bridge` · **ns `aura`** · **replicas ≥ 2** |
 | queue-group | `aura-rpc-bridge` (세 subject 공유) |
 | Router | `POST {FISSION_ROUTER_URL}/fission-function/<name>` — 기본 `http://router-internal.fission.svc:8889` (Fission 1.27 public router는 HTTPTrigger만) |
-| 동시성 | 구독 루프는 `dispatchNatsMessage` 병렬(HOL 금지) · `RPC_MAX_INFLIGHT`(기본 32) 세마포어 |
-| fetch | `AbortController` + timeout · `RPC_FETCH_TIMEOUT_MS`(기본 25000, Function timeout 30s보다 짧게) |
+| 동시성 | `for await`에서 **await 금지** — `void dispatchNatsMessage` 병렬(HOL 금지) · `RPC_MAX_INFLIGHT`(기본 **64**, 권장 50–100) 세마포어 |
+| fetch | `AbortSignal.timeout` + ref'd `AbortController`(`RPC_FETCH_TIMEOUT_MS` 기본 **25000**, Function 30s보다 짧게) — hang 전파 차단 |
 | 금지 | handler 로직 · JetStream · scale-to-zero |
 
 ## Subject → Function
