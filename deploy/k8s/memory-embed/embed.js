@@ -4,9 +4,23 @@
  * Fission Package entry for aura.tasks.memory.embed (ARCHITECTURE §3.2 · §2.1 · §6.2.1).
  * Source of truth for unit tests: services/memory/embed/handler.js + store/tenant-tx.js
  * This file is a single-file literal for Fission Package (no require siblings).
+ * Live vectors: LLM Gateway POST /v1/embeddings only.
  */
 
+const fs = require('fs');
+
 const EMBEDDABLE = new Set(['episodic', 'long_term', 'semantic']);
+const DEFAULT_GATEWAY =
+  'http://aura-llm-gateway.aura.svc.cluster.local:8080';
+const LAB_CONFIG_DIR = '/configs/default/aura-memory-embed-lab';
+const GATEWAY_HOSTS = new Set([
+  'aura-llm-gateway',
+  'aura-llm-gateway.aura',
+  'aura-llm-gateway.aura.svc',
+  'aura-llm-gateway.aura.svc.cluster.local',
+  'localhost',
+  '127.0.0.1',
+]);
 
 async function withTenantTx(client, tenantId, fn) {
   if (!tenantId || typeof tenantId !== 'string') {
@@ -42,16 +56,54 @@ function isEmbeddableType(memoryType) {
   return EMBEDDABLE.has(memoryType);
 }
 
+function envOrLabConfig(name, fallback) {
+  if (process.env[name] != null && process.env[name] !== '') {
+    return process.env[name];
+  }
+  try {
+    const p = `${LAB_CONFIG_DIR}/${name}`;
+    if (fs.existsSync(p)) {
+      return fs.readFileSync(p, 'utf8').trim();
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return fallback;
+}
+
 function activePin() {
-  const model = process.env.AURA_EMBEDDING_MODEL || 'BAAI/bge-m3';
-  const version = process.env.AURA_EMBEDDING_VERSION || '1';
-  const dims = Number(process.env.AURA_EMBEDDING_DIMS || '1024');
+  const model = envOrLabConfig('AURA_EMBEDDING_MODEL', 'BAAI/bge-m3');
+  const version = envOrLabConfig('AURA_EMBEDDING_VERSION', '1');
+  const dims = Number(envOrLabConfig('AURA_EMBEDDING_DIMS', '1024'));
   return {
     model,
     version,
     dims,
     model_key: `${model}:${version}`,
   };
+}
+
+function gatewayBaseUrl() {
+  return String(envOrLabConfig('AURA_LLM_GATEWAY_URL', DEFAULT_GATEWAY)).replace(
+    /\/$/,
+    '',
+  );
+}
+
+function assertGatewayOnly(url) {
+  let host;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    const err = new Error('embed_provider_error');
+    err.status = 502;
+    throw err;
+  }
+  if (!GATEWAY_HOSTS.has(host)) {
+    const err = new Error('provider_direct_forbidden');
+    err.status = 502;
+    throw err;
+  }
 }
 
 function parseBody(req) {
@@ -69,10 +121,58 @@ function memoryTypeOf(envelope) {
   return null;
 }
 
-async function embedOnce(client, envelope) {
+function contentOf(envelope) {
+  const p = envelope && envelope.payload;
+  if (p && p.content != null) return String(p.content);
+  if (envelope && envelope.content != null) return String(envelope.content);
+  return '';
+}
+
+async function fetchGatewayEmbedding(tenantId, model, input, fetchImpl) {
+  const base = gatewayBaseUrl();
+  assertGatewayOnly(base);
+  const fetchFn = typeof fetchImpl === 'function' ? fetchImpl : globalThis.fetch;
+  let res;
+  try {
+    res = await fetchFn(`${base}/v1/embeddings`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-aura-tenant-id': tenantId,
+      },
+      body: JSON.stringify({ model, input }),
+    });
+  } catch (_) {
+    const err = new Error('embed_provider_error');
+    err.status = 502;
+    throw err;
+  }
+  if (!res || !res.ok) {
+    const err = new Error('embed_provider_error');
+    err.status = 502;
+    throw err;
+  }
+  const body = await res.json();
+  const embedding =
+    body &&
+    Array.isArray(body.data) &&
+    body.data[0] &&
+    Array.isArray(body.data[0].embedding)
+      ? body.data[0].embedding
+      : null;
+  if (!embedding) {
+    const err = new Error('embed_provider_error');
+    err.status = 502;
+    throw err;
+  }
+  return { embedding, usage: body.usage || null };
+}
+
+async function embedOnce(client, envelope, deps) {
   const tenantId = envelope.tenant_id;
   const id = envelope.id;
   const memoryType = memoryTypeOf(envelope);
+  const d = deps && typeof deps === 'object' ? deps : {};
 
   if (!tenantId) {
     const err = new Error('tenant_id_required');
@@ -116,6 +216,18 @@ async function embedOnce(client, envelope) {
     envelope.item_id ||
     id;
 
+  const emb = await fetchGatewayEmbedding(
+    tenantId,
+    pin.model,
+    contentOf(envelope),
+    d.fetchImpl,
+  );
+  if (emb.embedding.length !== pin.dims) {
+    const err = new Error('embedding_dims_mismatch');
+    err.status = 400;
+    throw err;
+  }
+
   return withTenantTx(client, tenantId, async (c) => {
     await c.query(
       '/* aura.tasks.memory.embed idempotent stub */ SELECT $1::text AS event_id, $2::text AS item_id, $3::text AS memory_type, $4::text AS model_key, current_setting($5, true) AS tenant_guc',
@@ -127,11 +239,16 @@ async function embedOnce(client, envelope) {
       tenant_id: tenantId,
       occurred_at: new Date().toISOString(),
       payload: {
-        status: 'accepted_stub',
+        status: 'accepted',
         memory_type: memoryType,
         item_id: itemId,
         model_key: pin.model_key,
         dims: pin.dims,
+        via: 'llm_gateway',
+        embedding_tokens:
+          emb.usage && emb.usage.total_tokens != null
+            ? Number(emb.usage.total_tokens)
+            : undefined,
         indexes: { hnsw: true, bm25: true },
       },
     };
@@ -167,7 +284,9 @@ module.exports = async function (context) {
   };
 
   try {
-    const out = await embedOnce(client, envelope);
+    const out = await embedOnce(client, envelope, {
+      fetchImpl: context && context.fetch,
+    });
     return { status: 200, body: JSON.stringify(out) };
   } catch (err) {
     return {

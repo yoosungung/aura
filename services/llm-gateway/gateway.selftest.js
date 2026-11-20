@@ -22,7 +22,11 @@ const {
   PROVIDER_KINDS,
   providersFromConfig,
   loadProvidersFile,
+  embeddingsFromConfig,
+  loadEmbeddingsConfig,
+  createEmbeddingsClient,
 } = require('./providers');
+const { createServer } = require('./entrypoint');
 
 function fail(msg) {
   console.error('FAIL:', msg);
@@ -480,6 +484,139 @@ async function testProviderKinds() {
   ok('provider kinds: stub ollama openai vllm sglang');
 }
 
+async function testEmbeddingsCatalog() {
+  assert.strictEqual(
+    loadEmbeddingsConfig('/tmp/aura-llm-providers-missing.json'),
+    null,
+  );
+  assert.throws(
+    () =>
+      embeddingsFromConfig(
+        JSON.stringify({
+          providers: [{ kind: 'stub' }],
+          embeddings: { kind: 'tensorrt', model: 'x' },
+        }),
+      ),
+    (e) => e && e.code === 'provider_kind_invalid',
+  );
+  assert.strictEqual(
+    embeddingsFromConfig(JSON.stringify({ providers: [{ kind: 'stub' }] })),
+    null,
+  );
+
+  const calls = [];
+  const emb = embeddingsFromConfig(
+    JSON.stringify({
+      providers: [{ kind: 'stub' }],
+      embeddings: {
+        name: 'ollama-embed',
+        kind: 'ollama',
+        model: 'embeddinggemma-2:270m-mxfp8-text',
+        baseUrl: 'http://host.orb.internal:11434/v1',
+      },
+    }),
+    {
+      fetch: async (url, init) => {
+        calls.push({ url, body: JSON.parse(init.body) });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [{ object: 'embedding', index: 0, embedding: Array(768).fill(0.1) }],
+            model: 'embeddinggemma-2:270m-mxfp8-text',
+            usage: { prompt_tokens: 2, total_tokens: 2 },
+          }),
+        };
+      },
+    },
+  );
+  assert.strictEqual(emb.model, 'embeddinggemma-2:270m-mxfp8-text');
+  const out = await emb.embed({ input: 'hello' });
+  assert.strictEqual(calls[0].url, 'http://host.orb.internal:11434/v1/embeddings');
+  assert.strictEqual(calls[0].body.model, 'embeddinggemma-2:270m-mxfp8-text');
+  assert.strictEqual(calls[0].body.input, 'hello');
+  assert.strictEqual(out.data[0].embedding.length, 768);
+  assert.strictEqual(out.provider, 'ollama-embed');
+  ok('embeddings catalog + OpenAI /embeddings proxy');
+}
+
+async function testEmbeddingsHttp() {
+  const vec = Array(4).fill(0.25);
+  let fetchCalls = 0;
+  const server = createServer({
+    providersFile: null,
+    provider: createStubProvider(),
+    embeddings: createEmbeddingsClient(
+      {
+        name: 'ollama-embed',
+        kind: 'ollama',
+        model: 'embeddinggemma-2:270m-mxfp8-text',
+        baseUrl: 'http://host.orb.internal:11434/v1',
+      },
+      {
+        fetch: async () => {
+          fetchCalls += 1;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [{ object: 'embedding', index: 0, embedding: vec }],
+              model: 'embeddinggemma-2:270m-mxfp8-text',
+              usage: { prompt_tokens: 1, total_tokens: 1 },
+            }),
+          };
+        },
+      },
+    ),
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    const missingCfg = createServer({
+      provider: createStubProvider(),
+      embeddings: null,
+    });
+    await new Promise((resolve) => missingCfg.listen(0, '127.0.0.1', resolve));
+    const p2 = missingCfg.address().port;
+    const noCfg = await fetch(`http://127.0.0.1:${p2}/v1/embeddings`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ input: 'x' }),
+    });
+    assert.strictEqual(noCfg.status, 503);
+    const noBody = await noCfg.json();
+    assert.strictEqual(noBody.error, 'embeddings_not_configured');
+    missingCfg.close();
+
+    const bad = await fetch(`http://127.0.0.1:${port}/v1/embeddings`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.strictEqual(bad.status, 400);
+
+    const okRes = await fetch(`http://127.0.0.1:${port}/v1/embeddings`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-aura-tenant-id': 'ten-embed',
+      },
+      body: JSON.stringify({ input: 'hello lab' }),
+    });
+    assert.strictEqual(okRes.status, 200);
+    const body = await okRes.json();
+    assert.strictEqual(fetchCalls, 1);
+    assert.strictEqual(body.data[0].embedding.length, 4);
+    assert.strictEqual(body.model, 'embeddinggemma-2:270m-mxfp8-text');
+    assert.strictEqual(body.aura.provider, 'ollama-embed');
+  } finally {
+    server.close();
+  }
+  ok('POST /v1/embeddings HTTP path');
+}
+
 (async () => {
   try {
     await testEgressClientGuard();
@@ -494,6 +631,8 @@ async function testProviderKinds() {
     await testAllProvidersFail();
     await testBillingDashboardAggregate();
     await testProviderKinds();
+    await testEmbeddingsCatalog();
+    await testEmbeddingsHttp();
     console.log('llm-gateway.selftest: PASS');
   } catch (e) {
     fail(e && e.stack ? e.stack : String(e));

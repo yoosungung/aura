@@ -1,6 +1,7 @@
 # Provider catalog for aura-llm-gateway. API keys stay in Secret via apiKeyEnv.
 # Kinds: stub | ollama | openai | vllm (:8000) | sglang (:30000).
-# Cluster default: ollama gemma4:e2b. Weights are not hosted by this pod.
+# Lab default: host Ollama via OrbStack host.orb.internal (not in-cluster Service).
+# Weights are not hosted by this pod.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,8 +17,14 @@ data:
         {
           "name": "ollama",
           "kind": "ollama",
-          "model": "gemma4:e2b",
-          "baseUrl": "http://ollama.aura.svc.cluster.local:11434/v1"
+          "model": "gemma4:e2b-mlx",
+          "baseUrl": "http://host.orb.internal:11434/v1"
         }
-      ]
+      ],
+      "embeddings": {
+        "name": "ollama-embed",
+        "kind": "ollama",
+        "model": "embeddinggemma-2:270m-mxfp8-text",
+        "baseUrl": "http://host.orb.internal:11434/v1"
+      }
     }

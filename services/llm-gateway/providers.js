@@ -1,9 +1,9 @@
 'use strict';
 
 /**
- * LLM provider catalog. ConfigMap JSON → ordered providers.
+ * LLM provider catalog. ConfigMap JSON → ordered providers + optional embeddings.
  * Kinds: stub · ollama · openai · vllm · sglang.
- * Live kinds share the OpenAI POST {baseUrl}/chat/completions shape.
+ * Chat: POST {baseUrl}/chat/completions. Embeddings: POST {baseUrl}/embeddings.
  * API keys stay in the process env named by apiKeyEnv.
  */
 
@@ -127,8 +127,94 @@ function loadProvidersFile(filePath, opts) {
   return providersFromConfig(fs.readFileSync(filePath, 'utf8'), opts);
 }
 
+/**
+ * @param {object} spec
+ * @param {{ fetch?: Function, env?: NodeJS.ProcessEnv }} [opts]
+ */
+function createEmbeddingsClient(spec, opts) {
+  if (!spec || typeof spec !== 'object') throw fail('provider_config_invalid');
+  if (typeof spec.kind !== 'string' || !PROVIDER_KINDS[spec.kind] || spec.kind === 'stub') {
+    throw fail('provider_kind_invalid');
+  }
+  const meta = PROVIDER_KINDS[spec.kind];
+  if (meta.transport !== 'openai') throw fail('provider_kind_invalid');
+  const baseUrl = String(spec.baseUrl || meta.defaultBaseUrl).replace(/\/$/, '');
+  const model = spec.model || meta.defaultModel;
+  if (!model) throw fail('provider_config_invalid');
+  const name = spec.name || `${spec.kind}-embed`;
+  const fetchImpl = opts && opts.fetch;
+  const env = (opts && opts.env) || process.env;
+  if (typeof fetchImpl !== 'function') {
+    throw fail('provider_fetch_required');
+  }
+  return {
+    name,
+    kind: spec.kind,
+    baseUrl,
+    model,
+    /**
+     * @param {{ input: string|string[], model?: string }} req
+     */
+    async embed(req) {
+      const r = req && typeof req === 'object' ? req : {};
+      if (r.input == null || r.input === '') throw fail('input_required');
+      const headers = { 'content-type': 'application/json' };
+      if (spec.apiKeyEnv) {
+        const key = env[spec.apiKeyEnv];
+        if (key) headers.authorization = `Bearer ${key}`;
+      }
+      let res;
+      try {
+        res = await fetchImpl(`${baseUrl}/embeddings`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: r.model || model,
+            input: r.input,
+          }),
+        });
+      } catch (e) {
+        if (e && e.code) throw e;
+        throw fail('provider_error');
+      }
+      if (!res || !res.ok) throw fail('provider_error');
+      const body = await res.json();
+      return { ...body, provider: name, model: r.model || model };
+    },
+  };
+}
+
+/**
+ * @param {string} text
+ * @param {{ fetch?: Function, env?: NodeJS.ProcessEnv }} [opts]
+ * @returns {ReturnType<typeof createEmbeddingsClient>|null}
+ */
+function embeddingsFromConfig(text, opts) {
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    throw fail('provider_config_invalid');
+  }
+  if (!doc || doc.embeddings == null) return null;
+  return createEmbeddingsClient(doc.embeddings, opts || {});
+}
+
+/**
+ * Missing file → null (embeddings route returns embeddings_not_configured).
+ * @param {string} [filePath]
+ * @param {{ fetch?: Function, env?: NodeJS.ProcessEnv }} [opts]
+ */
+function loadEmbeddingsConfig(filePath, opts) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  return embeddingsFromConfig(fs.readFileSync(filePath, 'utf8'), opts);
+}
+
 module.exports = {
   PROVIDER_KINDS,
   providersFromConfig,
   loadProvidersFile,
+  createEmbeddingsClient,
+  embeddingsFromConfig,
+  loadEmbeddingsConfig,
 };

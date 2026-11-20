@@ -24,6 +24,7 @@
 | 메서드 | 경로 | 성공 | 거부 |
 |--------|------|------|------|
 | `POST` | `/v1/chat/completions` | **200** chat.completion | **400** validation · **429** `rate_limited` · **503** `circuit_open` · **502** provider |
+| `POST` | `/v1/embeddings` | **200** embeddings list | **400** `input_required` · **503** `embeddings_not_configured` · **502** provider |
 | `GET` | `/healthz` | **200** `ok` | — |
 
 기본 쿼터: rate **20**/s · burst **40**.
@@ -36,7 +37,8 @@
 |------|-----|
 | Service DNS | `aura-llm-gateway.aura.svc.cluster.local:8080` |
 | Deployment | `deploy/k8s/llm-gateway/` · **replicas ≥ 2** · label `app: aura-llm-gateway` |
-| Provider catalog | ConfigMap `aura-llm-gateway-providers` · kinds `stub` `ollama` `openai` `vllm` `sglang` · 기본 `ollama` / `gemma4:e2b` |
+| Provider catalog | ConfigMap `aura-llm-gateway-providers` · kinds `stub` `ollama` `openai` `vllm` `sglang` · lab chat `gemma4:e2b-mlx` · lab `embeddings`=`embeddinggemma-2:270m-mxfp8-text` @ `host.orb.internal:11434/v1` |
+| Lab memory-embed | [`memory-embed-ollama-lab.md`](memory-embed-ollama-lab.md) (Function ConfigMap `aura-memory-embed-lab`) |
 | PG / MQT | 없음 |
 
 ---

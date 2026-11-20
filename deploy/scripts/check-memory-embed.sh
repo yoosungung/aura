@@ -35,6 +35,14 @@ HANDLER="$EMBED_DIR/handler.js"
 
 grep -q 'skipped_short_term\|short_term' "$HANDLER" || fail "handler must skip short_term"
 grep -q 'withTenantTx\|with_tenant_tx' "$HANDLER" || fail "handler.js must use withTenantTx"
+grep -q '/v1/embeddings' "$HANDLER" || fail "handler must call Gateway /v1/embeddings"
+grep -q 'assertFunctionLlmEgress\|llm-gateway/client' "$HANDLER" \
+  || fail "handler must egress via llm-gateway client guard"
+grep -q 'embedding_dims_mismatch' "$HANDLER" || fail "handler must guard embedding dims"
+grep -q "via: 'llm_gateway'" "$HANDLER" || fail "handler must record via llm_gateway"
+LAB_DOC="$ROOT/deploy/docs/memory-embed-ollama-lab.md"
+[[ -f "$LAB_DOC" ]] || fail "missing $LAB_DOC"
+grep -q 'memory-embed-ollama-lab.md' "$DESIGN" || fail "DESIGN must link memory-embed-ollama-lab.md"
 grep -Eq "set_config\('app\.tenant_id'" "$ROOT/services/memory/store/tenant-tx.js" \
   || fail "tenant-tx.js must call set_config"
 if grep -Eq "set_config\([^)]*,\s*false\s*\)|SET[[:space:]]+app\.tenant_id" "$HANDLER"; then
@@ -55,6 +63,18 @@ EMBED_JS="$K8S_DIR/embed.js"
 [[ -f "$FN" ]] || fail "missing $FN"
 [[ -f "$PKG" ]] || fail "missing $PKG"
 [[ -f "$EMBED_JS" ]] || fail "missing $EMBED_JS"
+
+CM_LAB="$K8S_DIR/configmap-lab.yaml"
+[[ -f "$CM_LAB" ]] || fail "missing $CM_LAB"
+grep -q 'aura-memory-embed-lab' "$FN" || fail "function.yaml must reference aura-memory-embed-lab ConfigMap"
+grep -q 'embeddinggemma-2:270m-mxfp8-text' "$CM_LAB" \
+  || fail "lab ConfigMap must set embeddinggemma-2:270m-mxfp8-text"
+grep -q 'AURA_LLM_GATEWAY_URL' "$CM_LAB" || fail "lab ConfigMap must set AURA_LLM_GATEWAY_URL"
+grep -q '768' "$CM_LAB" || fail "lab ConfigMap dims must be 768"
+grep -q 'configmap-lab.yaml' "$K8S_DIR/kustomization.yaml" \
+  || fail "kustomization must include configmap-lab.yaml"
+grep -q '/v1/embeddings' "$EMBED_JS" || fail "embed.js must call Gateway /v1/embeddings"
+grep -q 'aura-memory-embed-lab' "$EMBED_JS" || fail "embed.js must read lab ConfigMap mount"
 
 grep -Eq 'set_config\('\''app\.tenant_id'\'',\s*\$1,\s*true\)' "$EMBED_JS" \
   || fail "embed.js Package entry must call set_config(..., true)"

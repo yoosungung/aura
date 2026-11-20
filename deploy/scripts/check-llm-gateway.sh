@@ -66,6 +66,13 @@ grep -q 'AURA_LLM_PROVIDERS_FILE' "$DEP" || fail "Deployment must set AURA_LLM_P
 grep -q 'providers-configmap.yaml' "$KUST" || fail "kustomization must include providers ConfigMap"
 grep -q 'gemma4:e2b' "$CM" || fail "provider ConfigMap default model must be gemma4:e2b"
 grep -q '"kind": "ollama"' "$CM" || fail "provider ConfigMap default kind must be ollama"
+grep -q '"embeddings"' "$CM" || fail "provider ConfigMap must include embeddings block"
+grep -q 'embeddinggemma-2:270m-mxfp8-text' "$CM" \
+  || fail "provider ConfigMap embeddings model must be embeddinggemma-2:270m-mxfp8-text"
+grep -q '/v1/embeddings' "$ROOT/services/llm-gateway/entrypoint.js" \
+  || fail "entrypoint must expose /v1/embeddings"
+grep -Eq 'loadEmbeddingsConfig|createEmbeddingsClient|embeddingsFromConfig' "$PROV" \
+  || fail "providers.js must load embeddings catalog"
 for kind in stub ollama openai vllm sglang; do
   grep -q "$kind" "$PROV" || fail "providers.js must allow kind $kind"
   grep -q "$kind" "$DESIGN" || fail "DESIGN must name kind $kind"

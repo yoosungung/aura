@@ -1,4 +1,5 @@
 # Async embed Function — scale-to-zero owned by MessageQueueTrigger (ARCHITECTURE §4.1).
+# Lab pin via ConfigMap aura-memory-embed-lab (Fission has no Function.spec.env).
 apiVersion: fission.io/v1
 kind: Function
 metadata:
@@ -16,6 +17,9 @@ spec:
   package:
     packageref:
       name: aura-memory-embed
+      namespace: default
+  configmaps:
+    - name: aura-memory-embed-lab
       namespace: default
   InvokeStrategy:
     StrategyType: execution

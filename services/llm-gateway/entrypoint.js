@@ -2,13 +2,14 @@
 
 /**
  * Live HTTP entry for aura-llm-gateway.
- * Wires createLlmGateway. AURA_LLM_PROVIDERS_FILE absent → stub.
+ * Wires createLlmGateway. AURA_LLM_PROVIDERS_FILE absent → stub chat.
  * Catalog kinds: stub, ollama, openai, vllm, sglang.
+ * Optional ConfigMap embeddings → POST /v1/embeddings.
  */
 
 const http = require('http');
 const { createLlmGateway } = require('./gateway');
-const { loadProvidersFile } = require('./providers');
+const { loadProvidersFile, loadEmbeddingsConfig } = require('./providers');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -45,8 +46,53 @@ function gatewayDeps(opts) {
   };
 }
 
+function resolveEmbeddings(opts) {
+  if (Object.prototype.hasOwnProperty.call(opts, 'embeddings')) {
+    return opts.embeddings;
+  }
+  const file = opts.providersFile || process.env.AURA_LLM_PROVIDERS_FILE;
+  return loadEmbeddingsConfig(file, { fetch: globalThis.fetch });
+}
+
+/**
+ * @param {{ embed: Function, name?: string, model?: string }} emb
+ * @param {object} body
+ */
+async function handleEmbeddings(emb, body) {
+  const b = body && typeof body === 'object' ? body : {};
+  if (b.input == null || b.input === '') {
+    return { status: 400, body: { error: 'input_required' } };
+  }
+  try {
+    const out = await emb.embed({
+      input: b.input,
+      model: typeof b.model === 'string' && b.model ? b.model : undefined,
+    });
+    return {
+      status: 200,
+      body: {
+        ...out,
+        aura: {
+          provider: emb.name || out.provider,
+          model: out.model || emb.model,
+        },
+      },
+    };
+  } catch (e) {
+    const code = (e && e.code) || 'provider_error';
+    if (code === 'input_required') {
+      return { status: 400, body: { error: code } };
+    }
+    return {
+      status: 502,
+      body: { error: 'provider_error', message: String(e && e.message) },
+    };
+  }
+}
+
 function createServer(opts = {}) {
   const gw = opts.gateway || createLlmGateway(gatewayDeps(opts));
+  const embeddings = resolveEmbeddings(opts);
 
   return http.createServer(async (req, res) => {
     try {
@@ -73,6 +119,31 @@ function createServer(opts = {}) {
           tenant_id: tenantFrom(req),
           body,
         });
+        res.writeHead(out.status || 500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(out.body || {}));
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/v1/embeddings') {
+        if (!embeddings) {
+          res.writeHead(503, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: 'embeddings_not_configured' }));
+          return;
+        }
+        const raw = await readBody(req);
+        let body = {};
+        if (raw) {
+          try {
+            body = JSON.parse(raw);
+          } catch {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ error: 'invalid_json' }));
+            return;
+          }
+        }
+        // tenant header accepted for audit symmetry; no RL this slice
+        void tenantFrom(req);
+        const out = await handleEmbeddings(embeddings, body);
         res.writeHead(out.status || 500, { 'content-type': 'application/json' });
         res.end(JSON.stringify(out.body || {}));
         return;
@@ -119,4 +190,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { createServer, main };
+module.exports = { createServer, main, handleEmbeddings };

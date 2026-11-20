@@ -350,8 +350,9 @@ bash deploy/scripts/check-memory-embed.sh   # DESIGN + MQT + short_term skip sel
 | 코드 | `services/memory/embed/handler.js` (+ `store/tenant-tx.js`) |
 | 매니페스트 | [`k8s/memory-embed/`](k8s/memory-embed/) — topic `aura.tasks.memory.embed` · consumer `aura_memory_embed` · resp/error `aura.events.memory.embedded` / `.embed.error` · `minReplicaCount=0` |
 | short_term | **스킵** — PG INSERT 미시도 (`skipped_short_term`) |
-| embeddable | episodic/long_term/semantic → `set_config(..., true)` + 활성 `model_key` stub (HNSW); BM25=`content_tsv` |
-| Non-goals | 라이브 TEI · 실 halfvec INSERT · hybrid RRF recall · live apply 필수 |
+| embeddable | episodic/long_term/semantic → Gateway `/v1/embeddings` → dims 검증 → `set_config(..., true)` stub (HNSW); BM25=`content_tsv` |
+| Lab Ollama | [`docs/memory-embed-ollama-lab.md`](docs/memory-embed-ollama-lab.md) · Function env embeddinggemma 768d · Gateway ConfigMap `embeddings` |
+| Non-goals | 실 halfvec INSERT · recall query 자동 embed · Function→Ollama 직접 · live apply 필수 |
 
 ### svc-memory consolidate MQT (M4 · 유형 승격 규칙)
 

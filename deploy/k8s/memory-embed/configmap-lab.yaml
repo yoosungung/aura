@@ -1,0 +1,17 @@
+# Lab embedding pin for aura-memory-embed (Fission mounts under /configs/…).
+# Production pin remains BAAI/bge-m3:1 — see deploy/docs/memory-embedding-active.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aura-memory-embed-lab
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-embed
+data:
+  AURA_EMBEDDING_MODEL: embeddinggemma-2:270m-mxfp8-text
+  AURA_EMBEDDING_VERSION: "1"
+  AURA_EMBEDDING_DIMS: "768"
+  AURA_LLM_GATEWAY_URL: http://aura-llm-gateway.aura.svc.cluster.local:8080

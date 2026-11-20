@@ -29,6 +29,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |--------|------|------|
 | `GET` | `/healthz` | readiness |
 | `POST` | `/v1/chat/completions` | 테넌트 쿼터 → Fallback chain(circuit skip) → usage log |
+| `POST` | `/v1/embeddings` | ConfigMap `embeddings` → OpenAI `POST {baseUrl}/embeddings` (미설정 시 **503** `embeddings_not_configured`) |
 | `GET` | `/v1/billing/usage` | 테넌트별 tokens/`cost_usd` 집계 |
 
 헤더: `X-Aura-Tenant-Id` (chat 필수). 본문: `{ model, messages[] }` (OpenAI chat 최소).  
@@ -53,17 +54,19 @@ Deps: `providers[]` (또는 단일 `provider`) · `fallbackModels: { [requested]
 
 ## Provider catalog (ConfigMap)
 
-라우팅만 ConfigMap `aura-llm-gateway-providers` 키 `providers.json`. API 키는 Secret이고, 항목의 `apiKeyEnv`가 그 env 이름을 가리킨다. 가중치 호스팅은 하지 않는다. 파일이 없으면 프로세스 기본은 stub (CI). 클러스터 기본 항목은 `kind: ollama`, `model: gemma4:e2b`.
+라우팅만 ConfigMap `aura-llm-gateway-providers` 키 `providers.json`. API 키는 Secret이고, 항목의 `apiKeyEnv`가 그 env 이름을 가리킨다. 가중치 호스팅은 하지 않는다. 파일이 없으면 프로세스 기본은 stub (CI). lab ConfigMap 기본은 `kind: ollama`, `model: gemma4:e2b-mlx`, `baseUrl: http://host.orb.internal:11434/v1`.
 
 | kind | 호출 | 기본 `baseUrl` | 기본 model |
 |------|------|----------------|------------|
 | `stub` | 프로세스 내 | — | — |
-| `ollama` | OpenAI `POST {baseUrl}/chat/completions` | `http://ollama.aura.svc.cluster.local:11434/v1` | `gemma4:e2b` |
+| `ollama` | OpenAI `POST {baseUrl}/chat/completions` | ConfigMap 기본 `http://host.orb.internal:11434/v1` (OrbStack 호스트 Ollama; kind 코드 기본은 `ollama.aura.svc…:11434/v1`) | `gemma4:e2b` |
 | `openai` | 동일 | `https://api.openai.com/v1` | 요청 model |
 | `vllm` | 동일 (vLLM OpenAI 서버, 기본 포트 **8000**) | `http://vllm.aura.svc.cluster.local:8000/v1` | 요청 model |
 | `sglang` | 동일 (SGLang HTTP, 기본 포트 **30000**) | `http://sglang.aura.svc.cluster.local:30000/v1` | 요청 model |
 
 `model`이 있으면 그 provider는 요청 model 대신 고정한다. `kind`가 위 표 밖이면 `provider_kind_invalid`. 순서 = Fallback 순서.
+
+선택 키 `embeddings`: `{ name?, kind, model, baseUrl?, apiKeyEnv? }`. lab 기본은 `ollama` / `embeddinggemma-2:270m-mxfp8-text` / `http://host.orb.internal:11434/v1`. 없으면 `/v1/embeddings` → 503.
 
 ---
 

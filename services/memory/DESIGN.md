@@ -5,9 +5,9 @@
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
 **이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP) + **archive**(async MQT · Parquet→DETACH/DROP) + **object_gc**(async MQT · 고아 refs/).  
-**Non-goals (본 슬라이스):** LLM extract 본문 · 라이브 TEI HTTP(query_embedding 없으면 vector 스킵) · 실 `halfvec`/`memory_items` UPSERT 본문 · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
+**Non-goals (본 슬라이스):** LLM extract 본문 · 실 `halfvec`/`memory_items` UPSERT 본문 · recall query 자동 embed · Function→Ollama/TEI **직접** · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
 
-수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED).
+수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀 ([`memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md)). store는 `memory_items` 적재만; embed는 Gateway `/v1/embeddings`로 벡터를 받은 뒤 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED). lab 오버레이: [`memory-embed-ollama-lab.md`](../../deploy/docs/memory-embed-ollama-lab.md).
 
 ---
 
@@ -58,11 +58,12 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 | `memory_type` | 동작 |
 |---------------|------|
 | `short_term` | **스킵** — HTTP 2xx `payload.status=skipped_short_term`; PG/`set_config`/INSERT **미시도** (DDL CHECK + 앱 이중 가드) |
-| `episodic` / `long_term` / `semantic` | `withTenantTx` → 활성 `model_key` stub · HNSW 경로; BM25는 store `content_tsv` GIN 적격 (`indexes.hnsw/bm25=true`) |
+| `episodic` / `long_term` / `semantic` | Gateway `POST /v1/embeddings` → dims 검증 → `withTenantTx` stub · HNSW 의도; BM25는 store `content_tsv` GIN 적격 (`indexes.hnsw/bm25=true`, `via=llm_gateway`) |
 | 기타 | 400 `memory_type_not_embeddable` |
 
 활성 핀(기본=env 또는 M1 고정): `AURA_EMBEDDING_MODEL` / `VERSION` / `DIMS` → `model_key=model:version`.  
-입력: §8 + `payload.memory_type` · `payload.item_id` · (선택) `content`. 성공 본문 `type: memory.embedded`.
+Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster.local:8080`)만. 벡터 길이 ≠ dims → 400 `embedding_dims_mismatch`. Gateway 실패 → 502 `embed_provider_error`.  
+입력: §8 + `payload.memory_type` · `payload.item_id` · (선택) `content`. 성공 본문 `type: memory.embedded` · `payload.status=accepted`.
 
 ---
 
