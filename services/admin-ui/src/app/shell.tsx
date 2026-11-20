@@ -1,9 +1,10 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet } from 'react-router-dom';
+import { AuthModal } from '@/components/auth-modal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useSession } from '@/stores/session';
+import { getApiBaseUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/stores/session';
 
 const nav = [
   { to: '/', label: 'Tenants', end: true },
@@ -14,11 +15,29 @@ const nav = [
 ];
 
 export function Shell() {
-  const baseUrl = useSession((s) => s.baseUrl);
   const bearer = useSession((s) => s.bearer);
   const tenantId = useSession((s) => s.tenantId);
-  const setBaseUrl = useSession((s) => s.setBaseUrl);
-  const setBearer = useSession((s) => s.setBearer);
+  const clearAuth = useSession((s) => s.clearAuth);
+  const queryClient = useQueryClient();
+
+  const health = useQuery({
+    queryKey: ['control-admin-healthz'],
+    queryFn: async () => {
+      const res = await fetch(`${getApiBaseUrl()}/api/healthz`);
+      if (!res.ok) throw new Error(`healthz ${res.status}`);
+      return (await res.json()) as { ok?: boolean };
+    },
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  const isConnected = health.isSuccess && health.data?.ok !== false;
+  const isChecking = health.isPending;
+
+  function handleDisconnect() {
+    clearAuth(null);
+    queryClient.clear();
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -28,56 +47,72 @@ export function Shell() {
             <h1 className="text-lg font-semibold">Aura Admin</h1>
             <p className="text-xs text-neutral-500">ops-only · control-admin HTTP</p>
           </div>
-          <div
-            id="tenant-banner"
-            className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white"
-            data-testid="active-tenant"
-          >
-            active tenant: <span id="active-tenant">{tenantId || '(none)'}</span>
-          </div>
-        </div>
-        <div className="mx-auto grid max-w-6xl gap-3 px-4 pb-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="base-url">Control admin URL</Label>
-            <Input
-              id="base-url"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="(same origin /v1 proxy) or http://host:8080"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="ops-token">Bearer token</Label>
-            <Input
-              id="ops-token"
-              type="password"
-              value={bearer}
-              onChange={(e) => setBearer(e.target.value)}
-              placeholder="ops token"
-              autoComplete="off"
-            />
-          </div>
-        </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 px-4 pb-3">
-          {nav.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {({ isActive }) => (
-                <Button
-                  type="button"
-                  variant={isActive ? 'default' : 'ghost'}
-                  size="sm"
-                  className={cn(isActive && 'pointer-events-none')}
-                >
-                  {item.label}
-                </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              data-testid="health-badge"
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
+                isChecking
+                  ? 'border-neutral-200 bg-neutral-100 text-neutral-600'
+                  : isConnected
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-red-200 bg-red-50 text-red-700'
               )}
-            </NavLink>
-          ))}
-        </nav>
+            >
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  isChecking
+                    ? 'bg-neutral-400'
+                    : isConnected
+                      ? 'bg-emerald-500'
+                      : 'bg-red-500'
+                )}
+              />
+              {isChecking ? 'Checking...' : isConnected ? 'Connected' : 'Unreachable'}
+            </span>
+            <div
+              id="tenant-banner"
+              className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white"
+              data-testid="active-tenant"
+            >
+              active tenant: <span id="active-tenant">{tenantId || '(none)'}</span>
+            </div>
+            {bearer ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+              >
+                Disconnect
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        {bearer ? (
+          <nav className="mx-auto flex max-w-6xl gap-1 px-4 pb-3">
+            {nav.map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.end}>
+                {({ isActive }) => (
+                  <Button
+                    type="button"
+                    variant={isActive ? 'default' : 'ghost'}
+                    size="sm"
+                    className={cn(isActive && 'pointer-events-none')}
+                  >
+                    {item.label}
+                  </Button>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        ) : null}
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet />
+        {bearer ? <Outlet /> : null}
       </main>
+      {!bearer ? <AuthModal /> : null}
     </div>
   );
 }

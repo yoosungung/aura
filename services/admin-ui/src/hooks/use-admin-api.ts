@@ -1,13 +1,20 @@
 import { useMemo } from 'react';
-import { createApiClient } from '@/lib/api';
+import { createApiClient, getApiBaseUrl } from '@/lib/api';
 import { useSession } from '@/stores/session';
 
 export function useAdminApi() {
-  const baseUrl = useSession((s) => s.baseUrl);
   const bearer = useSession((s) => s.bearer);
   const tenantId = useSession((s) => s.tenantId);
+  const clearAuth = useSession((s) => s.clearAuth);
   return useMemo(
-    () => createApiClient({ baseUrl, bearer, tenantId }),
-    [baseUrl, bearer, tenantId]
+    () =>
+      createApiClient({
+        baseUrl: getApiBaseUrl(),
+        bearer,
+        tenantId,
+        onUnauthorized: () =>
+          clearAuth('Session expired or invalid token (401).'),
+      }),
+    [bearer, tenantId, clearAuth]
   );
 }

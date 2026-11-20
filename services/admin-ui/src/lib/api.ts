@@ -1,11 +1,20 @@
 export type ApiResult<T> = { status: number; body: T };
 
 export type ApiClientOptions = {
-  baseUrl: string;
+  baseUrl?: string;
   bearer: string;
   tenantId?: string | null;
   fetchImpl?: typeof fetch;
+  onUnauthorized?: () => void;
 };
+
+export function getApiBaseUrl(): string {
+  const raw =
+    typeof import.meta !== 'undefined' && import.meta.env
+      ? import.meta.env.VITE_API_BASE_URL
+      : '';
+  return (raw || '').replace(/\/$/, '');
+}
 
 export function buildAuthHeaders(opts: {
   bearer: string;
@@ -26,6 +35,7 @@ export function buildAuthHeaders(opts: {
 
 export function createApiClient(opts: ApiClientOptions) {
   const fetchImpl = opts.fetchImpl || fetch;
+  const base = (opts.baseUrl ?? getApiBaseUrl()).replace(/\/$/, '');
 
   async function request<T>(
     method: string,
@@ -33,7 +43,6 @@ export function createApiClient(opts: ApiClientOptions) {
     body?: unknown,
     query?: Record<string, string | undefined>
   ): Promise<ApiResult<T>> {
-    const base = opts.baseUrl.replace(/\/$/, '');
     const qs = new URLSearchParams();
     if (query) {
       for (const [k, v] of Object.entries(query)) {
@@ -50,6 +59,9 @@ export function createApiClient(opts: ApiClientOptions) {
       }),
       body: body == null ? undefined : JSON.stringify(body),
     });
+    if (res.status === 401) {
+      opts.onUnauthorized?.();
+    }
     const text = await res.text();
     let json = {} as T;
     try {

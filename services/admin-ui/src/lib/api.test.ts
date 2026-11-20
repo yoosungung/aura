@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildAuthHeaders, createApiClient } from './api';
 
 describe('api client', () => {
@@ -13,10 +13,10 @@ describe('api client', () => {
     );
   });
 
-  it('calls control-admin paths only', async () => {
+  it('calls control-admin paths only and supports same-origin relative URLs', async () => {
     const calls: string[] = [];
     const client = createApiClient({
-      baseUrl: 'http://control.test',
+      baseUrl: '',
       bearer: 'ops',
       tenantId: '11111111-1111-4111-8111-111111111111',
       fetchImpl: async (input) => {
@@ -26,8 +26,24 @@ describe('api client', () => {
     });
     await client.get('/v1/tenants');
     await client.get('/v1/audit', { limit: '10' });
-    expect(calls[0]).toContain('http://control.test/v1/tenants');
-    expect(calls[1]).toContain('http://control.test/v1/audit?limit=10');
+    expect(calls[0]).toBe('/v1/tenants');
+    expect(calls[1]).toBe('/v1/audit?limit=10');
     expect(calls.join('')).not.toMatch(/aura\.rpc\.control\.resolve/);
+  });
+
+  it('invokes onUnauthorized on 401 response', async () => {
+    const onUnauthorized = vi.fn();
+    const client = createApiClient({
+      baseUrl: '',
+      bearer: 'expired-token',
+      onUnauthorized,
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401,
+        }),
+    });
+    const res = await client.get('/v1/tenants');
+    expect(res.status).toBe(401);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 });
