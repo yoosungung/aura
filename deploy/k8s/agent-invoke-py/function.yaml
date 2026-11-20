@@ -1,0 +1,26 @@
+# Python agent_invoke Function — routed by task-bridge (no MQT). M3.6.
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-agent-invoke-py
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.runtime/lang: python
+    aura.service: agent-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-agent-invoke-py
+spec:
+  environment:
+    name: aura-python-async
+    namespace: default
+  package:
+    packageref:
+      name: aura-agent-invoke-py
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+  functionTimeout: 120
+  idletimeout: 120

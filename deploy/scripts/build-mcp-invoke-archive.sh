@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build Fission source archive for mcp_invoke (M3.5 archive packaging).
+# Build Fission source archive for mcp_invoke (nodejs · M3.5/M3.6 layout).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SRC="$ROOT/services/mcp-invoke"
+SRC="$ROOT/services/mcp-invoke/nodejs"
 OUT="$ROOT/deploy/k8s/mcp-invoke/archive.zip"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT

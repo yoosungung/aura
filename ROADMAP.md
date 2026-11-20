@@ -69,6 +69,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 M3 고정** — Core RR `aura-control-resolve-rr` **replicas≥2** · Warm `MinScale≥2` · queue-group `aura-control-resolve` · stub/injectable `bridge.js` · Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · [`services/control/`](services/control/) |
 | 2026-11-19 | **`agent_checkpoints` 예외 테이블 DDL M3 고정** — 이름=`agent_checkpoints` · FORCE RLS · UNIQUE(tenant,run,seq) · kind turn/tool/final · state JSONB+`content_ref`(256KB+) · writer=`agent_invoke` only · Pooler+`set_config` · writer/resume=후속 | §1 #10·§6.1.2 · [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md)·`agent_checkpoints.sql`·`check-agent-checkpoints.sh` |
 | 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
+| 2026-11-20 | **M3.6 python-env 병행** — Node agent/MCP 유지 · `source_meta.runtime` 권위+메시지 스탬프 · 동일 NATS subject · task-bridge+rpc runtime→Function · `aura-python-async|sync` · `services/*/nodejs|python` · 브리지 deps 이미지 · custom-env 후속 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -243,14 +244,34 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] Phase A — `createAgent` runTurn + Gateway egress 강제 TDD · MCP `tools/list` 스켈레톤 · archive Package + `check-*.sh` 개정
 - [x] Phase B — live NATS helpers(`nats-deps.js`) · `aura-mcp-invoke-rr` nats-box→Node queue-group 워커(`rpc-worker.js`)
 - [x] Phase C — `agent_checkpoints` writer/resume · MCP factory 실경로 + list/call + Streamable HTTP
-- [~] M3.6 (후속) — `python-env` Function 이식 패리티
-- [~] (후속) — `rust-env` 핫패스 PoC
+- [x] M3.6 — python-env **병행** (Node 유지·동일 subject·resolve `runtime`·task/rpc 브리지) — 아래 §M3.6
+- [~] (후속) — `rust-env` 핫패스 PoC · `custom-env`
 
 **성공 기준**
 
 - Function→공급자 직접 호출 없음(`assertFunctionLlmEgress`).
 - MQT connector ≠ Function 언어; archive 배포; RPC MinScale≥2 / MQT min=0 유지.
 - `tools/list`로 스키마 수집 후 Agent 툴 바인딩 가능; checkpoints INSERT는 `agent_invoke`+Pooler만.
+
+---
+
+## M3.6 — agent/MCP python-env 병행 (동일 NATS subject)
+
+**목표**: Node agent/MCP 제품 경로 유지 + Python Function/Environment 병행. `source_meta.runtime` 권위 · 메시지 스탬프 · task/rpc 브리지 라우팅.
+
+**작업**
+
+- [x] 계약·문서 — Environment 런타임×계급 · task-bridge · `source_meta.runtime` · `services/*/nodejs|python`
+- [x] `aura-python-async|sync` · apply allowlist · Python archive/Function
+- [x] resolve/Gateway stamp · rpc/task bridge `runtime`→Function · 브리지 deps 이미지
+- [x] 패리티 check (`check-python-env-parity.sh`)
+- [~] (후속) custom-env Function 슬롯 · rust-env PoC
+
+**성공 기준**
+
+- 동일 subject로 `runtime=nodejs|python` invoke; 메시지 단독 언어 선택 없음.
+- agent/mcp 언어별 MQT 이중 구독 없음; task-bridge는 handler 미포함.
+- Node 회귀 smoke + Python 패리티 selftest 합격.
 
 ---
 

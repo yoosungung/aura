@@ -8,7 +8,7 @@ DESIGN="$ROOT/services/agent-invoke/DESIGN.md"
 DOCS="$ROOT/deploy/docs/agent-invoke-mqt.md"
 CREATE_DOC="$ROOT/deploy/docs/agent-invoke-create-agent.md"
 ARCHIVE_DOC="$ROOT/deploy/docs/fission-node-archive.md"
-INVOKE_DIR="$ROOT/services/agent-invoke"
+INVOKE_DIR="$ROOT/services/agent-invoke/nodejs"
 K8S_DIR="$ROOT/deploy/k8s/agent-invoke"
 ARCH="$ROOT/ARCHITECTURE.md"
 ROADMAP="$ROOT/ROADMAP.md"
@@ -86,15 +86,16 @@ grep -q 'build-agent-invoke-archive' "$PKG" || fail "package.yaml must cite buil
 bash "$BUILD" || fail "build-agent-invoke-archive.sh failed"
 [[ -f "$K8S_DIR/archive.zip" ]] || fail "missing archive.zip after build"
 
-grep -q 'kind: MessageQueueTrigger' "$MQT" || fail "mqt.yaml must be MessageQueueTrigger"
-grep -q 'aura.tasks.agent.invoke' "$MQT" || fail "mqt topic must be aura.tasks.agent.invoke"
-grep -q 'aura.events.agent.invoke.done' "$MQT" || fail "mqt respTopic must be aura.events.agent.invoke.done"
-grep -q 'aura.events.agent.invoke.error' "$MQT" || fail "mqt errorTopic must be aura.events.agent.invoke.error"
-grep -q 'aura_agent_invoke' "$MQT" || fail "mqt consumer must be aura_agent_invoke"
-grep -q 'AURA_TASKS' "$MQT" || fail "mqt stream must be AURA_TASKS"
-grep -Eq 'minReplicaCount:[[:space:]]*0' "$MQT" || fail "mqt minReplicaCount must be 0 (scale-to-zero)"
-grep -Eq 'mqtkind:[[:space:]]*keda|messageQueueType:[[:space:]]*nats-jetstream' "$MQT" \
-  || fail "mqt must be nats-jetstream + keda"
+# M3.6: MQT retired → task-bridge (tombstone mqt.yaml keeps topic names for docs greps).
+grep -Eqi 'retired|task-bridge' "$MQT" || fail "mqt.yaml must note M3.6 retirement / task-bridge"
+grep -q 'aura.tasks.agent.invoke' "$MQT" || fail "tombstone must name aura.tasks.agent.invoke"
+TB="$ROOT/deploy/k8s/nats-task-bridge/deployment.yaml"
+[[ -f "$TB" ]] || fail "missing nats-task-bridge deployment"
+grep -q 'aura-nats-task-bridge' "$TB" || fail "task-bridge deployment name"
+if grep -q 'kind: MessageQueueTrigger' "$MQT"; then
+  fail "agent-invoke mqt.yaml must not still be a live MessageQueueTrigger"
+fi
+grep -Eqi 'nodejs/|python/' "$DESIGN" || fail "DESIGN must document nodejs/python layout"
 
 [[ -f "$ARCH" ]] || fail "missing $ARCH"
 [[ -f "$ROADMAP" ]] || fail "missing $ROADMAP"

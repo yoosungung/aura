@@ -1,0 +1,19 @@
+# Shared async Python Environment (poolmgr). agent/mcp python Functions (M3.6).
+apiVersion: fission.io/v1
+kind: Environment
+metadata:
+  name: aura-python-async
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.runtime/lang: python
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-python-async
+spec:
+  version: 3
+  runtime:
+    image: ghcr.io/fission/python-env:latest
+  builder:
+    image: ghcr.io/fission/python-builder:latest
+  poolsize: 1
+  resources: {}

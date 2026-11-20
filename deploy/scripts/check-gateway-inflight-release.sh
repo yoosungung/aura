@@ -7,7 +7,7 @@ DOCS="$ROOT/deploy/docs/gateway-inflight-release.md"
 FAIR="$ROOT/deploy/docs/gateway-fair-queue.md"
 RL="$ROOT/services/gateway/rate-limit.js"
 GW="$ROOT/services/gateway/gateway.js"
-HANDLER="$ROOT/services/agent-invoke/handler.js"
+HANDLER="$ROOT/services/agent-invoke/nodejs/handler.js"
 ROADMAP="$ROOT/ROADMAP.md"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -27,7 +27,7 @@ grep -q 'ensureAdmitted' "$DOCS" || fail "docs must document ensureAdmitted bypa
 grep -q 'gateway-inflight-release' "$FAIR" || fail "gateway-fair-queue must link gateway-inflight-release.md"
 
 node "$ROOT/services/gateway/gateway.selftest.js" || fail "gateway.selftest.js failed"
-node "$ROOT/services/agent-invoke/handler.selftest.js" || fail "handler.selftest.js failed"
+node "$ROOT/services/agent-invoke/nodejs/handler.selftest.js" || fail "handler.selftest.js failed"
 
 [[ -f "$ROADMAP" ]] || fail "missing $ROADMAP"
 grep -Fq 'done/error 시 inflight 감산' "$ROADMAP" || fail "ROADMAP must list inflight release item"

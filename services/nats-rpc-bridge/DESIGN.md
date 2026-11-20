@@ -21,14 +21,19 @@
 
 ## Subject → Function
 
-| subject | Function |
-|---------|----------|
-| `aura.rpc.memory.recall` | `aura-memory-recall` |
-| `aura.rpc.control.resolve` | `aura-control-resolve` |
-| `aura.rpc.mcp.tool` | `aura-mcp-invoke-rpc` |
+| subject | runtime | Function |
+|---------|---------|----------|
+| `aura.rpc.memory.recall` | (무시) | `aura-memory-recall` |
+| `aura.rpc.control.resolve` | (무시) | `aura-control-resolve` |
+| `aura.rpc.mcp.tool` | `nodejs` (기본) | `aura-mcp-invoke-rpc` |
+| `aura.rpc.mcp.tool` | `python` | `aura-mcp-invoke-rpc-py` |
+
+Deployment는 **deps 포함 이미지**만 사용한다 (initContainer `npm install` 금지).
 
 ## Commands
 
 ```bash
 node services/nats-rpc-bridge/bridge.selftest.js
+bash deploy/scripts/build-nats-bridge-images.sh
+bash deploy/scripts/check-nats-task-bridge.sh
 ```

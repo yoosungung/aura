@@ -1,0 +1,21 @@
+# M3.6: same python zip as mcp-invoke-py (rpc copy).
+apiVersion: fission.io/v1
+kind: Package
+metadata:
+  name: aura-mcp-invoke-rpc-py
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.runtime/lang: python
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke-rpc-py
+  annotations:
+    aura.package/build: deploy/scripts/build-mcp-invoke-python-archive.sh
+    aura.package/archive: deploy/k8s/mcp-invoke-rpc-py/archive.zip
+spec:
+  environment:
+    name: aura-python-sync
+    namespace: default
+  deployment:
+    type: archive

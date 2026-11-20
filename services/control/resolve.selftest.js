@@ -94,8 +94,17 @@ function main() {
     timeout_seconds: 10,
   });
   assert.strictEqual(done.secrets_ref, 'k8s:secret/aura-user-demo');
+  assert.strictEqual(done.runtime, 'nodejs');
+  assert.strictEqual(done.source.runtime, 'nodejs');
   assert.ok(!('secrets' in done), 'plaintext secrets must not appear');
   assert.ok(!JSON.stringify(done).includes('sk-'), 'no secret material');
+
+  const pyDone = buildResolveResponse({
+    source: { ...source, runtime: 'python' },
+    user: null,
+  });
+  assert.strictEqual(pyDone.runtime, 'python');
+  assert.strictEqual(pyDone.source.runtime, 'python');
 
   const retired = buildResolveResponse({
     source: { ...source, status: 'retired' },

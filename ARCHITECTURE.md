@@ -10,8 +10,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 1. **NATS 단일 백본.** MSA 통신은 NATS만 한다. 서비스 간 HTTP/gRPC를 두지 않는다. Redis Pub/Sub·별도 사이드카 큐를 도입하지 않는다. (예외: `svc-control` 관리 API, Gateway→클라이언트 **SSE/WebSocket** 브리지, 테넌트 MCP Streamable HTTP 경계.)
 2. **실행 삼원화 (Fission + Core 스트림).** 프레임워크는 Fission이다. OpenFaaS·bare KEDA Deployment **폴백 없음**.
-   - **비동기 파이프라인** (`aura.tasks.*`): Fission MessageQueueTrigger(`mqtype=nats-jetstream`, `mqtkind=keda`). KEDA lag 스케일, idle 시 **scale-to-zero 허용** (`minReplicaCount = 0`). 내구성·완료 감사는 여기. 공용 Environment `aura-nodejs-async` (`poolmgr`, `poolsize ≥ 1`).
-   - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. **구독은 공용 `aura-nats-rpc-bridge`만**(replicas ≥ 2). 브리지는 handler를 실행하지 않고 Fission **router-internal**(`POST /fission-function/<name>`, 기본 `:8889`)로 중계한다. Sync Function은 공용 Environment `aura-nodejs-sync`(**`poolmgr`**, `poolsize ≥ 2`)에서 실행한다. 서비스별 `*-rr` Deployment·sync `newdeploy` MinScale 상주 **금지**. Core RR은 JetStream lag가 없으므로 브리지·sync 풀을 scale-to-zero와 **함께 쓰지 않는다**.
+   - **비동기 파이프라인** (`aura.tasks.*`): 기본은 Fission MessageQueueTrigger(`mqtype=nats-jetstream`, `mqtkind=keda`). KEDA lag 스케일, idle 시 **scale-to-zero 허용** (`minReplicaCount = 0`). 내구성·완료 감사는 여기. **예외 — `agent_invoke` / `mcp_invoke` async**: 동일 subject에 다중 `runtime`(nodejs/python/custom) Function이 있으므로 **MQT 1:1 바인딩 대신** 공용 **`aura-nats-task-bridge`**(JetStream pull → Fission Router)가 `source_meta.runtime` 스탬프로 Function을 고른다. 도메인 handler는 브리지에 두지 않는다. memory 등 기타 tasks는 기존 MQT 유지. async Function Environment는 런타임×계급 공용(`aura-nodejs-async` / `aura-python-async`, `poolmgr`, `poolsize ≥ 1`).
+   - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. **구독은 공용 `aura-nats-rpc-bridge`만**(replicas ≥ 2). 브리지는 handler를 실행하지 않고 Fission **router-internal**(`POST /fission-function/<name>`, 기본 `:8889`)로 중계한다. **`aura.rpc.mcp.tool`은 `runtime`→Function 매핑**(기본 nodejs). Sync Function Environment는 런타임×계급 공용(`aura-nodejs-sync` / `aura-python-sync`, **`poolmgr`**, `poolsize ≥ 2`). 서비스별 `*-rr` Deployment·sync `newdeploy` MinScale 상주 **금지**. Core RR은 JetStream lag가 없으므로 브리지·sync 풀을 scale-to-zero와 **함께 쓰지 않는다**.
    - **실시간 스트림** (`aura.stream.*`): NATS **Core** pub/sub. LLM 토큰·툴 상태 등 UX용. **유실 허용**(JetStream에 넣지 않음). 완료의 정본은 `aura.events.agent.invoke.done` / error다.
 3. **단일 PostgreSQL + 필수 Connection Pooler.** 관계형 + pgvector + BM25(전문) + 그래프 엣지를 한 클러스터 ACID로 다룬다. 메모리 전용 외부 DB를 두지 않는다. 임베딩 인덱스는 **`halfvec` + `(model, version)` LIST 파티션** 패턴만 쓴다(§6.2.1). 차원 미지정 컬럼에 HNSW를 직접 걸지 않는다. FaaS/런타임 파드는 PG에 **직접 붙지 않고** **CloudNativePG `Pooler`**(transaction)만 경유한다(§2.1). standalone PgBouncer는 CNPG 미도입 폴백만.
 4. **RLS 테넌트 GUC는 트랜잭션 로컬만.** `SELECT set_config('app.tenant_id', $1, true)` (세 번째 인자 `is_local = true`)만 허용한다. 세션 수명 `SET`/`set_config(..., false)` 금지 — transaction pooling에서 커넥션 재사용 시 테넌트 오염을 막는다.
@@ -21,7 +21,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 8. **메모리 수명주기·파티셔닝.** `memory_items`는 **`memory_type` LIST(+ 단기 유형은 `created_at` RANGE)** 로 물리 분리한다. `memory_audit`는 **`created_at` RANGE(월)** 파티션이다. `short_term`은 내구 HNSW에 넣지 않으며 파티션 DROP/TTL로 제거한다. Soft delete(`valid_until`)만으로 단기·에피소딕 대량을 방치하지 않는다(§6.2.2). 콜드 에피소딕은 Object Storage(Parquet 등) 아카이브 후 파티션 DETACH/DROP.
 9. **메모리 파이프라인.** capture → (event) → store/embed → retrieve → consolidate. Agent는 `aura.rpc.memory.recall`만 사용하고, 원문 전량을 프롬프트에 덤프하지 않는다.
 10. **Zero Direct Write (런타임).** `agent_invoke` / `mcp_invoke` / `memory_capture`는 도메인 메모리를 PG에 쓰지 않는다. NATS 이벤트·태스크만 발행한다. 세션 체크포인트 등 런타임 예외 테이블은 §6에 명시한 것만 허용한다.
-11. **번들 계약.** invoke payload는 식별자만 담는다. 코드·config는 `svc-control` resolve로 얻는다. factory 시그니처는 `(cfg, secrets) -> instance` (하위호환 zero-arg·1-arg 허용).
+11. **번들 계약.** invoke payload는 식별자만 담는다. 코드·config는 `svc-control` resolve로 얻는다. factory 시그니처는 `(cfg, secrets) -> instance` (하위호환 zero-arg·1-arg 허용). **func-env 권위는 `source_meta.runtime`**(nodejs|python|custom; 기본 nodejs) — `svc-control`만 쓰기. 메시지 `runtime`은 Gateway 스탬프일 뿐이며 Function은 resolve로 재검증한다. `user_meta`/`cfg`에 runtime을 두지 않는다.
 12. **MCP 대칭.** agent→mcp는 NATS Request-Reply다. Aura 컴포넌트 사이에는 MCP 프로토콜을 두지 않는다. 테넌트/외부 MCP가 Streamable HTTP만 말할 때 `mcp_invoke` Function 경계에서만 HTTP 어댑터를 둔다.
 13. **Agent UX 스트리밍 필수.** 대화형 `agent_invoke`는 실행 중 `aura.stream.<run_id>`(NATS Core)로 토큰·툴 진행 프레임을 publish한다. 클라이언트는 Gateway SSE/WebSocket 브리지로 구독한다. **done 이벤트만 기다리는 배치 UX를 대화형 경로의 기본으로 두지 않는다.**
 14. **멀티테넌트 HNSW는 post-filter 함정을 계약으로 막는다.** 공유 `model_key` HNSW에서 `tenant_id` 필터만 걸고 전역 Top-K를 자르면 소형 테넌트 Recall이 0에 수렴할 수 있다. recall 트랜잭션은 **pgvector 0.8+ `hnsw.iterative_scan`을 켠 상태**에서 테넌트 조건과 ANN을 함께 평가한다(§6.2.3). M1에서 왜곡 테넌트 픽스처로 검증하고, 실패 시 테넌트 해시/대형 테넌트 분리 파티션으로 승격한다.
@@ -32,7 +32,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 ### 이것만은 하지 말 것
 
 - OpenFaaS 또는 bare KEDA+Deployment로 Fission MQT를 대체하지 말 것.
-- **`aura-nats-rpc-bridge` 또는 `aura-nodejs-sync` poolmgr를 scale-to-zero하지 말 것** — Core Request-Reply는 JetStream lag로 깨우지 못해 No Responders가 된다.
+- **`aura-nats-rpc-bridge` 또는 sync poolmgr(`aura-nodejs-sync` / `aura-python-sync`)를 scale-to-zero하지 말 것** — Core Request-Reply는 JetStream lag로 깨우지 못해 No Responders가 된다.
+- **동일 `aura.tasks.agent.invoke` / `aura.tasks.mcp.invoke`에 언어별 MQT를 이중 구독하지 말 것** — task-bridge + `runtime` 매핑만.
 - **서비스별 `aura-*-rr` Deployment로 sync handler를 다시 두지 말 것** — NATS 구독은 공용 브리지만, 로직은 Fission Sync Function만.
 - 동기 RPC를 “깨우기용”으로 JetStream에 우회 적재하지 말 것 — 계약은 Core RR + 공용 브리지 + sync poolmgr Warm이다.
 - **`aura.stream.*`를 JetStream에 넣거나 완료 정본으로 쓰지 말 것** — 유실 가능한 UX 채널이다. 완료·감사는 `aura.events.*`.
@@ -231,19 +232,19 @@ MQT·프레임·RPC 순서 고정: [`deploy/docs/agent-invoke-mqt.md`](deploy/do
 
 두 계급을 섞지 않는다. (Core RR + scale-to-zero는 No Responders.)
 
-### 4.1 비동기 — JetStream MQT
+### 4.1 비동기 — JetStream MQT (+ agent/mcp task-bridge)
 
-- **대상**: §3.2 `aura.tasks.*` (agent_invoke, mcp task, memory capture/store/embed/consolidate/ttl/archive).
-- **트리거**: MessageQueueTrigger `mqtype=nats-jetstream`, `mqtkind=keda`. 스트림·pull consumer 사전 생성. `resptopic` / `errortopic` + **MaxDeliver→DLQ**.
-- **스케일**: KEDA JetStream lag. **`minReplicaCount = 0` 허용** (scale-to-zero).
+- **대상(MQT)**: §3.2 `aura.tasks.*` 중 memory capture/store/embed/consolidate/ttl/archive 등 — MessageQueueTrigger `mqtype=nats-jetstream`, `mqtkind=keda`. 스트림·pull consumer 사전 생성. `resptopic` / `errortopic` + **MaxDeliver→DLQ**.
+- **대상(task-bridge)**: `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` — **`aura-nats-task-bridge`**가 JetStream pull 후 `runtime`→Function → Fission Router. 언어별 MQT 금지. 스케일=KEDA lag, **scale-to-zero 허용**. 상세: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
+- **스케일(MQT)**: KEDA JetStream lag. **`minReplicaCount = 0` 허용** (scale-to-zero).
 - **콜드스타트 SLA (async만)**: 워밍 없이 p95 **< 15s** 베이스라인(M0 측정). 대화 턴의 **체감 지연 정본이 아님**.
 - **M0 샘플**: Function/MQT `aura-tasks-smoke` — topic `aura.tasks.smoke`, pull consumer `aura_tasks_smoke`, `respTopic`=`aura.events.tasks.smoke.done`, `errorTopic`=`aura.events.tasks.smoke.error` (이름 정본은 `deploy/SETUP.md`).
 
 ### 4.2 동기 — Core Request-Reply + 공용 NATS→Fission 브리지
 
 - **대상**: §3.3 `aura.rpc.*` (memory recall, mcp tool, control resolve).
-- **NATS 구독**: Deployment **`aura-nats-rpc-bridge`** (replicas ≥ 2, queue-group `aura-rpc-bridge`). subject→Function 매핑 후 **Fission Router만** 호출·`msg.respond` 중계. **브리지 내부에서 도메인 handler 실행 금지.**
-- **실행**: Sync Function은 Environment **`aura-nodejs-sync`** · executor **`poolmgr`** · **`poolsize ≥ 2`**. sync `newdeploy` MinScale 상주·서비스별 `*-rr` **금지**.
+- **NATS 구독**: Deployment **`aura-nats-rpc-bridge`** (replicas ≥ 2, queue-group `aura-rpc-bridge`). subject(+`runtime`)→Function 매핑 후 **Fission Router만** 호출·`msg.respond` 중계. **브리지 내부에서 도메인 handler 실행 금지.**
+- **실행**: Sync Function은 런타임별 Environment **`aura-*-sync`** · executor **`poolmgr`** · **`poolsize ≥ 2`**. sync `newdeploy` MinScale 상주·서비스별 `*-rr` **금지**.
 - **MQT·JetStream lag scaler 사용 금지** (RPC 경로).
 - **이유**: Core RR 메시지는 스트림에 쌓이지 않아 KEDA가 0→1을 트리거할 수 없다 — 브리지와 sync 풀이 상시 Warm.
 - **SLA (동기 연쇄)**: recall → resolve → mcp.tool 등 **동기 홉 합** p95 **< 1~2s** (콜드 제외, Warm 전제).
@@ -252,8 +253,8 @@ MQT·프레임·RPC 순서 고정: [`deploy/docs/agent-invoke-mqt.md`](deploy/do
 ### 4.3 공통
 
 - 동일 논리 서비스(`svc-memory`)라도 **async Function**과 **sync Function**을 배포 단위로 분리한다. 메모리 **쓰기** 소유권은 여전히 `svc-memory` async 쪽만.
-- Environment는 클래스 공용 **2개만** (`aura-nodejs-async` / `aura-nodejs-sync`). 서비스별 Environment 금지.
-- **비채택**: OpenFaaS. **폴백 없음**: bare Deployment+KEDA ScaledObject로 **MQT**를 대체하지 않는다. NATS→Function HTTP는 MQT connector·**공용 RPC 브리지**만 (Aura 서비스 간 임의 HTTP API 금지 — §1 #1 예외는 Router 중계).
+- Environment는 **런타임×계급 공용** (`aura-nodejs-async` / `aura-nodejs-sync` / `aura-python-async` / `aura-python-sync`; 후속 `custom`). **서비스별** Environment 금지.
+- **비채택**: OpenFaaS. **폴백 없음**: bare Deployment+KEDA ScaledObject로 **MQT**를 대체하지 않는다. NATS→Function HTTP는 MQT connector·**공용 RPC/task 브리지**만 (Aura 서비스 간 임의 HTTP API 금지 — §1 #1 예외는 Router 중계).
 
 ---
 
@@ -323,6 +324,7 @@ CREATE TABLE source_meta (
   checksum TEXT NOT NULL,
   sig_uri TEXT,
   config JSONB NOT NULL DEFAULT '{}',
+  runtime TEXT NOT NULL DEFAULT 'nodejs',  -- 'nodejs' | 'python' | 'custom' (func-env; not in cfg)
   status TEXT NOT NULL,        -- 'pending' | 'active' | 'retired'
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, kind, name, version)
@@ -340,7 +342,7 @@ CREATE TABLE user_meta (
 );
 ```
 
-resolve 성공 응답 `type=control.resolve.done` 은 `source` + `user`(nullable) + `cfg`(1-depth merge, user wins) + `secrets_ref` 만 담는다. `aura.rpc.control.resolve` 브리지 Warm(minReplicas ≥ 2): [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) · `deploy/k8s/control-resolve/`.
+resolve 성공 응답 `type=control.resolve.done` 은 `source`(incl. `runtime`) + `user`(nullable) + `cfg`(1-depth merge, user wins) + `secrets_ref` + top-level **`runtime`**(=`source.runtime`) 을 담는다. `aura.rpc.control.resolve` 브리지 Warm(minReplicas ≥ 2): [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) · `deploy/k8s/control-resolve/`.
 
 ### 6.1.2 런타임 체크포인트 DDL (`agent_checkpoints`)
 

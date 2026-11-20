@@ -1,0 +1,8 @@
+{
+  "name": "aura-nats-task-bridge",
+  "private": true,
+  "main": "bridge.js",
+  "dependencies": {
+    "nats": "^2.29.3"
+  }
+}

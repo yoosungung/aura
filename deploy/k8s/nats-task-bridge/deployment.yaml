@@ -1,0 +1,42 @@
+# JetStream → Fission Router task bridge for agent/mcp (ARCHITECTURE §4.1 · M3.6).
+# runtime stamp → Function; no domain handlers; no language-specific MQT.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-nats-task-bridge
+  namespace: aura
+  labels:
+    aura.runtime/class: async
+    aura.service: nats-task-bridge
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-nats-task-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aura-nats-task-bridge
+  template:
+    metadata:
+      labels:
+        aura.runtime/class: async
+        aura.service: nats-task-bridge
+        app.kubernetes.io/part-of: aura
+        app.kubernetes.io/name: aura-nats-task-bridge
+    spec:
+      containers:
+        - name: bridge
+          image: aura/nats-task-bridge:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              value: nats://nats.aura.svc.cluster.local:4222
+            - name: FISSION_ROUTER_URL
+              value: http://router-internal.fission.svc:8889
+            - name: TASK_STREAM
+              value: AURA_TASKS
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

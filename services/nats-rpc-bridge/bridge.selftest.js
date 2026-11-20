@@ -37,6 +37,8 @@ async function testMapping() {
     'aura-control-resolve',
   );
   assert.strictEqual(functionForSubject('aura.rpc.mcp.tool'), 'aura-mcp-invoke-rpc');
+  assert.strictEqual(functionForSubject('aura.rpc.mcp.tool', 'nodejs'), 'aura-mcp-invoke-rpc');
+  assert.strictEqual(functionForSubject('aura.rpc.mcp.tool', 'python'), 'aura-mcp-invoke-rpc-py');
   assert.strictEqual(functionForSubject('aura.rpc.unknown'), null);
   assert.deepStrictEqual(Object.keys(SUBJECT_TO_FUNCTION).sort(), [
     'aura.rpc.control.resolve',

@@ -205,6 +205,20 @@ async function submitAgentInvoke(body, principal, deps) {
   registry.register(runId, principal);
 
   const stream = req.stream !== false;
+  // runtime stamp from resolve (func-env SoT). Client must not invent runtime (§1 #11 · M3.6).
+  let runtime = 'nodejs';
+  if (typeof d.resolve === 'function') {
+    const resolved = await d.resolve({
+      tenant_id: principal.tenant_id,
+      kind: 'agent',
+      name: req.agent,
+      version: req.version,
+      principal: { id: principal.id, tenant_id: principal.tenant_id },
+    });
+    if (resolved && typeof resolved.runtime === 'string' && resolved.runtime) {
+      runtime = resolved.runtime;
+    }
+  }
   const task = {
     run_id: runId,
     agent: req.agent,
@@ -212,6 +226,7 @@ async function submitAgentInvoke(body, principal, deps) {
     input: req.input && typeof req.input === 'object' ? req.input : {},
     session_id: req.session_id || null,
     stream,
+    runtime,
     principal: { id: principal.id, tenant_id: principal.tenant_id },
   };
 

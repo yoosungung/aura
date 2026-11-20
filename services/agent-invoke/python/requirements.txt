@@ -1,0 +1,2 @@
+# M3.6 agent_invoke python — langchain pinned when create_agent path lands.
+# Keep empty/minimal for archive specialize smoke; add langchain later.

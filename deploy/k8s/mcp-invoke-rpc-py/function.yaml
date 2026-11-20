@@ -1,0 +1,25 @@
+# Python mcp_invoke RPC Function — poolmgr via aura-python-sync. M3.6.
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: aura-mcp-invoke-rpc-py
+  namespace: default
+  labels:
+    aura.runtime/class: sync
+    aura.runtime/lang: python
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke-rpc-py
+spec:
+  environment:
+    name: aura-python-sync
+    namespace: default
+  package:
+    packageref:
+      name: aura-mcp-invoke-rpc-py
+      namespace: default
+  InvokeStrategy:
+    StrategyType: execution
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+  functionTimeout: 30

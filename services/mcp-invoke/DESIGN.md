@@ -1,13 +1,12 @@
 # mcp_invoke (내부 설계)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #2 · #10 · #11 · #12 · §3.2 · §3.3 · §4 · §7 · §8.  
-일정: [ROADMAP.md](../../ROADMAP.md) **M3.5** — `tools/list` · archive · Node RPC 워커.  
-와이어: [`deploy/docs/mcp-invoke-dual.md`](../../deploy/docs/mcp-invoke-dual.md) · [`deploy/docs/mcp-tools-list.md`](../../deploy/docs/mcp-tools-list.md).  
-외부 HTTP: [`deploy/docs/mcp-streamable-http.md`](../../deploy/docs/mcp-streamable-http.md).  
-패키징: [`deploy/docs/fission-node-archive.md`](../../deploy/docs/fission-node-archive.md).
+일정: [ROADMAP.md](../../ROADMAP.md) **M3.5–M3.6**.  
+와이어: [`deploy/docs/mcp-invoke-dual.md`](../../deploy/docs/mcp-invoke-dual.md) · [`deploy/docs/multi-env-followup.md`](../../deploy/docs/multi-env-followup.md).  
+패키징: [`deploy/docs/fission-node-archive.md`](../../deploy/docs/fission-node-archive.md) · [`deploy/docs/fission-python-archive.md`](../../deploy/docs/fission-python-archive.md).
 
-**이 문서 범위:** 공유 핸들러 · action=`list`\|`call` · async MQT · sync Core RR · Streamable HTTP · Node RR Deployment.  
-**Non-goals:** python/rust env · full MCP initialize 서버 · CNI FQDN 라이브.
+**이 문서 범위:** `nodejs/`/`python/` · action=`list`\|`call` · task-bridge async · rpc-bridge sync · runtime 매핑.  
+**Non-goals:** custom-env · full MCP initialize 서버 · CNI FQDN 라이브.
 
 ---
 
@@ -15,24 +14,25 @@
 
 | 항목 | 값 |
 |------|-----|
-| 역할 | MCP list/call: resolve → factory(`cfg`,`secrets_ref`) / Streamable HTTP |
-| async | `aura.tasks.mcp.invoke` → `aura.events.mcp.invoke.done` / `aura.events.mcp.invoke.error` · consumer `aura_mcp_invoke` · **minReplicaCount=0** (scale-to-zero) |
-| sync | `aura.rpc.mcp.tool` · Function `aura-mcp-invoke-rpc` **poolmgr** · NATS=`aura-nats-rpc-bridge` |
-| 실행 계급 | **이원화** — MQT `min=0` **와** sync poolmgr RPC **별 매니페스트** |
-| 패키징 | **archive** + `node-builder` |
+| 역할 | MCP list/call: resolve → factory / Streamable HTTP |
+| async | `aura.tasks.mcp.invoke` → `aura.events.mcp.invoke.done` / `aura.events.mcp.invoke.error` · **task-bridge** (MQT 폐기) |
+| sync | `aura.rpc.mcp.tool` · **nats-rpc-bridge** → runtime→`aura-mcp-invoke-rpc` \| `-py` · **poolmgr** Warm (`aura-*-sync` poolsize ≥ 2) |
+| Functions | nodejs: `aura-mcp-invoke` / `aura-mcp-invoke-rpc` · python: `*-py` |
+| 패키징 | archive · `nodejs/` + `python/` |
 | PG | **금지** |
-| RPC 경로 | 공용 `aura-nats-rpc-bridge` → Function `aura-mcp-invoke-rpc` (nats-box/`*-rr` 폐기) |
 
 ---
 
-## 모듈
+## 레이아웃
 
-| 파일 | 역할 |
+| 경로 | 역할 |
 |------|------|
-| `handler.js` | validate · invoke list/call · task/rpc entry |
-| `streamable-http.js` | `tools/list` + `tools/call` JSON-RPC/SSE |
-| `factory.js` | resolve cfg → runTool / listTools |
-| (RPC NATS) | 공용 `aura-nats-rpc-bridge` → Function `aura-mcp-invoke-rpc` |
+| `DESIGN.md` | 공통 계약 |
+| `nodejs/` | handler · streamable-http · factory |
+| `python/` | 패리티 handler · pytest |
+| `testdata/` | 공유 JSON |
+
+Streamable HTTP: [`deploy/docs/mcp-streamable-http.md`](../../deploy/docs/mcp-streamable-http.md) · `nodejs/streamable-http.js`.
 
 ---
 
@@ -41,12 +41,9 @@
 ```bash
 bash deploy/scripts/check-mcp-invoke-dual.sh
 bash deploy/scripts/check-mcp-streamable-http.sh
-bash deploy/scripts/check-mcp-bundle-isolation.sh
-bash deploy/scripts/check-high-risk-tenant-nodepool.sh
+bash deploy/scripts/check-python-env-parity.sh
 bash deploy/scripts/build-mcp-invoke-archive.sh
-node services/mcp-invoke/handler.selftest.js
-node services/mcp-invoke/streamable-http.selftest.js
+bash deploy/scripts/build-mcp-invoke-python-archive.sh
+node services/mcp-invoke/nodejs/handler.selftest.js
+node services/mcp-invoke/nodejs/streamable-http.selftest.js
 ```
-
-격리·Egress: [`deploy/docs/mcp-bundle-isolation.md`](../../deploy/docs/mcp-bundle-isolation.md) · [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block-verify.md) · `check-egress-block-verify.sh`.  
-고위험 전용 RuntimeClass/노드풀: [`deploy/docs/high-risk-tenant-nodepool.md`](../../deploy/docs/high-risk-tenant-nodepool.md).

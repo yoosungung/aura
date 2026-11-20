@@ -1,0 +1,21 @@
+# M3.6: python archive. Build: deploy/scripts/build-mcp-invoke-python-archive.sh
+apiVersion: fission.io/v1
+kind: Package
+metadata:
+  name: aura-mcp-invoke-py
+  namespace: default
+  labels:
+    aura.runtime/class: async
+    aura.runtime/lang: python
+    aura.service: mcp-invoke
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-mcp-invoke-py
+  annotations:
+    aura.package/build: deploy/scripts/build-mcp-invoke-python-archive.sh
+    aura.package/archive: deploy/k8s/mcp-invoke-py/archive.zip
+spec:
+  environment:
+    name: aura-python-async
+    namespace: default
+  deployment:
+    type: archive

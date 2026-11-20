@@ -38,7 +38,8 @@ DDL: [`../sql/control_meta.sql`](../sql/control_meta.sql).
 | `bundle_uri` | TEXT | `s3://aura-content/tenants/{tenant_id}/bundles/…` |
 | `checksum` | TEXT | `sha256:…` |
 | `sig_uri` | TEXT NULL | 서명 객체(선택) |
-| `config` | JSONB | 번들 기본 cfg |
+| `config` | JSONB | 번들 기본 cfg (**runtime 금지** — 플랫폼 필드는 아래) |
+| `runtime` | TEXT | `'nodejs'` \| `'python'` \| `'custom'` · **DEFAULT `nodejs`** · func-env 권위 |
 | `status` | TEXT | `'pending'` \| `'active'` \| `'retired'` |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -91,15 +92,17 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
   "type": "control.resolve.done",
   "source": { "id": "…", "tenant_id": "…", "kind": "agent", "name": "demo", "version": "1.0.0",
               "entrypoint": "main:factory", "bundle_uri": "s3://…", "checksum": "sha256:…",
-              "sig_uri": null, "config": {}, "status": "active", "created_at": "…" },
+              "sig_uri": null, "config": {}, "runtime": "nodejs", "status": "active", "created_at": "…" },
   "user": { "id": "…", "principal_id": "user-1", "config": {}, "secrets_ref": "k8s:secret/…", "updated_at": "…" },
   "cfg": {},
-  "secrets_ref": "k8s:secret/…"
+  "secrets_ref": "k8s:secret/…",
+  "runtime": "nodejs"
 }
 ```
 
 | 필드 | 규칙 |
 |------|------|
+| `runtime` | `source.runtime` 복제 (top-level). Gateway 스탬프·브리지 라우팅용. **user_meta/cfg에 없음** |
 | `cfg` | `mergeConfigs(source.config, user?.config)` — **1-depth 섹션 merge, user wins** |
 | `user` | 해당 principal 행 없으면 `null`; 이때 `cfg = source.config`, `secrets_ref = null` |
 | `secrets_ref` | ref 문자열만. **`secrets` plaintext 키 금지** |
@@ -117,7 +120,7 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 
 | 메서드(초안) | 용도 |
 |--------------|------|
-| `PUT /v1/sources/{kind}/{name}/{version}` | `source_meta` 등록(동일 version 불변; 변경은 새 version) |
+| `PUT /v1/sources/{kind}/{name}/{version}` | `source_meta` 등록(동일 version 불변; body에 `runtime` 선택, 기본 `nodejs`) |
 | `PUT /v1/sources/{id}/user-meta/{principal_id}` | `user_meta` upsert |
 | `GET /v1/resolve?…` | 디버그용 read — 생산 경로는 NATS RPC |
 

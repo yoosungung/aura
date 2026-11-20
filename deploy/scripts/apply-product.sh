@@ -43,21 +43,20 @@ PY
 echo "== build sync/async archives =="
 bash "$ROOT/deploy/scripts/build-memory-recall-archive.sh"
 bash "$ROOT/deploy/scripts/build-control-resolve-archive.sh"
+bash "$ROOT/deploy/scripts/build-agent-invoke-archive.sh"
 bash "$ROOT/deploy/scripts/build-mcp-invoke-archive.sh"
+bash "$ROOT/deploy/scripts/build-agent-invoke-python-archive.sh"
+bash "$ROOT/deploy/scripts/build-mcp-invoke-python-archive.sh"
 
-echo "== shared runtime Environments =="
+echo "== shared runtime Environments (nodejs + python) =="
 kubectl apply -k "$ROOT/deploy/k8s/runtime-envs"
 
-echo "== nats-rpc-bridge ConfigMap + Deployment (ns aura) =="
-STAGE_BR="$(mktemp -d)"
-cleanup() { rm -rf "$STAGE_BR"; }
-trap cleanup EXIT
-cp "$ROOT/services/nats-rpc-bridge/bridge.js" "$STAGE_BR/"
-cp "$ROOT/services/nats-rpc-bridge/package.json" "$STAGE_BR/"
-kubectl -n aura create configmap aura-nats-rpc-bridge-app \
-  --from-file="$STAGE_BR" \
-  --dry-run=client -o yaml | kubectl apply -f -
+echo "== nats-rpc-bridge + nats-task-bridge (ns aura; baked images) =="
+# Images: bash deploy/scripts/build-nats-bridge-images.sh (load into cluster as needed).
 kubectl apply -k "$ROOT/deploy/k8s/nats-rpc-bridge"
+kubectl apply -k "$ROOT/deploy/k8s/nats-task-bridge"
+# Legacy ConfigMap mount retired (M3.6).
+kubectl -n aura delete configmap aura-nats-rpc-bridge-app --ignore-not-found
 
 echo "== product kustomize =="
 PRODUCT=(
@@ -79,12 +78,16 @@ for name in "${PRODUCT[@]}"; do
   kubectl apply -k "$ROOT/deploy/k8s/$name"
 done
 
-echo "== agent/mcp function+mqt =="
-kubectl apply -f "$ROOT/deploy/k8s/agent-invoke/function.yaml" \
-  -f "$ROOT/deploy/k8s/agent-invoke/mqt.yaml"
-kubectl apply -f "$ROOT/deploy/k8s/mcp-invoke/function.yaml" \
-  -f "$ROOT/deploy/k8s/mcp-invoke/mqt.yaml"
+echo "== agent/mcp functions (task-bridge; no language MQT) =="
+# Retire legacy agent/mcp MessageQueueTriggers (M3.6 multi-runtime).
+kubectl -n default delete messagequeuetrigger.fission.io/aura-agent-invoke \
+  messagequeuetrigger.fission.io/aura-mcp-invoke --ignore-not-found --wait=false 2>/dev/null || true
+kubectl apply -f "$ROOT/deploy/k8s/agent-invoke/function.yaml"
+kubectl apply -f "$ROOT/deploy/k8s/mcp-invoke/function.yaml"
 kubectl apply -f "$ROOT/deploy/k8s/mcp-invoke-rpc/function.yaml"
+kubectl apply -f "$ROOT/deploy/k8s/agent-invoke-py/function.yaml"
+kubectl apply -f "$ROOT/deploy/k8s/mcp-invoke-py/function.yaml"
+kubectl apply -f "$ROOT/deploy/k8s/mcp-invoke-rpc-py/function.yaml"
 
 apply_pkg_zip_literal aura-agent-invoke aura-nodejs-async \
   "$ROOT/deploy/k8s/agent-invoke/archive.zip" async agent-invoke
@@ -96,6 +99,12 @@ apply_pkg_zip_literal aura-control-resolve aura-nodejs-sync \
   "$ROOT/deploy/k8s/control-resolve/archive.zip" sync control
 apply_pkg_zip_literal aura-mcp-invoke-rpc aura-nodejs-sync \
   "$ROOT/deploy/k8s/mcp-invoke-rpc/archive.zip" sync mcp-invoke
+apply_pkg_zip_literal aura-agent-invoke-py aura-python-async \
+  "$ROOT/deploy/k8s/agent-invoke-py/archive.zip" async agent-invoke
+apply_pkg_zip_literal aura-mcp-invoke-py aura-python-async \
+  "$ROOT/deploy/k8s/mcp-invoke-py/archive.zip" async mcp-invoke
+apply_pkg_zip_literal aura-mcp-invoke-rpc-py aura-python-sync \
+  "$ROOT/deploy/k8s/mcp-invoke-rpc-py/archive.zip" sync mcp-invoke
 
 echo "== prune legacy per-service Environments / *-rr / mcp RR ConfigMap =="
 while read -r env; do
@@ -103,7 +112,7 @@ while read -r env; do
   echo "delete $env"
   kubectl delete "$env" -n default --wait=false --ignore-not-found
 done < <(kubectl get environment.fission.io -n default -o name 2>/dev/null \
-  | grep -vE 'environment.fission.io/(aura-nodejs-async|aura-nodejs-sync)$' || true)
+  | grep -vE 'environment.fission.io/(aura-nodejs-async|aura-nodejs-sync|aura-python-async|aura-python-sync)$' || true)
 for dep in aura-memory-recall-rr aura-control-resolve-rr aura-mcp-invoke-rr; do
   kubectl -n default delete deploy/"$dep" --ignore-not-found --wait=false
 done

@@ -1,5 +1,6 @@
-# Shared NATS → Fission Router bridge (ARCHITECTURE §3.3 / §4.2).
+# Shared NATS → Fission Router bridge (ARCHITECTURE §3.3 / §4.2 · M3.6).
 # Queue-group aura-rpc-bridge; no Service; does not run domain handlers.
+# Image must bake nats deps — no initContainer package install.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,28 +24,10 @@ spec:
         app.kubernetes.io/part-of: aura
         app.kubernetes.io/name: aura-nats-rpc-bridge
     spec:
-      initContainers:
-        - name: npm-ci
-          image: node:22-alpine
-          imagePullPolicy: IfNotPresent
-          workingDir: /app
-          command: ["sh", "-c"]
-          args:
-            - |
-              set -eu
-              cp -a /src/. /app/
-              npm install --omit=dev --no-audit --no-fund
-          volumeMounts:
-            - name: src
-              mountPath: /src
-              readOnly: true
-            - name: app
-              mountPath: /app
       containers:
         - name: bridge
-          image: node:22-alpine
+          image: aura/nats-rpc-bridge:local
           imagePullPolicy: IfNotPresent
-          workingDir: /app
           env:
             - name: NATS_URL
               value: nats://nats.aura.svc.cluster.local:4222
@@ -53,20 +36,9 @@ spec:
               value: http://router-internal.fission.svc:8889
             - name: RPC_QUEUE
               value: aura-rpc-bridge
-          command: ["node"]
-          args: ["bridge.js"]
-          volumeMounts:
-            - name: app
-              mountPath: /app
           resources:
             requests:
               cpu: 25m
               memory: 128Mi
             limits:
               memory: 512Mi
-      volumes:
-        - name: src
-          configMap:
-            name: aura-nats-rpc-bridge-app
-        - name: app
-          emptyDir: {}

@@ -26,8 +26,8 @@ MQT **connector**는 Fission/KEDA 이미지이며 Package 언어와 무관하다
 
 | 경로 | 역할 |
 |------|------|
-| `services/agent-invoke/` | 소스 정본 + `package.json` deps |
-| `services/mcp-invoke/` | 소스 정본 + deps |
+| `services/agent-invoke/nodejs/` | Node 소스 정본 + `package.json` deps (M3.6 레이아웃) |
+| `services/mcp-invoke/nodejs/` | Node 소스 정본 + deps |
 | `deploy/scripts/build-*-archive.sh` | zip 산출 (`deploy/k8s/*/archive.zip`) |
 | `deploy/k8s/*/package.yaml` | `type: archive` · URL 또는 로컬 업로드 런북 |
 
@@ -42,4 +42,5 @@ bash deploy/scripts/check-agent-invoke.sh
 bash deploy/scripts/check-mcp-invoke-dual.sh
 bash deploy/scripts/build-agent-invoke-archive.sh
 bash deploy/scripts/build-mcp-invoke-archive.sh
+# Python 병행: deploy/docs/fission-python-archive.md · check-python-env-parity.sh
 ```

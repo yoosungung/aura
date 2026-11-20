@@ -1,0 +1,16 @@
+{
+  "invalid": {
+    "server": "demo",
+    "version": "1.0.0",
+    "action": "list",
+    "principal": { "id": "u1", "tenant_id": "11111111-1111-1111-1111-111111111111" },
+    "cfg": {}
+  },
+  "valid_list": {
+    "server": "demo",
+    "version": "1.0.0",
+    "action": "list",
+    "runtime": "python",
+    "principal": { "id": "u1", "tenant_id": "11111111-1111-1111-1111-111111111111" }
+  }
+}

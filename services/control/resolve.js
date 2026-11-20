@@ -7,9 +7,17 @@
  */
 
 const KINDS = new Set(['agent', 'mcp']);
+const RUNTIMES = new Set(['nodejs', 'python', 'custom']);
+const DEFAULT_RUNTIME = 'nodejs';
 
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** Normalize source_meta.runtime (func-env). Invalid/missing → nodejs. */
+function normalizeRuntime(v) {
+  if (typeof v === 'string' && RUNTIMES.has(v)) return v;
+  return DEFAULT_RUNTIME;
 }
 
 /** 1-depth section merge; user wins. Source/user objects are not mutated. */
@@ -71,6 +79,7 @@ function publicSource(source) {
     checksum: source.checksum,
     sig_uri: source.sig_uri ?? null,
     config: source.config && typeof source.config === 'object' ? source.config : {},
+    runtime: normalizeRuntime(source.runtime),
     status: source.status,
     created_at: source.created_at,
   };
@@ -108,10 +117,14 @@ function buildResolveResponse({ source, user }) {
     user: usr,
     cfg: mergeConfigs(src.config, usr ? usr.config : null),
     secrets_ref: usr ? usr.secrets_ref : null,
+    runtime: src.runtime,
   };
 }
 
 module.exports = {
+  RUNTIMES,
+  DEFAULT_RUNTIME,
+  normalizeRuntime,
   mergeConfigs,
   validateResolveRequest,
   buildResolveResponse,

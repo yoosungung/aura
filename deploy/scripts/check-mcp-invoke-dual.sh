@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DESIGN="$ROOT/services/mcp-invoke/DESIGN.md"
 DOCS="$ROOT/deploy/docs/mcp-invoke-dual.md"
 LIST_DOC="$ROOT/deploy/docs/mcp-tools-list.md"
-SVC_DIR="$ROOT/services/mcp-invoke"
+SVC_DIR="$ROOT/services/mcp-invoke/nodejs"
 K8S_MQT="$ROOT/deploy/k8s/mcp-invoke"
 K8S_RPC="$ROOT/deploy/k8s/mcp-invoke-rpc"
 ARCH="$ROOT/ARCHITECTURE.md"
@@ -77,9 +77,13 @@ ENV_ASYNC="$ROOT/deploy/k8s/runtime-envs/aura-nodejs-async.yaml"
 bash "$BUILD" || fail "build-mcp-invoke-archive.sh failed"
 [[ -f "$K8S_MQT/archive.zip" ]] || fail "missing mcp-invoke archive.zip"
 
-grep -q 'kind: MessageQueueTrigger' "$MQT" || fail "mqt.yaml must be MessageQueueTrigger"
-grep -q 'aura.tasks.mcp.invoke' "$MQT" || fail "mqt topic must be aura.tasks.mcp.invoke"
-grep -Eq 'minReplicaCount:[[:space:]]*0' "$MQT" || fail "mqt minReplicaCount must be 0"
+grep -Eqi 'retired|task-bridge' "$MQT" || fail "mqt.yaml must note M3.6 retirement / task-bridge"
+grep -q 'aura.tasks.mcp.invoke' "$MQT" || fail "tombstone must name aura.tasks.mcp.invoke"
+if grep -q 'kind: MessageQueueTrigger' "$MQT"; then
+  fail "mcp-invoke mqt.yaml must not still be a live MessageQueueTrigger"
+fi
+TB="$ROOT/deploy/k8s/nats-task-bridge/deployment.yaml"
+[[ -f "$TB" ]] || fail "missing nats-task-bridge deployment"
 
 FN_RPC="$K8S_RPC/function.yaml"
 PKG_RPC="$K8S_RPC/package.yaml"
@@ -102,7 +106,12 @@ grep -q 'name: aura-nats-rpc-bridge' "$BRIDGE_DEP" || fail "bridge deployment mu
 grep -Eq 'namespace:[[:space:]]*aura' "$BRIDGE_DEP" || fail "bridge deployment must be ns aura"
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
   || fail "bridge replicas must be >= 2"
-grep -q 'aura-rpc-bridge' "$BRIDGE_DEP" || fail "bridge must use queue aura-rpc-bridge"
+# queue name may be env RPC_QUEUE; image-baked bridge still documents aura-rpc-bridge in DESIGN/selftest
+grep -Eq 'aura-rpc-bridge|RPC_QUEUE' "$BRIDGE_DEP" "$ROOT/services/nats-rpc-bridge/bridge.js" \
+  || fail "bridge must use queue aura-rpc-bridge"
+if grep -q 'initContainers' "$BRIDGE_DEP"; then
+  fail "rpc-bridge must not use initContainers"
+fi
 grep -Eq 'ExecutorType:[[:space:]]*poolmgr' "$FN_RPC" || fail "rpc function ExecutorType must be poolmgr"
 grep -q 'name: aura-nodejs-sync' "$FN_RPC" || fail "rpc function must use aura-nodejs-sync"
 grep -q 'name: aura-nodejs-sync' "$PKG_RPC" || fail "rpc package must use aura-nodejs-sync"

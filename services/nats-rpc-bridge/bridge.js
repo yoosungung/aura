@@ -13,6 +13,13 @@ const SUBJECT_TO_FUNCTION = Object.freeze({
   'aura.rpc.mcp.tool': 'aura-mcp-invoke-rpc',
 });
 
+/** mcp.tool multi-runtime (M3.6). Other RPC subjects ignore runtime. */
+const MCP_TOOL_BY_RUNTIME = Object.freeze({
+  nodejs: 'aura-mcp-invoke-rpc',
+  python: 'aura-mcp-invoke-rpc-py',
+  // custom: 'aura-mcp-invoke-rpc-custom', // follow-up
+});
+
 const SUBJECTS = Object.freeze(Object.keys(SUBJECT_TO_FUNCTION));
 
 /** Sync Function timeout is 30s — bridge fetch aborts slightly earlier. */
@@ -20,7 +27,27 @@ const DEFAULT_FETCH_TIMEOUT_MS = Number(process.env.RPC_FETCH_TIMEOUT_MS || 2500
 /** Per-pod concurrent in-flight RPC handles (HOL mitigation). */
 const DEFAULT_MAX_INFLIGHT = Number(process.env.RPC_MAX_INFLIGHT || 32);
 
-function functionForSubject(subject) {
+function parseRuntimeFromPayload(payload) {
+  if (payload == null) return 'nodejs';
+  let obj = payload;
+  if (typeof payload === 'string') {
+    try {
+      obj = JSON.parse(payload);
+    } catch (_) {
+      return 'nodejs';
+    }
+  }
+  if (obj && typeof obj === 'object' && typeof obj.runtime === 'string' && obj.runtime) {
+    return obj.runtime;
+  }
+  return 'nodejs';
+}
+
+function functionForSubject(subject, runtime) {
+  if (subject === 'aura.rpc.mcp.tool') {
+    const rt = runtime || 'nodejs';
+    return MCP_TOOL_BY_RUNTIME[rt] || MCP_TOOL_BY_RUNTIME.nodejs;
+  }
   return SUBJECT_TO_FUNCTION[subject] || null;
 }
 
@@ -119,7 +146,14 @@ async function handleNatsMessage(msg, opts) {
   }
 
   const subject = msg && msg.subject;
-  const fn = functionForSubject(subject);
+  let payload = '{}';
+  try {
+    payload = sc.decode(msg.data);
+  } catch (_) {
+    payload = '{}';
+  }
+  const runtime = parseRuntimeFromPayload(payload);
+  const fn = functionForSubject(subject, runtime);
   let replyBody;
   let status = 200;
 
@@ -131,12 +165,6 @@ async function handleNatsMessage(msg, opts) {
       subject: subject || null,
     });
   } else {
-    let payload = '{}';
-    try {
-      payload = sc.decode(msg.data);
-    } catch (_) {
-      payload = '{}';
-    }
     try {
       const invoke = o.invoke || invokeFission;
       const out = await invoke(fn, payload, {
@@ -267,9 +295,11 @@ if (require.main === module) {
 module.exports = {
   QUEUE_GROUP,
   SUBJECT_TO_FUNCTION,
+  MCP_TOOL_BY_RUNTIME,
   SUBJECTS,
   DEFAULT_FETCH_TIMEOUT_MS,
   DEFAULT_MAX_INFLIGHT,
+  parseRuntimeFromPayload,
   functionForSubject,
   createInflightGate,
   invokeFission,

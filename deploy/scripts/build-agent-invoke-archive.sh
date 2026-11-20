@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build Fission source archive for agent_invoke (M3.5 archive packaging).
+# Build Fission source archive for agent_invoke (nodejs · M3.5/M3.6 layout).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SRC="$ROOT/services/agent-invoke"
+SRC="$ROOT/services/agent-invoke/nodejs"
 OUT_DIR="$ROOT/deploy/k8s/agent-invoke"
 OUT="$OUT_DIR/archive.zip"
 STAGE="$(mktemp -d)"

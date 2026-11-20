@@ -269,6 +269,21 @@ async function invokeOnce(task, deps) {
     err.status = 500;
     throw err;
   }
+  // func-env: resolve.runtime is authoritative; stamp must match when present (M3.6).
+  const authRuntime =
+    resolved && typeof resolved.runtime === 'string' && resolved.runtime
+      ? resolved.runtime
+      : 'nodejs';
+  if (task.runtime != null && task.runtime !== authRuntime) {
+    const err = new Error('runtime_mismatch');
+    err.status = 400;
+    throw err;
+  }
+  if (authRuntime !== 'nodejs') {
+    const err = new Error('wrong_runtime_for_nodejs_function');
+    err.status = 400;
+    throw err;
+  }
 
   if (stream) {
     await publishStream(task.run_id, {

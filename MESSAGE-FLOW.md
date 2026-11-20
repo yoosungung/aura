@@ -12,7 +12,7 @@ Aura **전체 시스템 메시지·호출 흐름** 다이어그램이다.
 
 | 채널 | 전송 | 용도 | 스케일 |
 |------|------|------|--------|
-| `aura.tasks.*` | JetStream WorkQueue → **Fission MQT** | 내구 작업 | connector `min=0` OK |
+| `aura.tasks.*` | JetStream WorkQueue → **Fission MQT** (memory 등) 또는 **task-bridge** (agent/mcp) | 내구 작업 | connector/bridge `min=0` OK |
 | `aura.rpc.*` | NATS **Core** Request-Reply | 동기 홉 | **공용 브리지 ≥2** + sync poolmgr Warm, MQT 금지 |
 | `aura.stream.*` | NATS **Core** pub/sub | UX 토큰/툴 (유실 허용) | Gateway 구독 |
 | `aura.events.*` | JetStream Limits | 완료·감사 정본 | MQT `respTopic`/`errorTopic` 등 |
@@ -193,7 +193,7 @@ sequenceDiagram
 | 파드 | 하는 일 | Aura async 스케일 |
 |------|---------|-------------------|
 | **MQT connector** | JetStream pull → Router HTTP → resp/error publish (**언어 비선택**, Fission/KEDA 이미지) | MQT `minReplicaCount=0` |
-| **Function** | 핸들러 실행 (env + fetcher). **현재=`node-env`**; 후속 `python-env` / `rust-env` 가능 — connector와 독립 | executor(`poolmgr`)·env pool |
+| **Function** | 핸들러 실행 (env + fetcher). **nodejs + python 병행**(agent/mcp); memory 등은 node — connector/bridge와 독립 | executor(`poolmgr`)·env pool · [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 
 동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders). NATS 구독은 **`aura-nats-rpc-bridge`만** — Fission Router로 Sync Function(`poolmgr`) 중계.
 

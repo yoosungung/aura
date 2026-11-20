@@ -1,0 +1,17 @@
+{
+  "invalid": {
+    "run_id": "019a0000-0000-7000-8000-000000000001",
+    "agent": "demo",
+    "version": "1.0.0",
+    "principal": { "id": "u1", "tenant_id": "11111111-1111-1111-1111-111111111111" },
+    "bundle": "nope"
+  },
+  "valid": {
+    "run_id": "019a0000-0000-7000-8000-000000000001",
+    "agent": "demo",
+    "version": "1.0.0",
+    "runtime": "python",
+    "principal": { "id": "u1", "tenant_id": "11111111-1111-1111-1111-111111111111" },
+    "input": { "text": "hi" }
+  }
+}

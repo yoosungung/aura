@@ -6,7 +6,7 @@ const path = require('path');
 const {
   createMemoryKv,
   createTenantRateLimiter,
-} = require('../gateway/rate-limit');
+} = require('../../gateway/rate-limit');
 const {
   validateInvokeTask,
   packRecallItems,

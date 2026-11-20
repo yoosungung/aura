@@ -3,3 +3,5 @@ kind: Kustomization
 resources:
   - aura-nodejs-async.yaml
   - aura-nodejs-sync.yaml
+  - aura-python-async.yaml
+  - aura-python-sync.yaml

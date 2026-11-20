@@ -9,7 +9,7 @@
 
 const path = require('path');
 const { decideSandboxEgress } = require('../../../services/sandbox-egress/evaluate-egress');
-const { DEFAULT_POLICY } = require('../../../services/mcp-invoke/egress-allowlist');
+const { DEFAULT_POLICY } = require('../../../services/mcp-invoke/nodejs/egress-allowlist');
 
 const MANIFEST_DIR = path.join(__dirname);
 const APP_POLICY = {

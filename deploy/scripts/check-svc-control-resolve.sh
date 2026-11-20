@@ -30,6 +30,9 @@ grep -q 'UNIQUE (tenant_id, kind, name, version)' "$SQL" \
   || fail "source_meta UNIQUE (tenant_id, kind, name, version)"
 grep -q 'REFERENCES source_meta' "$SQL" || fail "user_meta must FK source_meta"
 grep -Eqi 'secrets_ref' "$SQL" || fail "user_meta must have secrets_ref"
+grep -Eq 'runtime' "$SQL" || fail "source_meta must have runtime (M3.6 func-env)"
+grep -Eq 'chk_source_meta_runtime|nodejs.*python.*custom' "$SQL" \
+  || fail "source_meta.runtime CHECK missing"
 if grep -Eqi '^[[:space:]]*(secret_value|api_key|secret_plain)[[:space:]]+' "$SQL"; then
   fail "SQL must not store plaintext secret columns"
 fi

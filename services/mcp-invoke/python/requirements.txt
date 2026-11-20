@@ -1,0 +1,1 @@
+# M3.6 mcp_invoke python — stdlib-only for parity shell.

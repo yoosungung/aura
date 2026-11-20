@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DOCS="$ROOT/deploy/docs/mcp-streamable-http.md"
 DESIGN="$ROOT/services/mcp-invoke/DESIGN.md"
-SVC="$ROOT/services/mcp-invoke"
+SVC="$ROOT/services/mcp-invoke/nodejs"
 SH="$SVC/streamable-http.js"
 HANDLER="$SVC/handler.js"
 FACTORY="$SVC/factory.js"

@@ -20,9 +20,11 @@ CREATE TABLE source_meta (
   checksum     TEXT NOT NULL,
   sig_uri      TEXT,
   config       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  runtime      TEXT NOT NULL DEFAULT 'nodejs',
   status       TEXT NOT NULL DEFAULT 'active',
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT chk_source_meta_kind CHECK (kind IN ('agent', 'mcp')),
+  CONSTRAINT chk_source_meta_runtime CHECK (runtime IN ('nodejs', 'python', 'custom')),
   CONSTRAINT chk_source_meta_status CHECK (status IN ('pending', 'active', 'retired')),
   CONSTRAINT uq_source_meta_tenant_kind_name_version UNIQUE (tenant_id, kind, name, version)
 );
