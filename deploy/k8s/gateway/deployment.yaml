@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: aura-gateway
-  namespace: default
+  namespace: aura
   labels:
     aura.runtime/class: gateway
     app.kubernetes.io/part-of: aura

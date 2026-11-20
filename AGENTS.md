@@ -22,7 +22,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
 | `deploy/k8s/runtime-envs/` | Fission 공용 Environment 2개 — `aura-nodejs-async`(`poolmgr` `poolsize: 1`) · `aura-nodejs-sync`(`poolmgr` `poolsize: 2`) | `deploy/k8s/runtime-envs/` |
-| `deploy/k8s/nats-rpc-bridge/` | 공용 NATS→Fission Router 브리지 (`aura-nats-rpc-bridge` replicas≥2) | `deploy/k8s/nats-rpc-bridge/` |
+| `deploy/k8s/nats-rpc-bridge/` | 공용 NATS→Fission Router 브리지 (`aura-nats-rpc-bridge` replicas≥2 · **ns `aura`**) | `deploy/k8s/nats-rpc-bridge/` |
 | `services/nats-rpc-bridge/` | 브리지 내부 DESIGN + `bridge.js` (중계만 · handler 금지) | `services/nats-rpc-bridge/` |
 | `deploy/dev/` | **smoke·로컬 하네스만** (프로덕션 제외) — [`deploy/dev/README.md`](deploy/dev/README.md) | `deploy/dev/` |
 | `deploy/dev/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/dev/k8s/async-smoke/` |
@@ -36,7 +36,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/mcp-invoke/` | `mcp_invoke` MQT (`aura.tasks.mcp.invoke` → done/error, `minReplicaCount=0`, **PG 금지**) | `deploy/k8s/mcp-invoke/` |
 | `deploy/k8s/mcp-invoke-rpc/` | `mcp_invoke` RPC Function (`aura-mcp-invoke-rpc`, **poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/mcp-invoke-rpc/` |
 | `deploy/k8s/control-resolve/` | `aura-control-resolve` Function (**poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/control-resolve/` |
-| `deploy/k8s/gateway/` | Gateway Deployment+Service (`replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
+| `deploy/k8s/gateway/` | Gateway Deployment+Service (**ns `aura`**, `replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
 | `services/memory/` | `svc-memory` 내부 DESIGN + store/embed/recall handlers | `services/memory/` |
 | `services/memory-capture/` | `memory_capture` 내부 DESIGN + handler (PG 금지 · candidates envelope) | `services/memory-capture/` |
 | `services/control/` | `svc-control` 내부 DESIGN + resolve wire 헬퍼 + **control.resolve 브리지** (`source_meta`/`user_meta`) | `services/control/` |

@@ -65,7 +65,7 @@ flowchart TB
     STORE[svc-memory store/embed/…]
   end
 
-  subgraph sync["sync — bridge + poolmgr Warm"]
+  subgraph sync["sync — bridge ns aura + poolmgr Warm"]
     BR[aura-nats-rpc-bridge ≥2]
     RECALL[aura-memory-recall]
     MCP_R[aura-mcp-invoke-rpc]

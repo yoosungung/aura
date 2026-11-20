@@ -79,8 +79,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 | 컴포넌트 | 역할 | 실행 계급 | PG |
 |----------|------|-----------|-----|
-| **Gateway** | 태스크 **쿼터 검사 후** publish; `aura.stream.<run_id>` → 클라이언트 SSE/WS | 상시 ≥2 | 없음(쿼터 상태는 NATS KV 등, §2.2) |
-| **`aura-nats-rpc-bridge`** | `aura.rpc.*` queue-group 구독 → Fission Router HTTP 중계 | 상시 ≥2 | 없음 |
+| **Gateway** | 태스크 **쿼터 검사 후** publish; `aura.stream.<run_id>` → 클라이언트 SSE/WS · **ns `aura`** | 상시 ≥2 | 없음(쿼터 상태는 NATS KV 등, §2.2) |
+| **`aura-nats-rpc-bridge`** | `aura.rpc.*` queue-group 구독 → Fission Router HTTP 중계 · **ns `aura`** | 상시 ≥2 | 없음 |
 | `agent_invoke` | 턴 실행; recall/mcp/resolve RPC; **스트림 프레임 publish**; capture 발행; done/error 이벤트 | **async** MQT (0 허용) | 체크포인트만 (**Pooler**) |
 | `mcp_invoke` (task) | 비동기 MCP 작업 | **async** MQT (0 허용) | 없음 |
 | `mcp_invoke` (rpc) | `aura.rpc.mcp.tool` → Function `aura-mcp-invoke-rpc` | **sync** poolmgr Warm | 없음 |

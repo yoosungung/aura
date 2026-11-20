@@ -12,7 +12,7 @@
 
 | 항목 | 값 |
 |------|-----|
-| Deployment | `aura-nats-rpc-bridge` · **replicas ≥ 2** |
+| Deployment | `aura-nats-rpc-bridge` · **ns `aura`** · **replicas ≥ 2** |
 | queue-group | `aura-rpc-bridge` (세 subject 공유) |
 | Router | `POST {FISSION_ROUTER_URL}/fission-function/<name>` — 기본 `http://router-internal.fission.svc:8889` (Fission 1.27 public router는 HTTPTrigger만) |
 | 동시성 | 구독 루프는 `dispatchNatsMessage` 병렬(HOL 금지) · `RPC_MAX_INFLIGHT`(기본 32) 세마포어 |

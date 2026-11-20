@@ -5,7 +5,8 @@
 **경로 분리:** 제품 매니페스트 = [`k8s/`](k8s/) · smoke/로컬 하네스 = [`dev/`](dev/) ([`dev/README.md`](dev/README.md)).  
 제품 적용: `bash deploy/scripts/apply-product.sh` (runtime+pooler 이후).  
 Fission Environment는 클래스 공용 2개만 — [`k8s/runtime-envs`](k8s/runtime-envs/) (`aura-nodejs-async` poolsize 1 · `aura-nodejs-sync` poolsize 2, 둘 다 **poolmgr**).  
-sync RPC: [`k8s/nats-rpc-bridge`](k8s/nats-rpc-bridge/) → Router → Sync Function. 서비스별 `*-rr`·sync `newdeploy` 상주 금지.  
+sync RPC: [`k8s/nats-rpc-bridge`](k8s/nats-rpc-bridge/) (**ns `aura`**) → Router → Sync Function. 서비스별 `*-rr`·sync `newdeploy` 상주 금지.  
+상시 플랫폼 Gateway·브리지는 **ns `aura`** (`llm-gateway`·NATS·Pooler와 동일). Fission Function/Environment는 **ns `default`**.  
 아래 one-shot의 `apply-split-deploy`·`smoke-*`는 **dev/test only**.
 
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  

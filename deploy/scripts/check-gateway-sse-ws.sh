@@ -67,6 +67,9 @@ if grep -Eqi 'MessageQueueTrigger|mqtkind|ScaledObject' "$DEP" "$KUST" "$SVC"; t
   fail "Gateway must not use MessageQueueTrigger / ScaledObject"
 fi
 grep -q 'aura-gateway' "$DEP" || fail "deployment must name aura-gateway"
+grep -Eq 'namespace:[[:space:]]*aura' "$DEP" || fail "gateway deployment must be ns aura"
+grep -Eq 'namespace:[[:space:]]*aura' "$SVC" || fail "gateway service must be ns aura"
+grep -Eq '^namespace:[[:space:]]*aura' "$KUST" || fail "gateway kustomization must set namespace aura"
 grep -q 'kind: Service' "$SVC" || fail "service.yaml must be Service"
 
 # ROADMAP checkbox

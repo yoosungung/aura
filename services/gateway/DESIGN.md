@@ -15,7 +15,7 @@
 | 항목 | 값 |
 |------|-----|
 | 역할 | 쿼터 검사 후 제출 수락 → `run_id` → `aura.tasks.agent.invoke` publish; Core `aura.stream.<run_id>` → SSE/WS |
-| 실행 계급 | **상시 ≥2** (Deployment). Fission MQT / scale-to-zero **금지** |
+| 실행 계급 | **상시 ≥2** (Deployment · **ns `aura`**). Fission MQT / scale-to-zero **금지** |
 | PG | **없음** |
 | 인가 | `run_id` 소유 principal(`id`+`tenant_id`)만 구독 (그 외 403/404) |
 | 쿼터 | `quota.{tenant_id}` 키 · Token Bucket(`ratePerSec`/`burst`) + `maxInflight` · 거부 **429** |

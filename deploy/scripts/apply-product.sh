@@ -48,13 +48,13 @@ bash "$ROOT/deploy/scripts/build-mcp-invoke-archive.sh"
 echo "== shared runtime Environments =="
 kubectl apply -k "$ROOT/deploy/k8s/runtime-envs"
 
-echo "== nats-rpc-bridge ConfigMap + Deployment =="
+echo "== nats-rpc-bridge ConfigMap + Deployment (ns aura) =="
 STAGE_BR="$(mktemp -d)"
 cleanup() { rm -rf "$STAGE_BR"; }
 trap cleanup EXIT
 cp "$ROOT/services/nats-rpc-bridge/bridge.js" "$STAGE_BR/"
 cp "$ROOT/services/nats-rpc-bridge/package.json" "$STAGE_BR/"
-kubectl -n default create configmap aura-nats-rpc-bridge-app \
+kubectl -n aura create configmap aura-nats-rpc-bridge-app \
   --from-file="$STAGE_BR" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -k "$ROOT/deploy/k8s/nats-rpc-bridge"
@@ -115,11 +115,15 @@ while read -r nd; do
 done < <(kubectl -n default get deploy -o name 2>/dev/null \
   | grep -E 'newdeploy-aura-(memory-recall|control-resolve|mcp-invoke-rpc)-' || true)
 kubectl -n default delete configmap aura-mcp-invoke-rr-app --ignore-not-found
+# Legacy: gateway/bridge lived in default — move to aura
+kubectl -n default delete deploy/aura-gateway svc/aura-gateway \
+  deploy/aura-nats-rpc-bridge configmap/aura-nats-rpc-bridge-app \
+  --ignore-not-found --wait=false
 
-echo "== wait always-on =="
-kubectl -n default rollout status deploy/aura-gateway --timeout=180s
+echo "== wait always-on (ns aura) =="
+kubectl -n aura rollout status deploy/aura-gateway --timeout=180s
 kubectl -n aura rollout status deploy/aura-llm-gateway --timeout=180s
-kubectl -n default rollout status deploy/aura-nats-rpc-bridge --timeout=240s
+kubectl -n aura rollout status deploy/aura-nats-rpc-bridge --timeout=240s
 
 echo
-echo "apply-product: done (shared envs + nats-rpc-bridge; smoke under deploy/dev not applied)."
+echo "apply-product: done (gateway+bridge in aura; Fission in default; smoke under deploy/dev not applied)."

@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: aura-nats-rpc-bridge
-  namespace: default
+  namespace: aura
   labels:
     aura.runtime/class: sync
     aura.service: nats-rpc-bridge

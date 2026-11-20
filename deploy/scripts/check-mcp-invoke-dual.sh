@@ -99,6 +99,7 @@ if grep -E '^[[:space:]]*-[[:space:]]*rpc-responder\.yaml' "$KUST_RPC"; then
   fail "kustomization must not list rpc-responder.yaml"
 fi
 grep -q 'name: aura-nats-rpc-bridge' "$BRIDGE_DEP" || fail "bridge deployment must be aura-nats-rpc-bridge"
+grep -Eq 'namespace:[[:space:]]*aura' "$BRIDGE_DEP" || fail "bridge deployment must be ns aura"
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
   || fail "bridge replicas must be >= 2"
 grep -q 'aura-rpc-bridge' "$BRIDGE_DEP" || fail "bridge must use queue aura-rpc-bridge"
