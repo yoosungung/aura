@@ -89,8 +89,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
 | `svc-memory` recall | hybrid Top-K → Function `aura-memory-recall` | **sync** poolmgr Warm | 메모리 SELECT → **Pooler** |
 | `svc-control` + resolve Function | 메타 쓰기(HTTP); `aura.rpc.control.resolve` → `aura-control-resolve` | 관리 HTTP + **sync** poolmgr Warm | 컨트롤 메타 **유일 쓰기** → **Pooler** |
-| **`aura-control-admin`** | ops 관리 HTTP (`/v1/sources`·bundles·overlays) · **ns `aura`** · Admin UI 전용 | 상시 ≥2 | 컨트롤 메타 쓰기 + `control_audit` → **Pooler**; Garage GetObject(activate checksum) |
-| **Admin UI** | 플랫폼 ops 콘솔(소스·번들·overlay). Chat UI·테넌트 self-serve **비범위** | 정적/SPA → `aura-control-admin`만 | 없음(API 경유) |
+| **`aura-control-admin`** | ops 관리 HTTP (`/v1/sources`·bundles·overlays·`/v1/audit`) · **ns `aura`** · Admin UI 전용 · Phase 2 quota는 NATS RR로 Gateway만 호출(KV 직접 금지) | 상시 ≥2 | 컨트롤 메타 쓰기 + `control_audit` → **Pooler**; Garage GetObject(activate checksum) |
+| **Admin UI** | 플랫폼 ops 콘솔(소스·번들·overlay·audit). Chat UI·테넌트 self-serve **비범위** · Gateway HTTP 금지 | Vite SPA → `aura-control-admin`만 | 없음(API 경유) |
 | **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | **CloudNativePG `Pooler`**, **transaction** 모드 |
 
 ### 2.1 Connection Pooler · RLS GUC
@@ -305,13 +305,13 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 | 테이블 | 쓰기 소유 |
 |--------|-----------|
 | `memory_items`, `memory_embeddings`, `memory_nodes`, `memory_edges`, `memory_audit` | **`svc-memory`만** |
-| `source_meta`, `user_meta`, `control_audit` (DDL·resolve/admin wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
+| `source_meta`, `user_meta`, `control_audit` (DDL·resolve/admin wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
 | tenants/ACL (후속) | **`svc-control`만** |
 | `agent_checkpoints` (DDL·소유: [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md) · [`deploy/sql/agent_checkpoints.sql`](deploy/sql/agent_checkpoints.sql)) | **`agent_invoke`만** (예외) |
 
 ### 6.1.1 컨트롤 메타 DDL (`source_meta` / `user_meta` / `control_audit`)
 
-정본 DDL: [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql). resolve: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md). 관리 HTTP·Admin UI: [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md).
+정본 DDL: [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql). resolve: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md). 관리 HTTP·Admin UI: [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) (MVP 스냅샷 [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)).
 
 **`source_meta` 불변 vs status:** `entrypoint`/`bundle_uri`/`checksum`/`sig_uri`/`config`/`runtime`/`kind`/`name`/`version` 은 INSERT 후 **UPDATE 금지**(새 version만). **`status`만** `pending→active`(activate)·`active→retired`(retire) 전이 UPDATE 허용. INSERT 초기값=`pending`. `config`에 `runtime` 키 금지.
 

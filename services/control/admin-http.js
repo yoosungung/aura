@@ -2,7 +2,7 @@
 
 /**
  * svc-control admin HTTP handlers (M6 ops-only).
- * Contract: deploy/docs/admin-ui-mvp.md · ARCHITECTURE §6.1.1
+ * Contract: deploy/docs/admin-ui.md · ARCHITECTURE §6.1.1
  */
 
 const crypto = require('crypto');
@@ -84,6 +84,9 @@ function createAdminHandlers(opts = {}) {
     }
     if (method === 'GET' && path === '/v1/sources') {
       return listSources(client, tenantId);
+    }
+    if (method === 'GET' && path === '/v1/audit') {
+      return listAudit(client, tenantId, req.query || {});
     }
 
     const kindName = path.match(/^\/v1\/sources\/([^/]+)\/([^/]+)$/);
@@ -431,6 +434,29 @@ async function deleteOverlay(client, tenantId, actor, sourceId, principalId, bod
     });
     return { status: 200, body: { deleted: true } };
   });
+}
+
+async function listAudit(client, tenantId, query) {
+  let limit = Number(query.limit || 50);
+  if (!Number.isFinite(limit) || limit < 1) limit = 50;
+  if (limit > 200) limit = 200;
+  const cursor = query.cursor ? String(query.cursor) : null;
+
+  const rows = await withTenantTx(client, tenantId, async (c) => {
+    const res = await c.query(
+      `SELECT id::text AS id, actor, action, resource_type, resource_id, reason, at
+         FROM control_audit
+        WHERE tenant_id = $1::uuid
+          AND ($2::text IS NULL OR at < (SELECT at FROM control_audit WHERE id = $2::uuid AND tenant_id = $1::uuid))
+        ORDER BY at DESC, id DESC
+        LIMIT $3`,
+      [tenantId, cursor, limit]
+    );
+    return res.rows;
+  });
+  const next_cursor =
+    rows.length === limit && rows[rows.length - 1] ? rows[rows.length - 1].id : null;
+  return { status: 200, body: { items: rows, next_cursor } };
 }
 
 async function insertAudit(c, { tenantId, actor, action, resource_type, resource_id, reason }) {

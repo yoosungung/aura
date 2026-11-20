@@ -7,7 +7,7 @@ Wire/DDL 정본: [`svc-control-resolve.md`](svc-control-resolve.md) · [`../sql/
 Warm 패턴 참고: [`mcp-invoke-dual.md`](mcp-invoke-dual.md) sync 절.
 
 **이 문서 범위:** NATS Core RR 브리지 **이름표** · Warm Function + Deployment **분리** · stub/injectable 핸들러 경계.  
-Pooler SELECT 본배선: [`../../services/control/pooler-lookup.js`](../../services/control/pooler-lookup.js) (M6 · injectable). 관리 HTTP: [`admin-ui-mvp.md`](admin-ui-mvp.md).  
+Pooler SELECT 본배선: [`../../services/control/pooler-lookup.js`](../../services/control/pooler-lookup.js) (M6 · injectable). 관리 HTTP: [`admin-ui.md`](admin-ui.md).  
 **Non-goals:** tenants/ACL · 시크릿 스토어 · Streamable HTTP · sandbox/egress · F1 · live Pooler CI 필수.
 
 ---

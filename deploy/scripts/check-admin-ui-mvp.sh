@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # M6 static gate: Admin UI MVP · control admin HTTP · control_audit · pooler-lookup.
 # Exit 0 on PASS. live Garage/Pooler CI not required (injectable).
+# M6.1 React sources replace vanilla app.js — see also check-admin-ui.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -28,7 +29,7 @@ ok() { echo "OK: $*"; }
 [[ -f "$CTRL/admin-http.js" ]] || fail "missing admin-http.js"
 [[ -f "$CTRL/pooler-lookup.js" ]] || fail "missing pooler-lookup.js"
 [[ -f "$UI/index.html" ]] || fail "missing admin-ui index.html"
-[[ -f "$UI/app.js" ]] || fail "missing admin-ui app.js"
+[[ -f "$UI/src/main.tsx" || -f "$UI/src/lib/api.ts" ]] || fail "missing admin-ui React sources"
 
 # Doc contracts
 grep -Eqi 'pending.*active|activate' "$DOC" || fail "doc must lock activate status machine"
@@ -56,9 +57,9 @@ grep -q 'FORCE ROW LEVEL SECURITY' "$SQL" || fail "SQL must FORCE RLS"
 grep -q "current_setting('app.tenant_id'" "$SQL" || fail "RLS must use app.tenant_id"
 
 # ARCHITECTURE / ROADMAP / AGENTS
-grep -Eqi 'aura-control-admin|admin-ui-mvp|control_audit' "$ARCH" \
-  || fail "ARCHITECTURE must cite control-admin / admin-ui-mvp / control_audit"
-grep -Eqi 'admin-ui-mvp|관리 UI|M6' "$ROADMAP" || fail "ROADMAP must cite Admin UI M6"
+grep -Eqi 'aura-control-admin|admin-ui-mvp|admin-ui\.md|control_audit' "$ARCH" \
+  || fail "ARCHITECTURE must cite control-admin / admin-ui / control_audit"
+grep -Eqi 'admin-ui-mvp|admin-ui\.md|관리 UI|M6' "$ROADMAP" || fail "ROADMAP must cite Admin UI M6"
 grep -Eqi 'admin-ui-mvp|admin-ui' "$AGENTS" || fail "AGENTS must list admin-ui docs/path"
 
 # DESIGN
@@ -90,15 +91,15 @@ grep -Eq 'reason_required' "$CTRL/admin-http.js" || fail "admin-http must requir
 if grep -Eq "require\(['\"]pg['\"]\)" "$CTRL/bridge.js"; then
   fail "bridge.js must stay injectable (no hard-wired pg)"
 fi
-grep -Eq 'x-aura-tenant-id' "$UI/app.js" || fail "admin-ui must send tenant header"
-if grep -Eqi 'aura\.rpc\.control\.resolve' "$UI/app.js"; then
+grep -Eq 'x-aura-tenant-id' "$UI/src/lib/api.ts" || fail "admin-ui must send tenant header"
+if grep -Eqi 'aura\.rpc\.control\.resolve' "$UI/src/lib/api.ts" "$UI/src"/features/*/*.tsx 2>/dev/null; then
   fail "admin-ui must not call NATS resolve"
 fi
 
 # Unit gates
 node "$CTRL/admin-http.selftest.js" || fail "admin-http.selftest failed"
 node "$CTRL/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest failed"
-node "$UI/ui.selftest.js" || fail "admin-ui ui.selftest failed"
+node "$UI/ui.selftest.cjs" || fail "admin-ui ui.selftest failed"
 
 ok "admin-ui-mvp docs + DDL + admin-http + pooler-lookup + UI"
 echo "check-admin-ui-mvp: PASS"

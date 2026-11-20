@@ -71,6 +71,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 | 2026-11-20 | **M3.6 python-env 병행** — Node agent/MCP 유지 · `source_meta.runtime` 권위+메시지 스탬프 · 동일 NATS subject · task-bridge+rpc runtime→Function · `aura-python-async|sync` · `services/*/nodejs|python` · 브리지 deps 이미지 · custom-env 후속 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) |
 | 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/Garage · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 Garage sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
+| 2026-11-20 | **Admin UI React 재설계 M6.1** — Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · 전수 인벤토리 · PG=SoR · KV=`quota.*`는 Gateway만 · Phase2=control-admin HTTP→`aura.rpc.gateway.quota` · `GET /v1/audit` · Audit 화면 | §2·§6.1 · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md)·`check-admin-ui.sh` · [`services/admin-ui/`](services/admin-ui/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -336,6 +337,25 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - 타 테넌트 GUC로 0건 · checksum 불일치 activate 거부 · UNIQUE 재등록 409 · audit+reason · 시크릿 평문 없음.
 
 **Non-goals:** tenants/ACL 테이블 · 테넌트 admin SSO · 과금 SPA · DLQ/PITR/erase 콘솔 · Chat UI.
+
+---
+
+## M6.1 — Admin UI React 재설계 (ops-only)
+
+**목표**: vanilla MVP를 React+TS+Tailwind+shadcn 스택으로 승격하고, 관리 대상 인벤토리·PG SoR·KV=Gateway-only·`GET /v1/audit`를 봉인한다.
+
+**작업**
+
+- [x] 계약·문서 — [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · ARCHITECTURE §2/§6.1.1 · ROADMAP · AGENTS
+- [x] Vite + React 19 + TS + Tailwind + shadcn + TanStack Query + Zustand + RHF/Zod SPA
+- [x] `GET /v1/audit` + Audit 화면 · Sources/Bundles/Overlays parity
+- [x] 게이트 — `check-admin-ui.sh` + Vitest + `npm run build`
+
+**성공 기준**
+
+- ops 등록 → activate → resolve 동일 · Audit 조회 · UI가 NATS/Gateway HTTP를 열지 않음 · Zod가 `runtime` in config·plaintext secrets 거부.
+
+**Non-goals:** Phase 2 quota 본배선 · tenants/ACL · SSO · 과금 SPA · Chat · memory 정책 Admin 쓰기 · control-admin KV 직접 접속.
 
 ---
 

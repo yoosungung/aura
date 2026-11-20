@@ -3,7 +3,7 @@
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #6 · #11 · §2 · §3.3 · §6.1 · §9.2.  
 일정: [ROADMAP.md](../../ROADMAP.md) M3 resolve/브리지 · **M6 관리 HTTP + Pooler SELECT + audit**.  
 스키마·wire: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-resolve.md) · DDL [`deploy/sql/control_meta.sql`](../../deploy/sql/control_meta.sql).  
-관리 UI: [`deploy/docs/admin-ui-mvp.md`](../../deploy/docs/admin-ui-mvp.md).  
+관리 UI: [`deploy/docs/admin-ui.md`](../../deploy/docs/admin-ui.md) · MVP [`admin-ui-mvp.md`](../../deploy/docs/admin-ui-mvp.md).  
 브리지 Warm: [`deploy/docs/control-resolve-bridge.md`](../../deploy/docs/control-resolve-bridge.md) · [`deploy/k8s/control-resolve/`](../../deploy/k8s/control-resolve/).  
 §9.2: [`deploy/docs/nats-mtls-secrets.md`](../../deploy/docs/nats-mtls-secrets.md).
 
@@ -33,7 +33,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | `bridge.js` | stub / injectable `lookup` → `buildResolveResponse` |
 | `tenant-tx.js` | `withTenantTx` — `set_config(..., true)` only |
 | `pooler-lookup.js` | Pooler SELECT → `{source,user}` (active only) |
-| `admin-http.js` | 관리 HTTP 라우트 핸들러 (presign·sources·activate·overlays·audit) |
+| `admin-http.js` | 관리 HTTP 라우트 핸들러 (presign·sources·activate·overlays·**GET audit**) |
 | `secrets-mask.js` | `maskSecrets` |
 | `secrets-cache.js` | TTL≤60s · rotate 무효화 |
 | `nats-tls.js` | mTLS 클라이언트 가드 |
@@ -62,8 +62,10 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | activate | Garage GetObject → sha256 == row.checksum → `pending→active` + audit |
 | retire | `active→retired` + `reason` + audit |
 | overlays | PUT upsert · DELETE+reason · audit |
+| audit | `GET /v1/audit` · limit·cursor · RLS SELECT |
 | tenants | DISTINCT ∪ `AURA_ADMIN_TENANT_IDS` |
 | 콘텐츠 | UPDATE 경로 없음 |
+| Phase 2 quota | HTTP→`aura.rpc.gateway.quota`→Gateway만 · **KV 직접 금지** |
 
 ---
 
@@ -73,6 +75,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 bash deploy/scripts/check-svc-control-resolve.sh
 bash deploy/scripts/check-control-resolve-bridge.sh
 bash deploy/scripts/check-nats-mtls-secrets.sh
+bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 node services/control/resolve.selftest.js
 node services/control/bridge.selftest.js

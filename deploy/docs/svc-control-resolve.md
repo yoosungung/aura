@@ -8,7 +8,7 @@ DDL: [`../sql/control_meta.sql`](../sql/control_meta.sql).
 
 **이 문서 범위:** 컨트롤 메타 **테이블 이름·컬럼** · resolve **요청/응답 wire** · 쓰기/읽기 소유 · cfg merge · 시크릿 규칙 · 관리 HTTP **경로 정본**(형태).  
 **Non-goals:** tenants/ACL 테이블 · image/general deploy_mode · live Garage/Pooler CI 필수.  
-관리 UI·activate checksum·`control_audit`: [`admin-ui-mvp.md`](admin-ui-mvp.md) (M6).  
+관리 UI·activate checksum·`control_audit`: [`admin-ui.md`](admin-ui.md) (M6·M6.1).  
 **브리지 Warm 배포:** [`control-resolve-bridge.md`](control-resolve-bridge.md) · `deploy/k8s/control-resolve/` (minReplicas ≥ 2).
 
 참고 저장소 `agent-runtime`의 deploy-api `/v1/resolve`는 **의도만** 참고한다 — 스키마·코드를 복사하지 않는다(AGENTS §2).
@@ -119,7 +119,7 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 
 ## 관리 HTTP (정본 · M6)
 
-쓰기 소유=`svc-control` (`aura-control-admin`). 상세·화면·checksum: [`admin-ui-mvp.md`](admin-ui-mvp.md).
+쓰기 소유=`svc-control` (`aura-control-admin`). 상세·화면·checksum: [`admin-ui.md`](admin-ui.md).
 
 | 메서드 | 경로 | 용도 |
 |--------|------|------|
@@ -143,6 +143,7 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 ```bash
 ./deploy/scripts/check-svc-control-resolve.sh
 node services/control/resolve.selftest.js
+bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 ```
 

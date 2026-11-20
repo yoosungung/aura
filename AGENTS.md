@@ -17,7 +17,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
-| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **multi-env** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) · **nats-task-bridge** · **관리 UI MVP** [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)) | `deploy/docs/` |
+| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **multi-env** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) · **nats-task-bridge** · **관리 UI** [`admin-ui.md`](deploy/docs/admin-ui.md) · MVP [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)) | `deploy/docs/` |
 | `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (… · **`source_meta`/`user_meta`/`control_audit`** · **`agent_checkpoints`**) | `deploy/sql/` |
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
@@ -43,7 +43,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `services/memory/` | `svc-memory` 내부 DESIGN + store/embed/recall handlers | `services/memory/` |
 | `services/memory-capture/` | `memory_capture` 내부 DESIGN + handler (PG 금지 · candidates envelope) | `services/memory-capture/` |
 | `services/control/` | `svc-control` DESIGN + resolve/브리지 + **관리 HTTP** + **pooler-lookup** + `control_audit` | `services/control/` |
-| `services/admin-ui/` | 플랫폼 ops Admin UI MVP (Tenant picker · sources · bundles · overlays) | `services/admin-ui/` |
+| `services/admin-ui/` | 플랫폼 ops Admin UI (React+TS+Tailwind · Tenant picker · sources · bundles · overlays · audit) | `services/admin-ui/` |
 | `deploy/k8s/control-admin/` | `aura-control-admin` Deployment+Service (관리 HTTP · replicas≥2 · **ns `aura`**) | `deploy/k8s/control-admin/` |
 | `services/agent-invoke/` | `agent_invoke` DESIGN + `nodejs/` · `python/` · testdata · checkpoints · archive | `services/agent-invoke/` |
 | `services/llm-gateway/` | LLM Gateway 내부 DESIGN + client egress 가드 + Fallback/과금 집계 (`aura-llm-gateway`만) | `services/llm-gateway/` |
@@ -52,7 +52,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/compliance-erase/` | `aura.tasks.compliance.erase` MQT (`minReplicaCount=0`) | `deploy/k8s/compliance-erase/` |
 | `services/mcp-invoke/` | `mcp_invoke` DESIGN + `nodejs/` · `python/` (async+RPC 공유 tool path · PG 금지) | `services/mcp-invoke/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`gateway.js`) | `services/gateway/` |
-| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** 포함) | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** 포함) | `deploy/scripts/` |
 
 규칙:
 
@@ -94,6 +94,7 @@ M3.6 진행: **python-env 병행** · `source_meta.runtime` · task/rpc 브리�
 M4 진행: consolidate/graph/TTL/archive/object_gc/shared-bucket · **OTel** · **compliance.erase** · **PITR 드릴 #1(lab) 실측** [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) · `check-pg-pitr-drill.sh` · [`services/ops/pitr-drill/`](services/ops/pitr-drill/) (Collector live·erase 운영화·CNPG/Barman 스케일 재드릴=M5).
 M5 진행: **LLM Gateway Fallback + 테넌트 과금 대시보드** · **고위험 RuntimeClass/노드풀** · **DLQ Replay** · **정기 PITR 캘린더** (NATS Account=잔여).  
 M6 진행: **관리 UI ops-only MVP** [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · `check-admin-ui-mvp.sh` · 관리 HTTP · 서버 checksum activate · `control_audit` · resolve Pooler SELECT · [`services/admin-ui/`](services/admin-ui/).  
+M6.1 진행: **Admin UI React 재설계** [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `check-admin-ui.sh` · Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · `GET /v1/audit` · PG SoR · KV=Gateway만 · Phase2 quota=control-admin→NATS RR.  
 다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · M6 live Garage/Pooler.
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

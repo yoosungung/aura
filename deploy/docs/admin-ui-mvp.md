@@ -1,12 +1,10 @@
-# 관리 UI 1차 MVP (ops-only · M6)
+# 관리 UI 1차 MVP (ops-only · M6) — 역사 스냅샷
 
-계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #1·#6·#11 · §2 · §6.1.1 · §8 · §9.2.  
-일정: [ROADMAP.md](../../ROADMAP.md) M6.  
-DDL: [`../sql/control_meta.sql`](../sql/control_meta.sql).  
-resolve wire: [`svc-control-resolve.md`](svc-control-resolve.md).  
-내부: [`../../services/control/DESIGN.md`](../../services/control/DESIGN.md) · [`../../services/admin-ui/DESIGN.md`](../../services/admin-ui/DESIGN.md).
+**정본은 [`admin-ui.md`](admin-ui.md)다.** 본 문서는 M6 봉인 시점의 스냅샷·게이트 호환용이다.
 
-**이 문서 범위:** 플랫폼 ops Admin UI · `svc-control` 관리 HTTP · 번들 presign/activate(서버 checksum) · Tenant picker · `control_audit` · resolve Pooler SELECT 동슬라이스 · 스모크 게이트.  
+계약·HTTP·상태머신·Tenant picker·`control_audit`·화면·검증: [`admin-ui.md`](admin-ui.md).  
+내부: [`../../services/admin-ui/DESIGN.md`](../../services/admin-ui/DESIGN.md) · [`../../services/control/DESIGN.md`](../../services/control/DESIGN.md).
+
 **Non-goals:** tenants/ACL 테이블 · 테넌트 admin SSO · 과금 SPA · DLQ/PITR/erase 콘솔 · Chat UI · Gateway 대화면 · live Garage/Pooler CI 필수.
 
 ---
@@ -51,8 +49,6 @@ Deployment `aura-control-admin` · ns `aura` · replicas≥2.
 | `DELETE` | `/v1/sources/{id}/overlays/{principal_id}` | `reason` 필수 |
 | `GET` | `/healthz` | ok |
 
-디버그 `GET /v1/resolve`는 선택(생산은 NATS). 구 초안 `PUT /v1/sources/{kind}/{name}/{version}` · `…/user-meta/…` **폐기** — [`svc-control-resolve.md`](svc-control-resolve.md)와 동기화.
-
 ### activate checksum
 
 1. `POST /v1/bundles/presign` → 클라이언트 Garage PUT  
@@ -86,9 +82,9 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE 시 INSERT.
 
 ```bash
 bash deploy/scripts/check-admin-ui-mvp.sh
+bash deploy/scripts/check-admin-ui.sh
 node services/control/admin-http.selftest.js
 node services/control/pooler-lookup.selftest.js
-node services/admin-ui/ui.selftest.js
 ```
 
 PASS = 문서·DDL·API·상태머신·서버 checksum·audit·Pooler lookup·Admin UI 계약 일치. live Garage/Pooler 클러스터는 Non-goal(injectable).

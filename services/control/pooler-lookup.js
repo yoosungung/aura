@@ -2,7 +2,7 @@
 
 /**
  * Pooler SELECT for aura.rpc.control.resolve (M6).
- * Contract: ARCHITECTURE §2.1 · §6.1 · deploy/docs/admin-ui-mvp.md
+ * Contract: ARCHITECTURE §2.1 · §6.1 · deploy/docs/admin-ui.md
  */
 
 const { withTenantTx } = require('./tenant-tx');

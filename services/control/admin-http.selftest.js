@@ -168,6 +168,28 @@ function createMemoryStore() {
         const [removed] = overlays.splice(idx, 1);
         return { rows: [{ id: removed.id }] };
       }
+      if (/FROM control_audit/.test(text)) {
+        assert.strictEqual(guc, params[0]);
+        let rows = audits
+          .filter((a) => a.tenant_id === params[0])
+          .map((a, i) => ({
+            id: a.id || `audit-${i}`,
+            actor: a.actor,
+            action: a.action,
+            resource_type: a.resource_type,
+            resource_id: a.resource_id,
+            reason: a.reason,
+            at: a.at || new Date().toISOString(),
+          }))
+          .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+        const cursor = params[1];
+        const limit = Number(params[2] || 50);
+        if (cursor) {
+          const idx = rows.findIndex((r) => r.id === cursor);
+          rows = idx >= 0 ? rows.slice(idx + 1) : rows;
+        }
+        return { rows: rows.slice(0, limit) };
+      }
       throw new Error(`unexpected: ${text}`);
     },
   };
@@ -394,6 +416,17 @@ async function main() {
   });
   assert.ok(tenants1.body.tenants.includes(TENANT_A));
   assert.ok(tenants1.body.tenants.includes(TENANT_B));
+
+  const audit = await dispatch({
+    ...auth,
+    method: 'GET',
+    path: '/v1/audit',
+    query: { limit: '10' },
+  });
+  assert.strictEqual(audit.status, 200, 'GET /v1/audit must succeed');
+  assert.ok(Array.isArray(audit.body.items), 'audit.items array');
+  assert.ok(audit.body.items.length >= 1, 'audit has entries after activate/retire/overlay');
+  assert.ok(audit.body.items.every((i) => i.action && i.actor), 'audit rows shaped');
 
   console.log('admin-http.selftest: PASS');
 }

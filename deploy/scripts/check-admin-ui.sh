@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# M6.1 gate: Admin UI React · admin-ui.md · GET /v1/audit · Vitest + build.
+# Exit 0 on PASS. live Garage/Pooler CI not required (injectable).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+DOC="$ROOT/deploy/docs/admin-ui.md"
+MVP="$ROOT/deploy/docs/admin-ui-mvp.md"
+SQL="$ROOT/deploy/sql/control_meta.sql"
+ARCH="$ROOT/ARCHITECTURE.md"
+ROADMAP="$ROOT/ROADMAP.md"
+AGENTS="$ROOT/AGENTS.md"
+DESIGN_CTRL="$ROOT/services/control/DESIGN.md"
+DESIGN_UI="$ROOT/services/admin-ui/DESIGN.md"
+CTRL="$ROOT/services/control"
+UI="$ROOT/services/admin-ui"
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+ok() { echo "OK: $*"; }
+
+[[ -f "$DOC" ]] || fail "missing $DOC"
+[[ -f "$MVP" ]] || fail "missing $MVP (historical snapshot)"
+[[ -f "$SQL" ]] || fail "missing $SQL"
+[[ -f "$DESIGN_CTRL" ]] || fail "missing $DESIGN_CTRL"
+[[ -f "$DESIGN_UI" ]] || fail "missing $DESIGN_UI"
+[[ -f "$CTRL/admin-http.js" ]] || fail "missing admin-http.js"
+[[ -f "$UI/package.json" ]] || fail "missing admin-ui package.json"
+[[ -f "$UI/src/main.tsx" ]] || fail "missing admin-ui src/main.tsx"
+[[ -f "$UI/src/lib/schemas.ts" ]] || fail "missing schemas.ts"
+[[ -f "$UI/src/lib/api.ts" ]] || fail "missing api.ts"
+
+# Doc contracts
+grep -Eqi 'pending.*active|activate' "$DOC" || fail "doc must lock activate status machine"
+grep -Eqi 'checksum|sha256|Garage|GetObject' "$DOC" || fail "doc must lock server-side checksum"
+grep -Eqi 'AURA_ADMIN_TENANT_IDS|DISTINCT' "$DOC" || fail "doc must lock tenant picker source"
+grep -Eqi 'control_audit' "$DOC" || fail "doc must name control_audit"
+grep -Eq 'GET.*/v1/audit|/v1/audit' "$DOC" || fail "doc must list GET /v1/audit"
+grep -Eq 'POST.*/v1/sources|/activate|/overlays' "$DOC" || fail "doc must list admin HTTP paths"
+grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals"
+grep -Eqi 'Chat UI|tenants/ACL|과금' "$DOC" || fail "doc must exclude Chat UI / tenants ACL / billing"
+grep -Eqi 'PostgreSQL|PG' "$DOC" || fail "doc must lock PG as SoR"
+grep -Eqi 'NATS.*KV|JetStream KV|quota' "$DOC" || fail "doc must discuss NATS KV quota"
+grep -Eqi 'Gateway만|Gateway only|aura.rpc.gateway.quota' "$DOC" || fail "doc must lock Phase2 quota via Gateway"
+grep -Eqi 'React|Vite|Tailwind|Zod|TanStack|Zustand' "$DOC" || fail "doc must lock React stack"
+
+# DDL
+grep -q 'CREATE TABLE control_audit' "$SQL" || fail "SQL must create control_audit"
+grep -q 'FORCE ROW LEVEL SECURITY' "$SQL" || fail "SQL must FORCE RLS"
+
+# ARCHITECTURE / ROADMAP / AGENTS
+grep -Eqi 'aura-control-admin|admin-ui\.md|control_audit' "$ARCH" \
+  || fail "ARCHITECTURE must cite control-admin / admin-ui / control_audit"
+grep -Eqi 'admin-ui\.md|M6\.1|관리 UI' "$ROADMAP" || fail "ROADMAP must cite Admin UI M6.1"
+grep -Eqi 'admin-ui\.md|admin-ui' "$AGENTS" || fail "AGENTS must list admin-ui docs/path"
+
+# DESIGN
+grep -Eqi 'admin-http|pooler-lookup|control_audit|GET /v1/audit|/v1/audit' "$DESIGN_CTRL" \
+  || fail "control DESIGN must name admin-http / audit"
+grep -q '## Commands' "$DESIGN_CTRL" || fail "control DESIGN Commands"
+grep -q '## Commands' "$DESIGN_UI" || fail "admin-ui DESIGN Commands"
+grep -Eqi 'Non-goals' "$DESIGN_UI" || fail "admin-ui DESIGN Non-goals"
+grep -Eqi 'React|Vite|Zod|TanStack|Zustand' "$DESIGN_UI" || fail "admin-ui DESIGN must name React stack"
+
+# Code invariants
+grep -Eqi 'listAudit|/v1/audit' "$CTRL/admin-http.js" || fail "admin-http must expose GET /v1/audit"
+grep -Eqi 'checksum_mismatch|createHash|sha256' "$CTRL/admin-http.js" \
+  || fail "admin-http must verify sha256 on activate"
+grep -Eqi 'control_audit|insertAudit' "$CTRL/admin-http.js" || fail "admin-http must write control_audit"
+grep -Eq 'reason_required' "$CTRL/admin-http.js" || fail "admin-http must require reason on retire/delete"
+grep -Eq 'x-aura-tenant-id' "$UI/src/lib/api.ts" || fail "admin-ui must send tenant header"
+if grep -Eqi 'aura\.rpc\.control\.resolve' "$UI/src/lib/api.ts" "$UI/src"/features/*/*.tsx 2>/dev/null; then
+  fail "admin-ui must not call NATS resolve"
+fi
+grep -Eq 'runtime_in_config_forbidden' "$UI/src/lib/schemas.ts" \
+  || fail "schemas must forbid runtime in config"
+
+# Unit + build
+node "$CTRL/admin-http.selftest.js" || fail "admin-http.selftest failed"
+node "$CTRL/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest failed"
+node "$UI/ui.selftest.cjs" || fail "admin-ui ui.selftest failed"
+(
+  cd "$UI"
+  npm test || fail "admin-ui vitest failed"
+  npm run build || fail "admin-ui build failed"
+)
+
+ok "admin-ui docs + audit API + React SPA + vitest + build"
+echo "check-admin-ui: PASS"
