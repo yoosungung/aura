@@ -2,7 +2,8 @@
 
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
-**경로 분리:** 제품 매니페스트 = [`k8s/`](k8s/) · smoke/로컬 하네스 = [`dev/`](dev/) ([`dev/README.md`](dev/README.md)). 아래 one-shot의 `apply-split-deploy`·`smoke-*`는 **dev/test only**.
+**경로 분리:** 제품 매니페스트 = [`k8s/`](k8s/) · smoke/로컬 하네스 = [`dev/`](dev/) ([`dev/README.md`](dev/README.md)).  
+제품 적용: `bash deploy/scripts/apply-product.sh` (runtime+pooler 이후). 아래 one-shot의 `apply-split-deploy`·`smoke-*`는 **dev/test only**.
 
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
 **후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  

@@ -1,6 +1,6 @@
 # Core Request-Reply responder for aura.rpc.mcp.tool (ARCHITECTURE §3.3 / §4.2).
 # M3.5: Node queue-group worker (nats-box stub retired).
-# Reply body contract: type mcp.tool.done | mcp.tool.error (see services/mcp-invoke/handler.js).
+# Apply: ConfigMap aura-mcp-invoke-rr-app from archive.zip (see apply-product.sh).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,6 +26,23 @@ spec:
         app.kubernetes.io/part-of: aura
         app.kubernetes.io/name: aura-mcp-invoke-rr
     spec:
+      initContainers:
+        - name: npm-ci
+          image: node:22-alpine
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              cp -a /src/. /app/
+              npm install --omit=dev --no-audit --no-fund
+          volumeMounts:
+            - name: src
+              mountPath: /src
+              readOnly: true
+            - name: app
+              mountPath: /app
       containers:
         - name: reply
           image: node:22-alpine
@@ -50,11 +67,8 @@ spec:
             limits:
               memory: 512Mi
       volumes:
+        - name: src
+          configMap:
+            name: aura-mcp-invoke-rr-app
         - name: app
           emptyDir: {}
-      # Production: replace emptyDir with image baked from services/mcp-invoke archive
-      # (CI copies handler.js factory.js streamable-http.js rpc-worker.js package.json + npm ci).
----
-# Note: apply pipeline should populate /app from deploy/k8s/mcp-invoke-rpc/archive.zip
-# or a dedicated container image. Static gate checks Node + queue-group + mcp.tool.done contract
-# via services/mcp-invoke/rpc-worker.js source (not nats-box).

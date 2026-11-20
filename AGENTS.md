@@ -44,7 +44,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/compliance-erase/` | `aura.tasks.compliance.erase` MQT (`minReplicaCount=0`) | `deploy/k8s/compliance-erase/` |
 | `services/mcp-invoke/` | `mcp_invoke` 내부 DESIGN + handler (async MQT + sync RPC 공유 tool path · PG 금지) | `services/mcp-invoke/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`gateway.js`) | `services/gateway/` |
-| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh`(dev smoke) · `check-*.sh` · `smoke-*.sh` (memory store/embed/guard/HNSW·TTL·graph·pooler · **svc-control resolve** · **control.resolve 브리지** · **agent_invoke** · **agent_checkpoints** · **gateway SSE/WS** 포함) | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-product.sh`(제품) · `apply-split-deploy.sh`(dev smoke) · `check-*.sh` · `smoke-*.sh` (memory store/embed/guard/HNSW·TTL·graph·pooler · **svc-control resolve** · **control.resolve 브리지** · **agent_invoke** · **agent_checkpoints** · **gateway SSE/WS** 포함) | `deploy/scripts/` |
 
 규칙:
 
