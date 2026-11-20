@@ -4,8 +4,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-ASYNC_DIR="$ROOT/deploy/k8s/async-smoke"
-SYNC_DIR="$ROOT/deploy/k8s/sync-smoke"
+ASYNC_DIR="$ROOT/deploy/dev/k8s/async-smoke"
+SYNC_DIR="$ROOT/deploy/dev/k8s/sync-smoke"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }

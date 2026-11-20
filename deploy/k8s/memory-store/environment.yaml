@@ -1,4 +1,4 @@
-# Node env for svc-memory store MQT (ARCHITECTURE §4.1). May share image with async-smoke.
+# Node env for svc-memory store MQT (ARCHITECTURE §4.1). May share image with deploy/dev async-smoke.
 apiVersion: fission.io/v1
 kind: Environment
 metadata:

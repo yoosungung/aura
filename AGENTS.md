@@ -19,9 +19,11 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
 | `deploy/docs/` | 배포·스모크 **계획** 문서 (PG+Pooler · Multi-AZ/PITR 초안 · **PITR 드릴** [`pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) · **정기 PITR 캘린더** [`pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · **memory TTL 수치** · **graph 순회 한도** · **embeddings 세대 교체** · **short_term embed 가드·iterative_scan** · **HNSW 왜곡 픽스처** · **Agent 주입 슬롯·토큰 예산** · **Object Store/`content_ref`** · **고아 GC** · **svc-control resolve** · **control.resolve 브리지** · **agent_invoke MQT/스트림 프레임** · **`agent_checkpoints` DDL** · **mcp_invoke MQT+RPC** · **mcp Streamable HTTP 어댑터** · **MCP·번들 격리** [`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md) · **Gateway SSE/WS·run_id·principal** · **OTel Function·NATS·PG** [`otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · **compliance.erase / crypto-shred** [`compliance-erase.md`](deploy/docs/compliance-erase.md) · **`createAgent` runTurn** · **Fission Node archive** · **mcp `tools/list`** · **multi-env 후속** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md)) | `deploy/docs/` |
 | `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (`memory_items` LIST+RANGE+RLS · `memory_audit` 월 RANGE+RLS · `memory_nodes`/`memory_edges`+RLS+out/in indexes · `memory_embeddings` LIST+RLS · **`source_meta`/`user_meta`** · **`agent_checkpoints`**) | `deploy/sql/` |
+| `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
-| `deploy/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/k8s/async-smoke/` |
-| `deploy/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/k8s/sync-smoke/` |
+| `deploy/dev/` | **smoke·로컬 하네스만** (프로덕션 제외) — [`deploy/dev/README.md`](deploy/dev/README.md) | `deploy/dev/` |
+| `deploy/dev/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/dev/k8s/async-smoke/` |
+| `deploy/dev/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/dev/k8s/sync-smoke/` |
 | `deploy/k8s/pg-pooler/` | CNPG `Cluster` `aura-pg` + `Pooler` `aura-pg-pooler` (transaction) + DSN ConfigMap · HA draft `cluster-ha.draft.yaml` · PITR restore draft `cluster-pitr-restore.draft.yaml` | `deploy/k8s/pg-pooler/` |
 | `deploy/k8s/memory-store/` | `svc-memory` store MQT (`aura.tasks.memory.store` → stored/error, `minReplicaCount=0`, `set_config(..., true)`) | `deploy/k8s/memory-store/` |
 | `deploy/k8s/memory-capture/` | `memory_capture` MQT (`aura.tasks.memory.capture` → candidates/error, `minReplicaCount=0`, **PG 금지**) | `deploy/k8s/memory-capture/` |
@@ -42,7 +44,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/compliance-erase/` | `aura.tasks.compliance.erase` MQT (`minReplicaCount=0`) | `deploy/k8s/compliance-erase/` |
 | `services/mcp-invoke/` | `mcp_invoke` 내부 DESIGN + handler (async MQT + sync RPC 공유 tool path · PG 금지) | `services/mcp-invoke/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`gateway.js`) | `services/gateway/` |
-| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh` · `check-*.sh` · `smoke-*.sh` (memory store/embed/guard/HNSW·TTL·graph·pooler · **svc-control resolve** · **control.resolve 브리지** · **agent_invoke** · **agent_checkpoints** · **gateway SSE/WS** 포함) | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-split-deploy.sh`(dev smoke) · `check-*.sh` · `smoke-*.sh` (memory store/embed/guard/HNSW·TTL·graph·pooler · **svc-control resolve** · **control.resolve 브리지** · **agent_invoke** · **agent_checkpoints** · **gateway SSE/WS** 포함) | `deploy/scripts/` |
 
 규칙:
 
@@ -51,6 +53,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 - **ARCHITECTURE.md vs MESSAGE-FLOW.md.** ARCHITECTURE는 계약·스키마·subject 표. MESSAGE-FLOW는 **흐름 다이어그램만** — subject/수치를 복사하지 않고 ARCHITECTURE를 참조한다.
 - **README.md vs ARCHITECTURE.md / DESIGN.md.** README는 **인간 독자**용이다. 계약·내부 설계는 README에 복사하지 않고 링크로만 둔다.
 - **배포 가능한 패키지·실행 하네스**에는 README를 둘 수 있다 — 해당 디렉터리 **로컬 사용법만**.
+- **`deploy/k8s/` = 제품**, **`deploy/dev/` = smoke·로컬 하네스**. 스모크 매니페스트를 `deploy/k8s/`에 두지 않는다. 프로덕션 apply 경로에 `deploy/dev/`·`apply-split-deploy.sh`·`smoke-*.sh`를 넣지 않는다.
 - 파일이 새로 생기거나 용도가 바뀌면 위 표를 즉시 갱신한다.
 - 배포 런북은 `deploy/SETUP.md`, Kustomize는 `deploy/k8s/base/`, CI는 `.github/workflows/ci.yml`. **빈 stub을 만들지 않는다** — 실제 절차·매니페스트가 생길 때 작성한다.
 

@@ -2,6 +2,8 @@
 
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
+**경로 분리:** 제품 매니페스트 = [`k8s/`](k8s/) · smoke/로컬 하네스 = [`dev/`](dev/) ([`dev/README.md`](dev/README.md)). 아래 one-shot의 `apply-split-deploy`·`smoke-*`는 **dev/test only**.
+
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
 **후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  
 **M1 PG+Pooler:** 제품=CloudNativePG `Pooler`([docs/pg-pooler-smoke-plan.md](docs/pg-pooler-smoke-plan.md) · [`k8s/pg-pooler`](k8s/pg-pooler/)) — `install-pg-pooler.sh` / `check-pg-pooler.sh` / **V1.1** `smoke-pg-pooler.sh`(+ `rls-smoke-fixture.sql`).  
@@ -38,7 +40,7 @@ bash deploy/scripts/smoke-sync-rpc.sh
 | KEDA | Helm `kedacore/keda` `2.20.2` → ns `keda` |
 | Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`**, **`internalAuth.enabled=false`** (stock KEDA connector는 HMAC 미서명 → router-internal 401) → ns `fission` |
 | Streams | `ensure-streams.sh` (nats-box) — `AURA_TASKS` WorkQueue · `AURA_EVENTS` Limits 90d · `AURA_DLQ` Limits |
-| Split deploy (V0.1) | [`k8s/async-smoke`](k8s/async-smoke/) MQT `minReplicaCount=0` · [`k8s/sync-smoke`](k8s/sync-smoke/) `newdeploy` `MinScale≥2` (MQT/ScaledObject 없음) |
+| Split deploy (V0.1, **dev smoke**) | [`dev/k8s/async-smoke`](dev/k8s/async-smoke/) MQT `minReplicaCount=0` · [`dev/k8s/sync-smoke`](dev/k8s/sync-smoke/) `newdeploy` `MinScale≥2` (MQT/ScaledObject 없음) |
 | Async echo | Package `echo.js` · topic `aura.tasks.smoke` → `respTopic`/`errorTopic` · `smoke-async-mqt.sh` |
 | Async poison (V0.3) | `maxRetries`→`errorTopic` + consumer `MaxDeliver=5` · `ensure-async-consumer.sh` · `smoke-async-poison.sh` |
 | Sync Core RR (V0.2) | Deployment `aura-rpc-smoke-rr` replicas≥2 · subject `aura.rpc.smoke` · queue `aura-rpc-smoke` · `smoke-sync-rpc.sh` |
@@ -51,8 +53,8 @@ Fission CRD OpenAPI가 커서 client-side `kubectl apply`의 `last-applied-confi
 
 | 계급 | 경로 | Function | 스케일 | 라벨 |
 |------|------|----------|--------|------|
-| async MQT | `deploy/k8s/async-smoke/` | `aura-tasks-smoke` | MQT `minReplicaCount=0` (Fission가 KEDA ScaledObject 생성) | `aura.runtime/class=async` |
-| sync Warm | `deploy/k8s/sync-smoke/` | `aura-rpc-smoke` (+ RR `aura-rpc-smoke-rr`) | Function `newdeploy` `MinScale=2` · **Core RR Deployment replicas≥2** (§4.3) | `aura.runtime/class=sync` |
+| async MQT | `deploy/dev/k8s/async-smoke/` | `aura-tasks-smoke` | MQT `minReplicaCount=0` (Fission가 KEDA ScaledObject 생성) | `aura.runtime/class=async` |
+| sync Warm | `deploy/dev/k8s/sync-smoke/` | `aura-rpc-smoke` (+ RR `aura-rpc-smoke-rr`) | Function `newdeploy` `MinScale=2` · **Core RR Deployment replicas≥2** (§4.3) | `aura.runtime/class=sync` |
 
 | 이름 | 값 | 비고 |
 |------|-----|------|
@@ -125,7 +127,7 @@ bash deploy/scripts/smoke-async-mqt.sh      # publish → resptopic echo
 
 | 항목 | 값 |
 |------|-----|
-| 본문 | `deploy/k8s/async-smoke/echo.js` — request body echo (2xx → `respTopic`) |
+| 본문 | `deploy/dev/k8s/async-smoke/echo.js` — request body echo (2xx → `respTopic`) |
 | in | `aura.tasks.smoke` (`AURA_TASKS`) |
 | out | `aura.events.tasks.smoke.done` (`AURA_EVENTS`) |
 | error | `aura.events.tasks.smoke.error` |

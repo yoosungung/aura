@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Apply V0.1 split-deploy skeletons: async-smoke + sync-smoke (ARCHITECTURE §4).
+# Apply V0.1 split-deploy smoke harness (dev/test only — not production).
+# Manifests: deploy/dev/k8s/{async,sync}-smoke (ARCHITECTURE §4 sample).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -7,10 +8,10 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "need $1" >&2; exit 1; }; }
 need kubectl
 
 echo "== async-smoke (MQT minReplicaCount=0) =="
-kubectl apply -k "$ROOT/deploy/k8s/async-smoke"
+kubectl apply -k "$ROOT/deploy/dev/k8s/async-smoke"
 
 echo "== sync-smoke (newdeploy MinScale>=2, no MQT) =="
-kubectl apply -k "$ROOT/deploy/k8s/sync-smoke"
+kubectl apply -k "$ROOT/deploy/dev/k8s/sync-smoke"
 
 echo "== async consumer MaxDeliver (ARCHITECTURE §3.2) =="
 # Best-effort: consumer appears after MQT first interest; poison smoke re-ensures.
