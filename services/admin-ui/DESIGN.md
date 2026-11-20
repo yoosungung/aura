@@ -17,7 +17,7 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | 호출 | `aura-control-admin` HTTP만 (`AURA_CONTROL_ADMIN_URL`) |
 | 테넌트 | 배너 + `X-Aura-Tenant-Id` · 목록=`GET /v1/tenants` · UUID 직접 입력 |
 | 시크릿 | `secrets_ref` 입력만 · 값 필드 없음 |
-| 산출 | Vite `dist/` 정적 서빙 |
+| 이미지 | `aura/admin-ui:local` · Vite `dist/` + `nginx.conf` 베이크 · dist ConfigMap 금지 |
 
 ---
 
@@ -47,13 +47,16 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | `src/lib/{api,schemas}.ts` | fetch 클라이언트 · Zod |
 | `src/stores/session.ts` | Bearer · tenant · baseUrl |
 | `ui.selftest.cjs` | 계약·금지사항 정적 게이트 (소스/디자인) |
-| `dist/` | Vite 빌드 산출 (정적 서빙) |
+| `public/aura-logo.jpg` | 헤더·파비콘 마크. Vite `dist/`로 복사되어 이미지에 포함 |
+| `Dockerfile` · `nginx.conf` | 이미지에 굽는 정적 서버 (`listen 8080` · `/v1` → control-admin · `dist/aura-logo.jpg` 필수) |
+| `dist/` | Vite 빌드 산출 (이미지에 포함, 클러스터 ConfigMap 아님) |
 
 ---
 
 ## Commands
 
 ```bash
+bash deploy/scripts/build-admin-images.sh
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 bash deploy/scripts/apply-admin-ui.sh

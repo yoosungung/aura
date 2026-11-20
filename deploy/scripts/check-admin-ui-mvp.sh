@@ -74,6 +74,20 @@ DEP="$K8S/deployment.yaml"
 grep -q 'aura-control-admin' "$DEP" || fail "k8s must name aura-control-admin"
 grep -Eq 'replicas:[[:space:]]*2|replicas: 2' "$DEP" || fail "control-admin replicas ≥ 2"
 grep -q 'namespace: aura' "$DEP" || fail "control-admin ns aura"
+grep -q 'image: aura/control-admin:local' "$DEP" || fail "control-admin image must be aura/control-admin:local"
+[[ -f "$CTRL/Dockerfile" ]] || fail "missing control-admin Dockerfile"
+grep -q 'aura-logo.jpg' "$CTRL/Dockerfile" || fail "control-admin image build must require aura-logo.jpg"
+grep -q '"pg"' "$CTRL/package.json" || fail "control package.json must depend on pg"
+if grep -Eq 'aura-control-admin-app|npm install' "$DEP"; then
+  fail "control-admin must not mount source ConfigMap or npm install at start"
+fi
+UI_DEP="$ROOT/deploy/k8s/admin-ui/deployment.yaml"
+grep -q 'image: aura/admin-ui:local' "$UI_DEP" || fail "admin-ui image must be aura/admin-ui:local"
+[[ -f "$UI/Dockerfile" ]] || fail "missing admin-ui Dockerfile"
+[[ -f "$UI/nginx.conf" ]] || fail "missing baked nginx.conf"
+if grep -Eq 'aura-admin-ui-dist|aura-admin-ui-nginx' "$UI_DEP"; then
+  fail "admin-ui must not mount dist/nginx ConfigMaps"
+fi
 if grep -Eqi 'MessageQueueTrigger|mqtype|ScaledObject' "$K8S"/*.yaml 2>/dev/null; then
   fail "control-admin must not use MQT/ScaledObject"
 fi

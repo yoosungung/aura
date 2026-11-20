@@ -1,6 +1,6 @@
 # aura-control-admin — ops 관리 HTTP (ARCHITECTURE §2 · admin-ui.md).
 # replicas ≥ 2 · ns aura · MQT 없음. Pooler via aura-pg-dsn + aura-pg-app.
-# App sources: ConfigMap aura-control-admin-app (applied by apply-admin-ui.sh).
+# Image: aura/control-admin:local (deploy/scripts/build-admin-images.sh).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: control-admin
-          image: node:22-alpine
+          image: aura/control-admin:local
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -62,42 +62,21 @@ spec:
                 secretKeyRef:
                   name: aura-pg-app
                   key: password
-          command: ["sh", "-c"]
-          args:
-            - |
-              set -e
-              cp /config/*.js /app/
-              cd /app
-              npm init -y >/dev/null 2>&1
-              npm install --omit=dev pg@8.13.1 >/dev/null 2>&1
-              exec node admin-entrypoint.js
-          volumeMounts:
-            - name: app-config
-              mountPath: /config
-              readOnly: true
-            - name: work
-              mountPath: /app
           readinessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 2
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 15
+            initialDelaySeconds: 5
             periodSeconds: 10
           resources:
             requests:
               cpu: 50m
               memory: 128Mi
             limits:
-              memory: 512Mi
-      volumes:
-        - name: app-config
-          configMap:
-            name: aura-control-admin-app
-        - name: work
-          emptyDir: {}
+              memory: 256Mi

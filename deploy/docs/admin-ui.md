@@ -87,7 +87,8 @@ NATS **subject 자체는 관리 대상이 아님**. 관리하는 것은 subject�
 
 ## 관리 HTTP
 
-Deployment `aura-control-admin` · ns `aura` · replicas≥2.
+Deployment `aura-control-admin` · ns `aura` · replicas≥2.  
+이미지 `aura/control-admin:local` · `aura/admin-ui:local` (`deploy/scripts/build-admin-images.sh`). 앱 소스와 SPA `dist/`는 이미지에 굽는다.
 
 | 메서드 | 경로 | 용도 |
 |--------|------|------|
@@ -158,6 +159,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 ## 검증
 
 ```bash
+bash deploy/scripts/build-admin-images.sh
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 bash deploy/scripts/apply-admin-ui.sh

@@ -43,9 +43,18 @@ export function Shell() {
     <div className="min-h-screen bg-neutral-50">
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h1 className="text-lg font-semibold">Aura Admin</h1>
-            <p className="text-xs text-neutral-500">ops-only · control-admin HTTP</p>
+          <div className="flex items-center gap-3">
+            <img
+              src="/aura-logo.jpg"
+              alt=""
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-lg"
+            />
+            <div>
+              <h1 className="text-lg font-semibold">Aura Admin</h1>
+              <p className="text-xs text-neutral-500">ops-only · control-admin HTTP</p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span

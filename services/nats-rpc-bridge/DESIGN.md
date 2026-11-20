@@ -29,7 +29,7 @@
 | `aura.rpc.mcp.tool` | `python` | `aura-mcp-invoke-rpc-py` |
 | `aura.rpc.mcp.tool` | `custom` | payload `function` 접두사 `aura-mcp-invoke-rpc-` (poolmgr 슬롯 제외) |
 
-Deployment는 **deps 포함 이미지**만 사용한다 (initContainer `npm install` 금지).
+Deployment는 **deps 포함 이미지**만 사용한다 (initContainer `npm install` 금지). 이미지에 `/aura-logo.jpg`를 굽는다.
 
 ## Commands
 

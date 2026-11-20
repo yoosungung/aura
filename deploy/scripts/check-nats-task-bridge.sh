@@ -6,6 +6,10 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 [[ -f "$ROOT/services/nats-task-bridge/bridge.js" ]] || fail "missing task-bridge"
 [[ -f "$ROOT/services/nats-task-bridge/Dockerfile" ]] || fail "missing Dockerfile"
+grep -q 'aura-logo.jpg' "$ROOT/services/nats-rpc-bridge/Dockerfile" \
+  || fail "rpc-bridge image build must require aura-logo.jpg"
+grep -q 'aura-logo.jpg' "$ROOT/services/nats-task-bridge/Dockerfile" \
+  || fail "task-bridge image build must require aura-logo.jpg"
 [[ -f "$ROOT/deploy/docs/nats-task-bridge.md" ]] || fail "missing nats-task-bridge.md"
 [[ -f "$ROOT/deploy/k8s/nats-task-bridge/deployment.yaml" ]] || fail "missing deployment"
 

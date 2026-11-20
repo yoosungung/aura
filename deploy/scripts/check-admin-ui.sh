@@ -60,6 +60,35 @@ grep -q '## Commands' "$DESIGN_CTRL" || fail "control DESIGN Commands"
 grep -q '## Commands' "$DESIGN_UI" || fail "admin-ui DESIGN Commands"
 grep -Eqi 'Non-goals' "$DESIGN_UI" || fail "admin-ui DESIGN Non-goals"
 grep -Eqi 'React|Vite|Zod|TanStack|Zustand' "$DESIGN_UI" || fail "admin-ui DESIGN must name React stack"
+grep -Eq 'aura/control-admin:local' "$DESIGN_CTRL" || fail "control DESIGN must name baked image"
+grep -Eq 'aura/admin-ui:local' "$DESIGN_UI" || fail "admin-ui DESIGN must name baked image"
+
+# Images (no source/dist ConfigMap)
+DEP="$ROOT/deploy/k8s/control-admin/deployment.yaml"
+UI_DEP="$ROOT/deploy/k8s/admin-ui/deployment.yaml"
+APPLY="$ROOT/deploy/scripts/apply-admin-ui.sh"
+[[ -f "$CTRL/Dockerfile" ]] || fail "missing control-admin Dockerfile"
+[[ -f "$UI/Dockerfile" ]] || fail "missing admin-ui Dockerfile"
+[[ -f "$UI/nginx.conf" ]] || fail "missing admin-ui nginx.conf"
+grep -q 'admin-entrypoint.js' "$CTRL/Dockerfile" || fail "control image must run admin-entrypoint.js"
+grep -q 'aura-logo.jpg' "$CTRL/Dockerfile" || fail "control-admin image build must require aura-logo.jpg"
+grep -q '"pg"' "$CTRL/package.json" || fail "control package.json must depend on pg"
+grep -q 'listen 8080' "$UI/nginx.conf" || fail "nginx.conf must listen 8080"
+[[ -f "$UI/public/aura-logo.jpg" ]] || fail "missing public/aura-logo.jpg"
+grep -q 'aura-logo.jpg' "$UI/Dockerfile" || fail "admin-ui image build must require aura-logo.jpg"
+grep -q 'aura-logo.jpg' "$UI/index.html" || fail "favicon must use aura-logo.jpg"
+grep -q 'aura-logo.jpg' "$UI/src/app/shell.tsx" || fail "header must use aura-logo.jpg"
+grep -q 'image: aura/control-admin:local' "$DEP" || fail "control-admin image must be aura/control-admin:local"
+grep -q 'image: aura/admin-ui:local' "$UI_DEP" || fail "admin-ui image must be aura/admin-ui:local"
+if grep -Eq 'aura-control-admin-app|npm install' "$DEP"; then
+  fail "control-admin must not mount source ConfigMap or npm install at start"
+fi
+if grep -Eq 'aura-admin-ui-dist|aura-admin-ui-nginx' "$UI_DEP"; then
+  fail "admin-ui must not mount dist/nginx ConfigMaps"
+fi
+if grep -Eq 'create configmap aura-control-admin-app|create configmap aura-admin-ui-dist' "$APPLY"; then
+  fail "apply-admin-ui.sh must not create code ConfigMaps"
+fi
 
 # Code invariants
 grep -Eqi 'listAudit|/v1/audit' "$CTRL/admin-http.js" || fail "admin-http must expose GET /v1/audit"
@@ -82,6 +111,7 @@ node "$UI/ui.selftest.cjs" || fail "admin-ui ui.selftest failed"
   cd "$UI"
   npm test || fail "admin-ui vitest failed"
   npm run build || fail "admin-ui build failed"
+  [[ -f dist/aura-logo.jpg ]] || fail "vite build must copy aura-logo.jpg into dist"
 )
 
 ok "admin-ui docs + audit API + React SPA + vitest + build"

@@ -33,7 +33,8 @@
 
 ## 관리 HTTP
 
-Deployment `aura-control-admin` · ns `aura` · replicas≥2.
+Deployment `aura-control-admin` · ns `aura` · replicas≥2.  
+이미지 `aura/control-admin:local` (소스 ConfigMap 금지). SPA는 `aura/admin-ui:local`.
 
 | 메서드 | 경로 | 용도 |
 |--------|------|------|

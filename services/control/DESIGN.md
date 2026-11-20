@@ -21,6 +21,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | 런타임 | Function은 resolve **read**만 (`aura.rpc.control.resolve`) |
 | PG | **CloudNativePG Pooler** `aura-pg-pooler` · `set_config('app.tenant_id', $1, true)` 매 트랜잭션 |
 | 관리 HTTP | `aura-control-admin` replicas≥2 · Bearer ops · `X-Aura-Tenant-Id` |
+| 이미지 | `aura/control-admin:local` · `admin-*.js`+`tenant-tx.js`+`pg` 베이크 · `/aura-logo.jpg` · 소스 ConfigMap 금지 |
 | 금지 | 세션 GUC · Function→PG 직접 · plaintext 시크릿 · invoke에 번들/config · RPC에 MQT · 콘텐츠 컬럼 UPDATE |
 
 ---
@@ -76,6 +77,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 bash deploy/scripts/check-svc-control-resolve.sh
 bash deploy/scripts/check-control-resolve-bridge.sh
 bash deploy/scripts/check-nats-mtls-secrets.sh
+bash deploy/scripts/build-admin-images.sh
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 node services/control/resolve.selftest.js
