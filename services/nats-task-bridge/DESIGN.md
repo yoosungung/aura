@@ -14,6 +14,7 @@
 | Deployment | `aura-nats-task-bridge` · **ns `aura`** · deps 포함 이미지 |
 | Subjects | `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` |
 | 스케일 | KEDA lag · min=0 허용 |
+| 라우팅 | `runtime`→Function. `custom`은 payload `function` 접두사 allowlist |
 | 금지 | handler 로직 · 언어별 MQT 이중 구독 |
 
 ## Commands

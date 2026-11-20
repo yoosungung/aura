@@ -40,6 +40,23 @@ async function testMapping() {
   assert.strictEqual(functionForSubject('aura.rpc.mcp.tool'), 'aura-mcp-invoke-rpc');
   assert.strictEqual(functionForSubject('aura.rpc.mcp.tool', 'nodejs'), 'aura-mcp-invoke-rpc');
   assert.strictEqual(functionForSubject('aura.rpc.mcp.tool', 'python'), 'aura-mcp-invoke-rpc-py');
+  assert.strictEqual(
+    functionForSubject('aura.rpc.mcp.tool', 'custom', 'aura-mcp-invoke-rpc-demo'),
+    'aura-mcp-invoke-rpc-demo',
+  );
+  assert.strictEqual(
+    functionForSubject('aura.rpc.mcp.tool', 'custom', 'aura-mcp-invoke-rpc-py'),
+    null,
+  );
+  assert.strictEqual(functionForSubject('aura.rpc.mcp.tool', 'custom', 'aura-mcp-invoke-demo'), null);
+  assert.strictEqual(
+    functionForSubject('aura.rpc.mcp.tool', 'nodejs', 'aura-mcp-invoke-rpc-evil'),
+    'aura-mcp-invoke-rpc',
+  );
+  assert.strictEqual(
+    functionForSubject('aura.rpc.memory.recall', 'custom', 'aura-mcp-invoke-rpc-demo'),
+    'aura-memory-recall',
+  );
   assert.strictEqual(functionForSubject('aura.rpc.unknown'), null);
   assert.deepStrictEqual(Object.keys(SUBJECT_TO_FUNCTION).sort(), [
     'aura.rpc.control.resolve',
@@ -221,6 +238,49 @@ async function testUnknownSubject() {
   assert.ok(replied.includes('unknown_rpc_subject'));
 }
 
+async function testCustomFunction() {
+  let replied;
+  const out = await handleNatsMessage(
+    {
+      subject: 'aura.rpc.mcp.tool',
+      data: Buffer.from(
+        JSON.stringify({ runtime: 'custom', function: 'aura-mcp-invoke-rpc-demo' }),
+      ),
+      respond: (b) => {
+        replied = Buffer.from(b).toString('utf8');
+      },
+    },
+    {
+      sc: sc(),
+      invoke: async (fn) => {
+        assert.strictEqual(fn, 'aura-mcp-invoke-rpc-demo');
+        return { status: 200, body: JSON.stringify({ ok: true }) };
+      },
+    },
+  );
+  assert.strictEqual(out.function, 'aura-mcp-invoke-rpc-demo');
+  assert.ok(replied.includes('"ok":true'));
+
+  let denied;
+  const bad = await handleNatsMessage(
+    {
+      subject: 'aura.rpc.mcp.tool',
+      data: Buffer.from(JSON.stringify({ runtime: 'custom', function: 'aura-mcp-invoke-rpc-py' })),
+      respond: (b) => {
+        denied = Buffer.from(b).toString('utf8');
+      },
+    },
+    {
+      sc: sc(),
+      invoke: async () => {
+        throw new Error('must_not_invoke');
+      },
+    },
+  );
+  assert.strictEqual(bad.status, 404);
+  assert.ok(denied.includes('function_not_allowed'));
+}
+
 async function testInvokeErrorBody() {
   let replied;
   const out = await handleNatsMessage(
@@ -283,6 +343,7 @@ async function testStartBridgeLoopDoesNotAwaitHandle() {
   await testInflightCap();
   await testRespondOk();
   await testUnknownSubject();
+  await testCustomFunction();
   await testInvokeErrorBody();
   await testStartBridgeSubscribes();
   await testStartBridgeLoopDoesNotAwaitHandle();

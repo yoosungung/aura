@@ -17,8 +17,20 @@ const SUBJECT_TO_FUNCTION = Object.freeze({
 const MCP_TOOL_BY_RUNTIME = Object.freeze({
   nodejs: 'aura-mcp-invoke-rpc',
   python: 'aura-mcp-invoke-rpc-py',
-  // custom: 'aura-mcp-invoke-rpc-custom', // follow-up
 });
+
+const MCP_CUSTOM_PREFIX = 'aura-mcp-invoke-rpc-';
+const MCP_CUSTOM_DENY = new Set(['aura-mcp-invoke-rpc-py']);
+
+function allowedMcpCustomFunction(functionName) {
+  if (typeof functionName !== 'string') return null;
+  if (functionName.length > 63 || functionName.length <= MCP_CUSTOM_PREFIX.length) return null;
+  if (!functionName.startsWith(MCP_CUSTOM_PREFIX)) return null;
+  if (MCP_CUSTOM_DENY.has(functionName)) return null;
+  const rest = functionName.slice(MCP_CUSTOM_PREFIX.length);
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(rest)) return null;
+  return functionName;
+}
 
 const SUBJECTS = Object.freeze(Object.keys(SUBJECT_TO_FUNCTION));
 
@@ -43,9 +55,24 @@ function parseRuntimeFromPayload(payload) {
   return 'nodejs';
 }
 
-function functionForSubject(subject, runtime) {
+function parseFunctionName(payload) {
+  if (payload == null || typeof payload === 'number') return '';
+  let obj = payload;
+  if (typeof payload === 'string') {
+    try {
+      obj = JSON.parse(payload);
+    } catch (_) {
+      return '';
+    }
+  }
+  if (obj && typeof obj === 'object' && typeof obj.function === 'string') return obj.function;
+  return '';
+}
+
+function functionForSubject(subject, runtime, functionName) {
   if (subject === 'aura.rpc.mcp.tool') {
     const rt = runtime || 'nodejs';
+    if (rt === 'custom') return allowedMcpCustomFunction(functionName);
     return MCP_TOOL_BY_RUNTIME[rt] || MCP_TOOL_BY_RUNTIME.nodejs;
   }
   return SUBJECT_TO_FUNCTION[subject] || null;
@@ -171,7 +198,7 @@ async function handleNatsMessage(msg, opts) {
     payload = '{}';
   }
   const runtime = parseRuntimeFromPayload(payload);
-  const fn = functionForSubject(subject, runtime);
+  const fn = functionForSubject(subject, runtime, parseFunctionName(payload));
   let replyBody;
   let status = 200;
 
@@ -179,7 +206,7 @@ async function handleNatsMessage(msg, opts) {
     status = 404;
     replyBody = JSON.stringify({
       ok: false,
-      error: 'unknown_rpc_subject',
+      error: SUBJECT_TO_FUNCTION[subject] ? 'function_not_allowed' : 'unknown_rpc_subject',
       subject: subject || null,
     });
   } else {

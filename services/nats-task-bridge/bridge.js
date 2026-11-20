@@ -25,6 +25,27 @@ const TASK_ROUTES = Object.freeze({
 
 const TASK_SUBJECTS = Object.freeze(Object.keys(TASK_ROUTES));
 
+const CUSTOM_PREFIX = Object.freeze({
+  'aura.tasks.agent.invoke': 'aura-agent-invoke-',
+  'aura.tasks.mcp.invoke': 'aura-mcp-invoke-',
+});
+
+const CUSTOM_DENY = new Set(['aura-agent-invoke-py', 'aura-mcp-invoke-py']);
+
+function allowedCustomFunction(subject, functionName) {
+  const prefix = CUSTOM_PREFIX[subject];
+  if (!prefix || typeof functionName !== 'string') return null;
+  if (functionName.length > 63 || functionName.length <= prefix.length) return null;
+  if (!functionName.startsWith(prefix)) return null;
+  if (subject === 'aura.tasks.mcp.invoke' && functionName.startsWith('aura-mcp-invoke-rpc-')) {
+    return null;
+  }
+  if (CUSTOM_DENY.has(functionName)) return null;
+  const rest = functionName.slice(prefix.length);
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(rest)) return null;
+  return functionName;
+}
+
 function parseRuntime(payload) {
   if (payload == null) return DEFAULT_RUNTIME;
   let obj = payload;
@@ -41,10 +62,25 @@ function parseRuntime(payload) {
   return DEFAULT_RUNTIME;
 }
 
-function functionForTask(subject, runtime) {
+function parseFunctionName(payload) {
+  if (payload == null || typeof payload === 'number') return '';
+  let obj = payload;
+  if (typeof payload === 'string') {
+    try {
+      obj = JSON.parse(payload);
+    } catch (_) {
+      return '';
+    }
+  }
+  if (obj && typeof obj === 'object' && typeof obj.function === 'string') return obj.function;
+  return '';
+}
+
+function functionForTask(subject, runtime, functionName) {
   const route = TASK_ROUTES[subject];
   if (!route) return null;
   const rt = runtime || DEFAULT_RUNTIME;
+  if (rt === 'custom') return allowedCustomFunction(subject, functionName);
   return route[rt] || route.nodejs || null;
 }
 
@@ -115,7 +151,7 @@ async function handleTaskMessage(msg, opts) {
     payload = '{}';
   }
   const runtime = parseRuntime(payload);
-  const fn = functionForTask(subject, runtime);
+  const fn = functionForTask(subject, runtime, parseFunctionName(payload));
 
   const publish =
     typeof o.publish === 'function'
@@ -125,13 +161,14 @@ async function handleTaskMessage(msg, opts) {
         };
 
   if (!fn || !routeTopics) {
+    const error = routeTopics ? 'function_not_allowed' : 'unknown_task_subject';
     await publish(routeTopics ? routeTopics.errorTopic : 'aura.events.agent.invoke.error', {
       ok: false,
-      error: 'unknown_task_subject',
+      error,
       subject: subject || null,
     });
     if (typeof msg.ack === 'function') await msg.ack();
-    return { ok: false, error: 'unknown_task_subject' };
+    return { ok: false, error };
   }
 
   try {

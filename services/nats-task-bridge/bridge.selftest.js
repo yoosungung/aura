@@ -30,6 +30,27 @@ async function main() {
   assert.strictEqual(functionForTask('aura.tasks.agent.invoke', 'nodejs'), 'aura-agent-invoke');
   assert.strictEqual(functionForTask('aura.tasks.agent.invoke', 'python'), 'aura-agent-invoke-py');
   assert.strictEqual(functionForTask('aura.tasks.mcp.invoke', 'python'), 'aura-mcp-invoke-py');
+  assert.strictEqual(
+    functionForTask('aura.tasks.agent.invoke', 'custom', 'aura-agent-invoke-demo'),
+    'aura-agent-invoke-demo',
+  );
+  assert.strictEqual(
+    functionForTask('aura.tasks.mcp.invoke', 'custom', 'aura-mcp-invoke-demo'),
+    'aura-mcp-invoke-demo',
+  );
+  assert.strictEqual(
+    functionForTask('aura.tasks.agent.invoke', 'custom', 'aura-agent-invoke-py'),
+    null,
+  );
+  assert.strictEqual(
+    functionForTask('aura.tasks.mcp.invoke', 'custom', 'aura-mcp-invoke-rpc-demo'),
+    null,
+  );
+  assert.strictEqual(functionForTask('aura.tasks.agent.invoke', 'custom', 'other'), null);
+  assert.strictEqual(
+    functionForTask('aura.tasks.agent.invoke', 'nodejs', 'aura-agent-invoke-evil'),
+    'aura-agent-invoke',
+  );
   assert.strictEqual(parseRuntime('{"runtime":"python"}'), 'python');
   assert.strictEqual(parseRuntime('{}'), 'nodejs');
 
@@ -66,6 +87,47 @@ async function main() {
     },
   });
   assert.ok(calls[0].url.includes('/fission-function/aura-agent-invoke'));
+
+  const customCalls = [];
+  const customOut = await handleTaskMessage(
+    {
+      subject: 'aura.tasks.agent.invoke',
+      data: Buffer.from(
+        JSON.stringify({ runtime: 'custom', function: 'aura-agent-invoke-demo' }),
+      ),
+      ack: async () => {},
+    },
+    {
+      sc: sc(),
+      invoke: async (fn) => {
+        customCalls.push(fn);
+        return { status: 200, body: JSON.stringify({ ok: true }) };
+      },
+      publish: async () => {},
+    },
+  );
+  assert.strictEqual(customOut.function, 'aura-agent-invoke-demo');
+  assert.deepStrictEqual(customCalls, ['aura-agent-invoke-demo']);
+
+  const denied = [];
+  const deniedOut = await handleTaskMessage(
+    {
+      subject: 'aura.tasks.agent.invoke',
+      data: Buffer.from(JSON.stringify({ runtime: 'custom', function: '../x' })),
+      ack: async () => {},
+    },
+    {
+      sc: sc(),
+      invoke: async () => {
+        throw new Error('must_not_invoke');
+      },
+      publish: async (subj, body) => {
+        denied.push({ subj, body });
+      },
+    },
+  );
+  assert.strictEqual(deniedOut.ok, false);
+  assert.strictEqual(denied[0].body.error, 'function_not_allowed');
 
   console.log('nats-task-bridge.selftest: PASS');
 }

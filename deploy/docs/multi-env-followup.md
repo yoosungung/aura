@@ -1,4 +1,4 @@
-# Multi-env — python-env 병행 · custom-env 후속 (M3.6+)
+# Multi-env — python-env 병행 · custom image (M3.6+)
 
 일정: [ROADMAP.md](../../ROADMAP.md) M3.6.  
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #2 · #11 · §4.  
@@ -31,15 +31,21 @@ archive: [`fission-node-archive.md`](fission-node-archive.md) · [`fission-pytho
 | `aura.tasks.mcp.invoke` | `python` | `aura-mcp-invoke-py` |
 | `aura.rpc.mcp.tool` | `nodejs` | `aura-mcp-invoke-rpc` |
 | `aura.rpc.mcp.tool` | `python` | `aura-mcp-invoke-rpc-py` |
+| `aura.tasks.agent.invoke` | `custom` | payload `function` 접두사 `aura-agent-invoke-` |
+| `aura.tasks.mcp.invoke` | `custom` | payload `function` 접두사 `aura-mcp-invoke-` (`aura-mcp-invoke-rpc-` 제외) |
+| `aura.rpc.mcp.tool` | `custom` | payload `function` 접두사 `aura-mcp-invoke-rpc-` |
 
-## 후속 — `custom-env`
+## `custom` image
+
+Fission container executor. Package·Environment·`/specialize` 없음. Router 이름만 Function CR이고 프로세스는 이미지다. NATS 구독은 task-bridge / rpc-bridge만 — 트리거는 topic 1개당 Function 1개이고 Core Request-Reply 트리거가 없다.
 
 | 항목 | 내용 |
 |------|------|
-| Environment | `aura-custom-async` / `aura-custom-sync` (이미지·빌더는 별 런북) |
-| Function 슬롯 | `aura-agent-invoke-custom` · `aura-mcp-invoke-custom` · `aura-mcp-invoke-rpc-custom` |
-| resolve | `runtime=custom` |
-| 소스 | `services/*/custom/` |
+| 실행 | `runtime=custom` · `POST {FISSION_ROUTER_URL}/fission-function/<function>` |
+| 스탬프 | Gateway가 resolve의 Function 이름을 payload `function`에 넣는다. 브리지는 위 접두사만 허용하고 poolmgr 슬롯(`aura-agent-invoke-py` 등)은 거부한다 |
+| 스케일 | async container `MinScale=0` · sync container `MinScale≥2` |
+| 재검증 | 이미지는 resolve로 `function`이 자기 소스인지 확인한다 |
+| 금지 | 이미지별 MQT · 이미지의 NATS 직접 구독 · 공유 `aura-custom-*` Environment |
 
 ## 이후 — `rust-env`
 

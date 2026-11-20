@@ -7,7 +7,7 @@ multi-env: [`multi-env-followup.md`](multi-env-followup.md).
 매니페스트: [`../k8s/nats-task-bridge/`](../k8s/nats-task-bridge/).
 
 **이 문서 범위:** JetStream pull → `runtime`→Function → Fission Router · resp/error publish · KEDA lag.  
-**Non-goals:** 도메인 handler · memory tasks MQT 대체 · custom-env 이미지.
+**Non-goals:** 도메인 handler · memory tasks MQT 대체 · container 이미지 빌드.
 
 ---
 
@@ -22,7 +22,7 @@ Fission MQT는 topic→Function **1:1**. 동일 `aura.tasks.agent.invoke`에 nod
 | Deployment | `aura-nats-task-bridge` · **ns `aura`** · deps 포함 이미지 (initContainer `npm install` 금지) |
 | Subjects | `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` |
 | Consumer | pull · stream `AURA_TASKS` · durable 이름 고정(`aura_task_bridge_agent` / `aura_task_bridge_mcp`) |
-| 라우팅 | payload/header `runtime` (없으면 `nodejs`) → Function 표 ([`multi-env-followup.md`](multi-env-followup.md)) |
+| 라우팅 | payload `runtime` (없으면 `nodejs`) → Function 표. `custom`은 payload `function` 접두사 allowlist ([`multi-env-followup.md`](multi-env-followup.md)) |
 | 호출 | `POST {FISSION_ROUTER_URL}/fission-function/<name>` |
 | 응답 | Function 2xx body → `respTopic`; 비-2xx/예외 → `errorTopic` (기존 MQT envelope와 동형) |
 | 스케일 | KEDA JetStream lag · **min=0 허용** |
