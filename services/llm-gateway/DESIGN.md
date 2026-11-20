@@ -16,6 +16,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |------|-----|
 | 역할 | Function·`agent_invoke`/`memory_capture` 등 → **클러스터 LLM Gateway만** → 공급자 |
 | 실행 계급 | **상시 ≥2** Deployment (`aura-llm-gateway`). Fission MQT / scale-to-zero **금지** |
+| 이미지 | `aura/llm-gateway:local` · `gateway.js` 베이크 · 기본 stub provider · `dev.orbstack.icon` · `node -e` 금지 |
 | PG | **없음** |
 | 라벨 | `app: aura-llm-gateway` (샌드박스 NP allow peer) |
 | 금지 | Function→`api.openai.com` 등 공급자 **직접** (`client.js` + NP) |
@@ -41,6 +42,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |------|------|
 | `gateway.js` | `createLlmGateway` · stub · bucket RL · circuit · **providers[] Fallback** · usage · `handleBillingUsage` · `renderBillingDashboard` |
 | `client.js` | `createLlmGatewayClient` · `assertFunctionLlmEgress` (provider blocklist) |
+| `entrypoint.js` | HTTP 배선 · 기본 `createStubProvider` (live provider 키=Non-goal) |
 | `gateway.selftest.js` | egress · 429 · circuit · **fallback** · **billing aggregate** |
 
 기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_LLM_LIMITS`).  
@@ -51,6 +53,7 @@ Deps: `providers[]` (또는 단일 `provider`) · `fallbackModels: { [requested]
 ## Commands
 
 ```bash
+bash deploy/scripts/build-gateway-images.sh
 bash deploy/scripts/check-llm-gateway.sh
 bash deploy/scripts/check-llm-gateway-fallback-billing.sh
 node services/llm-gateway/gateway.selftest.js

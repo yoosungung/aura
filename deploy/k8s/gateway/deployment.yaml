@@ -1,5 +1,5 @@
 # Gateway — always-on HA (ARCHITECTURE §2). Not Fission MQT / not scale-to-zero.
-# Live NATS wiring = injectable surface in services/gateway (this slice: static contract).
+# Image: aura/gateway:local (deploy/scripts/build-gateway-images.sh).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: node:22-alpine
+          image: aura/gateway:local
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -33,25 +33,6 @@ spec:
               value: nats://nats.aura.svc.cluster.local:4222
             - name: PORT
               value: "8080"
-            - name: AURA_GATEWAY_MODE
-              value: contract
-          command: ["node", "-e"]
-          args:
-            - |
-              const http = require('http');
-              const port = Number(process.env.PORT || 8080);
-              http.createServer((req, res) => {
-                if (req.url === '/healthz') {
-                  res.writeHead(200, { 'content-type': 'text/plain' });
-                  res.end('ok');
-                  return;
-                }
-                res.writeHead(503, { 'content-type': 'application/json' });
-                res.end(JSON.stringify({
-                  error: 'live_nats_wiring_pending',
-                  hint: 'services/gateway + deploy/docs/gateway-sse-ws.md',
-                }));
-              }).listen(port, () => console.log('aura-gateway health on', port));
           readinessProbe:
             httpGet:
               path: /healthz

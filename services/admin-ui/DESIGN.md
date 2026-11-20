@@ -48,7 +48,7 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | `src/stores/session.ts` | Bearer · tenant · baseUrl |
 | `ui.selftest.cjs` | 계약·금지사항 정적 게이트 (소스/디자인) |
 | `public/aura-logo.jpg` | 헤더·파비콘 마크. Vite `dist/`로 복사되어 이미지에 포함 |
-| `Dockerfile` · `nginx.conf` | 이미지에 굽는 정적 서버 (`listen 8080` · `/v1` → control-admin · `dist/aura-logo.jpg` 필수) |
+| `Dockerfile` · `nginx.conf` | 이미지에 굽는 정적 서버 (`listen 8080` · `/v1` → control-admin · `dev.orbstack.icon`) |
 | `dist/` | Vite 빌드 산출 (이미지에 포함, 클러스터 ConfigMap 아님) |
 
 ---

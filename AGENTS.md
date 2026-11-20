@@ -39,7 +39,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/mcp-invoke/` | `mcp_invoke` Node async Function (`aura-mcp-invoke` · task-bridge; **PG 금지**) | `deploy/k8s/mcp-invoke/` |
 | `deploy/k8s/mcp-invoke-rpc/` | `mcp_invoke` Node RPC Function (`aura-mcp-invoke-rpc`, **poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/mcp-invoke-rpc/` |
 | `deploy/k8s/control-resolve/` | `aura-control-resolve` Function (**poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/control-resolve/` |
-| `deploy/k8s/gateway/` | Gateway Deployment+Service (**ns `aura`**, `replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
+| `deploy/k8s/gateway/` | Gateway Deployment+Service (이미지 `aura/gateway` · **ns `aura`**, `replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
 | `services/memory/` | `svc-memory` 내부 DESIGN + store/embed/recall handlers | `services/memory/` |
 | `services/memory-capture/` | `memory_capture` 내부 DESIGN + handler (PG 금지 · candidates envelope) | `services/memory-capture/` |
 | `services/control/` | `svc-control` DESIGN + resolve/브리지 + **관리 HTTP** + **pooler-lookup** + `control_audit` | `services/control/` |

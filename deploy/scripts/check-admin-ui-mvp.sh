@@ -76,7 +76,10 @@ grep -Eq 'replicas:[[:space:]]*2|replicas: 2' "$DEP" || fail "control-admin repl
 grep -q 'namespace: aura' "$DEP" || fail "control-admin ns aura"
 grep -q 'image: aura/control-admin:local' "$DEP" || fail "control-admin image must be aura/control-admin:local"
 [[ -f "$CTRL/Dockerfile" ]] || fail "missing control-admin Dockerfile"
-grep -q 'aura-logo.jpg' "$CTRL/Dockerfile" || fail "control-admin image build must require aura-logo.jpg"
+grep -q 'dev.orbstack.icon=' "$CTRL/Dockerfile" || fail "control-admin image must set dev.orbstack.icon"
+if grep -Eq 'COPY .*aura-logo\.jpg' "$CTRL/Dockerfile"; then
+  fail "control-admin image must not bake the logo file"
+fi
 grep -q '"pg"' "$CTRL/package.json" || fail "control package.json must depend on pg"
 if grep -Eq 'aura-control-admin-app|npm install' "$DEP"; then
   fail "control-admin must not mount source ConfigMap or npm install at start"

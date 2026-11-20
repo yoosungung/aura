@@ -9,6 +9,6 @@ RUN npm run build && test -f dist/aura-logo.jpg
 FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/dist /usr/share/nginx/html
-COPY public/aura-logo.jpg /aura-logo.jpg
-RUN test -s /aura-logo.jpg && test -s /usr/share/nginx/html/aura-logo.jpg
 EXPOSE 8080
+LABEL org.opencontainers.image.logo="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg" \
+      dev.orbstack.icon="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg"

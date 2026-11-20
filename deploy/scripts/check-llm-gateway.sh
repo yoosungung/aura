@@ -51,11 +51,20 @@ grep -q '/v1/chat/completions' "$DOC" || fail "doc must name /v1/chat/completion
 grep -q 'aura-llm-gateway' "$DOC" || fail "doc must name aura-llm-gateway"
 grep -q 'llm-gateway.md' "$DESIGN" || fail "DESIGN must link llm-gateway.md"
 
-# K8s: replicas≥2, app label for NP peer, no MQT
+# K8s: replicas≥2, app label for NP peer, no MQT, baked image
 grep -q 'app: aura-llm-gateway' "$DEP" || fail "Deployment must label app: aura-llm-gateway"
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$DEP" \
   || fail "Deployment replicas must be ≥ 2"
 grep -q 'aura-llm-gateway' "$SVC" || fail "Service must be aura-llm-gateway"
+grep -q 'image: aura/llm-gateway:local' "$DEP" || fail "llm-gateway image must be aura/llm-gateway:local"
+[[ -f "$ROOT/services/llm-gateway/Dockerfile" ]] || fail "missing llm-gateway Dockerfile"
+[[ -f "$ROOT/services/llm-gateway/entrypoint.js" ]] || fail "missing llm-gateway entrypoint.js"
+grep -q 'dev.orbstack.icon=' "$ROOT/services/llm-gateway/Dockerfile" \
+  || fail "llm-gateway image must set dev.orbstack.icon"
+if grep -Eq 'node -e|node:22-alpine' "$DEP"; then
+  fail "llm-gateway must not use node:22-alpine / node -e stub"
+fi
+grep -Eq 'aura/llm-gateway:local' "$DESIGN" || fail "DESIGN must name baked aura/llm-gateway image"
 if grep -Eqi 'MessageQueueTrigger|kind:[[:space:]]*ScaledObject' "$DEP" "$SVC" "$KUST"; then
   fail "llm-gateway must not use MQT/ScaledObject"
 fi

@@ -71,6 +71,14 @@ grep -Eq 'namespace:[[:space:]]*aura' "$DEP" || fail "gateway deployment must be
 grep -Eq 'namespace:[[:space:]]*aura' "$SVC" || fail "gateway service must be ns aura"
 grep -Eq '^namespace:[[:space:]]*aura' "$KUST" || fail "gateway kustomization must set namespace aura"
 grep -q 'kind: Service' "$SVC" || fail "service.yaml must be Service"
+grep -q 'image: aura/gateway:local' "$DEP" || fail "gateway image must be aura/gateway:local"
+[[ -f "$GW_DIR/Dockerfile" ]] || fail "missing gateway Dockerfile"
+[[ -f "$GW_DIR/entrypoint.js" ]] || fail "missing gateway entrypoint.js"
+grep -q 'dev.orbstack.icon=' "$GW_DIR/Dockerfile" || fail "gateway image must set dev.orbstack.icon"
+if grep -Eq 'node -e|node:22-alpine' "$DEP"; then
+  fail "gateway must not use node:22-alpine / node -e stub"
+fi
+grep -Eq 'aura/gateway:local' "$DESIGN" || fail "DESIGN must name baked aura/gateway image"
 
 # ROADMAP checkbox
 [[ -f "$ROADMAP" ]] || fail "missing $ROADMAP"
