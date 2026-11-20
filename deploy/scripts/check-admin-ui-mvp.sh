@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# M6 static gate: Admin UI MVP · control admin HTTP · control_audit · pooler-lookup.
+# Exit 0 on PASS. live Garage/Pooler CI not required (injectable).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+DOC="$ROOT/deploy/docs/admin-ui-mvp.md"
+RESOLVE_DOC="$ROOT/deploy/docs/svc-control-resolve.md"
+SQL="$ROOT/deploy/sql/control_meta.sql"
+ARCH="$ROOT/ARCHITECTURE.md"
+ROADMAP="$ROOT/ROADMAP.md"
+AGENTS="$ROOT/AGENTS.md"
+DESIGN_CTRL="$ROOT/services/control/DESIGN.md"
+DESIGN_UI="$ROOT/services/admin-ui/DESIGN.md"
+K8S="$ROOT/deploy/k8s/control-admin"
+CTRL="$ROOT/services/control"
+UI="$ROOT/services/admin-ui"
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+ok() { echo "OK: $*"; }
+
+[[ -f "$DOC" ]] || fail "missing $DOC"
+[[ -f "$RESOLVE_DOC" ]] || fail "missing $RESOLVE_DOC"
+[[ -f "$SQL" ]] || fail "missing $SQL"
+[[ -f "$DESIGN_CTRL" ]] || fail "missing $DESIGN_CTRL"
+[[ -f "$DESIGN_UI" ]] || fail "missing $DESIGN_UI"
+[[ -d "$K8S" ]] || fail "missing $K8S"
+[[ -f "$CTRL/admin-http.js" ]] || fail "missing admin-http.js"
+[[ -f "$CTRL/pooler-lookup.js" ]] || fail "missing pooler-lookup.js"
+[[ -f "$UI/index.html" ]] || fail "missing admin-ui index.html"
+[[ -f "$UI/app.js" ]] || fail "missing admin-ui app.js"
+
+# Doc contracts
+grep -Eqi 'pending.*active|activate' "$DOC" || fail "doc must lock activate status machine"
+grep -Eqi 'checksum|sha256|Garage|GetObject' "$DOC" || fail "doc must lock server-side checksum"
+grep -Eqi 'AURA_ADMIN_TENANT_IDS|DISTINCT' "$DOC" || fail "doc must lock tenant picker source"
+grep -Eqi 'control_audit' "$DOC" || fail "doc must name control_audit"
+grep -Eq 'POST.*/v1/sources|/activate|/overlays' "$DOC" || fail "doc must list admin HTTP paths"
+grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals"
+grep -Eqi 'Chat UI|tenants/ACL|과금' "$DOC" || fail "doc must exclude Chat UI / tenants ACL / billing"
+
+# Resolve doc path sync (discarded routes gone)
+grep -Eq 'POST.*/v1/sources|/activate|overlays' "$RESOLVE_DOC" \
+  || fail "svc-control-resolve.md must list M6 admin paths"
+if grep -E '^\| `PUT` \| `/v1/sources/\{kind\}' "$RESOLVE_DOC"; then
+  fail "svc-control-resolve.md must not list discarded PUT …/{version} as active"
+fi
+if grep -E '^\| `PUT` \| `/v1/sources/.*/user-meta' "$RESOLVE_DOC"; then
+  fail "svc-control-resolve.md must not list user-meta as active path"
+fi
+grep -Eqi '폐기|discard' "$RESOLVE_DOC" || fail "svc-control-resolve.md must mark old paths as discarded"
+
+# DDL
+grep -q 'CREATE TABLE control_audit' "$SQL" || fail "SQL must create control_audit"
+grep -q 'FORCE ROW LEVEL SECURITY' "$SQL" || fail "SQL must FORCE RLS"
+grep -q "current_setting('app.tenant_id'" "$SQL" || fail "RLS must use app.tenant_id"
+
+# ARCHITECTURE / ROADMAP / AGENTS
+grep -Eqi 'aura-control-admin|admin-ui-mvp|control_audit' "$ARCH" \
+  || fail "ARCHITECTURE must cite control-admin / admin-ui-mvp / control_audit"
+grep -Eqi 'admin-ui-mvp|관리 UI|M6' "$ROADMAP" || fail "ROADMAP must cite Admin UI M6"
+grep -Eqi 'admin-ui-mvp|admin-ui' "$AGENTS" || fail "AGENTS must list admin-ui docs/path"
+
+# DESIGN
+grep -Eqi 'admin-http|pooler-lookup|control_audit' "$DESIGN_CTRL" \
+  || fail "control DESIGN must name admin-http / pooler-lookup / audit"
+grep -q '## Commands' "$DESIGN_CTRL" || fail "control DESIGN Commands"
+grep -q '## Commands' "$DESIGN_UI" || fail "admin-ui DESIGN Commands"
+grep -Eqi 'Non-goals' "$DESIGN_UI" || fail "admin-ui DESIGN Non-goals"
+
+# K8s
+DEP="$K8S/deployment.yaml"
+grep -q 'aura-control-admin' "$DEP" || fail "k8s must name aura-control-admin"
+grep -Eq 'replicas:[[:space:]]*2|replicas: 2' "$DEP" || fail "control-admin replicas ≥ 2"
+grep -q 'namespace: aura' "$DEP" || fail "control-admin ns aura"
+if grep -Eqi 'MessageQueueTrigger|mqtype|ScaledObject' "$K8S"/*.yaml 2>/dev/null; then
+  fail "control-admin must not use MQT/ScaledObject"
+fi
+
+# Code invariants
+grep -Eq 'withTenantTx|tenant-tx' "$CTRL/pooler-lookup.js" \
+  || fail "pooler-lookup must use withTenantTx"
+grep -Eq "set_config\('app\.tenant_id'" "$CTRL/tenant-tx.js" \
+  || fail "tenant-tx must set_config tenant GUC (is_local true)"
+grep -Eq "status = 'active'" "$CTRL/pooler-lookup.js" || fail "pooler-lookup active filter"
+grep -Eqi 'checksum_mismatch|createHash|sha256' "$CTRL/admin-http.js" \
+  || fail "admin-http must verify sha256 on activate"
+grep -Eqi 'control_audit|insertAudit' "$CTRL/admin-http.js" || fail "admin-http must write control_audit"
+grep -Eq 'reason_required' "$CTRL/admin-http.js" || fail "admin-http must require reason on retire/delete"
+if grep -Eq "require\(['\"]pg['\"]\)" "$CTRL/bridge.js"; then
+  fail "bridge.js must stay injectable (no hard-wired pg)"
+fi
+grep -Eq 'x-aura-tenant-id' "$UI/app.js" || fail "admin-ui must send tenant header"
+if grep -Eqi 'aura\.rpc\.control\.resolve' "$UI/app.js"; then
+  fail "admin-ui must not call NATS resolve"
+fi
+
+# Unit gates
+node "$CTRL/admin-http.selftest.js" || fail "admin-http.selftest failed"
+node "$CTRL/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest failed"
+node "$UI/ui.selftest.js" || fail "admin-ui ui.selftest failed"
+
+ok "admin-ui-mvp docs + DDL + admin-http + pooler-lookup + UI"
+echo "check-admin-ui-mvp: PASS"

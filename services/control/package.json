@@ -2,8 +2,8 @@
   "name": "aura-svc-control",
   "private": true,
   "version": "0.0.0",
-  "description": "svc-control resolve helpers (M3 minimal schema)",
+  "description": "svc-control resolve + admin HTTP + pooler-lookup (M3/M6)",
   "scripts": {
-    "test": "node resolve.selftest.js"
+    "test": "node resolve.selftest.js && node bridge.selftest.js && node pooler-lookup.selftest.js && node admin-http.selftest.js"
   }
 }

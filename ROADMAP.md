@@ -70,6 +70,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **`agent_checkpoints` 예외 테이블 DDL M3 고정** — 이름=`agent_checkpoints` · FORCE RLS · UNIQUE(tenant,run,seq) · kind turn/tool/final · state JSONB+`content_ref`(256KB+) · writer=`agent_invoke` only · Pooler+`set_config` · writer/resume=후속 | §1 #10·§6.1.2 · [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md)·`agent_checkpoints.sql`·`check-agent-checkpoints.sh` |
 | 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 | 2026-11-20 | **M3.6 python-env 병행** — Node agent/MCP 유지 · `source_meta.runtime` 권위+메시지 스탬프 · 동일 NATS subject · task-bridge+rpc runtime→Function · `aura-python-async|sync` · `services/*/nodejs|python` · 브리지 deps 이미지 · custom-env 후속 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) |
+| 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/Garage · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 Garage sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -314,6 +315,27 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] DLQ Replay 운영 도구 + 런북 — [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md) · `check-dlq-replay.sh` · `dlq-replay.sh` · [`services/ops/dlq-replay/`](services/ops/dlq-replay/)
 - [x] 정기 PG 복구 훈련 캘린더 — [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh` · [`services/ops/pitr-drill/calendar.js`](services/ops/pitr-drill/calendar.js) (분기≥1 · 스택변경≤14일 · lab-1이 2026-Q4 시드)
 - [~] (출시 후 후보) NATS Account 격리 설계 착수 — eric 연기 (2026-11-19)
+
+---
+
+## M6 — 관리 UI 1차 MVP (ops-only)
+
+**목표**: 플랫폼 ops가 `source_meta`/`user_meta`·번들을 등록·활성화하고, resolve가 Pooler에서 동일 식별자를 읽는다. Chat UI·테넌트 admin·과금 SPA는 비범위.
+
+**작업**
+
+- [x] 계약·문서 봉인 — [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · ARCHITECTURE §2/§6.1 · `svc-control-resolve` 관리 HTTP 경로 교체 · `control_audit` DDL
+- [x] `svc-control` 관리 HTTP — tenants/sources/overlays/presign/activate/retire · 서버측 Garage sha256 · `control_audit` · Bearer ops-only · `X-Aura-Tenant-Id`
+- [x] resolve Pooler SELECT — `pooler-lookup.js` + `withTenantTx` (`set_config(..., true)`)
+- [x] Admin UI MVP (`services/admin-ui`) — Tenant picker · Sources · Bundle 등록 · overlays
+- [x] 게이트 — `check-admin-ui-mvp.sh` + control admin/pooler selftests
+
+**성공 기준**
+
+- ops 등록 → activate(서버 checksum) → resolve가 `active` 동일 식별자 반환(Pooler lookup).
+- 타 테넌트 GUC로 0건 · checksum 불일치 activate 거부 · UNIQUE 재등록 409 · audit+reason · 시크릿 평문 없음.
+
+**Non-goals:** tenants/ACL 테이블 · 테넌트 admin SSO · 과금 SPA · DLQ/PITR/erase 콘솔 · Chat UI.
 
 ---
 

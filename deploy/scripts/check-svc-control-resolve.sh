@@ -24,6 +24,7 @@ ok() { echo "OK: $*"; }
 # DDL: tables + FORCE RLS + tenant GUC
 grep -q 'CREATE TABLE source_meta' "$SQL" || fail "SQL must create source_meta"
 grep -q 'CREATE TABLE user_meta' "$SQL" || fail "SQL must create user_meta"
+grep -q 'CREATE TABLE control_audit' "$SQL" || fail "SQL must create control_audit"
 grep -q 'FORCE ROW LEVEL SECURITY' "$SQL" || fail "SQL must FORCE ROW LEVEL SECURITY"
 grep -q "current_setting('app.tenant_id'" "$SQL" || fail "RLS must use app.tenant_id GUC"
 grep -q 'UNIQUE (tenant_id, kind, name, version)' "$SQL" \
@@ -46,8 +47,14 @@ grep -Eqi 'source_meta|user_meta' "$DOC" || fail "doc must name source_meta/user
 grep -Eqi 'control\.resolve\.done' "$DOC" || fail "doc must lock control.resolve.done"
 grep -Eqi '1-depth|user wins|mergeConfigs' "$DOC" || fail "doc must lock 1-depth merge / user wins"
 grep -Eqi 'secrets_ref' "$DOC" || fail "doc must require secrets_ref (no plaintext)"
-grep -Eqi 'Non-goals|브리지|본구현' "$DOC" || fail "doc must state Non-goals (bridge deferred)"
+grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals"
 grep -Eqi 'svc-control' "$DOC" || fail "doc must name svc-control write owner"
+grep -Eq 'POST.*/v1/sources|/v1/sources/\{id\}/activate|overlays' "$DOC" \
+  || fail "doc must lock M6 admin HTTP paths (POST /v1/sources, activate, overlays)"
+if grep -E '^\| `PUT` \| `/v1/sources/\{kind\}' "$DOC"; then
+  fail "doc must not list discarded PUT …/{version} as active"
+fi
+grep -Eqi '폐기|discard|overlays' "$DOC" || fail "doc must mark old paths discarded / use overlays"
 
 # ARCHITECTURE + ROADMAP + DESIGN pointers
 grep -Eq 'svc-control-resolve\.md|control_meta\.sql' "$ARCH" \

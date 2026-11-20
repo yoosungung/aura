@@ -7,7 +7,8 @@ Wire/DDL 정본: [`svc-control-resolve.md`](svc-control-resolve.md) · [`../sql/
 Warm 패턴 참고: [`mcp-invoke-dual.md`](mcp-invoke-dual.md) sync 절.
 
 **이 문서 범위:** NATS Core RR 브리지 **이름표** · Warm Function + Deployment **분리** · stub/injectable 핸들러 경계.  
-**Non-goals:** 라이브 Pooler SELECT 본배선 · HTTP admin 서버 · tenants/ACL · 시크릿 스토어 · Streamable HTTP · sandbox/egress · F1.
+Pooler SELECT 본배선: [`../../services/control/pooler-lookup.js`](../../services/control/pooler-lookup.js) (M6 · injectable). 관리 HTTP: [`admin-ui-mvp.md`](admin-ui-mvp.md).  
+**Non-goals:** tenants/ACL · 시크릿 스토어 · Streamable HTTP · sandbox/egress · F1 · live Pooler CI 필수.
 
 ---
 
@@ -30,7 +31,7 @@ MQT·JetStream lag ScaledObject를 이 응답자에 연결하지 않는다. 매�
 | NATS | `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` · **replicas ≥ 2** |
 | Function | `aura-control-resolve` · **poolmgr** · `aura-nodejs-sync` (`poolsize ≥ 2`) |
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject |
-| PG (의도) | **Pooler** `aura-pg-pooler` + `set_config('app.tenant_id', $1, true)` — **라이브 배선은 Non-goal** (injectable) |
+| PG | **Pooler** `aura-pg-pooler` + `set_config('app.tenant_id', $1, true)` — `createPoolerLookup` injectable (M6) |
 
 ---
 

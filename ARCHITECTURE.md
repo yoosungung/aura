@@ -89,6 +89,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
 | `svc-memory` recall | hybrid Top-K → Function `aura-memory-recall` | **sync** poolmgr Warm | 메모리 SELECT → **Pooler** |
 | `svc-control` + resolve Function | 메타 쓰기(HTTP); `aura.rpc.control.resolve` → `aura-control-resolve` | 관리 HTTP + **sync** poolmgr Warm | 컨트롤 메타 **유일 쓰기** → **Pooler** |
+| **`aura-control-admin`** | ops 관리 HTTP (`/v1/sources`·bundles·overlays) · **ns `aura`** · Admin UI 전용 | 상시 ≥2 | 컨트롤 메타 쓰기 + `control_audit` → **Pooler**; Garage GetObject(activate checksum) |
+| **Admin UI** | 플랫폼 ops 콘솔(소스·번들·overlay). Chat UI·테넌트 self-serve **비범위** | 정적/SPA → `aura-control-admin`만 | 없음(API 경유) |
 | **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | **CloudNativePG `Pooler`**, **transaction** 모드 |
 
 ### 2.1 Connection Pooler · RLS GUC
@@ -303,13 +305,19 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 | 테이블 | 쓰기 소유 |
 |--------|-----------|
 | `memory_items`, `memory_embeddings`, `memory_nodes`, `memory_edges`, `memory_audit` | **`svc-memory`만** |
-| `source_meta`, `user_meta` (DDL·resolve wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
+| `source_meta`, `user_meta`, `control_audit` (DDL·resolve/admin wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
 | tenants/ACL (후속) | **`svc-control`만** |
 | `agent_checkpoints` (DDL·소유: [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md) · [`deploy/sql/agent_checkpoints.sql`](deploy/sql/agent_checkpoints.sql)) | **`agent_invoke`만** (예외) |
 
-### 6.1.1 컨트롤 메타 DDL (`source_meta` / `user_meta`)
+### 6.1.1 컨트롤 메타 DDL (`source_meta` / `user_meta` / `control_audit`)
 
-정본 DDL: [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql). resolve 요청/응답·merge: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md).
+정본 DDL: [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql). resolve: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md). 관리 HTTP·Admin UI: [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md).
+
+**`source_meta` 불변 vs status:** `entrypoint`/`bundle_uri`/`checksum`/`sig_uri`/`config`/`runtime`/`kind`/`name`/`version` 은 INSERT 후 **UPDATE 금지**(새 version만). **`status`만** `pending→active`(activate)·`active→retired`(retire) 전이 UPDATE 허용. INSERT 초기값=`pending`. `config`에 `runtime` 키 금지.
+
+**activate checksum:** 클라이언트 제출 checksum은 기대값. `POST …/activate` 시 `svc-control`이 Garage 객체를 읽어 sha256을 **서버에서** 계산·대조한 뒤에만 `pending→active`.
+
+**Tenant picker (tenants 테이블 없음):** `DISTINCT source_meta.tenant_id` ∪ env `AURA_ADMIN_TENANT_IDS` ∪ UI UUID 직접 입력.
 
 ```sql
 -- 요약 (FORCE RLS + set_config('app.tenant_id', $1, true) — §2.1)
@@ -340,9 +348,21 @@ CREATE TABLE user_meta (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (source_meta_id, principal_id)
 );
+
+-- append-only audit (UPDATE/DELETE 앱 경로 금지)
+CREATE TABLE control_audit (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  reason TEXT,
+  at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
-resolve 성공 응답 `type=control.resolve.done` 은 `source`(incl. `runtime`) + `user`(nullable) + `cfg`(1-depth merge, user wins) + `secrets_ref` + top-level **`runtime`**(=`source.runtime`) 을 담는다. `aura.rpc.control.resolve` 브리지 Warm(minReplicas ≥ 2): [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) · `deploy/k8s/control-resolve/`.
+resolve 성공 응답 `type=control.resolve.done` 은 `source`(incl. `runtime`) + `user`(nullable) + `cfg`(1-depth merge, user wins) + `secrets_ref` + top-level **`runtime`**(=`source.runtime`) 을 담는다. `aura.rpc.control.resolve` 브리지 Warm(minReplicas ≥ 2): [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) · `deploy/k8s/control-resolve/`. Pooler SELECT: [`services/control/pooler-lookup.js`](services/control/pooler-lookup.js).
 
 ### 6.1.2 런타임 체크포인트 DDL (`agent_checkpoints`)
 

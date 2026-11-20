@@ -3,7 +3,8 @@
 /**
  * aura.rpc.control.resolve bridge handler (M3 Warm Core RR).
  * Contract: ARCHITECTURE §3.3 · deploy/docs/control-resolve-bridge.md
- * Wire helpers: ./resolve.js — Non-goals: live Pooler client · HTTP admin · NATS SDK wiring.
+ * Wire helpers: ./resolve.js · Pooler SELECT: ./pooler-lookup.js (injectable).
+ * Non-goals: hard-wired pg in this file · NATS SDK wiring.
  */
 
 const {

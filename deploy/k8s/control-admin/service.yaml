@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-control-admin
+  namespace: aura
+  labels:
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-control-admin
+spec:
+  selector:
+    app.kubernetes.io/name: aura-control-admin
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

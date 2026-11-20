@@ -1,10 +1,11 @@
--- control meta: source_meta + user_meta + RLS
--- Contract: ARCHITECTURE §1 #6 · §6.1 · deploy/docs/svc-control-resolve.md
--- Ticket: 51bc0936. Non-goals: tenants/ACL tables · NATS resolve bridge · HTTP admin server.
--- Idempotent for M3 smoke/dev (DROP CASCADE). Production migrate path is later.
+-- control meta: source_meta + user_meta + control_audit + RLS
+-- Contract: ARCHITECTURE §1 #6 · §6.1 · deploy/docs/svc-control-resolve.md · deploy/docs/admin-ui-mvp.md
+-- Non-goals: tenants/ACL tables. Admin HTTP + resolve Pooler = M6.
+-- Idempotent for smoke/dev (DROP CASCADE). Production migrate path is later.
 
 BEGIN;
 
+DROP TABLE IF EXISTS control_audit CASCADE;
 DROP TABLE IF EXISTS user_meta CASCADE;
 DROP TABLE IF EXISTS source_meta CASCADE;
 
@@ -63,6 +64,30 @@ ALTER TABLE user_meta FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS user_meta_tenant_isolation ON user_meta;
 CREATE POLICY user_meta_tenant_isolation ON user_meta
+  FOR ALL
+  USING (tenant_id::text = current_setting('app.tenant_id', true))
+  WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
+
+-- Append-only admin audit (app UPDATE/DELETE forbidden).
+CREATE TABLE control_audit (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id      UUID NOT NULL,
+  actor          TEXT NOT NULL,
+  action         TEXT NOT NULL,
+  resource_type  TEXT NOT NULL,
+  resource_id    TEXT NOT NULL,
+  reason         TEXT,
+  at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_control_audit_tenant_at
+  ON control_audit (tenant_id, at DESC);
+
+ALTER TABLE control_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE control_audit FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS control_audit_tenant_isolation ON control_audit;
+CREATE POLICY control_audit_tenant_isolation ON control_audit
   FOR ALL
   USING (tenant_id::text = current_setting('app.tenant_id', true))
   WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));

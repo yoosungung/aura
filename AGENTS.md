@@ -17,8 +17,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
-| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **`createAgent` runTurn** · **Fission Node/Python archive** · **mcp `tools/list`** · **multi-env(M3.6)** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) · **nats-task-bridge** [`nats-task-bridge.md`](deploy/docs/nats-task-bridge.md)) | `deploy/docs/` |
-| `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (`memory_items` LIST+RANGE+RLS · `memory_audit` 월 RANGE+RLS · `memory_nodes`/`memory_edges`+RLS+out/in indexes · `memory_embeddings` LIST+RLS · **`source_meta`/`user_meta`** · **`agent_checkpoints`**) | `deploy/sql/` |
+| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **multi-env** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) · **nats-task-bridge** · **관리 UI MVP** [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)) | `deploy/docs/` |
+| `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (… · **`source_meta`/`user_meta`/`control_audit`** · **`agent_checkpoints`**) | `deploy/sql/` |
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
 | `deploy/k8s/runtime-envs/` | Fission 런타임×계급 공용 Environment — `aura-nodejs-async|sync` · `aura-python-async|sync` (후속 custom) | `deploy/k8s/runtime-envs/` |
@@ -42,7 +42,9 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/gateway/` | Gateway Deployment+Service (**ns `aura`**, `replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
 | `services/memory/` | `svc-memory` 내부 DESIGN + store/embed/recall handlers | `services/memory/` |
 | `services/memory-capture/` | `memory_capture` 내부 DESIGN + handler (PG 금지 · candidates envelope) | `services/memory-capture/` |
-| `services/control/` | `svc-control` 내부 DESIGN + resolve wire 헬퍼 + **control.resolve 브리지** (`source_meta`/`user_meta`) | `services/control/` |
+| `services/control/` | `svc-control` DESIGN + resolve/브리지 + **관리 HTTP** + **pooler-lookup** + `control_audit` | `services/control/` |
+| `services/admin-ui/` | 플랫폼 ops Admin UI MVP (Tenant picker · sources · bundles · overlays) | `services/admin-ui/` |
+| `deploy/k8s/control-admin/` | `aura-control-admin` Deployment+Service (관리 HTTP · replicas≥2 · **ns `aura`**) | `deploy/k8s/control-admin/` |
 | `services/agent-invoke/` | `agent_invoke` DESIGN + `nodejs/` · `python/` · testdata · checkpoints · archive | `services/agent-invoke/` |
 | `services/llm-gateway/` | LLM Gateway 내부 DESIGN + client egress 가드 + Fallback/과금 집계 (`aura-llm-gateway`만) | `services/llm-gateway/` |
 | `services/otel/` | OTel attribute 허용 목록 + Function·NATS·PG span 빌더 (`maskSecrets` 재사용) | `services/otel/` |
@@ -50,7 +52,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/compliance-erase/` | `aura.tasks.compliance.erase` MQT (`minReplicaCount=0`) | `deploy/k8s/compliance-erase/` |
 | `services/mcp-invoke/` | `mcp_invoke` DESIGN + `nodejs/` · `python/` (async+RPC 공유 tool path · PG 금지) | `services/mcp-invoke/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`gateway.js`) | `services/gateway/` |
-| `deploy/scripts/` | `install-runtime.sh` · `install-pg-pooler.sh` · `ensure-streams.sh` · `apply-product.sh`(제품) · `apply-split-deploy.sh`(dev smoke) · `check-*.sh` · `smoke-*.sh` (memory store/embed/guard/HNSW·TTL·graph·pooler · **svc-control resolve** · **control.resolve 브리지** · **agent_invoke** · **agent_checkpoints** · **gateway SSE/WS** 포함) | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** 포함) | `deploy/scripts/` |
 
 규칙:
 
@@ -90,7 +92,8 @@ M3 진행: **`svc-control` resolve** · **`aura.rpc.control.resolve` 브리지**
 M3.5 진행: Node **`createAgent` runTurn** · Package **archive** · MCP **`tools/list`** · live NATS/Node RPC 워커 · **`agent_checkpoints` writer/resume** ([`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md)).  
 M3.6 진행: **python-env 병행** · `source_meta.runtime` · task/rpc 브리지 runtime→Function · `services/*/nodejs|python` · custom-env 후속 ([`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md)).  
 M4 진행: consolidate/graph/TTL/archive/object_gc/shared-bucket · **OTel** · **compliance.erase** · **PITR 드릴 #1(lab) 실측** [`deploy/docs/pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md) · `check-pg-pitr-drill.sh` · [`services/ops/pitr-drill/`](services/ops/pitr-drill/) (Collector live·erase 운영화·CNPG/Barman 스케일 재드릴=M5).
-M5 진행: **LLM Gateway Fallback + 테넌트 과금 대시보드** [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` · **고위험 RuntimeClass/노드풀** [`deploy/docs/high-risk-tenant-nodepool.md`](deploy/docs/high-risk-tenant-nodepool.md) · `check-high-risk-tenant-nodepool.sh` · **DLQ Replay** [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md) · `check-dlq-replay.sh` · **정기 PITR 캘린더** [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh` (NATS Account=잔여).
-다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보).
+M5 진행: **LLM Gateway Fallback + 테넌트 과금 대시보드** · **고위험 RuntimeClass/노드풀** · **DLQ Replay** · **정기 PITR 캘린더** (NATS Account=잔여).  
+M6 진행: **관리 UI ops-only MVP** [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · `check-admin-ui-mvp.sh` · 관리 HTTP · 서버 checksum activate · `control_audit` · resolve Pooler SELECT · [`services/admin-ui/`](services/admin-ui/).  
+다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · M6 live Garage/Pooler.
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

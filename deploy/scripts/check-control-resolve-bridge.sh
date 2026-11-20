@@ -53,11 +53,20 @@ grep -Eq 'validateResolveRequest|buildResolveResponse' "$BRIDGE" || fail "bridge
 grep -Eqi 'mode.*stub|stub' "$BRIDGE" || fail "bridge must support stub mode"
 
 if grep -Eq "require\(['\"]pg['\"]\)|AURA_DATABASE_HOST|aura-pg-pooler|\.query\s*\(" "$BRIDGE"; then
-  fail "bridge.js must not hard-wire pg client (injectable only; live Pooler = Non-goal this slice)"
+  fail "bridge.js must not hard-wire pg client (injectable lookup only)"
 fi
+
+LOOKUP="$SVC_DIR/pooler-lookup.js"
+TX="$SVC_DIR/tenant-tx.js"
+[[ -f "$LOOKUP" ]] || fail "missing $LOOKUP (M6 Pooler SELECT)"
+[[ -f "$TX" ]] || fail "missing $TX"
+grep -Eq 'withTenantTx|tenant-tx' "$LOOKUP" || fail "pooler-lookup must use withTenantTx"
+grep -Eq "set_config\('app\.tenant_id'" "$TX" || fail "tenant-tx must use set_config tenant GUC"
+grep -Eqi "status = 'active'|status.*active" "$LOOKUP" || fail "pooler-lookup must filter active sources"
 
 node "$SVC_DIR/bridge.selftest.js" || fail "bridge.selftest.js failed"
 node "$SVC_DIR/resolve.selftest.js" || fail "resolve.selftest.js failed"
+node "$SVC_DIR/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest.js failed"
 
 # Manifests — sync poolmgr + shared bridge, no JetStream MQT / *-rr
 FN="$K8S_DIR/function.yaml"

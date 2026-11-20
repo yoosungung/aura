@@ -1,14 +1,15 @@
 # svc-control (내부 설계)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #6 · #11 · §2 · §3.3 · §6.1 · §9.2.  
-일정: [ROADMAP.md](../../ROADMAP.md) M3 — 최소 resolve API/스키마 + **`aura.rpc.control.resolve` 브리지** + **NATS mTLS·시크릿 마스킹/TTL 캐시**.  
-스키마·wire 정본: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-resolve.md) · DDL [`deploy/sql/control_meta.sql`](../../deploy/sql/control_meta.sql).  
+일정: [ROADMAP.md](../../ROADMAP.md) M3 resolve/브리지 · **M6 관리 HTTP + Pooler SELECT + audit**.  
+스키마·wire: [`deploy/docs/svc-control-resolve.md`](../../deploy/docs/svc-control-resolve.md) · DDL [`deploy/sql/control_meta.sql`](../../deploy/sql/control_meta.sql).  
+관리 UI: [`deploy/docs/admin-ui-mvp.md`](../../deploy/docs/admin-ui-mvp.md).  
 브리지 Warm: [`deploy/docs/control-resolve-bridge.md`](../../deploy/docs/control-resolve-bridge.md) · [`deploy/k8s/control-resolve/`](../../deploy/k8s/control-resolve/).  
-§9.2 와이어: [`deploy/docs/nats-mtls-secrets.md`](../../deploy/docs/nats-mtls-secrets.md) · [`deploy/k8s/nats-mtls/`](../../deploy/k8s/nats-mtls/).
+§9.2: [`deploy/docs/nats-mtls-secrets.md`](../../deploy/docs/nats-mtls-secrets.md).
 
-**이 문서 범위:** 컨트롤 메타 쓰기 경계 · resolve 읽기 헬퍼 · **sync Function**(`aura-control-resolve` poolmgr) · Pooler/GUC 전제 · **시크릿 마스킹·TTL≤60s 캐시·NATS mTLS 클라이언트 가드**.  
+**이 문서 범위:** 컨트롤 메타 쓰기 · resolve 읽기 · sync Function · **관리 HTTP** · **Pooler SELECT lookup** · **control_audit** · 시크릿 마스킹·TTL≤60s·NATS mTLS 가드.  
 NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN.md) (replicas≥2).  
-**Non-goals (본 슬라이스):** 라이브 Pooler SELECT 본배선 · HTTP admin 서버 · tenants/ACL · 시크릿 스토어 본구현 · live cert CI · 번들 업로드 · MessageQueueTrigger · 서비스별 `*-rr`.
+**Non-goals:** tenants/ACL 본구현 · 시크릿 스토어 본구현 · live cert/Garage/Pooler CI · MessageQueueTrigger · 서비스별 `*-rr`.
 
 ---
 
@@ -16,10 +17,11 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 
 | 항목 | 값 |
 |------|-----|
-| 유일 쓰기 | `svc-control`만 `source_meta`/`user_meta` INSERT/UPDATE/DELETE |
+| 유일 쓰기 | `svc-control`만 `source_meta`/`user_meta`/`control_audit` INSERT·status 전이 |
 | 런타임 | Function은 resolve **read**만 (`aura.rpc.control.resolve`) |
-| PG | **CloudNativePG Pooler** `aura-pg-pooler` · `set_config('app.tenant_id', $1, true)` 매 트랜잭션 (라이브 배선 Non-goal) |
-| 금지 | 세션 GUC · Function→PG 직접 · plaintext 시크릿 컬럼 · invoke payload에 번들/config 실어 보내기 · RPC에 MQT |
+| PG | **CloudNativePG Pooler** `aura-pg-pooler` · `set_config('app.tenant_id', $1, true)` 매 트랜잭션 |
+| 관리 HTTP | `aura-control-admin` replicas≥2 · Bearer ops · `X-Aura-Tenant-Id` |
+| 금지 | 세션 GUC · Function→PG 직접 · plaintext 시크릿 · invoke에 번들/config · RPC에 MQT · 콘텐츠 컬럼 UPDATE |
 
 ---
 
@@ -28,14 +30,15 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | 파일 | 역할 |
 |------|------|
 | `resolve.js` | `validateResolveRequest` · `mergeConfigs` · `buildResolveResponse` |
-| `resolve.selftest.js` | wire·merge·active-only·secrets_ref-only 게이트 |
-| `secrets-mask.js` | `maskSecrets` — 로그·OTel용 시크릿 필드 마스킹 (§9.2; M4 attrs는 [`../otel/`](../otel/)가 재사용) |
-| `secrets-cache.js` | `createSecretsCache` TTL≤60s · `aura.events.control.secrets.rotated` 무효화 |
-| `nats-tls.js` | `buildNatsTlsOptions` · `assertNatsMtlsConnect` — 클라이언트 mTLS |
+| `bridge.js` | stub / injectable `lookup` → `buildResolveResponse` |
+| `tenant-tx.js` | `withTenantTx` — `set_config(..., true)` only |
+| `pooler-lookup.js` | Pooler SELECT → `{source,user}` (active only) |
+| `admin-http.js` | 관리 HTTP 라우트 핸들러 (presign·sources·activate·overlays·audit) |
+| `secrets-mask.js` | `maskSecrets` |
+| `secrets-cache.js` | TTL≤60s · rotate 무효화 |
+| `nats-tls.js` | mTLS 클라이언트 가드 |
 
 `cfg` = 1-depth section merge, user wins. 응답에 `secrets` 객체 없음.
-
-정본: [`deploy/docs/nats-mtls-secrets.md`](../../deploy/docs/nats-mtls-secrets.md) · `check-nats-mtls-secrets.sh`.
 
 ---
 
@@ -46,16 +49,21 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | subject | `aura.rpc.control.resolve` |
 | NATS | `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` |
 | Function | `aura-control-resolve` · **poolmgr** · env `aura-nodejs-sync` (`poolsize ≥ 2`) |
-| handler | `bridge.js` — stub / injectable lookup → `buildResolveResponse` |
+| lookup | injectable · 생산=`createPoolerLookup` |
 | 금지 | MessageQueueTrigger · JetStream lag · 서비스별 `*-rr` |
 
 ---
 
-## 후속 (별 티켓)
+## 관리 HTTP (내부)
 
-1. 브리지 → Pooler SELECT 본배선 (`withTenantTx` + FORCE RLS)  
-2. 관리 HTTP — source 등록·user_meta upsert  
-3. 시크릿 resolve Pooler 본배선 (mask/TTL·mTLS overlay는 M3 슬라이스 완료)
+| 규칙 | 내용 |
+|------|------|
+| INSERT | `status=pending` |
+| activate | Garage GetObject → sha256 == row.checksum → `pending→active` + audit |
+| retire | `active→retired` + `reason` + audit |
+| overlays | PUT upsert · DELETE+reason · audit |
+| tenants | DISTINCT ∪ `AURA_ADMIN_TENANT_IDS` |
+| 콘텐츠 | UPDATE 경로 없음 |
 
 ---
 
@@ -65,8 +73,11 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 bash deploy/scripts/check-svc-control-resolve.sh
 bash deploy/scripts/check-control-resolve-bridge.sh
 bash deploy/scripts/check-nats-mtls-secrets.sh
+bash deploy/scripts/check-admin-ui-mvp.sh
 node services/control/resolve.selftest.js
 node services/control/bridge.selftest.js
+node services/control/pooler-lookup.selftest.js
+node services/control/admin-http.selftest.js
 node services/control/secrets-mask.selftest.js
 node services/control/secrets-cache.selftest.js
 node services/control/nats-tls.selftest.js
