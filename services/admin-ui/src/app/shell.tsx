@@ -43,7 +43,7 @@ export function Shell() {
               id="base-url"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="http://localhost:8080"
+              placeholder="(same origin /v1 proxy) or http://host:8080"
             />
           </div>
           <div className="space-y-1">

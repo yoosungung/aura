@@ -78,6 +78,9 @@ for name in "${PRODUCT[@]}"; do
   kubectl apply -k "$ROOT/deploy/k8s/$name"
 done
 
+echo "== control-admin + admin-ui (Pooler DDL + SPA) =="
+bash "$ROOT/deploy/scripts/apply-admin-ui.sh"
+
 echo "== agent/mcp functions (task-bridge; no language MQT) =="
 # Retire legacy agent/mcp MessageQueueTriggers (M3.6 multi-runtime).
 kubectl -n default delete messagequeuetrigger.fission.io/aura-agent-invoke \

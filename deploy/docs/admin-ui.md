@@ -160,10 +160,13 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 ```bash
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
+bash deploy/scripts/apply-admin-ui.sh
 node services/control/admin-http.selftest.js
 node services/control/pooler-lookup.selftest.js
 node services/admin-ui/ui.selftest.cjs
 cd services/admin-ui && npm test && npm run build
+# kubectl -n aura port-forward svc/aura-admin-ui 18080:8080
+# open http://localhost:18080  Bearer=ops-dev-token
 ```
 
 PASS = 문서·DDL·API·상태머신·서버 checksum·audit GET·Pooler lookup·React Admin UI 계약 일치. live Garage/Pooler = Non-goal(injectable).

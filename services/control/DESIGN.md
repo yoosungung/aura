@@ -34,6 +34,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | `tenant-tx.js` | `withTenantTx` — `set_config(..., true)` only |
 | `pooler-lookup.js` | Pooler SELECT → `{source,user}` (active only) |
 | `admin-http.js` | 관리 HTTP 라우트 핸들러 (presign·sources·activate·overlays·**GET audit**) |
+| `admin-entrypoint.js` | 생산 Pooler DSN 배선 · `createAdminServer` |
 | `secrets-mask.js` | `maskSecrets` |
 | `secrets-cache.js` | TTL≤60s · rotate 무효화 |
 | `nats-tls.js` | mTLS 클라이언트 가드 |

@@ -55,17 +55,19 @@ function createAdminHandlers(opts = {}) {
         : { ok: false, error: 'unauthorized' });
 
   async function dispatch(req) {
+    const method = (req.method || 'GET').toUpperCase();
+    const path = normalizePath(req.path || '/');
+
+    // Probes must not require Bearer.
+    if (method === 'GET' && path === '/healthz') {
+      return { status: 200, body: { ok: true } };
+    }
+
     const auth = authenticate(req.authorization || null);
     if (!auth.ok) {
       return { status: 401, body: { error: auth.error || 'unauthorized' } };
     }
     const actor = auth.actor || 'ops';
-    const method = (req.method || 'GET').toUpperCase();
-    const path = normalizePath(req.path || '/');
-
-    if (method === 'GET' && path === '/healthz') {
-      return { status: 200, body: { ok: true } };
-    }
 
     if (method === 'GET' && path === '/v1/tenants') {
       return listTenants(client, staticTenants);

@@ -56,8 +56,10 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 ```bash
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
+bash deploy/scripts/apply-admin-ui.sh
 cd services/admin-ui && npm test && npm run build
 node services/admin-ui/ui.selftest.cjs
 node services/control/admin-http.selftest.js
 node services/control/pooler-lookup.selftest.js
+# local UI: kubectl -n aura port-forward svc/aura-admin-ui 18080:8080
 ```

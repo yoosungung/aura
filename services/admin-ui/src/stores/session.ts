@@ -13,7 +13,8 @@ type SessionState = {
 export const useSession = create<SessionState>()(
   persist(
     (set) => ({
-      baseUrl: 'http://localhost:8080',
+      // Empty = same-origin (nginx proxies /v1 → aura-control-admin).
+      baseUrl: '',
       bearer: '',
       tenantId: null,
       setBaseUrl: (baseUrl) => set({ baseUrl }),

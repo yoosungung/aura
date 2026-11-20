@@ -44,7 +44,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `services/memory-capture/` | `memory_capture` 내부 DESIGN + handler (PG 금지 · candidates envelope) | `services/memory-capture/` |
 | `services/control/` | `svc-control` DESIGN + resolve/브리지 + **관리 HTTP** + **pooler-lookup** + `control_audit` | `services/control/` |
 | `services/admin-ui/` | 플랫폼 ops Admin UI (React+TS+Tailwind · Tenant picker · sources · bundles · overlays · audit) | `services/admin-ui/` |
-| `deploy/k8s/control-admin/` | `aura-control-admin` Deployment+Service (관리 HTTP · replicas≥2 · **ns `aura`**) | `deploy/k8s/control-admin/` |
+| `deploy/k8s/control-admin/` | `aura-control-admin` Deployment+Service (관리 HTTP · Pooler · replicas≥2 · **ns `aura`**) | `deploy/k8s/control-admin/` |
+| `deploy/k8s/admin-ui/` | Admin UI nginx SPA (`aura-admin-ui` · `/v1`→control-admin · replicas≥2 · **ns `aura`**) | `deploy/k8s/admin-ui/` |
 | `services/agent-invoke/` | `agent_invoke` DESIGN + `nodejs/` · `python/` · testdata · checkpoints · archive | `services/agent-invoke/` |
 | `services/llm-gateway/` | LLM Gateway 내부 DESIGN + client egress 가드 + Fallback/과금 집계 (`aura-llm-gateway`만) | `services/llm-gateway/` |
 | `services/otel/` | OTel attribute 허용 목록 + Function·NATS·PG span 빌더 (`maskSecrets` 재사용) | `services/otel/` |
