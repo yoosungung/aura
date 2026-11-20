@@ -4,3 +4,4 @@ namespace: aura
 resources:
   - deployment.yaml
   - service.yaml
+  - providers-configmap.yaml

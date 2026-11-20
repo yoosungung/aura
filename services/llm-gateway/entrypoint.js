@@ -2,14 +2,13 @@
 
 /**
  * Live HTTP entry for aura-llm-gateway.
- * Wires createLlmGateway; default provider = createStubProvider (live keys = Non-goal).
+ * Wires createLlmGateway. AURA_LLM_PROVIDERS_FILE absent → stub.
+ * Catalog kinds: stub, ollama, openai, vllm, sglang.
  */
 
 const http = require('http');
-const {
-  createLlmGateway,
-  createStubProvider,
-} = require('./gateway');
+const { createLlmGateway } = require('./gateway');
+const { loadProvidersFile } = require('./providers');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -29,15 +28,25 @@ function tenantFrom(req) {
   );
 }
 
-function createServer(opts = {}) {
-  const gw =
-    opts.gateway ||
-    createLlmGateway({
-      provider: opts.provider || createStubProvider(),
+function gatewayDeps(opts) {
+  if (opts.providers || opts.provider) {
+    return {
+      provider: opts.provider,
       providers: opts.providers,
       fallbackModels: opts.fallbackModels,
       limits: opts.limits,
-    });
+    };
+  }
+  const file = opts.providersFile || process.env.AURA_LLM_PROVIDERS_FILE;
+  return {
+    providers: loadProvidersFile(file, { fetch: globalThis.fetch }),
+    fallbackModels: opts.fallbackModels,
+    limits: opts.limits,
+  };
+}
+
+function createServer(opts = {}) {
+  const gw = opts.gateway || createLlmGateway(gatewayDeps(opts));
 
   return http.createServer(async (req, res) => {
     try {

@@ -18,6 +18,11 @@ const {
   GATEWAY_HOSTS,
   PROVIDER_BLOCKLIST,
 } = require('./client');
+const {
+  PROVIDER_KINDS,
+  providersFromConfig,
+  loadProvidersFile,
+} = require('./providers');
 
 function fail(msg) {
   console.error('FAIL:', msg);
@@ -399,6 +404,82 @@ async function testBillingDashboardAggregate() {
   ok('tenant billing usage aggregate + dashboard render');
 }
 
+async function testProviderKinds() {
+  for (const kind of ['stub', 'ollama', 'openai', 'vllm', 'sglang']) {
+    assert.ok(PROVIDER_KINDS[kind], kind);
+  }
+  assert.strictEqual(
+    PROVIDER_KINDS.vllm.defaultBaseUrl,
+    'http://vllm.aura.svc.cluster.local:8000/v1',
+  );
+  assert.strictEqual(
+    PROVIDER_KINDS.sglang.defaultBaseUrl,
+    'http://sglang.aura.svc.cluster.local:30000/v1',
+  );
+  assert.strictEqual(PROVIDER_KINDS.ollama.defaultModel, 'gemma4:e2b');
+
+  assert.throws(
+    () => providersFromConfig(JSON.stringify({ providers: [{ kind: 'tensorrt' }] })),
+    (e) => e && e.code === 'provider_kind_invalid',
+  );
+
+  const calls = [];
+  const providers = providersFromConfig(
+    JSON.stringify({
+      providers: [
+        { name: 'local-vllm', kind: 'vllm', model: 'served-model' },
+        {
+          name: 'local-sglang',
+          kind: 'sglang',
+          apiKeyEnv: 'SGLANG_API_KEY',
+        },
+      ],
+    }),
+    {
+      env: { SGLANG_API_KEY: 'sglang-secret' },
+      fetch: async (url, init) => {
+        calls.push({ url, init: JSON.parse(init.body), headers: init.headers });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          }),
+        };
+      },
+    },
+  );
+  assert.strictEqual(providers[0].baseUrl, PROVIDER_KINDS.vllm.defaultBaseUrl);
+  assert.strictEqual(providers[1].baseUrl, PROVIDER_KINDS.sglang.defaultBaseUrl);
+  const pinned = await providers[0].complete({
+    model: 'client-asked',
+    messages: [{ role: 'user', content: 'hi' }],
+  });
+  assert.strictEqual(calls[0].url, `${PROVIDER_KINDS.vllm.defaultBaseUrl}/chat/completions`);
+  assert.strictEqual(calls[0].init.model, 'served-model');
+  assert.strictEqual(pinned.provider, 'local-vllm');
+  await providers[1].complete({
+    model: 'client-model',
+    messages: [{ role: 'user', content: 'hi' }],
+  });
+  assert.strictEqual(calls[1].url, `${PROVIDER_KINDS.sglang.defaultBaseUrl}/chat/completions`);
+  assert.strictEqual(calls[1].init.model, 'client-model');
+  assert.strictEqual(calls[1].headers.authorization, 'Bearer sglang-secret');
+
+  const ollama = providersFromConfig(
+    JSON.stringify({ providers: [{ kind: 'ollama', name: 'ollama' }] }),
+    { fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }) },
+  );
+  assert.strictEqual(ollama[0].model, 'gemma4:e2b');
+  assert.strictEqual(ollama[0].baseUrl, PROVIDER_KINDS.ollama.defaultBaseUrl);
+
+  const missing = loadProvidersFile('/tmp/aura-llm-providers-missing.json');
+  assert.strictEqual(missing.length, 1);
+  assert.strictEqual(missing[0].name, 'stub');
+  ok('provider kinds: stub ollama openai vllm sglang');
+}
+
 (async () => {
   try {
     await testEgressClientGuard();
@@ -412,6 +493,7 @@ async function testBillingDashboardAggregate() {
     await testFallbackSkipsOpenCircuit();
     await testAllProvidersFail();
     await testBillingDashboardAggregate();
+    await testProviderKinds();
     console.log('llm-gateway.selftest: PASS');
   } catch (e) {
     fail(e && e.stack ? e.stack : String(e));

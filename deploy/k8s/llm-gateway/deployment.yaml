@@ -1,6 +1,7 @@
 # LLM Gateway — always-on HA (ARCHITECTURE §9.4). Sole Function→provider exit.
 # Image: aura/llm-gateway:local (deploy/scripts/build-gateway-images.sh).
-# Default provider = stub (live provider keys = Non-goal).
+# Provider catalog: ConfigMap aura-llm-gateway-providers (default ollama gemma4:e2b).
+# Kinds: stub | ollama | openai | vllm | sglang. Keys via Secret env, not this file.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,6 +35,12 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            - name: AURA_LLM_PROVIDERS_FILE
+              value: /etc/aura/llm-providers/providers.json
+          volumeMounts:
+            - name: llm-providers
+              mountPath: /etc/aura/llm-providers
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /healthz
@@ -52,3 +59,7 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: llm-providers
+          configMap:
+            name: aura-llm-gateway-providers

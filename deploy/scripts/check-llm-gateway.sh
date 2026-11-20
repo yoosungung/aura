@@ -10,6 +10,8 @@ GW="$ROOT/services/llm-gateway/gateway.js"
 CLIENT="$ROOT/services/llm-gateway/client.js"
 SELFTEST="$ROOT/services/llm-gateway/gateway.selftest.js"
 DEP="$ROOT/deploy/k8s/llm-gateway/deployment.yaml"
+CM="$ROOT/deploy/k8s/llm-gateway/providers-configmap.yaml"
+PROV="$ROOT/services/llm-gateway/providers.js"
 SVC="$ROOT/deploy/k8s/llm-gateway/service.yaml"
 KUST="$ROOT/deploy/k8s/llm-gateway/kustomization.yaml"
 ARCH="$ROOT/ARCHITECTURE.md"
@@ -28,6 +30,8 @@ ok() { echo "OK: $*"; }
 [[ -f "$CLIENT" ]] || fail "missing $CLIENT"
 [[ -f "$SELFTEST" ]] || fail "missing $SELFTEST"
 [[ -f "$DEP" ]] || fail "missing $DEP"
+[[ -f "$CM" ]] || fail "missing $CM"
+[[ -f "$PROV" ]] || fail "missing $PROV"
 [[ -f "$SVC" ]] || fail "missing $SVC"
 [[ -f "$KUST" ]] || fail "missing $KUST"
 
@@ -57,6 +61,19 @@ grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$DEP" \
   || fail "Deployment replicas must be ≥ 2"
 grep -q 'aura-llm-gateway' "$SVC" || fail "Service must be aura-llm-gateway"
 grep -q 'image: aura/llm-gateway:local' "$DEP" || fail "llm-gateway image must be aura/llm-gateway:local"
+grep -q 'aura-llm-gateway-providers' "$DEP" || fail "Deployment must mount provider ConfigMap"
+grep -q 'AURA_LLM_PROVIDERS_FILE' "$DEP" || fail "Deployment must set AURA_LLM_PROVIDERS_FILE"
+grep -q 'providers-configmap.yaml' "$KUST" || fail "kustomization must include providers ConfigMap"
+grep -q 'gemma4:e2b' "$CM" || fail "provider ConfigMap default model must be gemma4:e2b"
+grep -q '"kind": "ollama"' "$CM" || fail "provider ConfigMap default kind must be ollama"
+for kind in stub ollama openai vllm sglang; do
+  grep -q "$kind" "$PROV" || fail "providers.js must allow kind $kind"
+  grep -q "$kind" "$DESIGN" || fail "DESIGN must name kind $kind"
+done
+grep -q '8000' "$PROV" || fail "vllm default port must be 8000"
+grep -q '30000' "$PROV" || fail "sglang default port must be 30000"
+grep -q 'providers.js' "$ROOT/services/llm-gateway/Dockerfile" \
+  || fail "llm-gateway image must bake providers.js"
 [[ -f "$ROOT/services/llm-gateway/Dockerfile" ]] || fail "missing llm-gateway Dockerfile"
 [[ -f "$ROOT/services/llm-gateway/entrypoint.js" ]] || fail "missing llm-gateway entrypoint.js"
 grep -q 'dev.orbstack.icon=' "$ROOT/services/llm-gateway/Dockerfile" \

@@ -36,6 +36,7 @@
 |------|-----|
 | Service DNS | `aura-llm-gateway.aura.svc.cluster.local:8080` |
 | Deployment | `deploy/k8s/llm-gateway/` · **replicas ≥ 2** · label `app: aura-llm-gateway` |
+| Provider catalog | ConfigMap `aura-llm-gateway-providers` · kinds `stub` `ollama` `openai` `vllm` `sglang` · 기본 `ollama` / `gemma4:e2b` |
 | PG / MQT | 없음 |
 
 ---

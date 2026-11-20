@@ -16,7 +16,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |------|-----|
 | 역할 | Function·`agent_invoke`/`memory_capture` 등 → **클러스터 LLM Gateway만** → 공급자 |
 | 실행 계급 | **상시 ≥2** Deployment (`aura-llm-gateway`). Fission MQT / scale-to-zero **금지** |
-| 이미지 | `aura/llm-gateway:local` · `gateway.js` 베이크 · 기본 stub provider · `dev.orbstack.icon` · `node -e` 금지 |
+| 이미지 | `aura/llm-gateway:local` · `gateway.js`·`providers.js` 베이크 · 카탈로그 파일 없으면 stub · `dev.orbstack.icon` · `node -e` 금지 |
 | PG | **없음** |
 | 라벨 | `app: aura-llm-gateway` (샌드박스 NP allow peer) |
 | 금지 | Function→`api.openai.com` 등 공급자 **직접** (`client.js` + NP) |
@@ -42,11 +42,28 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |------|------|
 | `gateway.js` | `createLlmGateway` · stub · bucket RL · circuit · **providers[] Fallback** · usage · `handleBillingUsage` · `renderBillingDashboard` |
 | `client.js` | `createLlmGatewayClient` · `assertFunctionLlmEgress` (provider blocklist) |
-| `entrypoint.js` | HTTP 배선 · 기본 `createStubProvider` (live provider 키=Non-goal) |
+| `providers.js` | ConfigMap JSON → `stub`/`ollama`/`openai`/`vllm`/`sglang` |
+| `entrypoint.js` | HTTP 배선 · `AURA_LLM_PROVIDERS_FILE` 없으면 stub |
 | `gateway.selftest.js` | egress · 429 · circuit · **fallback** · **billing aggregate** |
 
 기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_LLM_LIMITS`).  
 Deps: `providers[]` (또는 단일 `provider`) · `fallbackModels: { [requested]: fallbackId }`.
+
+---
+
+## Provider catalog (ConfigMap)
+
+라우팅만 ConfigMap `aura-llm-gateway-providers` 키 `providers.json`. API 키는 Secret이고, 항목의 `apiKeyEnv`가 그 env 이름을 가리킨다. 가중치 호스팅은 하지 않는다. 파일이 없으면 프로세스 기본은 stub (CI). 클러스터 기본 항목은 `kind: ollama`, `model: gemma4:e2b`.
+
+| kind | 호출 | 기본 `baseUrl` | 기본 model |
+|------|------|----------------|------------|
+| `stub` | 프로세스 내 | — | — |
+| `ollama` | OpenAI `POST {baseUrl}/chat/completions` | `http://ollama.aura.svc.cluster.local:11434/v1` | `gemma4:e2b` |
+| `openai` | 동일 | `https://api.openai.com/v1` | 요청 model |
+| `vllm` | 동일 (vLLM OpenAI 서버, 기본 포트 **8000**) | `http://vllm.aura.svc.cluster.local:8000/v1` | 요청 model |
+| `sglang` | 동일 (SGLang HTTP, 기본 포트 **30000**) | `http://sglang.aura.svc.cluster.local:30000/v1` | 요청 model |
+
+`model`이 있으면 그 provider는 요청 model 대신 고정한다. `kind`가 위 표 밖이면 `provider_kind_invalid`. 순서 = Fallback 순서.
 
 ---
 
