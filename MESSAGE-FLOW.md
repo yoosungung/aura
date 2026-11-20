@@ -3,7 +3,7 @@
 Aura **전체 시스템 메시지·호출 흐름** 다이어그램이다.  
 계약·스키마·subject 표의 정본은 [ARCHITECTURE.md](ARCHITECTURE.md). 컴포넌트 내부는 각 `DESIGN.md` / `deploy/docs/*`.
 
-**이 문서 범위:** 채널 분류 · 대화형 invoke E2E(`createAgent` 턴) · MQT 파드 관계 · 메모리 파이프라인 · sync RPC.  
+**이 문서 범위:** 채널 분류 · 대화형 invoke E2E(`createAgent` 턴) · async 이원화(MQT vs task-bridge) · 메모리 파이프라인 · sync RPC.  
 **Non-goals:** DDL·페이로드 필드·archive 패키징·Fair Queue 수치(→ ARCHITECTURE / `deploy/docs`).
 
 ---
@@ -15,7 +15,7 @@ Aura **전체 시스템 메시지·호출 흐름** 다이어그램이다.
 | `aura.tasks.*` | JetStream WorkQueue → **Fission MQT** (memory 등) 또는 **task-bridge** (agent/mcp) | 내구 작업 | connector/bridge `min=0` OK |
 | `aura.rpc.*` | NATS **Core** Request-Reply | 동기 홉 | **공용 브리지 ≥2** + sync poolmgr Warm, MQT 금지 |
 | `aura.stream.*` | NATS **Core** pub/sub | UX 토큰/툴 (유실 허용) | Gateway 구독 |
-| `aura.events.*` | JetStream Limits | 완료·감사 정본 | MQT `respTopic`/`errorTopic` 등 |
+| `aura.events.*` | JetStream Limits | 완료·감사 정본 | MQT/`task-bridge` `respTopic`/`errorTopic` |
 | `aura.dlq.*` | JetStream Limits | MaxDeliver 초과 격리 | Term 경로 |
 
 ```mermaid
@@ -49,6 +49,8 @@ flowchart LR
 
 ## 2. 토폴로지 개요
 
+async는 **두 경로**다. memory 계열은 Fission MQT 1:1, agent/mcp는 동일 subject에 다중 `runtime`이 있어 **task-bridge**가 Function을 고른다.
+
 ```mermaid
 flowchart TB
   Client((Client))
@@ -56,11 +58,15 @@ flowchart TB
   Client -->|"POST /v1/agent/invoke"| GW[Gateway ≥2]
   Client <-->|"SSE / WS<br/>aura.stream.run_id"| GW
 
-  GW -->|"quota OK → publish"| NATS[(NATS)]
+  GW -->|"quota OK · runtime stamp → publish"| NATS[(NATS)]
 
-  subgraph async["async MQT — scale-to-zero OK"]
-    AI[agent_invoke]
+  subgraph taskBridge["async task-bridge — scale-to-zero OK"]
+    TB[aura-nats-task-bridge]
+    AI[agent_invoke node/py/custom]
     MCP_T[mcp_invoke task]
+  end
+
+  subgraph mqt["async MQT — scale-to-zero OK"]
     CAP[memory_capture]
     STORE[svc-memory store/embed/…]
   end
@@ -72,8 +78,12 @@ flowchart TB
     RESOLVE[aura-control-resolve]
   end
 
-  NATS -->|"AURA_TASKS"| async
-  async -->|"aura.rpc.*"| BR
+  NATS -->|"AURA_TASKS agent/mcp"| TB
+  TB -->|runtime→Function| AI
+  TB -->|runtime→Function| MCP_T
+  NATS -->|"AURA_TASKS memory.*"| mqt
+  AI -->|"aura.rpc.*"| BR
+  MCP_T -->|"aura.rpc.*"| BR
   BR --> RECALL
   BR --> MCP_R
   BR --> RESOLVE
@@ -92,7 +102,7 @@ flowchart TB
 
 ## 3. 대화형 `agent.invoke` E2E
 
-Gateway가 쿼터를 통과한 뒤에만 JetStream에 넣고, 실행 중 UX는 Core 스트림, **완료 정본은 events**다.
+Gateway가 쿼터·resolve(`runtime` 스탬프)를 통과한 뒤에만 JetStream에 넣고, 실행 중 UX는 Core 스트림, **완료 정본은 events**다. agent/mcp async는 **MQT가 아니라 task-bridge**다.
 
 ```mermaid
 sequenceDiagram
@@ -100,9 +110,10 @@ sequenceDiagram
   actor Client
   participant GW as Gateway
   participant KV as NATS KV quota
+  participant RR0 as aura.rpc.control.resolve
   participant JS as AURA_TASKS
   participant KEDA as KEDA
-  participant Conn as MQT connector
+  participant TB as aura-nats-task-bridge
   participant R as Fission Router
   participant AI as agent_invoke Fn
   participant RR as sync RPC Warm
@@ -116,15 +127,18 @@ sequenceDiagram
     GW-->>Client: 429 quota
   else OK
     GW->>GW: run_id UUIDv7
-    GW->>JS: aura.tasks.agent.invoke
+    GW->>RR0: resolve agent source
+    RR0-->>GW: runtime (+ function if custom)
+    GW->>JS: aura.tasks.agent.invoke (runtime stamp)
     GW-->>Client: 202 + run_id
     Client->>GW: SSE/WS subscribe
     GW->>St: Core subscribe exact subject
 
     KEDA->>JS: poll consumer lag
-    KEDA->>Conn: scale 0→N
-    Conn->>JS: pull
-    Conn->>R: HTTP POST body
+    KEDA->>TB: scale 0→N
+    TB->>JS: pull
+    TB->>TB: runtime → Function name
+    TB->>R: POST /fission-function/name
     R->>AI: invoke
 
     AI->>RR: aura.rpc.control.resolve
@@ -132,7 +146,7 @@ sequenceDiagram
     AI->>St: run.started
     AI->>RR: aura.rpc.memory.recall
     RR-->>AI: items[]
-    Note over AI: runTurn = createAgent (Node)
+    Note over AI: runTurn = createAgent (Node) / 대칭 python
     opt tools list
       AI->>RR: aura.rpc.mcp.tool action=list
       RR-->>AI: tools[]
@@ -148,22 +162,24 @@ sequenceDiagram
       end
     end
     AI->>St: run.completed
-    AI-->>Conn: HTTP 2xx done body
-    Conn->>Ev: aura.events.agent.invoke.done
+    AI-->>TB: HTTP 2xx done body
+    TB->>Ev: aura.events.agent.invoke.done
     GW->>KV: release inflight
     Note over St,Client: 스트림은 유실 허용 · 감산/감사는 events
   end
 ```
 
-실패 시 Function 비-2xx → connector가 `aura.events.agent.invoke.error`로 적재. poison은 MaxDeliver 후 `aura.dlq.>` Term(ARCHITECTURE §3.2).
+실패 시 Function 비-2xx → task-bridge가 `aura.events.agent.invoke.error`로 적재. poison은 MaxDeliver 후 `aura.dlq.>` Term(ARCHITECTURE §3.2).
 
-와이어 상세: [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md).
+와이어 상세: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md).
 
 ---
 
-## 4. MQT: 커넥터 파드 vs Function 파드
+## 4. Async 이원화: MQT vs task-bridge
 
-MQT마다 **역할이 다른 두 Deployment**가 있다. KEDA가 스케일하는 대상은 **커넥터**다.
+### 4.1 memory 등 — Fission MQT
+
+MQT마다 **역할이 다른 두 Deployment**가 있다. KEDA가 스케일하는 대상은 **커넥터**다. topic→Function **1:1**.
 
 ```mermaid
 sequenceDiagram
@@ -174,7 +190,7 @@ sequenceDiagram
   participant Router as Fission Router
   participant Fn as Function Pod<br/>env + fetcher
 
-  Pub->>JS: publish aura.tasks.*
+  Pub->>JS: publish aura.tasks.memory.*
   KEDA->>JS: lag via monitoring :8222
   KEDA->>Conn: replicas 0…max
   Conn->>JS: pull consumer
@@ -193,17 +209,46 @@ sequenceDiagram
 | 파드 | 하는 일 | Aura async 스케일 |
 |------|---------|-------------------|
 | **MQT connector** | JetStream pull → Router HTTP → resp/error publish (**언어 비선택**, Fission/KEDA 이미지) | MQT `minReplicaCount=0` |
-| **Function** | 핸들러 실행 (env + fetcher). **nodejs + python 병행**(agent/mcp); memory 등은 node — connector/bridge와 독립 | executor(`poolmgr`)·env pool · [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
+| **Function** | 핸들러 실행 (env + fetcher). memory 등은 기존 MQT 유지 | executor·env pool |
 
-동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders). NATS 구독은 **`aura-nats-rpc-bridge`만** — Fission Router로 Sync Function(`poolmgr`) 중계.
+### 4.2 agent / mcp — `aura-nats-task-bridge`
 
-multi-env 후속: [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md).
+동일 subject에 nodejs·python·custom을 붙이면 MQT 1:1은 경쟁 소비가 된다. **브리지가 `runtime`(및 custom `function` allowlist)만 보고 Router로 중계**한다. 도메인 handler·PG는 브리지에 두지 않는다.
+
+```mermaid
+sequenceDiagram
+  participant Pub as Gateway / publisher
+  participant JS as JetStream AURA_TASKS
+  participant KEDA as KEDA ScaledObject
+  participant TB as aura-nats-task-bridge
+  participant Router as Fission Router
+  participant Fn as agent/mcp Function<br/>nodejs|python|custom
+
+  Pub->>JS: publish agent.invoke / mcp.invoke
+  KEDA->>JS: lag
+  KEDA->>TB: replicas 0…max
+  TB->>JS: pull durable consumer
+  TB->>TB: map runtime → Function
+  TB->>Router: POST /fission-function/name
+  Router->>Fn: invoke
+  Fn-->>TB: HTTP response
+  alt 2xx
+    TB->>JS: respTopic → AURA_EVENTS
+  else fail
+    TB->>JS: errorTopic → AURA_EVENTS
+  end
+  Note over TB: 언어별 MQT 이중 구독 금지
+```
+
+동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders). NATS 구독은 **`aura-nats-rpc-bridge`만** — Fission Router로 Sync Function(`poolmgr`) 중계. `aura.rpc.mcp.tool`도 `runtime`→Function 매핑.
+
+상세: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md).
 
 ---
 
-## 5. 메모리 파이프라인 (async)
+## 5. 메모리 파이프라인 (async MQT)
 
-`agent_invoke`는 메모리를 PG에 쓰지 않는다. capture → (event) → store/embed.
+`agent_invoke`는 메모리를 PG에 쓰지 않는다. capture → (event) → store/embed. consolidate/ttl/archive/object_gc도 같은 MQT 계급(ARCHITECTURE §3.2).
 
 ```mermaid
 sequenceDiagram
@@ -270,6 +315,7 @@ sequenceDiagram
 |--------------|------|
 | 계약·subject 표 | [ARCHITECTURE.md](ARCHITECTURE.md) §1–§4 |
 | Gateway·Fair Queue | [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md) · [`gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md) |
+| agent/mcp task-bridge | [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 | agent_invoke 순서 | [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) |
 | mcp MQT+RPC | [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) |
 | control.resolve | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md) |

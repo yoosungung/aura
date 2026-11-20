@@ -63,9 +63,9 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
    ▼                       ▼
 [Gateway] ──pub tasks──► NATS ◄──sub aura.stream.<run_id>── [Gateway]
                               │
-        │ ── async AURA_TASKS (MQT, scale-to-zero OK) ──
-        ├── agent_invoke     (MQT) ──pub──► aura.stream.<run_id> (Core, 유실 허용)
-        ├── mcp_invoke_task  (MQT)
+        │ ── async AURA_TASKS (agent/mcp: task-bridge · memory: MQT; scale-to-zero OK) ──
+        ├── aura-nats-task-bridge → agent_invoke / mcp_invoke (runtime→Function)
+        │         └── agent_invoke ──pub──► aura.stream.<run_id> (Core, 유실 허용)
         ├── memory_capture   (MQT)
         ├── svc-memory store/embed/consolidate (MQT)
         │
@@ -80,10 +80,11 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 | 컴포넌트 | 역할 | 실행 계급 | PG |
 |----------|------|-----------|-----|
-| **Gateway** | 태스크 **쿼터 검사 후** publish; `aura.stream.<run_id>` → 클라이언트 SSE/WS · **ns `aura`** | 상시 ≥2 | 없음(쿼터 상태는 NATS KV 등, §2.2) |
+| **Gateway** | 태스크 **쿼터 검사·resolve `runtime` 스탬프 후** publish; `aura.stream.<run_id>` → 클라이언트 SSE/WS · **ns `aura`** | 상시 ≥2 | 없음(쿼터 상태는 NATS KV 등, §2.2) |
+| **`aura-nats-task-bridge`** | `aura.tasks.agent.invoke` / `mcp.invoke` JetStream pull → `runtime`→Function → Fission Router · resp/error · **ns `aura`** | KEDA lag · **min=0** | 없음 |
 | **`aura-nats-rpc-bridge`** | `aura.rpc.*` queue-group 구독 → Fission Router HTTP 중계 · **ns `aura`** | 상시 ≥2 | 없음 |
-| `agent_invoke` | 턴 실행; recall/mcp/resolve RPC; **스트림 프레임 publish**; capture 발행; done/error 이벤트 | **async** MQT (0 허용) | 체크포인트만 (**Pooler**) |
-| `mcp_invoke` (task) | 비동기 MCP 작업 | **async** MQT (0 허용) | 없음 |
+| `agent_invoke` | 턴 실행; recall/mcp/resolve RPC; **스트림 프레임 publish**; capture 발행; done/error 이벤트 | **async** task-bridge (0 허용) | 체크포인트만 (**Pooler**) |
+| `mcp_invoke` (task) | 비동기 MCP 작업 | **async** task-bridge (0 허용) | 없음 |
 | `mcp_invoke` (rpc) | `aura.rpc.mcp.tool` → Function `aura-mcp-invoke-rpc` | **sync** poolmgr Warm | 없음 |
 | `memory_capture` | LLM 후보 추출 → 이벤트 | **async** MQT (0 허용) | **쓰기·읽기 금지** |
 | `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
@@ -149,23 +150,23 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 | (없음) | Core | `aura.rpc.>` | Request-Reply (스트림에 넣지 않음) |
 | (없음) | Core | `aura.stream.>` | UX 토큰/툴 진행 (유실 허용, JetStream 금지) |
 
-스트림은 Fission MQT 생성 **전에** 존재해야 한다. MQT 메타의 `stream`·`consumer`(pull)는 아래 표와 맞춘다.
+스트림은 Fission MQT / task-bridge consumer 생성 **전에** 존재해야 한다. MQT·브리지 메타의 `stream`·`consumer`(pull)는 아래 표와 맞춘다.
 
-### 3.2 태스크 (WorkQueue → Fission MQT)
+### 3.2 태스크 (WorkQueue → MQT 또는 task-bridge)
 
-| Subject | Consumer (예) | 함수 | resp / error subject |
-|---------|---------------|------|----------------------|
-| `aura.tasks.agent.invoke` | `aura_agent_invoke` | `agent_invoke` | `aura.events.agent.invoke.done` / `aura.events.agent.invoke.error` |
-| `aura.tasks.mcp.invoke` | `aura_mcp_invoke` | `mcp_invoke` | `aura.events.mcp.invoke.done` / `aura.events.mcp.invoke.error` |
-| `aura.tasks.memory.capture` | `aura_memory_capture` | `memory_capture` | `aura.events.memory.candidates` / `aura.events.memory.capture.error` |
-| `aura.tasks.memory.store` | `aura_memory_store` | `svc-memory` store | `aura.events.memory.stored` / `aura.events.memory.store.error` |
-| `aura.tasks.memory.embed` | `aura_memory_embed` | `svc-memory` embed | `aura.events.memory.embedded` / `aura.events.memory.embed.error` |
-| `aura.tasks.memory.consolidate` | `aura_memory_consolidate` | `svc-memory` consolidate | `aura.events.memory.consolidated` / `aura.events.memory.consolidate.error` |
-| `aura.tasks.memory.ttl` | `aura_memory_ttl` | `svc-memory` ttl | `aura.events.memory.ttl.done` / `aura.events.memory.ttl.error` |
-| `aura.tasks.memory.archive` | `aura_memory_archive` | `svc-memory` archive | `aura.events.memory.archived` / `aura.events.memory.archive.error` |
-| `aura.tasks.memory.object_gc` | `aura_memory_object_gc` | `svc-memory` object_gc | `aura.events.memory.object_gc.done` / `aura.events.memory.object_gc.error` |
+| Subject | Consumer (예) | 함수 / 경로 | resp / error subject |
+|---------|---------------|-------------|----------------------|
+| `aura.tasks.agent.invoke` | `aura_task_bridge_agent` | **task-bridge** → `agent_invoke` | `aura.events.agent.invoke.done` / `aura.events.agent.invoke.error` |
+| `aura.tasks.mcp.invoke` | `aura_task_bridge_mcp` | **task-bridge** → `mcp_invoke` | `aura.events.mcp.invoke.done` / `aura.events.mcp.invoke.error` |
+| `aura.tasks.memory.capture` | `aura_memory_capture` | MQT → `memory_capture` | `aura.events.memory.candidates` / `aura.events.memory.capture.error` |
+| `aura.tasks.memory.store` | `aura_memory_store` | MQT → `svc-memory` store | `aura.events.memory.stored` / `aura.events.memory.store.error` |
+| `aura.tasks.memory.embed` | `aura_memory_embed` | MQT → `svc-memory` embed | `aura.events.memory.embedded` / `aura.events.memory.embed.error` |
+| `aura.tasks.memory.consolidate` | `aura_memory_consolidate` | MQT → `svc-memory` consolidate | `aura.events.memory.consolidated` / `aura.events.memory.consolidate.error` |
+| `aura.tasks.memory.ttl` | `aura_memory_ttl` | MQT → `svc-memory` ttl | `aura.events.memory.ttl.done` / `aura.events.memory.ttl.error` |
+| `aura.tasks.memory.archive` | `aura_memory_archive` | MQT → `svc-memory` archive | `aura.events.memory.archived` / `aura.events.memory.archive.error` |
+| `aura.tasks.memory.object_gc` | `aura_memory_object_gc` | MQT → `svc-memory` object_gc | `aura.events.memory.object_gc.done` / `aura.events.memory.object_gc.error` |
 
-MQT: `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.stream`은 `AURA_TASKS`(태스크) 또는 문서에 명시한 스트림.
+**MQT**(memory 등): `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.stream`은 `AURA_TASKS`. **task-bridge**(agent/mcp): 언어별 MQT 금지 — [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
 
 **MaxDeliver · DLQ (독약 메시지)**
 
@@ -174,7 +175,7 @@ MQT: `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.
 | `MaxDeliver` | WorkQueue consumer별 유한값(초안 **5**, DESIGN 확정). 초과 시 재전달 중단 |
 | DLQ 스트림 | `AURA_DLQ` (Limits), subject `aura.dlq.>` — 원본 subject·마지막 오류·payload 메타 복사 |
 | 적재 경로 | **① 함수/미들웨어 Term** — 마지막 delivery에서 `AURA_DLQ` 발행 후 `Term()`/`Ack`. JetStream 자동 이관 없음. **② Advisory 구독 비채택** |
-| 격리 | poison이 워커 슬롯을 점유하며 재시도 루프하지 않음; `errorTopic`(MQT)과 병행·역할 분리 |
+| 격리 | poison이 워커 슬롯을 점유하며 재시도 루프하지 않음; `errorTopic`(MQT / task-bridge)과 병행·역할 분리 |
 | 재처리 | 운영 Replay 도구(CLI/admin)만 — [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md) · 자동 무한 replay 금지 |
 
 ### 3.3 RPC (Core Request-Reply — 상시 워밍)
@@ -219,7 +220,7 @@ RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에
 | `error` | 스트림상 오류 힌트(정본은 `aura.events.agent.invoke.error`) |
 | `run.completed` | 스트림 종료 신호; **내구 완료는 반드시** `aura.events.agent.invoke.done` |
 
-MQT·프레임·RPC 순서 고정: [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · 핸들러 [`services/agent-invoke/`](services/agent-invoke/).
+task-bridge·프레임·RPC 순서 고정: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · 핸들러 [`services/agent-invoke/`](services/agent-invoke/).
 
 규칙:
 
