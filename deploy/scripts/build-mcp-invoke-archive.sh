@@ -10,8 +10,21 @@ trap 'rm -rf "$STAGE"' EXIT
 cp "$SRC/handler.js" "$STAGE/"
 cp "$SRC/streamable-http.js" "$STAGE/"
 cp "$SRC/factory.js" "$STAGE/" 2>/dev/null || true
-cp "$SRC/rpc-worker.js" "$STAGE/" 2>/dev/null || true
 cp "$SRC/package.json" "$STAGE/"
+# Fission entry: default export is handler (RPC path via x-aura-rpc / body).
+cat >"$STAGE/index.js" <<'JS'
+'use strict';
+module.exports = require('./handler');
+JS
+# Ensure package main points at index for specialize
+python3 - "$STAGE/package.json" <<'PY'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1])
+data = json.loads(p.read_text()) if p.exists() else {}
+data["main"] = "index.js"
+data["private"] = True
+p.write_text(json.dumps(data, indent=2) + "\n")
+PY
 
 (
   cd "$STAGE"
@@ -21,6 +34,5 @@ cp "$SRC/package.json" "$STAGE/"
   rm -f "$OUT"
   zip -qr "$OUT" . -x 'node_modules/*'
 )
-# RPC kustomize may reuse the same zip
 cp "$OUT" "$ROOT/deploy/k8s/mcp-invoke-rpc/archive.zip"
 echo "OK: wrote $OUT and mcp-invoke-rpc/archive.zip"

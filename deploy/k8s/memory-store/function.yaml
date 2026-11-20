@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/name: aura-memory-store
 spec:
   environment:
-    name: aura-memory-store-nodejs
+    name: aura-nodejs-async
     namespace: default
   package:
     packageref:

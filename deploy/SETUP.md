@@ -3,7 +3,10 @@
 로컬/개발 클러스터에 **NATS JetStream · KEDA · Fission**을 올린다. 계약은 [ARCHITECTURE.md](../ARCHITECTURE.md) §3–§4, 일정은 [ROADMAP.md](../ROADMAP.md) M0.
 
 **경로 분리:** 제품 매니페스트 = [`k8s/`](k8s/) · smoke/로컬 하네스 = [`dev/`](dev/) ([`dev/README.md`](dev/README.md)).  
-제품 적용: `bash deploy/scripts/apply-product.sh` (runtime+pooler 이후). 아래 one-shot의 `apply-split-deploy`·`smoke-*`는 **dev/test only**.
+제품 적용: `bash deploy/scripts/apply-product.sh` (runtime+pooler 이후).  
+Fission Environment는 클래스 공용 2개만 — [`k8s/runtime-envs`](k8s/runtime-envs/) (`aura-nodejs-async` poolsize 1 · `aura-nodejs-sync` poolsize 2, 둘 다 **poolmgr**).  
+sync RPC: [`k8s/nats-rpc-bridge`](k8s/nats-rpc-bridge/) → Router → Sync Function. 서비스별 `*-rr`·sync `newdeploy` 상주 금지.  
+아래 one-shot의 `apply-split-deploy`·`smoke-*`는 **dev/test only**.
 
 **이 문서 범위:** 컨트롤 플레인 설치·스모크 + JetStream 스트림 사전 생성 + async/sync 분리(V0.1) + async MQT echo + V0.3 poison→errorTopic + V0.2 sync Core RR + **V0.4 `AURA_DLQ` ① Term**.  
 **후속:** Fission MQT Term 미들웨어 이식 · async 콜드 p95.  
@@ -373,7 +376,7 @@ bash deploy/scripts/check-memory-recall.sh   # DESIGN + hybrid RRF + GUCs + Core
 |------|-----|
 | DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Recall RPC 절) |
 | 코드 | `services/memory/recall/handler.js` (`mode: hybrid_rrf` · short_term 최근순 + BM25/vector RRF + graph walk) · `graph-walk.js` |
-| 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` `newdeploy` **MinScale≥2** · Deployment `aura-memory-recall-rr` **replicas≥2** · subject `aura.rpc.memory.recall` · queue-group `aura-memory-recall` |
+| 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` **poolmgr** · NATS=`aura-nats-rpc-bridge` · subject `aura.rpc.memory.recall` |
 | GUC | Pooler + `set_config(..., true)` · `SET LOCAL hnsw.iterative_scan/ef_search/max_scan_tuples` |
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject · 앱 post-filter |
 | 슈퍼노드 | [`docs/memory-graph-supernode-fixture.md`](docs/memory-graph-supernode-fixture.md) |
@@ -425,32 +428,32 @@ bash deploy/scripts/check-agent-checkpoints.sh   # DDL + FORCE RLS + ownership d
 ### `aura.rpc.control.resolve` 브리지 · Warm Core RR (M3)
 
 ```bash
-bash deploy/scripts/check-control-resolve-bridge.sh   # DESIGN + Warm≥2 + RR Deployment + selftest (no cluster)
+bash deploy/scripts/check-control-resolve-bridge.sh   # DESIGN + poolmgr + shared bridge + selftest (no cluster)
 ```
 
 | 항목 | M3 고정 |
 |------|---------|
 | 문서 | [`docs/control-resolve-bridge.md`](docs/control-resolve-bridge.md) · [`../services/control/DESIGN.md`](../services/control/DESIGN.md) · wire [`docs/svc-control-resolve.md`](docs/svc-control-resolve.md) |
-| sync | `aura.rpc.control.resolve` · queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` **replicas≥2** |
-| 매니페스트 | `k8s/control-resolve/` (Warm + RR; **MQT 없음**) |
+| sync | `aura.rpc.control.resolve` · NATS=`aura-nats-rpc-bridge` · Function `aura-control-resolve` **poolmgr** |
+| 매니페스트 | `k8s/control-resolve/` + `k8s/nats-rpc-bridge/` (**MQT 없음**) |
 | PG | 의도=Pooler + `set_config(..., true)` · **라이브 SELECT 배선 Non-goal** (injectable) |
-| Non-goals | HTTP admin · live Pooler client · sandbox egress |
+| Non-goals | HTTP admin · live Pooler client · sandbox egress · 서비스별 `*-rr` |
 
-### `aura.rpc.control.resolve` 브리지 (M3 · Warm Core RR)
+### `aura.rpc.control.resolve` (M3 · sync Function + 공용 브리지)
 
 ```bash
-bash deploy/scripts/check-control-resolve-bridge.sh   # DESIGN + Warm≥2 + bridge selftest (no cluster)
+bash deploy/scripts/check-control-resolve-bridge.sh   # DESIGN + poolmgr bridge selftest (no cluster)
 bash deploy/scripts/check-svc-control-resolve.sh      # DDL + resolve wire (no cluster)
 ```
 
 | 항목 | M3 고정 |
 |------|---------|
 | 문서 | [`docs/control-resolve-bridge.md`](docs/control-resolve-bridge.md) · [`docs/svc-control-resolve.md`](docs/svc-control-resolve.md) · [`../services/control/DESIGN.md`](../services/control/DESIGN.md) |
-| sync | `aura.rpc.control.resolve` · queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` **replicas≥2** |
-| 매니페스트 | [`k8s/control-resolve/`](k8s/control-resolve/) — **MQT 없음** |
+| sync | `aura.rpc.control.resolve` · 공용 bridge queue `aura-rpc-bridge` · Function **poolmgr** |
+| 매니페스트 | [`k8s/control-resolve/`](k8s/control-resolve/) · [`k8s/nats-rpc-bridge/`](k8s/nats-rpc-bridge/) — **MQT 없음** |
 | handler | `services/control/bridge.js` — stub / injectable lookup |
 | PG | Pooler + `set_config(..., true)` **의도만** (라이브 SELECT Non-goal) |
-| Non-goals | HTTP admin 본구현 · live Pooler 배선 · tenants/ACL |
+| Non-goals | HTTP admin 본구현 · live Pooler 배선 · tenants/ACL · `*-rr` |
 
 ### `mcp_invoke` 이원화 · MQT + RPC (M3)
 
@@ -472,8 +475,8 @@ bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-sh
 |------|---------|
 | 문서 | [`docs/mcp-invoke-dual.md`](docs/mcp-invoke-dual.md) · [`docs/mcp-streamable-http.md`](docs/mcp-streamable-http.md) · [`docs/mcp-bundle-isolation.md`](docs/mcp-bundle-isolation.md) · [`docs/egress-block-verify.md`](docs/egress-block-verify.md) · [`docs/llm-gateway.md`](docs/llm-gateway.md) · [`docs/nats-mtls-secrets.md`](docs/nats-mtls-secrets.md) · [`docs/otel-function-nats-pg.md`](docs/otel-function-nats-pg.md) · [`../services/mcp-invoke/DESIGN.md`](../services/mcp-invoke/DESIGN.md) · [`../services/llm-gateway/DESIGN.md`](../services/llm-gateway/DESIGN.md) · [`../services/otel/DESIGN.md`](../services/otel/DESIGN.md) |
 | async | `aura.tasks.mcp.invoke` / `aura_mcp_invoke` → `aura.events.mcp.invoke.done`/`error` |
-| sync | `aura.rpc.mcp.tool` · queue `aura-mcp-invoke` · **MinScale≥2** + Deployment `aura-mcp-invoke-rr` **replicas≥2** |
-| 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (Warm + RR; **MQT 없음**) · `k8s/sandbox-egress/` (NP + RuntimeClass) · `k8s/llm-gateway/` (Deployment≥2) |
+| sync | `aura.rpc.mcp.tool` · NATS=`aura-nats-rpc-bridge` · Function `aura-mcp-invoke-rpc` **poolmgr** |
+| 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (poolmgr; **MQT 없음**) · `k8s/nats-rpc-bridge/` · `k8s/sandbox-egress/` · `k8s/llm-gateway/` |
 | PG | **금지** (Zero Direct Write) |
 | 격리 | RuntimeClass 기본=`gvisor` · Egress deny-default allowlist · 서명 vs 커스텀 ([`docs/mcp-bundle-isolation.md`](docs/mcp-bundle-isolation.md)) · 차단 검증 ([`docs/egress-block-verify.md`](docs/egress-block-verify.md)) · M5 고위험=`kata`+전용 노드풀 ([`docs/high-risk-tenant-nodepool.md`](docs/high-risk-tenant-nodepool.md) · `check-high-risk-tenant-nodepool.sh`) |
 | LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) · M5 Fallback/과금 [`docs/llm-gateway-fallback-billing.md`](docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` |

@@ -14,7 +14,7 @@ metadata:
     aura.package/archive: deploy/k8s/agent-invoke/archive.zip
 spec:
   environment:
-    name: aura-agent-invoke-nodejs
+    name: aura-nodejs-async
     namespace: default
   source:
     type: archive

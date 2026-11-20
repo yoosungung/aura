@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M3 static gate: aura.rpc.control.resolve bridge — Warm MinScale≥2 + Core RR replicas≥2, no MQT.
+# M3 static gate: aura.rpc.control.resolve — poolmgr Function + shared nats-rpc-bridge, no MQT.
 # No cluster required. Exit 0 only when invariants hold.
 set -euo pipefail
 
@@ -24,7 +24,8 @@ ok() { echo "OK: $*"; }
 
 # DESIGN — bridge subject + Warm + Pooler pointer + Non-goals
 grep -q 'aura.rpc.control.resolve' "$DESIGN" || fail "DESIGN must name aura.rpc.control.resolve"
-grep -Eqi 'MinScale|minReplicas|≥ 2|>= 2' "$DESIGN" || fail "DESIGN must require minReplicas/MinScale ≥ 2"
+grep -Eqi 'poolmgr|nats-rpc-bridge|poolsize|replicas ≥ 2|replicas >= 2' "$DESIGN" \
+  || fail "DESIGN must require poolmgr/bridge Warm (≥2)"
 grep -Eqi 'queue-group|queue group|aura-control-resolve' "$DESIGN" || fail "DESIGN must name queue-group"
 grep -Eqi 'MQT|MessageQueueTrigger' "$DESIGN" || fail "DESIGN must mention MQT absence"
 grep -Eqi 'Non-goals' "$DESIGN" || fail "DESIGN must state Non-goals"
@@ -35,8 +36,10 @@ grep -Eqi 'control-resolve-bridge|bridge\.js' "$DESIGN" || fail "DESIGN must poi
 
 # Wire doc
 grep -q 'aura.rpc.control.resolve' "$DOCS" || fail "docs must name aura.rpc.control.resolve"
-grep -q 'aura-control-resolve' "$DOCS" || fail "docs must name queue-group aura-control-resolve"
-grep -Eqi 'MinScale|minReplicas|≥ 2|>= 2' "$DOCS" || fail "docs must state minReplicas≥2"
+grep -Eq 'aura-control-resolve|aura-rpc-bridge|nats-rpc-bridge' "$DOCS" \
+  || fail "docs must name resolve Function or shared bridge"
+grep -Eqi 'poolmgr|poolsize|replicas ≥ 2|replicas >= 2|bridge' "$DOCS" \
+  || fail "docs must state bridge/poolmgr Warm ≥2"
 grep -Eqi 'Non-goals' "$DOCS" || fail "docs must state Non-goals"
 grep -Eqi 'MQT|MessageQueueTrigger|JetStream' "$DOCS" || fail "docs must forbid MQT/JetStream scaler"
 grep -q 'control.resolve.done' "$DOCS" || fail "docs must name control.resolve.done"
@@ -56,49 +59,51 @@ fi
 node "$SVC_DIR/bridge.selftest.js" || fail "bridge.selftest.js failed"
 node "$SVC_DIR/resolve.selftest.js" || fail "resolve.selftest.js failed"
 
-# Manifests — sync Warm + Core RR, no JetStream MQT
+# Manifests — sync poolmgr + shared bridge, no JetStream MQT / *-rr
 FN="$K8S_DIR/function.yaml"
-DEP="$K8S_DIR/rpc-responder.yaml"
 PKG="$K8S_DIR/package.yaml"
-SKEL="$K8S_DIR/skeleton.js"
 KUST="$K8S_DIR/kustomization.yaml"
-ENVF="$K8S_DIR/environment.yaml"
+ARCH_ZIP="$K8S_DIR/archive.zip"
+BRIDGE_DEP="$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml"
+ENV_SYNC="$ROOT/deploy/k8s/runtime-envs/aura-nodejs-sync.yaml"
 [[ -f "$FN" ]] || fail "missing $FN"
-[[ -f "$DEP" ]] || fail "missing $DEP"
 [[ -f "$PKG" ]] || fail "missing $PKG"
-[[ -f "$SKEL" ]] || fail "missing $SKEL"
 [[ -f "$KUST" ]] || fail "missing $KUST"
-[[ -f "$ENVF" ]] || fail "missing $ENVF"
+[[ -f "$ARCH_ZIP" ]] || fail "missing $ARCH_ZIP (run build-control-resolve-archive.sh)"
+[[ -f "$BRIDGE_DEP" ]] || fail "missing $BRIDGE_DEP"
+[[ -f "$ENV_SYNC" ]] || fail "missing shared sync env $ENV_SYNC"
+[[ ! -f "$K8S_DIR/rpc-responder.yaml" ]] || fail "rpc-responder.yaml must be removed (shared bridge)"
+grep -q 'name: aura-nodejs-sync' "$FN" || fail "function must use aura-nodejs-sync"
+grep -q 'name: aura-nodejs-sync' "$PKG" || fail "package must use aura-nodejs-sync"
+grep -Eq 'poolsize:[[:space:]]*[2-9]|poolsize:[[:space:]]*[1-9][0-9]' "$ENV_SYNC" \
+  || fail "aura-nodejs-sync poolsize must be >= 2"
+if grep -E '^[[:space:]]*-[[:space:]]*environment\.yaml' "$KUST"; then
+  fail "kustomization must not list per-service environment.yaml"
+fi
 
 if grep -REq 'kind:[[:space:]]*MessageQueueTrigger|kind:[[:space:]]*ScaledObject' "$K8S_DIR"/*.yaml; then
   fail "control-resolve must not include MessageQueueTrigger or ScaledObject"
 fi
-grep -q 'rpc-responder.yaml' "$KUST" || fail "kustomization must include rpc-responder.yaml"
+if grep -E '^[[:space:]]*-[[:space:]]*rpc-responder\.yaml' "$KUST"; then
+  fail "kustomization must not list rpc-responder.yaml"
+fi
 if grep -E '^[[:space:]]*-[[:space:]]*mqt\.yaml' "$KUST"; then
   fail "kustomization must not list mqt.yaml"
 fi
 
 grep -q 'aura.runtime/class: sync' "$FN" || fail "function must label aura.runtime/class=sync"
-grep -Eq 'ExecutorType:[[:space:]]*newdeploy' "$FN" || fail "function ExecutorType must be newdeploy"
-grep -Eq 'MinScale:[[:space:]]*[2-9]|MinScale:[[:space:]]*[1-9][0-9]' "$FN" \
-  || fail "function MinScale must be >= 2"
+grep -Eq 'ExecutorType:[[:space:]]*poolmgr' "$FN" || fail "function ExecutorType must be poolmgr"
 
-grep -q 'name: aura-control-resolve-rr' "$DEP" || fail "deployment must be aura-control-resolve-rr"
-grep -q 'aura.runtime/class: sync' "$DEP" || fail "deployment must label sync"
-grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$DEP" \
-  || fail "deployment replicas must be >= 2"
-grep -q 'aura.rpc.control.resolve' "$DEP" || fail "deployment must subscribe aura.rpc.control.resolve"
-grep -q 'aura-control-resolve' "$DEP" || fail "deployment must use queue-group aura-control-resolve"
-grep -q 'control.resolve.done' "$DEP" || fail "deployment reply must mark control.resolve.done"
-grep -Eq 'nats reply|-q' "$DEP" || fail "deployment must nats reply -q (queue-group)"
-
-python3 - "$PKG" "$SKEL" <<'PY' || fail "package.yaml literal != skeleton.js"
-import base64, pathlib, re, sys
-pkg, js = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-m = re.search(r"literal:\s*(\S+)", pkg.read_text())
-assert m, "no literal in package.yaml"
-assert base64.b64decode(m.group(1)) == js.read_bytes(), "literal mismatch"
-print("OK: package literal matches skeleton.js")
+grep -q 'name: aura-nats-rpc-bridge' "$BRIDGE_DEP" || fail "bridge deployment must be aura-nats-rpc-bridge"
+grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
+  || fail "bridge replicas must be >= 2"
+grep -q 'aura-rpc-bridge' "$BRIDGE_DEP" || fail "bridge must use queue aura-rpc-bridge"
+python3 - "$ARCH_ZIP" <<'PY' || fail "archive must include bridge.js + index.js"
+import zipfile, sys
+names = zipfile.ZipFile(sys.argv[1]).namelist()
+assert any(n.endswith("bridge.js") for n in names), names
+assert any(n.endswith("index.js") for n in names), names
+print("OK: control-resolve archive entries")
 PY
 
 # ARCHITECTURE + ROADMAP + AGENTS
@@ -110,5 +115,5 @@ grep -Eq '\[x\].*`aura\.rpc\.control\.resolve`' "$ROADMAP" \
   || fail "ROADMAP control.resolve bridge checkbox must be [x]"
 grep -Eq 'control-resolve' "$AGENTS" || fail "AGENTS.md must list deploy/k8s/control-resolve"
 
-ok "control.resolve bridge DESIGN + Warm RPC + no MQT"
+ok "control.resolve Function + shared NATS bridge + poolmgr + no MQT"
 echo "check-control-resolve-bridge: PASS"

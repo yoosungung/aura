@@ -21,6 +21,9 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (`memory_items` LIST+RANGE+RLS · `memory_audit` 월 RANGE+RLS · `memory_nodes`/`memory_edges`+RLS+out/in indexes · `memory_embeddings` LIST+RLS · **`source_meta`/`user_meta`** · **`agent_checkpoints`**) | `deploy/sql/` |
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
+| `deploy/k8s/runtime-envs/` | Fission 공용 Environment 2개 — `aura-nodejs-async`(`poolmgr` `poolsize: 1`) · `aura-nodejs-sync`(`poolmgr` `poolsize: 2`) | `deploy/k8s/runtime-envs/` |
+| `deploy/k8s/nats-rpc-bridge/` | 공용 NATS→Fission Router 브리지 (`aura-nats-rpc-bridge` replicas≥2) | `deploy/k8s/nats-rpc-bridge/` |
+| `services/nats-rpc-bridge/` | 브리지 내부 DESIGN + `bridge.js` (중계만 · handler 금지) | `services/nats-rpc-bridge/` |
 | `deploy/dev/` | **smoke·로컬 하네스만** (프로덕션 제외) — [`deploy/dev/README.md`](deploy/dev/README.md) | `deploy/dev/` |
 | `deploy/dev/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/dev/k8s/async-smoke/` |
 | `deploy/dev/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/dev/k8s/sync-smoke/` |
@@ -28,11 +31,11 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/memory-store/` | `svc-memory` store MQT (`aura.tasks.memory.store` → stored/error, `minReplicaCount=0`, `set_config(..., true)`) | `deploy/k8s/memory-store/` |
 | `deploy/k8s/memory-capture/` | `memory_capture` MQT (`aura.tasks.memory.capture` → candidates/error, `minReplicaCount=0`, **PG 금지**) | `deploy/k8s/memory-capture/` |
 | `deploy/k8s/memory-embed/` | `svc-memory` embed MQT (`aura.tasks.memory.embed` → embedded/error, `minReplicaCount=0`, **short_term 스킵**) | `deploy/k8s/memory-embed/` |
-| `deploy/k8s/memory-recall/` | `svc-memory` recall RPC (`aura.rpc.memory.recall`, `newdeploy` MinScale≥2 + Deployment `aura-memory-recall-rr`, **MQT 없음**) | `deploy/k8s/memory-recall/` |
+| `deploy/k8s/memory-recall/` | `svc-memory` recall Function (`aura-memory-recall`, **poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/memory-recall/` |
 | `deploy/k8s/agent-invoke/` | `agent_invoke` MQT (`aura.tasks.agent.invoke` → done/error, `minReplicaCount=0`, 메모리 PG 금지·**`agent_checkpoints`만 예외**; 스트림=`aura.stream.<run_id>` Core) | `deploy/k8s/agent-invoke/` |
 | `deploy/k8s/mcp-invoke/` | `mcp_invoke` MQT (`aura.tasks.mcp.invoke` → done/error, `minReplicaCount=0`, **PG 금지**) | `deploy/k8s/mcp-invoke/` |
-| `deploy/k8s/mcp-invoke-rpc/` | `mcp_invoke` RPC (`aura.rpc.mcp.tool`, `newdeploy` MinScale≥2 + Deployment `aura-mcp-invoke-rr`, **MQT 없음**) | `deploy/k8s/mcp-invoke-rpc/` |
-| `deploy/k8s/control-resolve/` | `aura.rpc.control.resolve` 브리지 (`newdeploy` MinScale≥2 + Deployment `aura-control-resolve-rr`, **MQT 없음**) | `deploy/k8s/control-resolve/` |
+| `deploy/k8s/mcp-invoke-rpc/` | `mcp_invoke` RPC Function (`aura-mcp-invoke-rpc`, **poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/mcp-invoke-rpc/` |
+| `deploy/k8s/control-resolve/` | `aura-control-resolve` Function (**poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/control-resolve/` |
 | `deploy/k8s/gateway/` | Gateway Deployment+Service (`replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
 | `services/memory/` | `svc-memory` 내부 DESIGN + store/embed/recall handlers | `services/memory/` |
 | `services/memory-capture/` | `memory_capture` 내부 DESIGN + handler (PG 금지 · candidates envelope) | `services/memory-capture/` |
@@ -54,6 +57,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 - **README.md vs ARCHITECTURE.md / DESIGN.md.** README는 **인간 독자**용이다. 계약·내부 설계는 README에 복사하지 않고 링크로만 둔다.
 - **배포 가능한 패키지·실행 하네스**에는 README를 둘 수 있다 — 해당 디렉터리 **로컬 사용법만**.
 - **`deploy/k8s/` = 제품**, **`deploy/dev/` = smoke·로컬 하네스**. 스모크 매니페스트를 `deploy/k8s/`에 두지 않는다. 프로덕션 apply 경로에 `deploy/dev/`·`apply-split-deploy.sh`·`smoke-*.sh`를 넣지 않는다.
+- **Fission Environment는 `deploy/k8s/runtime-envs/` 공용 2개만** (`aura-nodejs-async` / `aura-nodejs-sync`). 서비스별 Environment·서비스별 `*-rr` Deployment를 추가하지 않는다. sync RPC는 `aura-nats-rpc-bridge` → Fission Router → sync Function(`poolmgr`)만.
 - 파일이 새로 생기거나 용도가 바뀌면 위 표를 즉시 갱신한다.
 - 배포 런북은 `deploy/SETUP.md`, Kustomize는 `deploy/k8s/base/`, CI는 `.github/workflows/ci.yml`. **빈 stub을 만들지 않는다** — 실제 절차·매니페스트가 생길 때 작성한다.
 

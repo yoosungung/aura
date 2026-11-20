@@ -13,7 +13,7 @@ Aura **전체 시스템 메시지·호출 흐름** 다이어그램이다.
 | 채널 | 전송 | 용도 | 스케일 |
 |------|------|------|--------|
 | `aura.tasks.*` | JetStream WorkQueue → **Fission MQT** | 내구 작업 | connector `min=0` OK |
-| `aura.rpc.*` | NATS **Core** Request-Reply | 동기 홉 | 응답자 **Warm ≥2**, MQT 금지 |
+| `aura.rpc.*` | NATS **Core** Request-Reply | 동기 홉 | **공용 브리지 ≥2** + sync poolmgr Warm, MQT 금지 |
 | `aura.stream.*` | NATS **Core** pub/sub | UX 토큰/툴 (유실 허용) | Gateway 구독 |
 | `aura.events.*` | JetStream Limits | 완료·감사 정본 | MQT `respTopic`/`errorTopic` 등 |
 | `aura.dlq.*` | JetStream Limits | MaxDeliver 초과 격리 | Term 경로 |
@@ -65,14 +65,18 @@ flowchart TB
     STORE[svc-memory store/embed/…]
   end
 
-  subgraph sync["sync Core RR — Warm ≥2"]
-    RECALL[svc-memory recall]
-    MCP_R[mcp_invoke rpc]
-    RESOLVE[control.resolve bridge]
+  subgraph sync["sync — bridge + poolmgr Warm"]
+    BR[aura-nats-rpc-bridge ≥2]
+    RECALL[aura-memory-recall]
+    MCP_R[aura-mcp-invoke-rpc]
+    RESOLVE[aura-control-resolve]
   end
 
   NATS -->|"AURA_TASKS"| async
-  async <-->|"aura.rpc.*"| sync
+  async -->|"aura.rpc.*"| BR
+  BR --> RECALL
+  BR --> MCP_R
+  BR --> RESOLVE
   AI -->|"aura.stream.run_id"| NATS
   NATS --> GW
 
@@ -191,7 +195,7 @@ sequenceDiagram
 | **MQT connector** | JetStream pull → Router HTTP → resp/error publish (**언어 비선택**, Fission/KEDA 이미지) | MQT `minReplicaCount=0` |
 | **Function** | 핸들러 실행 (env + fetcher). **현재=`node-env`**; 후속 `python-env` / `rust-env` 가능 — connector와 독립 | executor(`poolmgr`)·env pool |
 
-동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders). MCP sync 응답자는 Warm Deployment(Node queue-group 워커; nats-box stub 아님).
+동기 `aura.rpc.*`에는 MQT/JetStream ScaledObject를 **붙이지 않는다**(No Responders). NATS 구독은 **`aura-nats-rpc-bridge`만** — Fission Router로 Sync Function(`poolmgr`) 중계.
 
 multi-env 후속: [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md).
 
@@ -223,33 +227,39 @@ sequenceDiagram
   Embed->>Ev: aura.events.memory.embedded
 ```
 
-대화 턴 중 **읽기**는 sync: `agent_invoke` → `aura.rpc.memory.recall` → Warm recall → Pooler.
+대화 턴 중 **읽기**는 sync: `agent_invoke` → `aura.rpc.memory.recall` → bridge → `aura-memory-recall` → Pooler.
 
 ---
 
-## 6. Sync RPC (Warm)
+## 6. Sync RPC (bridge + poolmgr Warm)
 
 ```mermaid
 sequenceDiagram
   participant AI as agent_invoke / mcp Fn
   participant NATS as NATS Core
-  participant Q as queue-group responders ≥2
+  participant Bridge as aura_nats_rpc_bridge
+  participant Router as Fission_Router
+  participant Fn as Sync_Function_poolmgr
   participant Pool as CNPG Pooler
   participant Ctrl as svc-control
 
   AI->>NATS: request aura.rpc.*
-  NATS->>Q: queue-group deliver
+  NATS->>Bridge: queue-group aura-rpc-bridge
+  Bridge->>Router: POST /fission-function/name
+  Router->>Fn: specialize_plus_invoke
   alt aura.rpc.memory.recall
-    Q->>Pool: SELECT + iterative_scan
-    Pool-->>Q: rows
+    Fn->>Pool: SELECT + iterative_scan
+    Pool-->>Fn: rows
   else aura.rpc.control.resolve
-    Q->>Ctrl: HTTP read meta
-    Ctrl-->>Q: cfg + secrets_ref
+    Fn->>Ctrl: HTTP read meta
+    Ctrl-->>Fn: cfg + secrets_ref
   else aura.rpc.mcp.tool
-    Q->>Q: tool path / Streamable HTTP
+    Fn->>Fn: tool path / Streamable HTTP
   end
-  Q-->>AI: reply
-  Note over NATS,Q: JetStream에 넣지 않음 · MQT로 깨우지 않음
+  Fn-->>Router: JSON body
+  Router-->>Bridge: HTTP response
+  Bridge->>NATS: msg.respond
+  Note over NATS,Bridge: JetStream에 넣지 않음 · MQT로 깨우지 않음
 ```
 
 ---

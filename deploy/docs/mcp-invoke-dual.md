@@ -5,11 +5,11 @@
 내부: [`../../services/mcp-invoke/DESIGN.md`](../../services/mcp-invoke/DESIGN.md).  
 요청자(agent): [`agent-invoke-mqt.md`](agent-invoke-mqt.md) · resolve: [`svc-control-resolve.md`](svc-control-resolve.md).
 
-**이 문서 범위:** 태스크/RPC payload · done/error envelope · MQT·Warm 이름표 · **분리 배포** 불변.  
-**Non-goals:** RuntimeClass/Egress **라이브 실측** · live LLM · F1 · python/rust env.  
-**M3.5:** archive 패키징 · `tools/list`([`mcp-tools-list.md`](mcp-tools-list.md)) · Node RPC 워커(`rpc-worker.js`).  
+**이 문서 범위:** 태스크/RPC payload · done/error envelope · MQT·sync 이름표 · **분리 배포** 불변.  
+**Non-goals:** RuntimeClass/Egress **라이브 실측** · live LLM · F1 · python/rust env · 서비스별 `*-rr`/`rpc-worker.js`.  
+**M3.5:** archive 패키징 · `tools/list`([`mcp-tools-list.md`](mcp-tools-list.md)) · sync는 공용 [`nats-rpc-bridge`](../../services/nats-rpc-bridge/DESIGN.md).  
 격리 정책: [`mcp-bundle-isolation.md`](mcp-bundle-isolation.md).  
-외부 Streamable HTTP: [`mcp-streamable-http.md`](mcp-streamable-http.md). (resolve 브리지 Warm: [`control-resolve-bridge.md`](control-resolve-bridge.md))
+외부 Streamable HTTP: [`mcp-streamable-http.md`](mcp-streamable-http.md). (resolve: [`control-resolve-bridge.md`](control-resolve-bridge.md))
 
 ---
 
@@ -18,9 +18,9 @@
 | 계급 | Subject | 스케일 | 이유 |
 |------|---------|--------|------|
 | **async** MQT | `aura.tasks.mcp.invoke` | `minReplicaCount=0` | JetStream lag로 깨움 · idle scale-to-zero |
-| **sync** Core RR | `aura.rpc.mcp.tool` | **minReplicas ≥ 2** | Core RR은 lag가 없어 0→1 불가 → No Responders |
+| **sync** Core RR | `aura.rpc.mcp.tool` | 공용 브리지 ≥2 + sync poolmgr | Core RR은 lag가 없어 0→1 불가 → No Responders |
 
-동일 Deployment에 0과 ≥2를 섞지 않는다. 매니페스트·ScaledObject를 **별 디렉터리**로 둔다.
+동일 Deployment에 0과 Warm을 섞지 않는다. 매니페스트·ScaledObject를 **별 디렉터리**로 둔다.
 
 | 경로 | 매니페스트 |
 |------|-----------|
@@ -47,9 +47,8 @@
 | 필드 | 값 |
 |------|-----|
 | subject | `aura.rpc.mcp.tool` |
-| queue-group | `aura-mcp-invoke` |
-| Deployment | `aura-mcp-invoke-rr` · **replicas ≥ 2** |
-| Warm Function | `aura-mcp-invoke-rpc` · `newdeploy` · **MinScale ≥ 2** |
+| NATS | `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` · **replicas ≥ 2** |
+| Function | `aura-mcp-invoke-rpc` · **poolmgr** · `aura-nodejs-sync` (`poolsize ≥ 2`) |
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject |
 
 ---

@@ -1,14 +1,13 @@
-# Node env for svc-memory object_gc MQT (ARCHITECTURE §4.1).
+# Shared async Node Environment (poolmgr). One pool for all aura.tasks.* Functions.
 apiVersion: fission.io/v1
 kind: Environment
 metadata:
-  name: aura-memory-object-gc-nodejs
+  name: aura-nodejs-async
   namespace: default
   labels:
     aura.runtime/class: async
-    aura.service: memory
     app.kubernetes.io/part-of: aura
-    app.kubernetes.io/name: aura-memory-object-gc
+    app.kubernetes.io/name: aura-nodejs-async
 spec:
   version: 3
   runtime:

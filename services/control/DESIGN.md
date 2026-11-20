@@ -6,8 +6,9 @@
 브리지 Warm: [`deploy/docs/control-resolve-bridge.md`](../../deploy/docs/control-resolve-bridge.md) · [`deploy/k8s/control-resolve/`](../../deploy/k8s/control-resolve/).  
 §9.2 와이어: [`deploy/docs/nats-mtls-secrets.md`](../../deploy/docs/nats-mtls-secrets.md) · [`deploy/k8s/nats-mtls/`](../../deploy/k8s/nats-mtls/).
 
-**이 문서 범위:** 컨트롤 메타 쓰기 경계 · resolve 읽기 헬퍼 · **Core RR 브리지**(minReplicas ≥ 2) · Pooler/GUC 전제 · **시크릿 마스킹·TTL≤60s 캐시·NATS mTLS 클라이언트 가드**.  
-**Non-goals (본 슬라이스):** 라이브 Pooler SELECT 본배선 · HTTP admin 서버 · tenants/ACL · 시크릿 스토어 본구현 · live cert CI · 번들 업로드 · MessageQueueTrigger. (`agent_invoke` MQT는 [`../agent-invoke/DESIGN.md`](../agent-invoke/DESIGN.md).)
+**이 문서 범위:** 컨트롤 메타 쓰기 경계 · resolve 읽기 헬퍼 · **sync Function**(`aura-control-resolve` poolmgr) · Pooler/GUC 전제 · **시크릿 마스킹·TTL≤60s 캐시·NATS mTLS 클라이언트 가드**.  
+NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN.md) (replicas≥2).  
+**Non-goals (본 슬라이스):** 라이브 Pooler SELECT 본배선 · HTTP admin 서버 · tenants/ACL · 시크릿 스토어 본구현 · live cert CI · 번들 업로드 · MessageQueueTrigger · 서비스별 `*-rr`.
 
 ---
 
@@ -38,16 +39,15 @@
 
 ---
 
-## Bridge (Core RR · Warm)
+## Resolve Function (sync poolmgr · via 공용 NATS 브리지)
 
 | 항목 | 값 |
 |------|-----|
 | subject | `aura.rpc.control.resolve` |
-| queue-group | `aura-control-resolve` |
-| Deployment | `aura-control-resolve-rr` · **replicas ≥ 2** |
-| Warm Function | `aura-control-resolve` · `newdeploy` · **MinScale ≥ 2** |
+| NATS | `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` |
+| Function | `aura-control-resolve` · **poolmgr** · env `aura-nodejs-sync` (`poolsize ≥ 2`) |
 | handler | `bridge.js` — stub / injectable lookup → `buildResolveResponse` |
-| 금지 | MessageQueueTrigger · JetStream lag ScaledObject |
+| 금지 | MessageQueueTrigger · JetStream lag · 서비스별 `*-rr` |
 
 ---
 

@@ -12,7 +12,8 @@ const {
 } = require('./resolve');
 
 const SUBJECT = 'aura.rpc.control.resolve';
-const QUEUE_GROUP = 'aura-control-resolve';
+/** NATS queue-group lives on aura-nats-rpc-bridge (shared). */
+const QUEUE_GROUP = 'aura-rpc-bridge';
 
 /** Fixture rows for mode=stub (no PG). */
 const STUB_SOURCE = {

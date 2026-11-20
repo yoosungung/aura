@@ -1,6 +1,5 @@
-# Sync memory recall Function — newdeploy Warm Pool (MinScale>=2).
-# No MQT / no JetStream ScaledObject (ARCHITECTURE §4.2).
-# Core RR body lives on Deployment aura-memory-recall-rr (§4.3).
+# Sync memory recall Function — poolmgr via aura-nodejs-sync (ARCHITECTURE §4.2).
+# NATS Core RR is aura-nats-rpc-bridge → Fission Router (no *-rr Deployment).
 apiVersion: fission.io/v1
 kind: Function
 metadata:
@@ -13,7 +12,7 @@ metadata:
     app.kubernetes.io/name: aura-memory-recall
 spec:
   environment:
-    name: aura-memory-recall-nodejs
+    name: aura-nodejs-sync
     namespace: default
   package:
     packageref:
@@ -22,9 +21,5 @@ spec:
   InvokeStrategy:
     StrategyType: execution
     ExecutionStrategy:
-      ExecutorType: newdeploy
-      MinScale: 2
-      MaxScale: 8
-      SpecializationTimeout: 120
+      ExecutorType: poolmgr
   functionTimeout: 30
-  idletimeout: 0

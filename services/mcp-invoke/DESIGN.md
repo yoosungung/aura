@@ -17,11 +17,11 @@
 |------|-----|
 | 역할 | MCP list/call: resolve → factory(`cfg`,`secrets_ref`) / Streamable HTTP |
 | async | `aura.tasks.mcp.invoke` → `aura.events.mcp.invoke.done` / `aura.events.mcp.invoke.error` · consumer `aura_mcp_invoke` · **minReplicaCount=0** (scale-to-zero) |
-| sync | `aura.rpc.mcp.tool` · Warm **MinScale≥2** · Deployment `aura-mcp-invoke-rr` replicas≥2 |
-| 실행 계급 | **이원화** — MQT `min=0` **와** Warm RPC `MinScale≥2` **별 매니페스트** |
+| sync | `aura.rpc.mcp.tool` · Function `aura-mcp-invoke-rpc` **poolmgr** · NATS=`aura-nats-rpc-bridge` |
+| 실행 계급 | **이원화** — MQT `min=0` **와** sync poolmgr RPC **별 매니페스트** |
 | 패키징 | **archive** + `node-builder` |
 | PG | **금지** |
-| RPC 워커 | Deployment `aura-mcp-invoke-rr` = **Node** NATS queue-group (nats-box stub 폐기) |
+| RPC 경로 | 공용 `aura-nats-rpc-bridge` → Function `aura-mcp-invoke-rpc` (nats-box/`*-rr` 폐기) |
 
 ---
 
@@ -32,7 +32,7 @@
 | `handler.js` | validate · invoke list/call · task/rpc entry |
 | `streamable-http.js` | `tools/list` + `tools/call` JSON-RPC/SSE |
 | `factory.js` | resolve cfg → runTool / listTools |
-| `rpc-worker.js` | Core RR 구독 엔트리 (Deployment) |
+| (RPC NATS) | 공용 `aura-nats-rpc-bridge` → Function `aura-mcp-invoke-rpc` |
 
 ---
 

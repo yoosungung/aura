@@ -1,4 +1,5 @@
-# M3.5: Warm Function package shares mcp-invoke archive (handler entry).
+# Placeholder — apply-product.sh replaces with archive.zip literal (mcp handler).
+# Build: deploy/scripts/build-mcp-invoke-archive.sh
 apiVersion: fission.io/v1
 kind: Package
 metadata:
@@ -14,12 +15,8 @@ metadata:
     aura.package/archive: deploy/k8s/mcp-invoke-rpc/archive.zip
 spec:
   environment:
-    name: aura-mcp-invoke-rpc-nodejs
+    name: aura-nodejs-sync
     namespace: default
-  source:
-    type: archive
-    archive:
-      type: url
-      url: file:///fission-archives/aura-mcp-invoke.zip
   deployment:
-    type: archive
+    type: literal
+    literal: bW9kdWxlLmV4cG9ydHMgPSBhc3luYyBmdW5jdGlvbiAoKSB7IHJldHVybiB7IHN0YXR1czogNTAzLCBib2R5OiAicGFja2FnZV9ub3RfYnVpbHQiIH07IH07Cg==

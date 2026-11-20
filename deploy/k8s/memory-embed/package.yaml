@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/name: aura-memory-embed
 spec:
   environment:
-    name: aura-memory-embed-nodejs
+    name: aura-nodejs-async
     namespace: default
   deployment:
     type: literal

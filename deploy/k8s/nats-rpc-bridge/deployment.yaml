@@ -1,30 +1,27 @@
-# Core Request-Reply responder for aura.rpc.mcp.tool (ARCHITECTURE §3.3 / §4.2).
-# M3.5: Node queue-group worker (nats-box stub retired).
-# Apply: ConfigMap aura-mcp-invoke-rr-app from archive.zip (see apply-product.sh).
+# Shared NATS → Fission Router bridge (ARCHITECTURE §3.3 / §4.2).
+# Queue-group aura-rpc-bridge; no Service; does not run domain handlers.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: aura-mcp-invoke-rr
+  name: aura-nats-rpc-bridge
   namespace: default
   labels:
     aura.runtime/class: sync
-    aura.service: mcp-invoke
+    aura.service: nats-rpc-bridge
     app.kubernetes.io/part-of: aura
-    app.kubernetes.io/name: aura-mcp-invoke-rr
-  annotations:
-    aura.rpc/reply-type: mcp.tool.done
+    app.kubernetes.io/name: aura-nats-rpc-bridge
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app.kubernetes.io/name: aura-mcp-invoke-rr
+      app.kubernetes.io/name: aura-nats-rpc-bridge
   template:
     metadata:
       labels:
         aura.runtime/class: sync
-        aura.service: mcp-invoke
+        aura.service: nats-rpc-bridge
         app.kubernetes.io/part-of: aura
-        app.kubernetes.io/name: aura-mcp-invoke-rr
+        app.kubernetes.io/name: aura-nats-rpc-bridge
     spec:
       initContainers:
         - name: npm-ci
@@ -44,19 +41,20 @@ spec:
             - name: app
               mountPath: /app
       containers:
-        - name: reply
+        - name: bridge
           image: node:22-alpine
           imagePullPolicy: IfNotPresent
           workingDir: /app
           env:
             - name: NATS_URL
               value: nats://nats.aura.svc.cluster.local:4222
-            - name: RPC_SUBJECT
-              value: aura.rpc.mcp.tool
+            # Fission 1.27: /fission-function/* is on router-internal :8889 (public :80 is HTTPTrigger only).
+            - name: FISSION_ROUTER_URL
+              value: http://router-internal.fission.svc:8889
             - name: RPC_QUEUE
-              value: aura-mcp-invoke
+              value: aura-rpc-bridge
           command: ["node"]
-          args: ["rpc-worker.js"]
+          args: ["bridge.js"]
           volumeMounts:
             - name: app
               mountPath: /app
@@ -69,6 +67,6 @@ spec:
       volumes:
         - name: src
           configMap:
-            name: aura-mcp-invoke-rr-app
+            name: aura-nats-rpc-bridge-app
         - name: app
           emptyDir: {}

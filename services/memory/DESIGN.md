@@ -17,7 +17,7 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 |------|-----|
 | 유일 쓰기 | `svc-memory`만 `memory_*` INSERT/UPDATE/DELETE (§1 #5) — **async store/embed만** |
 | 실행 계급 (쓰기) | **async** MQT · `minReplicaCount=0` |
-| 실행 계급 (recall) | **sync** Core RR · `minReplicas >= 2` · **MQT 없음** |
+| 실행 계급 (recall) | **sync** poolmgr (`aura-nodejs-sync` poolsize≥2) · NATS는 **공용 `aura-nats-rpc-bridge`** · **MQT 없음** |
 | PG | **CloudNativePG Pooler**만 — host `aura-pg-pooler…` (`AURA_DATABASE_HOST`). primary/Pod IP 금지. recall 읽기는 **RO Pooler** 가능(§9.6) |
 | 테넌트 GUC | 매 트랜잭션 시작: `SELECT set_config('app.tenant_id', $1, true)` (SELECT 경로 포함) |
 | 금지 | `set_config(..., false)` · 세션 `SET app.tenant_id` · 트랜잭션 밖 테넌트 상태 의존 · **`short_term` embed INSERT** · **recall에 MessageQueueTrigger / JetStream lag ScaledObject** |
@@ -165,11 +165,10 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 | 필드 | 값 |
 |------|-----|
 | subject | `aura.rpc.memory.recall` |
-| queue-group | `aura-memory-recall` |
-| 응답자 | Deployment `aura-memory-recall-rr` · **replicas ≥ 2** |
-| Warm Function | `aura-memory-recall` · `newdeploy` · **MinScale ≥ 2** |
-| 트리거 | 기동 시 NATS Core `nats reply -q` — **MQT 없음** · **JetStream lag ScaledObject 없음** |
-| 매니페스트 | [`deploy/k8s/memory-recall/`](../../deploy/k8s/memory-recall/) |
+| NATS | 공용 `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` · **replicas ≥ 2** |
+| Function | `aura-memory-recall` · **poolmgr** · env `aura-nodejs-sync` (`poolsize ≥ 2`) |
+| 트리거 | 브리지 → Fission Router — **MQT 없음** · **JetStream lag ScaledObject 없음** · **서비스별 `*-rr` 없음** |
+| 매니페스트 | [`deploy/k8s/memory-recall/`](../../deploy/k8s/memory-recall/) · 브리지 [`deploy/k8s/nats-rpc-bridge/`](../../deploy/k8s/nats-rpc-bridge/) |
 
 요청 envelope: ARCHITECTURE §6.3 (`tenant_id` · `query` · 선택 `types`/`top_k`/`session_id`/`principal_id` · 선택 `query_embedding[]`).  
 핸들러(`services/memory/recall/handler.js`): `mode: hybrid_rrf` · `type: memory.recall.done`.

@@ -1,7 +1,7 @@
 # `aura.rpc.control.resolve` 브리지 — Warm Core RR (M3)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #2 · #6 · #11 · §2 · §3.3 · §4 · §6.1 · §9.2.  
-일정: [ROADMAP.md](../../ROADMAP.md) M3 — resolve 브리지 minReplicas ≥ 2.  
+일정: [ROADMAP.md](../../ROADMAP.md) M3 — resolve sync Function + 공용 NATS 브리지 Warm.  
 Wire/DDL 정본: [`svc-control-resolve.md`](svc-control-resolve.md) · [`../sql/control_meta.sql`](../sql/control_meta.sql).  
 내부: [`../../services/control/DESIGN.md`](../../services/control/DESIGN.md).  
 Warm 패턴 참고: [`mcp-invoke-dual.md`](mcp-invoke-dual.md) sync 절.
@@ -15,7 +15,7 @@ Warm 패턴 참고: [`mcp-invoke-dual.md`](mcp-invoke-dual.md) sync 절.
 
 | 계급 | Subject | 스케일 | 이유 |
 |------|---------|--------|------|
-| **sync** Core RR | `aura.rpc.control.resolve` | **minReplicas ≥ 2** | Core RR은 JetStream lag로 깨울 수 없음 → No Responders |
+| **sync** Core RR | `aura.rpc.control.resolve` | **bridge replicas≥2** + sync **poolmgr poolsize≥2** | Core RR은 JetStream lag로 깨울 수 없음 → No Responders |
 
 MQT·JetStream lag ScaledObject를 이 응답자에 연결하지 않는다. 매니페스트: [`../k8s/control-resolve/`](../k8s/control-resolve/).
 
@@ -27,8 +27,8 @@ MQT·JetStream lag ScaledObject를 이 응답자에 연결하지 않는다. 매�
 |------|-----|
 | subject | `aura.rpc.control.resolve` |
 | queue-group | `aura-control-resolve` |
-| Deployment | `aura-control-resolve-rr` · **replicas ≥ 2** |
-| Warm Function | `aura-control-resolve` · `newdeploy` · **MinScale ≥ 2** |
+| NATS | `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` · **replicas ≥ 2** |
+| Function | `aura-control-resolve` · **poolmgr** · `aura-nodejs-sync` (`poolsize ≥ 2`) |
 | 금지 | MessageQueueTrigger · JetStream lag ScaledObject |
 | PG (의도) | **Pooler** `aura-pg-pooler` + `set_config('app.tenant_id', $1, true)` — **라이브 배선은 Non-goal** (injectable) |
 
@@ -51,4 +51,4 @@ MQT·JetStream lag ScaledObject를 이 응답자에 연결하지 않는다. 매�
 node services/control/bridge.selftest.js
 ```
 
-PASS = DESIGN·docs·Warm 매니페스트(MinScale/replicas≥2, no MQT)·selftest 일치.
+PASS = DESIGN·docs·poolmgr Function + 공용 브리지(replicas≥2, no MQT)·selftest 일치.

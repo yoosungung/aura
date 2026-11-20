@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/name: aura-compliance-erase
 spec:
   environment:
-    name: aura-compliance-erase-nodejs
+    name: aura-nodejs-async
     namespace: default
   deployment:
     type: literal

@@ -1,4 +1,5 @@
-# literal = base64(skeleton.js). check-control-resolve-bridge.sh asserts match.
+# Placeholder — apply-product.sh replaces with archive.zip literal (bridge+resolve).
+# Build: deploy/scripts/build-control-resolve-archive.sh
 apiVersion: fission.io/v1
 kind: Package
 metadata:
@@ -8,10 +9,13 @@ metadata:
     aura.runtime/class: sync
     aura.service: control
     app.kubernetes.io/part-of: aura
+  annotations:
+    aura.package/build: deploy/scripts/build-control-resolve-archive.sh
+    aura.package/archive: deploy/k8s/control-resolve/archive.zip
 spec:
   environment:
-    name: aura-control-resolve-nodejs
+    name: aura-nodejs-sync
     namespace: default
   deployment:
     type: literal
-    literal: bW9kdWxlLmV4cG9ydHMgPSBhc3luYyBmdW5jdGlvbiAoKSB7IHJldHVybiB7IHN0YXR1czogMjAwLCBib2R5OiAiYXVyYS1jb250cm9sLXJlc29sdmUtd2FybSIgfTsgfTs=
+    literal: bW9kdWxlLmV4cG9ydHMgPSBhc3luYyBmdW5jdGlvbiAoKSB7IHJldHVybiB7IHN0YXR1czogNTAzLCBib2R5OiAicGFja2FnZV9ub3RfYnVpbHQiIH07IH07Cg==

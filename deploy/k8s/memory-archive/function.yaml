@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/name: aura-memory-archive
 spec:
   environment:
-    name: aura-memory-archive-nodejs
+    name: aura-nodejs-async
     namespace: default
   package:
     packageref:

@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/name: aura-memory-object-gc
 spec:
   environment:
-    name: aura-memory-object-gc-nodejs
+    name: aura-nodejs-async
     namespace: default
   package:
     packageref:

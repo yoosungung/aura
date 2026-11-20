@@ -10,8 +10,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 1. **NATS 단일 백본.** MSA 통신은 NATS만 한다. 서비스 간 HTTP/gRPC를 두지 않는다. Redis Pub/Sub·별도 사이드카 큐를 도입하지 않는다. (예외: `svc-control` 관리 API, Gateway→클라이언트 **SSE/WebSocket** 브리지, 테넌트 MCP Streamable HTTP 경계.)
 2. **실행 삼원화 (Fission + Core 스트림).** 프레임워크는 Fission이다. OpenFaaS·bare KEDA Deployment **폴백 없음**.
-   - **비동기 파이프라인** (`aura.tasks.*`): Fission MessageQueueTrigger(`mqtype=nats-jetstream`, `mqtkind=keda`). KEDA lag 스케일, idle 시 **scale-to-zero 허용** (`minReplicaCount = 0`). 내구성·완료 감사는 여기.
-   - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. 응답자는 **상시 워밍** — Fission Function(또는 동일 이미지 Deployment)에 **`minReplicaCount >= 2`(HA)**. Core RR은 JetStream lag가 없으므로 scale-to-zero와 **함께 쓰지 않는다**.
+   - **비동기 파이프라인** (`aura.tasks.*`): Fission MessageQueueTrigger(`mqtype=nats-jetstream`, `mqtkind=keda`). KEDA lag 스케일, idle 시 **scale-to-zero 허용** (`minReplicaCount = 0`). 내구성·완료 감사는 여기. 공용 Environment `aura-nodejs-async` (`poolmgr`, `poolsize ≥ 1`).
+   - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. **구독은 공용 `aura-nats-rpc-bridge`만**(replicas ≥ 2). 브리지는 handler를 실행하지 않고 Fission **router-internal**(`POST /fission-function/<name>`, 기본 `:8889`)로 중계한다. Sync Function은 공용 Environment `aura-nodejs-sync`(**`poolmgr`**, `poolsize ≥ 2`)에서 실행한다. 서비스별 `*-rr` Deployment·sync `newdeploy` MinScale 상주 **금지**. Core RR은 JetStream lag가 없으므로 브리지·sync 풀을 scale-to-zero와 **함께 쓰지 않는다**.
    - **실시간 스트림** (`aura.stream.*`): NATS **Core** pub/sub. LLM 토큰·툴 상태 등 UX용. **유실 허용**(JetStream에 넣지 않음). 완료의 정본은 `aura.events.agent.invoke.done` / error다.
 3. **단일 PostgreSQL + 필수 Connection Pooler.** 관계형 + pgvector + BM25(전문) + 그래프 엣지를 한 클러스터 ACID로 다룬다. 메모리 전용 외부 DB를 두지 않는다. 임베딩 인덱스는 **`halfvec` + `(model, version)` LIST 파티션** 패턴만 쓴다(§6.2.1). 차원 미지정 컬럼에 HNSW를 직접 걸지 않는다. FaaS/런타임 파드는 PG에 **직접 붙지 않고** **CloudNativePG `Pooler`**(transaction)만 경유한다(§2.1). standalone PgBouncer는 CNPG 미도입 폴백만.
 4. **RLS 테넌트 GUC는 트랜잭션 로컬만.** `SELECT set_config('app.tenant_id', $1, true)` (세 번째 인자 `is_local = true`)만 허용한다. 세션 수명 `SET`/`set_config(..., false)` 금지 — transaction pooling에서 커넥션 재사용 시 테넌트 오염을 막는다.
@@ -32,8 +32,9 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 ### 이것만은 하지 말 것
 
 - OpenFaaS 또는 bare KEDA+Deployment로 Fission MQT를 대체하지 말 것.
-- **`aura.rpc.*` 응답자에 scale-to-zero(`minReplicaCount = 0`)를 걸지 말 것** — Core Request-Reply는 JetStream lag로 깨우지 못해 No Responders가 된다.
-- 동기 RPC를 “깨우기용”으로 JetStream에 우회 적재하지 말 것 — 계약은 Core RR + 상시 워밍이다.
+- **`aura-nats-rpc-bridge` 또는 `aura-nodejs-sync` poolmgr를 scale-to-zero하지 말 것** — Core Request-Reply는 JetStream lag로 깨우지 못해 No Responders가 된다.
+- **서비스별 `aura-*-rr` Deployment로 sync handler를 다시 두지 말 것** — NATS 구독은 공용 브리지만, 로직은 Fission Sync Function만.
+- 동기 RPC를 “깨우기용”으로 JetStream에 우회 적재하지 말 것 — 계약은 Core RR + 공용 브리지 + sync poolmgr Warm이다.
 - **`aura.stream.*`를 JetStream에 넣거나 완료 정본으로 쓰지 말 것** — 유실 가능한 UX 채널이다. 완료·감사는 `aura.events.*`.
 - **Function/파드가 PostgreSQL 호스트·포트에 직접 연결하지 말 것** — Connection Pooler VIP만.
 - **`set_config('app.tenant_id', …, false)` 또는 세션 `SET app.tenant_id` 금지** — pool 재사용 시 RLS 오염.
@@ -67,10 +68,10 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
         ├── memory_capture   (MQT)
         ├── svc-memory store/embed/consolidate (MQT)
         │
-        │ ── sync aura.rpc.* (Core RR, minReplicas >= 2) ──
-        ├── svc-memory recall
-        ├── mcp_invoke_rpc
-        └── control_resolve_bridge
+        │ ── sync aura.rpc.* (Core RR → aura-nats-rpc-bridge → Fission Router) ──
+        ├── aura-memory-recall      (poolmgr sync)
+        ├── aura-mcp-invoke-rpc     (poolmgr sync)
+        └── aura-control-resolve    (poolmgr sync)
                 │
                 ▼
    Connection Pooler → PostgreSQL 16+
@@ -79,13 +80,14 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | 컴포넌트 | 역할 | 실행 계급 | PG |
 |----------|------|-----------|-----|
 | **Gateway** | 태스크 **쿼터 검사 후** publish; `aura.stream.<run_id>` → 클라이언트 SSE/WS | 상시 ≥2 | 없음(쿼터 상태는 NATS KV 등, §2.2) |
+| **`aura-nats-rpc-bridge`** | `aura.rpc.*` queue-group 구독 → Fission Router HTTP 중계 | 상시 ≥2 | 없음 |
 | `agent_invoke` | 턴 실행; recall/mcp/resolve RPC; **스트림 프레임 publish**; capture 발행; done/error 이벤트 | **async** MQT (0 허용) | 체크포인트만 (**Pooler**) |
 | `mcp_invoke` (task) | 비동기 MCP 작업 | **async** MQT (0 허용) | 없음 |
-| `mcp_invoke` (rpc) | `aura.rpc.mcp.tool` 응답 | **sync** 상시 ≥2 | 없음 |
+| `mcp_invoke` (rpc) | `aura.rpc.mcp.tool` → Function `aura-mcp-invoke-rpc` | **sync** poolmgr Warm | 없음 |
 | `memory_capture` | LLM 후보 추출 → 이벤트 | **async** MQT (0 허용) | **쓰기·읽기 금지** |
 | `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
-| `svc-memory` recall | hybrid Top-K | **sync** 상시 ≥2 | 메모리 SELECT → **Pooler** |
-| `svc-control` + resolve 브리지 | 메타 쓰기(HTTP); `aura.rpc.control.resolve` | 관리 HTTP + **sync** 상시 ≥2 | 컨트롤 메타 **유일 쓰기** → **Pooler** |
+| `svc-memory` recall | hybrid Top-K → Function `aura-memory-recall` | **sync** poolmgr Warm | 메모리 SELECT → **Pooler** |
+| `svc-control` + resolve Function | 메타 쓰기(HTTP); `aura.rpc.control.resolve` → `aura-control-resolve` | 관리 HTTP + **sync** poolmgr Warm | 컨트롤 메타 **유일 쓰기** → **Pooler** |
 | **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | **CloudNativePG `Pooler`**, **transaction** 모드 |
 
 ### 2.1 Connection Pooler · RLS GUC
@@ -176,13 +178,13 @@ MQT: `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.
 
 `aura.rpc.>` 는 **스트림에 넣지 않는다**. 응답자는 NATS queue group 구독으로 HA한다. **KEDA JetStream MQT로 깨우지 않는다.**
 
-| Subject | 요청자 | 응답자 | minReplicas | 용도 |
-|---------|--------|--------|-------------|------|
-| `aura.rpc.memory.recall` | `agent_invoke` | `svc-memory` recall | **≥ 2** | hybrid Top-K recall |
-| `aura.rpc.mcp.tool` | `agent_invoke` | `mcp_invoke` rpc | **≥ 2** | 내부 MCP tool (Aura 간 MCP 프로토콜 없음) |
-| `aura.rpc.control.resolve` | agent/mcp Function | control resolve 브리지 | **≥ 2** | 번들 메타 resolve (브리지가 `svc-control` HTTP read에 붙을 수 있음) |
+| Subject | 요청자 | NATS 구독 | Fission Function | Warm |
+|---------|--------|-----------|------------------|------|
+| `aura.rpc.memory.recall` | `agent_invoke` | `aura-nats-rpc-bridge` (queue `aura-rpc-bridge`) | `aura-memory-recall` | bridge ≥2 · sync poolmgr `poolsize ≥ 2` |
+| `aura.rpc.mcp.tool` | `agent_invoke` | 동일 브리지 | `aura-mcp-invoke-rpc` | 동일 |
+| `aura.rpc.control.resolve` | agent/mcp Function | 동일 브리지 | `aura-control-resolve` | 동일 |
 
-스케일 아웃(상한)은 CPU/RPS 등 **HTTP·커스텀 메트릭 HPA** 또는 Fission executor min/max로 한다. JetStream lag scaler를 RPC 응답자에 연결하지 않는다.
+스케일 아웃(상한)은 sync poolmgr / Function concurrency·requestsPerPod 및 브리지 HPA로 한다. JetStream lag scaler를 RPC 경로에 연결하지 않는다. 매니페스트: [`deploy/k8s/nats-rpc-bridge/`](deploy/k8s/nats-rpc-bridge/) · [`deploy/k8s/runtime-envs/`](deploy/k8s/runtime-envs/).
 
 RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에 수치를 적는다. 초과 본문은 object store `content_ref`만 실는다(제품·스키마: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)).
 
@@ -237,19 +239,21 @@ MQT·프레임·RPC 순서 고정: [`deploy/docs/agent-invoke-mqt.md`](deploy/do
 - **콜드스타트 SLA (async만)**: 워밍 없이 p95 **< 15s** 베이스라인(M0 측정). 대화 턴의 **체감 지연 정본이 아님**.
 - **M0 샘플**: Function/MQT `aura-tasks-smoke` — topic `aura.tasks.smoke`, pull consumer `aura_tasks_smoke`, `respTopic`=`aura.events.tasks.smoke.done`, `errorTopic`=`aura.events.tasks.smoke.error` (이름 정본은 `deploy/SETUP.md`).
 
-### 4.2 동기 — Core Request-Reply 상시 워밍
+### 4.2 동기 — Core Request-Reply + 공용 NATS→Fission 브리지
 
-- **대상**: §3.3 `aura.rpc.*` 응답자 (memory recall, mcp tool, control resolve).
-- **트리거**: 프로세스 기동 시 NATS Core queue-group subscribe. **MQT·JetStream lag scaler 사용 금지.**
-- **스케일**: **`minReplicaCount >= 2` (Warm Pool)**. 상한만 HPA/Fission maxReplicas.
-- **이유**: Core RR 메시지는 스트림에 쌓이지 않아 KEDA가 0→1을 트리거할 수 없다.
-- **SLA (동기 연쇄)**: recall → resolve → mcp.tool 등 **동기 홉 합** p95 **< 1~2s** (콜드 제외, Warm Pool 전제). M0에서 sync p95를 측정·기록하고 ROADMAP 목표를 확정한다. 15s는 sync 목표로 쓰지 않는다.
-- **M0 샘플**: Deployment `aura-rpc-smoke-rr` — subject `aura.rpc.smoke`, queue-group `aura-rpc-smoke`, replicas ≥ 2 (이름 정본은 `deploy/SETUP.md`). Fission Function `aura-rpc-smoke`(`newdeploy` MinScale≥2)는 Warm Pool 분리 불변용; Core RR 구독은 명시 Deployment(§4.3).
+- **대상**: §3.3 `aura.rpc.*` (memory recall, mcp tool, control resolve).
+- **NATS 구독**: Deployment **`aura-nats-rpc-bridge`** (replicas ≥ 2, queue-group `aura-rpc-bridge`). subject→Function 매핑 후 **Fission Router만** 호출·`msg.respond` 중계. **브리지 내부에서 도메인 handler 실행 금지.**
+- **실행**: Sync Function은 Environment **`aura-nodejs-sync`** · executor **`poolmgr`** · **`poolsize ≥ 2`**. sync `newdeploy` MinScale 상주·서비스별 `*-rr` **금지**.
+- **MQT·JetStream lag scaler 사용 금지** (RPC 경로).
+- **이유**: Core RR 메시지는 스트림에 쌓이지 않아 KEDA가 0→1을 트리거할 수 없다 — 브리지와 sync 풀이 상시 Warm.
+- **SLA (동기 연쇄)**: recall → resolve → mcp.tool 등 **동기 홉 합** p95 **< 1~2s** (콜드 제외, Warm 전제).
+- **M0 smoke**: `deploy/dev`의 `aura-rpc-smoke-rr` 등은 **dev 하네스만** — 제품 경로에 포함하지 않는다.
 
 ### 4.3 공통
 
 - 동일 논리 서비스(`svc-memory`)라도 **async Function**과 **sync Function**을 배포 단위로 분리한다. 메모리 **쓰기** 소유권은 여전히 `svc-memory` async 쪽만.
-- **비채택**: OpenFaaS. **폴백 없음**: bare Deployment+KEDA ScaledObject로 **MQT**를 대체하지 않는다. sync 상시 배치는 Fission minReplicas 또는 동일 이미지의 명시 Deployment로 둔다.
+- Environment는 클래스 공용 **2개만** (`aura-nodejs-async` / `aura-nodejs-sync`). 서비스별 Environment 금지.
+- **비채택**: OpenFaaS. **폴백 없음**: bare Deployment+KEDA ScaledObject로 **MQT**를 대체하지 않는다. NATS→Function HTTP는 MQT connector·**공용 RPC 브리지**만 (Aura 서비스 간 임의 HTTP API 금지 — §1 #1 예외는 Router 중계).
 
 ---
 

@@ -11,7 +11,7 @@ const {
 
 async function main() {
   assert.strictEqual(SUBJECT, 'aura.rpc.control.resolve');
-  assert.strictEqual(QUEUE_GROUP, 'aura-control-resolve');
+  assert.strictEqual(QUEUE_GROUP, 'aura-rpc-bridge');
 
   const bad = await handleResolve({ kind: 'agent' });
   assert.strictEqual(bad.type, 'control.resolve.error');
