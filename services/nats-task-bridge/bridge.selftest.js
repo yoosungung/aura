@@ -1,13 +1,18 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const {
+  DEFAULT_MAX_INFLIGHT,
   TASK_SUBJECTS,
   functionForTask,
   topicsForTask,
   parseRuntime,
   handleTaskMessage,
   invokeFission,
+  createInflightGate,
+  dispatchTaskMessage,
 } = require('./bridge');
 
 function sc() {
@@ -22,7 +27,7 @@ function sc() {
   };
 }
 
-async function main() {
+async function testMappingAndHandle() {
   assert.deepStrictEqual(TASK_SUBJECTS.slice().sort(), [
     'aura.tasks.agent.invoke',
     'aura.tasks.mcp.invoke',
@@ -128,7 +133,102 @@ async function main() {
   );
   assert.strictEqual(deniedOut.ok, false);
   assert.strictEqual(denied[0].body.error, 'function_not_allowed');
+}
 
+async function testInflightDefaults() {
+  assert.ok(
+    DEFAULT_MAX_INFLIGHT >= 16 && DEFAULT_MAX_INFLIGHT <= 32,
+    `DEFAULT_MAX_INFLIGHT should be 16–32, got ${DEFAULT_MAX_INFLIGHT}`,
+  );
+}
+
+async function testDispatchParallelNoHol() {
+  const order = [];
+  const gate = createInflightGate(8);
+  const slowDone = dispatchTaskMessage(
+    {
+      subject: 'aura.tasks.agent.invoke',
+      data: Buffer.from('{}'),
+      ack: async () => order.push('slow'),
+    },
+    {
+      sc: sc(),
+      invoke: async () => {
+        order.push('slow-start');
+        await new Promise((r) => setTimeout(r, 40));
+        return { status: 200, body: '{"ok":true}' };
+      },
+      publish: async () => {},
+    },
+    gate,
+  );
+  const fastDone = dispatchTaskMessage(
+    {
+      subject: 'aura.tasks.mcp.invoke',
+      data: Buffer.from('{}'),
+      ack: async () => order.push('fast'),
+    },
+    {
+      sc: sc(),
+      invoke: async () => {
+        order.push('fast-start');
+        return { status: 200, body: '{"ok":true}' };
+      },
+      publish: async () => {},
+    },
+    gate,
+  );
+  await Promise.all([slowDone, fastDone]);
+  assert.ok(order.indexOf('fast') < order.indexOf('slow'), order);
+  assert.ok(order.includes('slow-start'));
+  assert.ok(order.includes('fast-start'));
+}
+
+async function testInflightCap() {
+  const gate = createInflightGate(1);
+  let concurrent = 0;
+  let peak = 0;
+  const run = () =>
+    dispatchTaskMessage(
+      {
+        subject: 'aura.tasks.agent.invoke',
+        data: Buffer.from('{}'),
+        ack: async () => {},
+      },
+      {
+        sc: sc(),
+        invoke: async () => {
+          concurrent += 1;
+          peak = Math.max(peak, concurrent);
+          await new Promise((r) => setTimeout(r, 30));
+          concurrent -= 1;
+          return { status: 200, body: '{}' };
+        },
+        publish: async () => {},
+      },
+      gate,
+    );
+  await Promise.all([run(), run(), run()]);
+  assert.strictEqual(peak, 1);
+  assert.strictEqual(gate.active, 0);
+}
+
+async function testConsumeLoopDoesNotAwaitHandle() {
+  const src = fs.readFileSync(path.join(__dirname, 'bridge.js'), 'utf8');
+  assert.ok(/void dispatchTaskMessage/.test(src), 'loop must fire-and-forget dispatch');
+  assert.ok(
+    !/for await \(const m of messages\) \{\s*try \{\s*await handleTaskMessage/.test(src),
+    'loop must not await handleTaskMessage inside for-await',
+  );
+  assert.ok(/createInflightGate/.test(src), 'must use createInflightGate');
+}
+
+async function main() {
+  await testMappingAndHandle();
+  await testInflightDefaults();
+  await testDispatchParallelNoHol();
+  await testInflightCap();
+  await testConsumeLoopDoesNotAwaitHandle();
   console.log('nats-task-bridge.selftest: PASS');
 }
 

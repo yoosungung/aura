@@ -19,13 +19,14 @@ Fission MQT는 topic→Function **1:1**. 동일 `aura.tasks.agent.invoke`에 nod
 
 | 항목 | 값 |
 |------|-----|
-| Deployment | `aura-nats-task-bridge` · **ns `aura`** · deps 포함 이미지 (initContainer `npm install` 금지) |
+| Deployment | `aura-nats-task-bridge` · **ns `aura`** · **replicas≥2** · deps 포함 이미지 (initContainer `npm install` 금지) |
 | Subjects | `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` |
 | Consumer | pull · stream `AURA_TASKS` · durable 이름 고정(`aura_task_bridge_agent` / `aura_task_bridge_mcp`) |
+| 동시성 | `void dispatchTaskMessage` + `createInflightGate` · `TASK_MAX_INFLIGHT` 기본 **32**(권장 16–32) — consume 루프에서 `await handle` 금지(HOL) |
 | 라우팅 | payload `runtime` (없으면 `nodejs`) → Function 표. `custom`은 payload `function` 접두사 allowlist ([`multi-env-followup.md`](multi-env-followup.md)) |
 | 호출 | `POST {FISSION_ROUTER_URL}/fission-function/<name>` |
 | 응답 | Function 2xx body → `respTopic`; 비-2xx/예외 → `errorTopic` (기존 MQT envelope와 동형) |
-| 스케일 | KEDA JetStream lag · **min=0 허용** |
+| 스케일 | Bridge Deployment **replicas≥2** · Function 쪽 KEDA JetStream lag · **min=0 허용** |
 | 금지 | 브리지 내 agent/mcp 도메인 로직 · PG · 언어별 이중 MQT |
 
 | subject | respTopic | errorTopic |

@@ -27,6 +27,19 @@ fi
 grep -q 'aura/nats-rpc-bridge' "$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml" \
   || fail "rpc-bridge must use baked image"
 
+DEP="$ROOT/deploy/k8s/nats-task-bridge/deployment.yaml"
+grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]+' "$DEP" \
+  || fail "task-bridge Deployment must set replicas>=2"
+grep -q 'TASK_MAX_INFLIGHT' "$DEP" || fail "task-bridge must set TASK_MAX_INFLIGHT"
+grep -q 'createInflightGate' "$ROOT/services/nats-task-bridge/bridge.js" \
+  || fail "task-bridge must use createInflightGate"
+grep -q 'void dispatchTaskMessage' "$ROOT/services/nats-task-bridge/bridge.js" \
+  || fail "task-bridge loop must fire-and-forget dispatchTaskMessage"
+grep -q 'TASK_MAX_INFLIGHT' "$ROOT/services/nats-task-bridge/DESIGN.md" \
+  || fail "DESIGN must document TASK_MAX_INFLIGHT"
+grep -q 'dispatchTaskMessage' "$ROOT/deploy/docs/nats-task-bridge.md" \
+  || fail "nats-task-bridge.md must document dispatchTaskMessage"
+
 node "$ROOT/services/nats-task-bridge/bridge.selftest.js" || fail "task-bridge selftest"
 node "$ROOT/services/nats-rpc-bridge/bridge.selftest.js" || fail "rpc-bridge selftest"
 

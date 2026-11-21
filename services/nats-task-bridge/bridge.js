@@ -6,6 +6,8 @@
  */
 
 const DEFAULT_FETCH_TIMEOUT_MS = Number(process.env.TASK_FETCH_TIMEOUT_MS || 110000);
+/** Cap concurrent Router invokes per process (HOL 방지; long agent turns). */
+const DEFAULT_MAX_INFLIGHT = Number(process.env.TASK_MAX_INFLIGHT || 32);
 const DEFAULT_RUNTIME = 'nodejs';
 
 const TASK_ROUTES = Object.freeze({
@@ -96,6 +98,39 @@ function routerBase(opts) {
     process.env.FISSION_ROUTER_URL ||
     'http://router-internal.fission.svc:8889';
   return String(raw).replace(/\/$/, '');
+}
+
+/**
+ * Simple semaphore for in-flight task handles (same shape as nats-rpc-bridge).
+ * @param {number} max
+ */
+function createInflightGate(max) {
+  const limit = Math.max(1, Number(max) || DEFAULT_MAX_INFLIGHT);
+  let active = 0;
+  const waiters = [];
+  return {
+    get active() {
+      return active;
+    },
+    get max() {
+      return limit;
+    },
+    async acquire() {
+      if (active < limit) {
+        active += 1;
+        return;
+      }
+      await new Promise((resolve) => {
+        waiters.push(resolve);
+      });
+      active += 1;
+    },
+    release() {
+      active = Math.max(0, active - 1);
+      const next = waiters.shift();
+      if (next) next();
+    },
+  };
 }
 
 async function invokeFission(functionName, payload, opts) {
@@ -212,6 +247,29 @@ async function handleTaskMessage(msg, opts) {
 }
 
 /**
+ * Fire-and-forget handle with inflight gate (avoids HOL blocking in consume loop).
+ * @returns {Promise<void>} settles when handle finishes (for tests); loop does not await.
+ */
+function dispatchTaskMessage(msg, opts, gate) {
+  return (async () => {
+    if (gate) await gate.acquire();
+    try {
+      await handleTaskMessage(msg, opts);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('nats-task-bridge handle error', err);
+      try {
+        if (typeof msg.nak === 'function') await msg.nak();
+      } catch (_) {
+        /* ignore */
+      }
+    } finally {
+      if (gate) gate.release();
+    }
+  })();
+}
+
+/**
  * JetStream pull consumers for agent/mcp tasks → Router.
  */
 async function startTaskBridge(opts) {
@@ -219,6 +277,8 @@ async function startTaskBridge(opts) {
   const servers = o.servers || process.env.NATS_URL || 'nats://127.0.0.1:4222';
   const subjects = o.subjects || TASK_SUBJECTS;
   const stream = o.stream || process.env.TASK_STREAM || 'AURA_TASKS';
+  const maxInflight = o.maxInflight != null ? o.maxInflight : DEFAULT_MAX_INFLIGHT;
+  const gate = createInflightGate(maxInflight);
 
   const connect =
     o.connect ||
@@ -251,36 +311,30 @@ async function startTaskBridge(opts) {
     if (!consumer) continue;
     consumers.push(consumer);
     // eslint-disable-next-line no-console
-    console.log(`nats-task-bridge listen subject=${subject} durable=${durable}`);
+    console.log(
+      `nats-task-bridge listen subject=${subject} durable=${durable} maxInflight=${gate.max}`,
+    );
     (async () => {
       const messages = await consumer.consume();
       for await (const m of messages) {
-        try {
-          await handleTaskMessage(
-            {
-              subject: m.subject || subject,
-              data: m.data,
-              ack: () => m.ack(),
-              nak: () => m.nak(),
-            },
-            {
-              sc,
-              publish,
-              routerUrl: o.routerUrl,
-              fetchImpl: o.fetchImpl,
-              invoke: o.invoke,
-              fetchTimeoutMs: o.fetchTimeoutMs,
-            },
-          );
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('nats-task-bridge handle error', err);
-          try {
-            m.nak();
-          } catch (_) {
-            /* ignore */
-          }
-        }
+        // Do not await — parallel dispatch; gate caps concurrency.
+        void dispatchTaskMessage(
+          {
+            subject: m.subject || subject,
+            data: m.data,
+            ack: () => m.ack(),
+            nak: () => m.nak(),
+          },
+          {
+            sc,
+            publish,
+            routerUrl: o.routerUrl,
+            fetchImpl: o.fetchImpl,
+            invoke: o.invoke,
+            fetchTimeoutMs: o.fetchTimeoutMs,
+          },
+          gate,
+        );
       }
     })().catch((err) => {
       // eslint-disable-next-line no-console
@@ -289,7 +343,7 @@ async function startTaskBridge(opts) {
     });
   }
 
-  return { nc, consumers, subjects, stream };
+  return { nc, consumers, subjects, stream, gate };
 }
 
 if (require.main === module) {
@@ -303,12 +357,15 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_RUNTIME,
   DEFAULT_FETCH_TIMEOUT_MS,
+  DEFAULT_MAX_INFLIGHT,
   TASK_ROUTES,
   TASK_SUBJECTS,
   parseRuntime,
   functionForTask,
   topicsForTask,
+  createInflightGate,
   invokeFission,
   handleTaskMessage,
+  dispatchTaskMessage,
   startTaskBridge,
 };

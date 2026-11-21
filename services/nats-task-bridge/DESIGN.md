@@ -11,9 +11,10 @@
 
 | 항목 | 값 |
 |------|-----|
-| Deployment | `aura-nats-task-bridge` · **ns `aura`** · deps 포함 이미지 · `dev.orbstack.icon` |
+| Deployment | `aura-nats-task-bridge` · **ns `aura`** · **replicas≥2** · deps 포함 이미지 · `dev.orbstack.icon` |
 | Subjects | `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` |
-| 스케일 | KEDA lag · min=0 허용 |
+| 동시성 | `for await`에서 **await 금지** — `void dispatchTaskMessage` 병렬(HOL 금지) · `TASK_MAX_INFLIGHT`(기본 **32**, 권장 16–32) 세마포어 |
+| 스케일 | Deployment replicas≥2 · Function 쪽 KEDA lag · min=0 허용 |
 | 라우팅 | `runtime`→Function. `custom`은 payload `function` 접두사 allowlist |
 | 금지 | handler 로직 · 언어별 MQT 이중 구독 |
 

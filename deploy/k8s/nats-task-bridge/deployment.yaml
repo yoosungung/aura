@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/part-of: aura
     app.kubernetes.io/name: aura-nats-task-bridge
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app.kubernetes.io/name: aura-nats-task-bridge
@@ -34,6 +34,8 @@ spec:
               value: http://router-internal.fission.svc:8889
             - name: TASK_STREAM
               value: AURA_TASKS
+            - name: TASK_MAX_INFLIGHT
+              value: "32"
           resources:
             requests:
               cpu: 25m
