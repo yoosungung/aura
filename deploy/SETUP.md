@@ -46,6 +46,7 @@ bash deploy/scripts/smoke-sync-rpc.sh
 | KEDA | Helm `kedacore/keda` `2.20.2` → ns `keda` |
 | Fission | CRDs(`kubectl create` 또는 **server-side apply**) + Helm `fission-charts/fission-all` `1.27.0`, **`mqt_keda.enabled=true`**, **`internalAuth.enabled=false`** (stock KEDA connector는 HMAC 미서명 → router-internal 401) → ns `fission` |
 | Streams | `ensure-streams.sh` (nats-box) — `AURA_TASKS` WorkQueue · `AURA_EVENTS` Limits 90d · `AURA_DLQ` Limits |
+| task-bridge consumers | `ensure-task-bridge-consumers.sh` — durable `aura_task_bridge_*` · **AckWait=150s** · MaxDeliver=5 |
 | Split deploy (V0.1, **dev smoke**) | [`dev/k8s/async-smoke`](dev/k8s/async-smoke/) MQT `minReplicaCount=0` · [`dev/k8s/sync-smoke`](dev/k8s/sync-smoke/) `newdeploy` `MinScale≥2` (MQT/ScaledObject 없음) |
 | Async echo | Package `echo.js` · topic `aura.tasks.smoke` → `respTopic`/`errorTopic` · `smoke-async-mqt.sh` |
 | Async poison (V0.3) | `maxRetries`→`errorTopic` + consumer `MaxDeliver=5` · `ensure-async-consumer.sh` · `smoke-async-poison.sh` |

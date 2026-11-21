@@ -36,6 +36,10 @@ spec:
               value: AURA_TASKS
             - name: TASK_MAX_INFLIGHT
               value: "32"
+            - name: TASK_ACK_WAIT_MS
+              value: "150000"
+            - name: TASK_WORKING_INTERVAL_MS
+              value: "10000"
           resources:
             requests:
               cpu: 25m

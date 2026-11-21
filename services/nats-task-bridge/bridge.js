@@ -8,7 +8,23 @@
 const DEFAULT_FETCH_TIMEOUT_MS = Number(process.env.TASK_FETCH_TIMEOUT_MS || 110000);
 /** Cap concurrent Router invokes per process (HOL 방지; long agent turns). */
 const DEFAULT_MAX_INFLIGHT = Number(process.env.TASK_MAX_INFLIGHT || 32);
+/** JetStream AckWait floor: fetch timeout + 40s margin (default 150s). */
+const DEFAULT_ACK_WAIT_MS = Number(
+  process.env.TASK_ACK_WAIT_MS || desiredAckWaitMs(DEFAULT_FETCH_TIMEOUT_MS),
+);
+/** In-progress heartbeat interval (must be ≪ AckWait). */
+const DEFAULT_WORKING_INTERVAL_MS = Number(process.env.TASK_WORKING_INTERVAL_MS || 10000);
+const DEFAULT_MAX_DELIVER = Number(process.env.TASK_MAX_DELIVER || 5);
 const DEFAULT_RUNTIME = 'nodejs';
+
+function desiredAckWaitMs(fetchTimeoutMs) {
+  const fetchMs = Number(fetchTimeoutMs) > 0 ? Number(fetchTimeoutMs) : 110000;
+  return fetchMs + 40000;
+}
+
+function msToNanos(ms) {
+  return Math.max(1, Math.floor(Number(ms) || 0) * 1e6);
+}
 
 const TASK_ROUTES = Object.freeze({
   'aura.tasks.agent.invoke': Object.freeze({
@@ -247,12 +263,94 @@ async function handleTaskMessage(msg, opts) {
 }
 
 /**
+ * Periodic JetStream in-progress (`msg.working`) so AckWait does not redeliver mid-invoke.
+ * @param {{ working?: () => void }} msg
+ * @param {number} [intervalMs]
+ * @returns {() => void} dispose
+ */
+function startWorkingHeartbeat(msg, intervalMs) {
+  const ms =
+    intervalMs != null ? Number(intervalMs) : DEFAULT_WORKING_INTERVAL_MS;
+  if (!(ms > 0) || !msg || typeof msg.working !== 'function') {
+    return () => {};
+  }
+  const tick = () => {
+    try {
+      msg.working();
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  tick();
+  const timer = setInterval(tick, ms);
+  if (typeof timer.unref === 'function') timer.unref();
+  return () => clearInterval(timer);
+}
+
+/**
+ * Consumer config for task-bridge durables (AckWait ≥ fetch+margin).
+ * ack_wait is nanoseconds (NATS JetStream API).
+ */
+function ensureTaskConsumerConfig(subject, durable, opts) {
+  const o = opts || {};
+  const ackWaitMs =
+    o.ackWaitMs != null ? Number(o.ackWaitMs) : DEFAULT_ACK_WAIT_MS;
+  const maxDeliver =
+    o.maxDeliver != null ? Number(o.maxDeliver) : DEFAULT_MAX_DELIVER;
+  return {
+    durable_name: durable,
+    filter_subject: subject,
+    ack_policy: 'explicit',
+    ack_wait: msToNanos(ackWaitMs),
+    max_deliver: maxDeliver,
+  };
+}
+
+/**
+ * Add or update pull consumer so AckWait covers long Router invokes.
+ * @param {{ consumers: { info: Function, add: Function, update: Function } }} jsm
+ */
+async function ensureTaskConsumer(jsm, stream, subject, durable, opts) {
+  const cfg = ensureTaskConsumerConfig(subject, durable, opts);
+  if (!jsm || !jsm.consumers) {
+    throw new Error('jetstream_manager_required');
+  }
+  let info;
+  try {
+    info = await jsm.consumers.info(stream, durable);
+  } catch (_) {
+    info = null;
+  }
+  if (!info) {
+    await jsm.consumers.add(stream, cfg);
+    return { action: 'add', config: cfg };
+  }
+  const currentWait = Number(info.config && info.config.ack_wait) || 0;
+  const currentDeliver = Number(info.config && info.config.max_deliver) || 0;
+  const needWait = currentWait < cfg.ack_wait;
+  const needDeliver =
+    currentDeliver !== cfg.max_deliver && cfg.max_deliver > 0;
+  if (needWait || needDeliver) {
+    await jsm.consumers.update(stream, durable, {
+      ack_wait: cfg.ack_wait,
+      max_deliver: cfg.max_deliver,
+    });
+    return { action: 'update', config: cfg };
+  }
+  return { action: 'noop', config: cfg };
+}
+
+/**
  * Fire-and-forget handle with inflight gate (avoids HOL blocking in consume loop).
  * @returns {Promise<void>} settles when handle finishes (for tests); loop does not await.
  */
 function dispatchTaskMessage(msg, opts, gate) {
   return (async () => {
     if (gate) await gate.acquire();
+    const stopWorking = startWorkingHeartbeat(
+      msg,
+      opts && opts.workingIntervalMs,
+    );
     try {
       await handleTaskMessage(msg, opts);
     } catch (err) {
@@ -264,6 +362,7 @@ function dispatchTaskMessage(msg, opts, gate) {
         /* ignore */
       }
     } finally {
+      stopWorking();
       if (gate) gate.release();
     }
   })();
@@ -279,6 +378,10 @@ async function startTaskBridge(opts) {
   const stream = o.stream || process.env.TASK_STREAM || 'AURA_TASKS';
   const maxInflight = o.maxInflight != null ? o.maxInflight : DEFAULT_MAX_INFLIGHT;
   const gate = createInflightGate(maxInflight);
+  const ackWaitMs = o.ackWaitMs != null ? o.ackWaitMs : DEFAULT_ACK_WAIT_MS;
+  const maxDeliver = o.maxDeliver != null ? o.maxDeliver : DEFAULT_MAX_DELIVER;
+  const workingIntervalMs =
+    o.workingIntervalMs != null ? o.workingIntervalMs : DEFAULT_WORKING_INTERVAL_MS;
 
   const connect =
     o.connect ||
@@ -291,7 +394,11 @@ async function startTaskBridge(opts) {
 
   const { nc, sc } = await connect({ servers });
   const js = nc.jetstream();
+  const jsm =
+    o.jsm ||
+    (typeof nc.jetstreamManager === 'function' ? await nc.jetstreamManager() : null);
   const consumers = [];
+  const ensured = [];
 
   const publish = async (subject, body) => {
     const data = sc.encode(typeof body === 'string' ? body : JSON.stringify(body));
@@ -303,16 +410,33 @@ async function startTaskBridge(opts) {
       subject === 'aura.tasks.agent.invoke'
         ? 'aura_task_bridge_agent'
         : 'aura_task_bridge_mcp';
+    if (jsm) {
+      try {
+        const res = await ensureTaskConsumer(jsm, stream, subject, durable, {
+          ackWaitMs,
+          maxDeliver,
+        });
+        ensured.push({ durable, ...res });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `task-bridge: ensure consumer ${durable} failed:`,
+          err && err.message ? err.message : err,
+        );
+      }
+    }
     const consumer = await js.consumers.get(stream, durable).catch(async () => {
       // eslint-disable-next-line no-console
-      console.warn(`task-bridge: consumer ${durable} missing — create via ensure-streams`);
+      console.warn(
+        `task-bridge: consumer ${durable} missing — run ensure-task-bridge-consumers.sh`,
+      );
       return null;
     });
     if (!consumer) continue;
     consumers.push(consumer);
     // eslint-disable-next-line no-console
     console.log(
-      `nats-task-bridge listen subject=${subject} durable=${durable} maxInflight=${gate.max}`,
+      `nats-task-bridge listen subject=${subject} durable=${durable} maxInflight=${gate.max} ackWaitMs=${ackWaitMs} workingIntervalMs=${workingIntervalMs}`,
     );
     (async () => {
       const messages = await consumer.consume();
@@ -324,6 +448,7 @@ async function startTaskBridge(opts) {
             data: m.data,
             ack: () => m.ack(),
             nak: () => m.nak(),
+            working: typeof m.working === 'function' ? () => m.working() : undefined,
           },
           {
             sc,
@@ -332,6 +457,7 @@ async function startTaskBridge(opts) {
             fetchImpl: o.fetchImpl,
             invoke: o.invoke,
             fetchTimeoutMs: o.fetchTimeoutMs,
+            workingIntervalMs,
           },
           gate,
         );
@@ -343,7 +469,7 @@ async function startTaskBridge(opts) {
     });
   }
 
-  return { nc, consumers, subjects, stream, gate };
+  return { nc, consumers, subjects, stream, gate, ensured, ackWaitMs };
 }
 
 if (require.main === module) {
@@ -358,12 +484,20 @@ module.exports = {
   DEFAULT_RUNTIME,
   DEFAULT_FETCH_TIMEOUT_MS,
   DEFAULT_MAX_INFLIGHT,
+  DEFAULT_ACK_WAIT_MS,
+  DEFAULT_WORKING_INTERVAL_MS,
+  DEFAULT_MAX_DELIVER,
   TASK_ROUTES,
   TASK_SUBJECTS,
   parseRuntime,
   functionForTask,
   topicsForTask,
+  desiredAckWaitMs,
+  msToNanos,
   createInflightGate,
+  startWorkingHeartbeat,
+  ensureTaskConsumerConfig,
+  ensureTaskConsumer,
   invokeFission,
   handleTaskMessage,
   dispatchTaskMessage,

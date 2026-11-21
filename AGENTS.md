@@ -53,7 +53,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/compliance-erase/` | `aura.tasks.compliance.erase` MQT (`minReplicaCount=0`) | `deploy/k8s/compliance-erase/` |
 | `services/mcp-invoke/` | `mcp_invoke` DESIGN + `nodejs/` · `python/` (async+RPC 공유 tool path · PG 금지) | `services/mcp-invoke/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`gateway.js`) | `services/gateway/` |
-| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** 포함) | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `ensure-task-bridge-consumers.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** 포함) | `deploy/scripts/` |
 
 규칙:
 

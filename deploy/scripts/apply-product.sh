@@ -51,6 +51,10 @@ bash "$ROOT/deploy/scripts/build-mcp-invoke-python-archive.sh"
 echo "== shared runtime Environments (nodejs + python) =="
 kubectl apply -k "$ROOT/deploy/k8s/runtime-envs"
 
+echo "== task-bridge JetStream consumers (AckWait≥150s) =="
+bash "$ROOT/deploy/scripts/ensure-task-bridge-consumers.sh" \
+  || echo "WARN: ensure-task-bridge-consumers deferred — bridge jsm ensure on start"
+
 echo "== nats-rpc-bridge + nats-task-bridge (ns aura; baked images) =="
 # Images: bash deploy/scripts/build-nats-bridge-images.sh (load into cluster as needed).
 kubectl apply -k "$ROOT/deploy/k8s/nats-rpc-bridge"

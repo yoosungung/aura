@@ -5,6 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const {
   DEFAULT_MAX_INFLIGHT,
+  DEFAULT_FETCH_TIMEOUT_MS,
+  DEFAULT_ACK_WAIT_MS,
+  DEFAULT_WORKING_INTERVAL_MS,
   TASK_SUBJECTS,
   functionForTask,
   topicsForTask,
@@ -13,6 +16,9 @@ const {
   invokeFission,
   createInflightGate,
   dispatchTaskMessage,
+  startWorkingHeartbeat,
+  desiredAckWaitMs,
+  ensureTaskConsumerConfig,
 } = require('./bridge');
 
 function sc() {
@@ -140,6 +146,14 @@ async function testInflightDefaults() {
     DEFAULT_MAX_INFLIGHT >= 16 && DEFAULT_MAX_INFLIGHT <= 32,
     `DEFAULT_MAX_INFLIGHT should be 16–32, got ${DEFAULT_MAX_INFLIGHT}`,
   );
+  assert.ok(DEFAULT_FETCH_TIMEOUT_MS >= 60000);
+  assert.ok(
+    DEFAULT_ACK_WAIT_MS >= DEFAULT_FETCH_TIMEOUT_MS + 30000,
+    `AckWait (${DEFAULT_ACK_WAIT_MS}) must exceed fetch timeout + 30s margin`,
+  );
+  assert.ok(DEFAULT_WORKING_INTERVAL_MS > 0);
+  assert.ok(DEFAULT_WORKING_INTERVAL_MS * 3 <= DEFAULT_ACK_WAIT_MS);
+  assert.strictEqual(desiredAckWaitMs(110000), 150000);
 }
 
 async function testDispatchParallelNoHol() {
@@ -221,6 +235,65 @@ async function testConsumeLoopDoesNotAwaitHandle() {
     'loop must not await handleTaskMessage inside for-await',
   );
   assert.ok(/createInflightGate/.test(src), 'must use createInflightGate');
+  assert.ok(/startWorkingHeartbeat/.test(src), 'dispatch must start working heartbeat');
+  assert.ok(/\.working\b/.test(src), 'consume loop must pass msg.working');
+}
+
+async function testWorkingHeartbeat() {
+  let ticks = 0;
+  const stop = startWorkingHeartbeat(
+    {
+      working: () => {
+        ticks += 1;
+      },
+    },
+    20,
+  );
+  await new Promise((r) => setTimeout(r, 70));
+  stop();
+  assert.ok(ticks >= 2, `expected ≥2 working ticks, got ${ticks}`);
+  const after = ticks;
+  await new Promise((r) => setTimeout(r, 40));
+  assert.strictEqual(ticks, after, 'heartbeat must stop after dispose');
+}
+
+async function testDispatchSendsWorkingDuringInvoke() {
+  let working = 0;
+  let ack = 0;
+  await dispatchTaskMessage(
+    {
+      subject: 'aura.tasks.agent.invoke',
+      data: Buffer.from('{}'),
+      ack: async () => {
+        ack += 1;
+      },
+      working: () => {
+        working += 1;
+      },
+    },
+    {
+      sc: sc(),
+      workingIntervalMs: 15,
+      invoke: async () => {
+        await new Promise((r) => setTimeout(r, 50));
+        return { status: 200, body: '{"ok":true}' };
+      },
+      publish: async () => {},
+    },
+  );
+  assert.ok(working >= 2, `dispatch must heartbeat working during invoke, got ${working}`);
+  assert.strictEqual(ack, 1);
+}
+
+async function testEnsureTaskConsumerConfig() {
+  const cfg = ensureTaskConsumerConfig('aura.tasks.agent.invoke', 'aura_task_bridge_agent', {
+    ackWaitMs: 150000,
+    maxDeliver: 5,
+  });
+  assert.strictEqual(cfg.durable_name, 'aura_task_bridge_agent');
+  assert.strictEqual(cfg.filter_subject, 'aura.tasks.agent.invoke');
+  assert.ok(cfg.ack_wait >= 150000 * 1e6);
+  assert.strictEqual(cfg.max_deliver, 5);
 }
 
 async function main() {
@@ -229,6 +302,9 @@ async function main() {
   await testDispatchParallelNoHol();
   await testInflightCap();
   await testConsumeLoopDoesNotAwaitHandle();
+  await testWorkingHeartbeat();
+  await testDispatchSendsWorkingDuringInvoke();
+  await testEnsureTaskConsumerConfig();
   console.log('nats-task-bridge.selftest: PASS');
 }
 

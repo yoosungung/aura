@@ -81,7 +81,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | 컴포넌트 | 역할 | 실행 계급 | PG |
 |----------|------|-----------|-----|
 | **Gateway** | 태스크 **쿼터 검사·resolve `runtime` 스탬프 후** publish; `aura.stream.<run_id>` → 클라이언트 SSE/WS · **ns `aura`** | 상시 ≥2 | 없음(쿼터 상태는 NATS KV 등, §2.2) |
-| **`aura-nats-task-bridge`** | `aura.tasks.agent.invoke` / `mcp.invoke` JetStream pull → `runtime`→Function → Fission Router · resp/error · **ns `aura`** · `TASK_MAX_INFLIGHT`(기본 32, HOL 금지) | Bridge **replicas≥2** · Function KEDA lag · **min=0** | 없음 |
+| **`aura-nats-task-bridge`** | `aura.tasks.agent.invoke` / `mcp.invoke` JetStream pull → `runtime`→Function → Fission Router · resp/error · **ns `aura`** · `TASK_MAX_INFLIGHT`(기본 32, HOL 금지) · **AckWait≥150s** + `working()` heartbeat | Bridge **replicas≥2** · Function KEDA lag · **min=0** | 없음 |
 | **`aura-nats-rpc-bridge`** | `aura.rpc.*` queue-group 구독 → Fission Router HTTP 중계 · **ns `aura`** | 상시 ≥2 | 없음 |
 | `agent_invoke` | 턴 실행; recall/mcp/resolve RPC; **스트림 프레임 publish**; capture 발행; done/error 이벤트 | **async** task-bridge (0 허용) | 체크포인트만 (**Pooler**) |
 | `mcp_invoke` (task) | 비동기 MCP 작업 | **async** task-bridge (0 허용) | 없음 |
@@ -238,7 +238,7 @@ task-bridge·프레임·RPC 순서 고정: [`deploy/docs/nats-task-bridge.md`](d
 ### 4.1 비동기 — JetStream MQT (+ agent/mcp task-bridge)
 
 - **대상(MQT)**: §3.2 `aura.tasks.*` 중 memory capture/store/embed/consolidate/ttl/archive 등 — MessageQueueTrigger `mqtype=nats-jetstream`, `mqtkind=keda`. 스트림·pull consumer 사전 생성. `resptopic` / `errortopic` + **MaxDeliver→DLQ**.
-- **대상(task-bridge)**: `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` — **`aura-nats-task-bridge`**가 JetStream pull 후 `runtime`→Function → Fission Router. 언어별 MQT 금지. Bridge **replicas≥2** + `void dispatchTaskMessage`/`TASK_MAX_INFLIGHT`(HOL 금지). Function 스케일=KEDA lag, **scale-to-zero 허용**. 상세: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
+- **대상(task-bridge)**: `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` — **`aura-nats-task-bridge`**가 JetStream pull 후 `runtime`→Function → Fission Router. 언어별 MQT 금지. Bridge **replicas≥2** + `void dispatchTaskMessage`/`TASK_MAX_INFLIGHT`(HOL 금지) + **AckWait≥150s**/`msg.working()`(중복 재전송 방지). Function 스케일=KEDA lag, **scale-to-zero 허용**. 상세: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
 - **스케일(MQT)**: KEDA JetStream lag. **`minReplicaCount = 0` 허용** (scale-to-zero).
 - **콜드스타트 SLA (async만)**: 워밍 없이 p95 **< 15s** 베이스라인(M0 측정). 대화 턴의 **체감 지연 정본이 아님**.
 - **M0 샘플**: Function/MQT `aura-tasks-smoke` — topic `aura.tasks.smoke`, pull consumer `aura_tasks_smoke`, `respTopic`=`aura.events.tasks.smoke.done`, `errorTopic`=`aura.events.tasks.smoke.error` (이름 정본은 `deploy/SETUP.md`).
