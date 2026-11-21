@@ -8,6 +8,25 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 [[ -f "$ROOT/deploy/k8s/runtime-envs/aura-python-sync.yaml" ]] || fail "missing aura-python-sync"
 grep -q 'poolsize: 2' "$ROOT/deploy/k8s/runtime-envs/aura-python-sync.yaml" \
   || fail "python-sync poolsize must be 2"
+for envf in aura-python-async.yaml aura-python-sync.yaml; do
+  grep -q 'ghcr.io/fission/python-fastapi-env:1.35.0' \
+    "$ROOT/deploy/k8s/runtime-envs/$envf" \
+    || fail "$envf must use python-fastapi-env:1.35.0"
+  grep -q 'ghcr.io/fission/python-fastapi-builder:1.35.0' \
+    "$ROOT/deploy/k8s/runtime-envs/$envf" \
+    || fail "$envf must use python-fastapi-builder:1.35.0"
+done
+for fn in agent-invoke-py/function.yaml mcp-invoke-py/function.yaml; do
+  grep -q 'concurrency: 4' "$ROOT/deploy/k8s/$fn" \
+    || fail "$fn must set concurrency: 4"
+  grep -q 'functionName: handler.main' "$ROOT/deploy/k8s/$fn" \
+    || fail "$fn must set functionName: handler.main"
+done
+grep -q 'functionName: handler.main' \
+  "$ROOT/deploy/k8s/mcp-invoke-rpc-py/function.yaml" \
+  || fail "mcp-invoke-rpc-py must set functionName: handler.main"
+grep -q 'concurrency:' "$ROOT/deploy/k8s/mcp-invoke-rpc-py/function.yaml" \
+  && fail "mcp-invoke-rpc-py must keep default concurrency (omit field)"
 [[ -d "$ROOT/services/agent-invoke/nodejs" ]] || fail "missing agent-invoke/nodejs"
 [[ -d "$ROOT/services/agent-invoke/python" ]] || fail "missing agent-invoke/python"
 [[ -d "$ROOT/services/mcp-invoke/nodejs" ]] || fail "missing mcp-invoke/nodejs"

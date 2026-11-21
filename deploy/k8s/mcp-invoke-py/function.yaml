@@ -1,4 +1,4 @@
-# Python mcp_invoke async Function — task-bridge only (no MQT). M3.6.
+# Python mcp_invoke async Function — task-bridge only (no MQT). M3.6 · fastapi-env.
 apiVersion: fission.io/v1
 kind: Function
 metadata:
@@ -15,6 +15,7 @@ spec:
     name: aura-python-async
     namespace: default
   package:
+    functionName: handler.main
     packageref:
       name: aura-mcp-invoke-py
       namespace: default
@@ -24,3 +25,4 @@ spec:
       ExecutorType: poolmgr
   functionTimeout: 60
   idletimeout: 120
+  concurrency: 4

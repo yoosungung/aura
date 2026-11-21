@@ -1,9 +1,11 @@
-"""Python mcp_invoke handler (M3.6 parity). Fission entry for async+RPC."""
+"""Python mcp_invoke handler (M3.6). Fission fastapi-env entry: main(request)."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
+
+from fastapi import Request, Response
 
 
 def validate_mcp_request(req: dict[str, Any]) -> dict[str, Any]:
@@ -102,5 +104,17 @@ async def invoke_tool_once(req: dict[str, Any], deps: dict[str, Any] | None = No
     }
 
 
-def main():
-    return json.dumps({"type": "mcp.invoke.done", "ok": True, "runtime": "python"})
+async def main(request: Request, deps: dict[str, Any] | None = None) -> Response:
+    """Fission python-fastapi-env entry — JSON body → invoke_tool_once → JSON Response."""
+    try:
+        req = await request.json()
+    except Exception:
+        req = {}
+    if not isinstance(req, dict):
+        req = {}
+    out = await invoke_tool_once(req, deps)
+    return Response(
+        content=json.dumps(out),
+        media_type="application/json",
+        status_code=200,
+    )

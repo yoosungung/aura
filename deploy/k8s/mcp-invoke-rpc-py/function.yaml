@@ -1,4 +1,5 @@
-# Python mcp_invoke RPC Function — poolmgr via aura-python-sync. M3.6.
+# Python mcp_invoke RPC Function — poolmgr via aura-python-sync. M3.6 · fastapi-env.
+# concurrency defaults to 1 (sync RPC tail latency).
 apiVersion: fission.io/v1
 kind: Function
 metadata:
@@ -15,6 +16,7 @@ spec:
     name: aura-python-sync
     namespace: default
   package:
+    functionName: handler.main
     packageref:
       name: aura-mcp-invoke-rpc-py
       namespace: default

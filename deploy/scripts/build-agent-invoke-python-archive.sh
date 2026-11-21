@@ -11,7 +11,7 @@ trap 'rm -rf "$STAGE"' EXIT
 
 cp "$SRC/handler.py" "$STAGE/"
 cp "$SRC/requirements.txt" "$STAGE/" 2>/dev/null || true
-# Fission python-env expects main() in the module named by entry, default user module.
+# Fission python-fastapi-env entry: handler.main(request) (Function package.functionName).
 (
   cd "$STAGE"
   if [[ "${BUILD_INSTALL_DEPS:-0}" == "1" ]] && [[ -f requirements.txt ]] && command -v pip3 >/dev/null 2>&1; then

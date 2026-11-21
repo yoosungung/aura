@@ -21,6 +21,19 @@ archive: [`fission-node-archive.md`](fission-node-archive.md) · [`fission-pytho
 | 인지 루프 | Python `langchain.agents.create_agent` |
 | 검증 | `check-python-env-parity.sh` · Node 회귀 + Python 동일 픽스처 |
 
+## M3.6 후속 — `fastapi-env` 전환
+
+| 항목 | 내용 |
+|------|------|
+| 대상 | `aura-python-async` / `aura-python-sync` 이미지만 교체 (이름·브리지 매핑 불변) |
+| Runtime | `ghcr.io/fission/python-fastapi-env:1.35.0` |
+| Builder | `ghcr.io/fission/python-fastapi-builder:1.35.0` |
+| 엔트리 | Flask `main()` → FastAPI `async def main(request: Request)` (`handler.main`) |
+| concurrency | `aura-agent-invoke-py` · `aura-mcp-invoke-py` = `4` · `aura-mcp-invoke-rpc-py` = 기본 1 |
+| 패키징 | archive 유지 — env에 agent/MCP package bake 금지 |
+| 검증 | `check-python-env-parity.sh` · Router 경유 python runtime 스모크 |
+| 롤백 | Environment 이미지를 `python-env`로 되돌리고 handler 엔트리 git revert |
+
 ### 브리지 매핑
 
 | subject | runtime | Function |

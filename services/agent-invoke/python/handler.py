@@ -1,9 +1,11 @@
-"""Python agent_invoke handler (M3.6 parity shell). Fission entry: main()."""
+"""Python agent_invoke handler (M3.6). Fission fastapi-env entry: main(request)."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
+
+from fastapi import Request, Response
 
 
 def validate_invoke_task(task: dict[str, Any]) -> dict[str, Any]:
@@ -87,14 +89,17 @@ async def invoke_once(task: dict[str, Any], deps: dict[str, Any] | None = None) 
     }
 
 
-def main():
-    """Fission python-env entry — sync wrapper around validate for specialize smoke."""
-    import asyncio
-
-    # Fission passes request via environment in some versions; keep stub response.
-    return json.dumps({"type": "agent.invoke.done", "ok": True, "runtime": "python"})
-
-
-# Fission python-env looks for main
-def handler(context):
-    return main()
+async def main(request: Request, deps: dict[str, Any] | None = None) -> Response:
+    """Fission python-fastapi-env entry — JSON body → invoke_once → JSON Response."""
+    try:
+        task = await request.json()
+    except Exception:
+        task = {}
+    if not isinstance(task, dict):
+        task = {}
+    out = await invoke_once(task, deps)
+    return Response(
+        content=json.dumps(out),
+        media_type="application/json",
+        status_code=200,
+    )

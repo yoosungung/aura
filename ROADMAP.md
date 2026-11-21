@@ -70,6 +70,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **`agent_checkpoints` 예외 테이블 DDL M3 고정** — 이름=`agent_checkpoints` · FORCE RLS · UNIQUE(tenant,run,seq) · kind turn/tool/final · state JSONB+`content_ref`(256KB+) · writer=`agent_invoke` only · Pooler+`set_config` · writer/resume=후속 | §1 #10·§6.1.2 · [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md)·`agent_checkpoints.sql`·`check-agent-checkpoints.sh` |
 | 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 | 2026-11-20 | **M3.6 python-env 병행** — Node agent/MCP 유지 · `source_meta.runtime` 권위+메시지 스탬프 · 동일 NATS subject · task-bridge+rpc runtime→Function · `aura-python-async|sync` · `services/*/nodejs|python` · 브리지 deps 이미지 · custom-env 후속 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) |
+| 2026-11-21 | **M3.6 후속 fastapi-env** — `aura-python-*` → `python-fastapi-env:1.35.0`+builder · `async def main(request)` · async Function `concurrency:4` · archive 유지 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) · `check-python-env-parity.sh` |
 | 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/Garage · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 Garage sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
 | 2026-11-20 | **Admin UI React 재설계 M6.1** — Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · 전수 인벤토리 · PG=SoR · KV=`quota.*`는 Gateway만 · Phase2=control-admin HTTP→`aura.rpc.gateway.quota` · `GET /v1/audit` · Audit 화면 | §2·§6.1 · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md)·`check-admin-ui.sh` · [`services/admin-ui/`](services/admin-ui/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
@@ -267,6 +268,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `aura-python-async|sync` · apply allowlist · Python archive/Function
 - [x] resolve/Gateway stamp · rpc/task bridge `runtime`→Function · 브리지 deps 이미지
 - [x] 패리티 check (`check-python-env-parity.sh`)
+- [x] fastapi-env 전환 — `python-fastapi-env:1.35.0` · `handler.main(request)` · async `concurrency:4`
 - [~] (후속) custom-env Function 슬롯 · rust-env PoC
 
 **성공 기준**
@@ -274,6 +276,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - 동일 subject로 `runtime=nodejs|python` invoke; 메시지 단독 언어 선택 없음.
 - agent/mcp 언어별 MQT 이중 구독 없음; task-bridge는 handler 미포함.
 - Node 회귀 smoke + Python 패리티 selftest 합격.
+- Python Environment가 `python-fastapi-env:1.35.0`이며 async Function concurrency=4.
 
 ---
 

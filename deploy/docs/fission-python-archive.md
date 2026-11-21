@@ -1,12 +1,12 @@
-# Fission Python Package — archive (M3.6)
+# Fission Python Package — archive (M3.6 · fastapi-env)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #2 · §4.  
 일정: [ROADMAP.md](../../ROADMAP.md) M3.6.  
 대칭: [`fission-node-archive.md`](fission-node-archive.md).  
 multi-env: [`multi-env-followup.md`](multi-env-followup.md).
 
-**이 문서 범위:** Python deployment archive + `python-env` · 빌드 스크립트 · check.  
-**Non-goals:** 클러스터 source-build 필수 · Node 교체 · custom-env.
+**이 문서 범위:** Python deployment archive + `python-fastapi-env` · 빌드 스크립트 · check.  
+**Non-goals:** 클러스터 source-build 필수 · Node 교체 · custom-env · env 이미지에 agent/MCP bake.
 
 ---
 
@@ -14,12 +14,14 @@ multi-env: [`multi-env-followup.md`](multi-env-followup.md).
 
 | 항목 | 값 |
 |------|-----|
-| Runtime image | `ghcr.io/fission/python-env` |
-| Builder image | `ghcr.io/fission/python-builder` (Environment에 부착; CI는 deployment zip) |
-| Package | **deployment archive** zip — CI에서 `pip install -r requirements.txt -t <vendor>` |
+| Runtime image | `ghcr.io/fission/python-fastapi-env:1.35.0` |
+| Builder image | `ghcr.io/fission/python-fastapi-builder:1.35.0` (Environment에 부착; CI는 deployment zip) |
+| 엔트리 | `async def main(request: Request)` — Function `package.functionName: handler.main` |
+| Package | **deployment archive** zip — CI에서 `pip install -r requirements.txt -t <vendor>` (선택) |
 | 소스 | `services/agent-invoke/python/` · `services/mcp-invoke/python/` |
 | Functions | `aura-agent-invoke-py` · `aura-mcp-invoke-py` · `aura-mcp-invoke-rpc-py` |
 | Environment | async=`aura-python-async` · sync=`aura-python-sync` |
+| concurrency | async Functions `4` · sync RPC 기본 `1` |
 | MQT | **없음** — task/rpc 브리지만 |
 
 ---

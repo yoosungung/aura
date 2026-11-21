@@ -1,1 +1,2 @@
-# M3.6 mcp_invoke python — stdlib-only for parity shell.
+# M3.6 mcp_invoke python — fastapi-env entry; runtime image already has fastapi.
+fastapi>=0.115,<1

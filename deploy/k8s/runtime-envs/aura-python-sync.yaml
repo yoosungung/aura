@@ -1,4 +1,4 @@
-# Shared sync Python Environment — poolmgr Warm (ARCHITECTURE §4.2 · M3.6).
+# Shared sync Python Environment — poolmgr Warm (ARCHITECTURE §4.2 · M3.6 · fastapi-env).
 # poolsize ≥ 2; NATS subscription is aura-nats-rpc-bridge (not per-service *-rr).
 apiVersion: fission.io/v1
 kind: Environment
@@ -13,8 +13,8 @@ metadata:
 spec:
   version: 3
   runtime:
-    image: ghcr.io/fission/python-env:latest
+    image: ghcr.io/fission/python-fastapi-env:1.35.0
   builder:
-    image: ghcr.io/fission/python-builder:latest
+    image: ghcr.io/fission/python-fastapi-builder:1.35.0
   poolsize: 2
   resources: {}
