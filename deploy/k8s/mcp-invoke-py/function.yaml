@@ -25,10 +25,10 @@ spec:
       ExecutorType: poolmgr
   secrets:
     - name: aura-object-store-creds
-      namespace: aura
+      namespace: default
   configmaps:
     - name: aura-s3
-      namespace: aura
+      namespace: default
   functionTimeout: 60
   idletimeout: 120
   concurrency: 4

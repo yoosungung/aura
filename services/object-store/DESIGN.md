@@ -40,4 +40,4 @@ services/object-store/.venv/bin/python -m pytest services/object-store/test_get_
 bash deploy/scripts/check-object-store-garage.sh
 ```
 
-랩 apply (CI 아님): `kubectl apply -k deploy/k8s/garage` → `bash deploy/k8s/garage/bootstrap.sh`(버킷·키·Secret upsert) → Secret을 마운트한 Deployment를 restart. `secret.yaml`은 템플릿만 — kustomization에 넣지 않는다(`apply -k`가 라이브 키를 덮어쓰지 않게). StatefulSet은 `command: ["/garage"]`, 단일 노드 `rpc_public_addr=127.0.0.1:3901`, bootstrap은 node-id hex prefix만 `layout assign`에 넘긴다. 데이터는 `emptyDir`(Pod 삭제 시 소실).
+랩 apply (CI 아님): `kubectl apply -k deploy/k8s/garage` → `bash deploy/k8s/garage/bootstrap.sh`(버킷·키·Secret upsert) → Secret을 마운트한 Deployment를 restart. `secret.yaml`은 템플릿만 — kustomization에 넣지 않는다(`apply -k`가 라이브 키를 덮어쓰지 않게). Secret·`aura-s3`는 `aura`(control-admin)와 `default`(Fission Function) 양쪽에 둔다 — Fission은 Function과 다른 ns의 Secret/ConfigMap을 거부한다. StatefulSet은 `command: ["/garage"]`, 단일 노드 `rpc_public_addr=127.0.0.1:3901`, bootstrap은 node-id hex prefix만 `layout assign`에 넘긴다. 데이터는 `emptyDir`(Pod 삭제 시 소실).

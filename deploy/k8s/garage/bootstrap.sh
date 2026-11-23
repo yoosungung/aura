@@ -23,8 +23,15 @@ g bucket allow --read --write aura-content --key "$KEY_NAME"
 AK="$(echo "$KEY_OUT" | awk -F': ' '/Key ID:/{print $2}' | tr -d '\r')"
 SK="$(echo "$KEY_OUT" | awk -F': ' '/Secret key:/{print $2}' | tr -d '\r')"
 [[ -n "$AK" && -n "$SK" ]] || { echo "FAIL: parse key output" >&2; exit 1; }
-kubectl -n "$NS" create secret generic aura-object-store-creds \
-  --from-literal=ACCESS_KEY_ID="$AK" \
-  --from-literal=ACCESS_SECRET_KEY="$SK" \
-  --dry-run=client -o yaml | kubectl apply -f -
-echo "OK: Secret aura-object-store-creds upserted. Restart consumers that mount it (e.g. aura-control-admin)."
+for dest in "$NS" default; do
+  kubectl -n "$dest" create secret generic aura-object-store-creds \
+    --from-literal=ACCESS_KEY_ID="$AK" \
+    --from-literal=ACCESS_SECRET_KEY="$SK" \
+    --dry-run=client -o yaml | kubectl apply -f -
+done
+# Fission Functions live in default and cannot mount aura-ns ConfigMaps.
+kubectl -n "$NS" get configmap aura-s3 -o json \
+  | python3 -c 'import json,sys; o=json.load(sys.stdin); o["metadata"]={"name":"aura-s3","namespace":"default","labels":o["metadata"].get("labels",{})}; print(json.dumps(o))' \
+  | kubectl apply -f -
+echo "OK: Secret aura-object-store-creds upserted in $NS and default; aura-s3 mirrored to default."
+echo "Restart consumers that mount it (e.g. aura-control-admin)."
