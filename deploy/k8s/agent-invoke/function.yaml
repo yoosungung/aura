@@ -21,5 +21,11 @@ spec:
     StrategyType: execution
     ExecutionStrategy:
       ExecutorType: poolmgr
+  secrets:
+    - name: aura-object-store-creds
+      namespace: aura
+  configmaps:
+    - name: aura-s3
+      namespace: aura
   functionTimeout: 120
   idletimeout: 120

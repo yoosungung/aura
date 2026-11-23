@@ -7,6 +7,8 @@ from typing import Any
 
 from fastapi import Request, Response
 
+from factory import open_factory
+
 
 def validate_mcp_request(req: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(req, dict):
@@ -51,6 +53,7 @@ async def invoke_tool_once(req: dict[str, Any], deps: dict[str, Any] | None = No
         return {"type": "mcp.invoke.error", "ok": False, "error": v["error"]}
 
     resolve = d.get("resolve")
+    resolved: dict[str, Any] | None = None
     resolved_runtime = "python"
     cfg: dict[str, Any] = {}
     if callable(resolve):
@@ -77,23 +80,74 @@ async def invoke_tool_once(req: dict[str, Any], deps: dict[str, Any] | None = No
     if not rt.get("ok"):
         return {"type": "mcp.invoke.error", "ok": False, "error": rt["error"]}
 
+    source = resolved.get("source") if isinstance(resolved, dict) else {}
+    secrets_ref = resolved.get("secrets_ref") if isinstance(resolved, dict) else None
+    load_bundle = d.get("load_bundle")
+    if not callable(load_bundle):
+        import importlib
+        import sys
+        from pathlib import Path
+
+        here = Path(__file__).resolve().parent
+        for cand in (here, here.parent.parent / "object-store"):
+            if (cand / "bundle_cache.py").exists():
+                p = str(cand)
+                if p not in sys.path:
+                    sys.path.insert(0, p)
+                break
+        bundle_cache = importlib.import_module("bundle_cache")
+
+        async def load_bundle(src, _cache=bundle_cache, _tenant=req["principal"]["tenant_id"]):
+            return await _cache.load_cached_bundle(
+                src,
+                {
+                    "tenant_id": _tenant,
+                    "fetch": d.get("object_fetch"),
+                    "endpoint": d.get("object_endpoint"),
+                    "region": d.get("object_region"),
+                    "access_key_id": d.get("object_access_key_id"),
+                    "secret_access_key": d.get("object_secret_access_key"),
+                    "cache": d.get("bundle_cache"),
+                    "env": d.get("object_env"),
+                },
+            )
+
+    try:
+        fac = await open_factory(
+            cfg,
+            {
+                "source": source or {},
+                "secrets_ref": secrets_ref,
+                "fetch": d.get("fetch"),
+                "load_bundle": load_bundle,
+                "list_tools": d.get("list_tools"),
+                "run_tool": d.get("run_tool"),
+            },
+        )
+    except RuntimeError as err:
+        return {"type": "mcp.invoke.error", "ok": False, "error": str(err)}
+
+    ctx = {
+        "server": req["server"],
+        "version": req["version"],
+        "tool": req.get("tool"),
+        "arguments": req.get("arguments") if isinstance(req.get("arguments"), dict) else {},
+        "principal": req["principal"],
+        "cfg": cfg,
+        "secrets_ref": secrets_ref,
+    }
     if req["action"] == "list":
-        list_tools = d.get("list_tools")
-        tools = []
-        if callable(list_tools):
-            tools = await list_tools(cfg)
+        listed = await fac["listTools"](ctx)
+        tools = listed.get("tools") if isinstance(listed, dict) else listed
         return {
             "type": "mcp.invoke.done",
             "ok": True,
             "action": "list",
-            "tools": tools or [{"name": "echo", "description": "python stub"}],
+            "tools": tools or [],
             "runtime": "python",
         }
 
-    run_tool = d.get("run_tool")
-    result = {"ok": True, "content": "python_mcp_stub"}
-    if callable(run_tool):
-        result = await run_tool(req.get("tool"), req.get("arguments") or {}, cfg)
+    result = await fac["runTool"](ctx)
     return {
         "type": "mcp.tool.done",
         "ok": True,

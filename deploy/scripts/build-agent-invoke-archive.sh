@@ -10,9 +10,12 @@ trap 'rm -rf "$STAGE"' EXIT
 
 cp "$SRC/handler.js" "$STAGE/"
 cp "$SRC/run-turn-create-agent.js" "$STAGE/" 2>/dev/null || true
+cp "$SRC/bundle-turn.js" "$STAGE/" 2>/dev/null || true
 cp "$SRC/llm-gateway-model.js" "$STAGE/" 2>/dev/null || true
 cp "$SRC/checkpoints.js" "$STAGE/" 2>/dev/null || true
 cp "$SRC/nats-deps.js" "$STAGE/" 2>/dev/null || true
+cp "$ROOT/services/object-store/get-object.js" "$STAGE/"
+cp "$ROOT/services/object-store/bundle-cache.js" "$STAGE/"
 cp "$SRC/package.json" "$STAGE/"
 # LLM egress client (relative require path rewritten in llm-gateway-model for archive: ./llm-gateway-client.js)
 cp "$ROOT/services/llm-gateway/client.js" "$STAGE/llm-gateway-client.js"

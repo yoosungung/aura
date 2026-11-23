@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "object-store"))
+from bundle_cache import BundleCache  # noqa: E402
 
 import pytest
 from starlette.requests import Request
@@ -35,10 +40,8 @@ async def test_list_tools(fixtures):
         return {"runtime": "python", "cfg": {}}
 
     out = await invoke_tool_once(dict(fixtures["valid_list"]), {"resolve": resolve})
-    assert out["type"] == "mcp.invoke.done"
-    assert out["action"] == "list"
-    assert out["runtime"] == "python"
-    assert isinstance(out["tools"], list)
+    assert out["ok"] is False
+    assert out["error"] == "mcp_backend_missing"
 
 
 async def _json_request(payload: dict) -> Request:
@@ -71,6 +74,56 @@ async def test_main_request_json_roundtrip(fixtures):
     resp = await main(req)
     assert resp.media_type == "application/json"
     body = json.loads(resp.body.decode("utf-8"))
-    assert body["type"] == "mcp.invoke.done"
-    assert body["action"] == "list"
-    assert body["runtime"] == "python"
+    assert body["ok"] is False
+    assert body["error"] == "mcp_backend_missing"
+
+
+@pytest.mark.asyncio
+async def test_default_load_bundle_caches_bytes(fixtures):
+    fx = json.loads((Path(__file__).resolve().parents[1] / "testdata" / "mcp_bundle.json").read_text())
+    raw = fx["py"].encode("utf-8")
+    checksum = "sha256:" + hashlib.sha256(raw).hexdigest()
+    tenant = fixtures["valid_list"]["principal"]["tenant_id"]
+    source = {
+        "entrypoint": fx["entrypoint"],
+        "sig_uri": fx["sig_uri"],
+        "checksum": checksum,
+        "bundle_uri": f"s3://aura-content/tenants/{tenant}/bundles/mcp/demo/1/mod.py",
+    }
+    calls = {"n": 0}
+
+    async def fetch(_url, _headers):
+        calls["n"] += 1
+        return {"status": 200, "body": raw}
+
+    cache = BundleCache()
+
+    async def resolve(flag):
+        async def _resolve(_req):
+            return {
+                "runtime": "python",
+                "cfg": {"flag": flag},
+                "secrets_ref": "secret://demo",
+                "source": source,
+            }
+
+        return _resolve
+
+    deps = {
+        "object_fetch": fetch,
+        "object_endpoint": "http://garage.aura.svc.cluster.local:3900",
+        "object_region": "garage",
+        "object_access_key_id": "lab-access",
+        "object_secret_access_key": "lab-secret-not-for-logs",
+        "bundle_cache": cache,
+    }
+    req = dict(fixtures["valid_list"])
+    first = await invoke_tool_once(req, {**deps, "resolve": await resolve(True)})
+    call = dict(fixtures["valid_list"])
+    call["action"] = "call"
+    call["tool"] = "echo"
+    second = await invoke_tool_once(call, {**deps, "resolve": await resolve(False)})
+    assert first["ok"] is True
+    assert second["ok"] is True
+    assert second["result"]["cfg_flag"] is False
+    assert calls["n"] == 1

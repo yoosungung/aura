@@ -9,6 +9,9 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 cp "$SRC/handler.py" "$STAGE/"
+cp "$SRC/factory.py" "$STAGE/"
+cp "$ROOT/services/object-store/get_object.py" "$STAGE/"
+cp "$ROOT/services/object-store/bundle_cache.py" "$STAGE/"
 cp "$SRC/requirements.txt" "$STAGE/" 2>/dev/null || true
 (
   cd "$STAGE"

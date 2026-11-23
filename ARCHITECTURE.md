@@ -22,12 +22,13 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 9. **메모리 파이프라인.** capture → (event) → store/embed → retrieve → consolidate. Agent는 `aura.rpc.memory.recall`만 사용하고, 원문 전량을 프롬프트에 덤프하지 않는다.
 10. **Zero Direct Write (런타임).** `agent_invoke` / `mcp_invoke` / `memory_capture`는 도메인 메모리를 PG에 쓰지 않는다. NATS 이벤트·태스크만 발행한다. 세션 체크포인트 등 런타임 예외 테이블은 §6에 명시한 것만 허용한다.
 11. **번들 계약.** invoke payload는 식별자만 담는다. 코드·config는 `svc-control` resolve로 얻는다. factory 시그니처는 `(cfg, secrets) -> instance` (하위호환 zero-arg·1-arg 허용). **func-env 권위는 `source_meta.runtime`**(nodejs|python|custom; 기본 nodejs) — `svc-control`만 쓰기. 메시지 `runtime`은 Gateway 스탬프일 뿐이며 Function·이미지는 resolve로 재검증한다. `runtime=custom`일 때 Gateway는 resolve의 Router Function 이름을 payload `function`으로 같이 스탬프한다. 클라이언트가 `runtime`/`function`을 만들지 않는다. `user_meta`/`cfg`에 runtime을 두지 않는다.
-12. **MCP 대칭.** agent→mcp는 NATS Request-Reply다. Aura 컴포넌트 사이에는 MCP 프로토콜을 두지 않는다. 테넌트/외부 MCP가 Streamable HTTP만 말할 때 `mcp_invoke` Function 경계에서만 HTTP 어댑터를 둔다.
+12. **MCP 대칭.** agent→mcp는 NATS Request-Reply다. Aura 컴포넌트 사이에는 MCP 프로토콜을 두지 않는다. 제3자 MCP의 Streamable HTTP는 `mcp_invoke` Function 안에서만 연다. 공유 Function은 `cfg.mcp_endpoint`면 그 HTTP를, `module.path:attr`이면서 `sig_uri`와 checksum이 맞으면 `factory(cfg, secrets_ref)`를 호출한다. 둘 다 없으면 `mcp_backend_missing`이다. 미서명 번들은 공유 풀에 로드하지 않는다.
 13. **Agent UX 스트리밍 필수.** 대화형 `agent_invoke`는 실행 중 `aura.stream.<run_id>`(NATS Core)로 토큰·툴 진행 프레임을 publish한다. 클라이언트는 Gateway SSE/WebSocket 브리지로 구독한다. **done 이벤트만 기다리는 배치 UX를 대화형 경로의 기본으로 두지 않는다.**
 14. **멀티테넌트 HNSW는 post-filter 함정을 계약으로 막는다.** 공유 `model_key` HNSW에서 `tenant_id` 필터만 걸고 전역 Top-K를 자르면 소형 테넌트 Recall이 0에 수렴할 수 있다. recall 트랜잭션은 **pgvector 0.8+ `hnsw.iterative_scan`을 켠 상태**에서 테넌트 조건과 ANN을 함께 평가한다(§6.2.3). M1에서 왜곡 테넌트 픽스처로 검증하고, 실패 시 테넌트 해시/대형 테넌트 분리 파티션으로 승격한다.
 15. **그래프 순회는 방어적으로만.** `memory_edges` 1–2홉은 **유효 엣지만**, **출·입 방향 인덱스**, **홉/팬아웃 LIMIT**, **visited 사이클 방지**, **슈퍼노드 차수 캡**을 지킨다(§6.2.4). 무제한 재귀·무제한 JOIN 금지.
 16. **테넌트 Fair Queue / Rate Limit은 출시 전 필수.** NATS Account 격리와 무관하게, 공유 `AURA_TASKS`에 대한 **Gateway 진입 제어**(테넌트별 Token Bucket + 동시 실행 상한)를 둔다(§2.2). 한 테넌트의 대량 `agent.invoke`가 다른 테넌트를 기아(starvation)에 빠뜨리면 안 된다.
 17. **보안·비용·컴플라이언스 최소선(§9).** 테넌트 코드 샌드박스·Egress 격리, NATS mTLS·시크릿 마스킹·단기 캐시, GDPR 잊힐 권리(비식별화+crypto-shredding), **중앙 LLM Gateway**, 동기 경로 Warm Pool SLA, PG HA/DR 수치, JetStream **MaxDeliver+DLQ** — 출시 전 로드맵에 포함한다.
+18. **공유 agent Function, 에이전트별 cfg.** `aura-agent-invoke` / `aura-agent-invoke-py`는 하나다. 차이는 resolve된 `cfg`(`system_prompt`, `model`, MCP `tools` allowlist, `sub_agents` 참조)다. 서브에이전트는 같은 `run_id`·같은 Function에서 깊이 2까지이고, `token` / `tool.*` 프레임에 `agent` 이름을 싣는다. payload에 스펙을 넣지 않는다. 코드 선별은 #11이다.
 
 ### 이것만은 하지 말 것
 
@@ -50,6 +51,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 - Agent가 PG에 직접 SELECT해 recall하지 말 것 — `aura.rpc.memory.recall`만.
 - **recall 응답 외 memory 원문·`content_ref` 본문을 프롬프트에 덤프하지 말 것** — 슬롯·토큰 예산은 §6.3 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md).
 - 헬프데스크 FSM·옴니채널 게이트웨이·L0–L3 Semantic Pyramid 계약을 이 저장소에 되살리지 말 것.
+- **에이전트마다 Fission Function을 두지 말 것** — 플랫폼 경로는 공유 `createAgent`와 resolve `cfg`다. 서브에이전트 프롬프트·툴을 부모 cfg에 인라인하지 말 것.
 
 ---
 
@@ -215,8 +217,8 @@ RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에
 | `type` | 내용 |
 |--------|------|
 | `run.started` | `run_id`, `session_id`, `agent`, `version` |
-| `token` | `text` (incremental; 슬림) |
-| `tool.started` / `tool.finished` | `tool`, `server?`, `summary?` |
+| `token` | `text` (incremental; 슬림), `agent?` |
+| `tool.started` / `tool.finished` | `tool`, `server?`, `summary?`, `agent?` |
 | `error` | 스트림상 오류 힌트(정본은 `aura.events.agent.invoke.error`) |
 | `run.completed` | 스트림 종료 신호; **내구 완료는 반드시** `aura.events.agent.invoke.done` |
 
@@ -718,7 +720,7 @@ Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를
 
 `id`는 멱등 키. NATS 페이로드 **256KB(262144) 초과** 또는 PII 본문은 **`content_ref`만** 넣고 `payload`에 원문을 두지 않는다(§9.3).
 
-**Object Store 제품 (M2 / V2.1 · M4 경로 봉인):** **Garage** (S3-compatible / SigV4). 앱 버킷 **`aura-content` 단일** — prefix `tenants/{tenant_id}/refs/…` · `archive/…` · `bundles/…` 공유(용도별 버킷 분리 금지). PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals.
+**Object Store 제품 (M2 / V2.1 · M4 경로 봉인):** **Garage** (S3-compatible / SigV4). 앱 버킷 **`aura-content` 단일** — prefix `tenants/{tenant_id}/refs/…` · `archive/…` · `bundles/…` 공유(용도별 버킷 분리 금지). PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals. `agent_invoke`와 `mcp_invoke`의 번들 읽기는 `GetObject`만이고, 캐시는 그 Pod의 메모리다. 리더: [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md). 단일 노드 `aura-content` 매니페스트: [`deploy/k8s/garage/`](deploy/k8s/garage/). CI는 라이브 Garage를 요구하지 않는다.
 
 **고아 객체 GC (M2 / V2.2 · 구현=M4):** `aura.tasks.memory.object_gc` — `refs/` prefix만, 객체 age **≥ 90일**(`AURA_EVENTS` retention 정합)이고 PG live 참조가 없을 때만 `DeleteObject`. 참조 존재 시 **스킵**. 알고리즘·멱등 키·배치: [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md).
 

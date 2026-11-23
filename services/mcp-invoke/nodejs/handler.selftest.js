@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const {
@@ -225,6 +226,127 @@ async function main() {
   });
   assert.strictEqual(httpRpc.status, 200);
   assert.strictEqual(JSON.parse(httpRpc.body).type, 'mcp.tool.done');
+
+  await assert.rejects(
+    () =>
+      invokeToolOnce(base, {
+        resolve: async () => ({
+          type: 'control.resolve.done',
+          cfg: {},
+          source: { name: 'demo-mcp', version: '1.0.0' },
+          secrets_ref: null,
+        }),
+      }),
+    /mcp_backend_missing/,
+  );
+
+  const bundleFx = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '../testdata/mcp_bundle.json'), 'utf8'),
+  );
+  const bundleBytes = Buffer.from(bundleFx.js, 'utf8');
+  const bundleChecksum =
+    'sha256:' + crypto.createHash('sha256').update(bundleBytes).digest('hex');
+  const bundleSource = {
+    entrypoint: bundleFx.entrypoint,
+    sig_uri: bundleFx.sig_uri,
+    checksum: bundleChecksum,
+    bundle_uri: 's3://aura-content/tenants/t/bundles/mcp/demo/1/mod.js',
+  };
+  const bundleDeps = {
+    resolve: async () => ({
+      type: 'control.resolve.done',
+      cfg: { flag: true },
+      secrets_ref: 'secret://demo',
+      source: bundleSource,
+    }),
+    loadBundle: async () => bundleBytes,
+  };
+  const bundledList = await invokeToolOnce(
+    { action: 'list', server: 'demo-mcp', version: '1.0.0', principal: base.principal },
+    bundleDeps,
+  );
+  assert.strictEqual(bundledList.tools[0].name, 'bundled');
+  const bundledCall = await invokeToolOnce(base, bundleDeps);
+  assert.strictEqual(bundledCall.result.bundled, true);
+  assert.strictEqual(bundledCall.result.tool, 'echo');
+  assert.strictEqual(bundledCall.result.secrets_ref, 'secret://demo');
+  assert.strictEqual(bundledCall.result.cfg_flag, true);
+
+  await assert.rejects(
+    () =>
+      invokeToolOnce(base, {
+        resolve: async () => ({
+          cfg: {},
+          secrets_ref: null,
+          source: { ...bundleSource, checksum: 'sha256:00' },
+        }),
+        loadBundle: async () => bundleBytes,
+      }),
+    /bundle_checksum_mismatch/,
+  );
+  await assert.rejects(
+    () =>
+      invokeToolOnce(base, {
+        resolve: async () => ({
+          cfg: {},
+          secrets_ref: null,
+          source: { entrypoint: bundleFx.entrypoint, checksum: bundleChecksum },
+        }),
+        loadBundle: async () => bundleBytes,
+      }),
+    /bundle_untrusted/,
+  );
+
+  const tenant = base.principal.tenant_id;
+  const cacheUri = `s3://aura-content/tenants/${tenant}/bundles/mcp/demo/1/mod.js`;
+  const cacheSource = { ...bundleSource, bundle_uri: cacheUri };
+  const { createBundleCache } = require('../../object-store/bundle-cache');
+  let objectFetches = 0;
+  const cacheDeps = {
+    objectFetch: async () => {
+      objectFetches += 1;
+      return { status: 200, body: bundleBytes };
+    },
+    objectEndpoint: 'http://garage.aura.svc.cluster.local:3900',
+    objectRegion: 'garage',
+    objectAccessKeyId: 'lab-access',
+    objectSecretAccessKey: 'lab-secret-not-for-logs',
+    bundleCache: createBundleCache(),
+  };
+  const listedA = await invokeToolOnce(
+    { action: 'list', server: 'demo-mcp', version: '1.0.0', principal: base.principal },
+    {
+      ...cacheDeps,
+      resolve: async () => ({
+        cfg: { flag: 'a' },
+        secrets_ref: 'secret://demo',
+        source: cacheSource,
+      }),
+    },
+  );
+  const listedB = await invokeToolOnce(
+    { action: 'list', server: 'demo-mcp', version: '1.0.0', principal: base.principal },
+    {
+      ...cacheDeps,
+      resolve: async () => ({
+        cfg: { flag: 'b' },
+        secrets_ref: 'secret://demo',
+        source: cacheSource,
+      }),
+    },
+  );
+  assert.strictEqual(listedA.tools[0].name, 'bundled');
+  assert.strictEqual(objectFetches, 1);
+  const callB = await invokeToolOnce(base, {
+    ...cacheDeps,
+    resolve: async () => ({
+      cfg: { flag: 'b' },
+      secrets_ref: 'secret://demo',
+      source: cacheSource,
+    }),
+  });
+  assert.strictEqual(callB.result.cfg_flag, 'b');
+  assert.strictEqual(objectFetches, 1);
 
   console.log('mcp-invoke handler.selftest: PASS');
 }

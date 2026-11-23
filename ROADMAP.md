@@ -71,6 +71,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-19 | **M3.5 Agent/MCP 본구현 (Node 먼저)** — `runTurn`=`createAgent`(LangChain.js) · Package=`node-builder`+**archive**(literal 폐기) · LLM=`assertFunctionLlmEgress`+Gateway client · `tools/list` 계약 · live NATS RR/stream · mcp-rr Node 워커 · `agent_checkpoints` writer/resume · **후속** python-env(M3.6)·rust-env PoC | [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`deploy/docs/mcp-tools-list.md`](deploy/docs/mcp-tools-list.md) · [`deploy/docs/fission-node-archive.md`](deploy/docs/fission-node-archive.md) · [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) |
 | 2026-11-20 | **M3.6 python-env 병행** — Node agent/MCP 유지 · `source_meta.runtime` 권위+메시지 스탬프 · 동일 NATS subject · task-bridge+rpc runtime→Function · `aura-python-async|sync` · `services/*/nodejs|python` · 브리지 deps 이미지 · custom-env 후속 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) |
 | 2026-11-21 | **M3.6 후속 fastapi-env** — `aura-python-*` → `python-fastapi-env:1.35.0`+builder · `async def main(request)` · async Function `concurrency:4` · archive 유지 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) · `check-python-env-parity.sh` |
+| 2026-11-22 | **공유 `agent_invoke` + cfg별 에이전트** — 조회 키 유지 · `cfg.system_prompt`/`model`/`tools` allowlist/`sub_agents` 참조 · 같은 `run_id` 깊이 2 · 스트림 `agent` · payload 스펙 거부 · 번들 factory는 GetObject 슬라이스 | §1 #18 · [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`services/agent-invoke/DESIGN.md`](services/agent-invoke/DESIGN.md) |
+| 2026-11-22 | **MCP 코드·cfg 선별** — 제3자 HTTP는 Function 안 Streamable HTTP · 서명 번들은 `factory(cfg, secrets_ref)` · 없으면 `mcp_backend_missing` · 미서명은 `bundle_untrusted` · Router/agent 직접 HTTP 없음 | §1 #12 · [`services/mcp-invoke/DESIGN.md`](services/mcp-invoke/DESIGN.md) · [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) |
+| 2026-11-23 | **번들 GetObject + Pod LRU** — `aura-content`만 · 키=`checksum` · 값은 검증 바이트 · activate는 캐시 없음 · agent `module.path:attr` factory · `aura:createAgent`는 GetObject 스킵 · Garage 단일 노드 매니페스트 · CI는 이름 게이트만 | §8 · [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md) · `check-object-store-garage.sh` · [`deploy/k8s/garage/`](deploy/k8s/garage/) |
 | 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/Garage · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 Garage sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
 | 2026-11-20 | **Admin UI React 재설계 M6.1** — Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · 전수 인벤토리 · PG=SoR · KV=`quota.*`는 Gateway만 · Phase2=control-admin HTTP→`aura.rpc.gateway.quota` · `GET /v1/audit` · Audit 화면 | §2·§6.1 · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md)·`check-admin-ui.sh` · [`services/admin-ui/`](services/admin-ui/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
@@ -248,6 +251,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] Phase B — live NATS helpers(`nats-deps.js`) · `aura-mcp-invoke-rr` nats-box→Node queue-group 워커(`rpc-worker.js`)
 - [x] Phase C — `agent_checkpoints` writer/resume · MCP factory 실경로 + list/call + Streamable HTTP
 - [x] M3.6 — python-env **병행** (Node 유지·동일 subject·resolve `runtime`·task/rpc 브리지) — 아래 §M3.6
+- [x] 공유 Function + cfg별 에이전트 — `system_prompt`·툴 allowlist·서브에이전트 깊이 2 · 스트림 `agent` (§1 #18)
+- [x] MCP 코드·cfg 선별 — HTTP / 서명 factory / `mcp_backend_missing` (§1 #12)
+- [x] 번들 GetObject + Pod LRU — `aura-content` · agent/mcp 기본 `loadBundle` · Garage 매니페스트 · `check-object-store-garage.sh` ([`services/object-store/DESIGN.md`](services/object-store/DESIGN.md))
 - [~] (후속) — `rust-env` 핫패스 PoC · `custom-env`
 
 **성공 기준**
@@ -255,6 +261,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - Function→공급자 직접 호출 없음(`assertFunctionLlmEgress`).
 - MQT connector ≠ Function 언어; archive 배포; RPC MinScale≥2 / MQT min=0 유지.
 - `tools/list`로 스키마 수집 후 Agent 툴 바인딩 가능; checkpoints INSERT는 `agent_invoke`+Pooler만.
+- 같은 `agent_invoke`가 cfg마다 다른 `system_prompt`·allowlist로 `createAgent`를 호출하고, 서브에이전트는 깊이 2에서 멈춘다.
 
 ---
 

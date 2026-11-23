@@ -116,6 +116,20 @@
 
 ---
 
+## 코드·cfg 갈래 (§1 #12)
+
+브리지 → Fission Function까지 온 뒤 handler가 고른다. Router는 외부 MCP URL을 호출하지 않는다.
+
+| 갈래 | 조건 | 에러 |
+|------|------|------|
+| 제3자 HTTP | `cfg.mcp_endpoint` 또는 `transport=streamable_http` | 엔드포인트 없으면 `mcp_endpoint_required` |
+| 서명 번들 | `entrypoint`=`module.path:attr` · `sig_uri` · checksum · 기본 `loadBundle`=Pod LRU→`GetObject` | `bundle_untrusted` · `bundle_checksum_mismatch` · `bundle_missing` |
+| 없음 | 위가 아니고 주입된 list/call도 없음 | `mcp_backend_missing` |
+
+절차는 [`../../services/mcp-invoke/DESIGN.md`](../../services/mcp-invoke/DESIGN.md). 바이트 리더·캐시는 [`../../services/object-store/DESIGN.md`](../../services/object-store/DESIGN.md). `factory(cfg, secrets_ref)`만 호출한다.
+
+---
+
 ## 검증
 
 ```bash

@@ -1,0 +1,18 @@
+{
+  "support": {
+    "system_prompt": "You are support.",
+    "model": "aura-support",
+    "tools": [{ "server": "docs", "version": "1.0.0", "name": "search" }],
+    "sub_agents": [
+      { "name": "researcher", "version": "1.0.0", "description": "Looks up facts" }
+    ]
+  },
+  "researcher": {
+    "system_prompt": "You are research.",
+    "model": "aura-research",
+    "tools": [{ "server": "web", "version": "1.0.0", "name": "fetch" }],
+    "sub_agents": [
+      { "name": "support", "version": "1.0.0", "description": "back to support" }
+    ]
+  }
+}

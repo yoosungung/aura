@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const {
@@ -53,6 +54,16 @@ async function main() {
     }).ok,
     false,
   );
+  const specPayload = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../testdata/invoke_identifiers_only.json'),
+      'utf8',
+    ),
+  );
+  assert.strictEqual(
+    validateInvokeTask(specPayload.invalid_spec).error,
+    'identifiers_only',
+  );
 
   assert.strictEqual(
     buildStreamSubject('019a0000-0000-7000-8000-000000000001'),
@@ -102,7 +113,7 @@ async function main() {
           type: 'control.resolve.done',
           cfg: { tone: 'brief' },
           secrets_ref: 'k8s:secret/demo',
-          source: { entrypoint: 'main:factory' },
+          source: { entrypoint: 'aura:createAgent' },
         };
       },
       recall: async (req) => {
@@ -347,6 +358,98 @@ async function main() {
   assert.ok(httpPoison.status >= 400 && httpPoison.status < 500);
   assert.strictEqual(JSON.parse(httpPoison.body).type, 'agent.invoke.error');
   assert.strictEqual(JSON.parse(httpPoison.body).poison, true);
+
+  const tenant = '11111111-1111-1111-1111-111111111111';
+  const js =
+    'module.exports.factory = function factory(cfg) {' +
+    '  return { async runTurn() { return { text: "bundle:" + (cfg && cfg.flag) }; } };' +
+    '};';
+  const bytes = Buffer.from(js);
+  const checksum = 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex');
+  const bundleUri = `s3://aura-content/tenants/${tenant}/bundles/agent/demo/1/mod.js`;
+  let fetches = 0;
+  const { createBundleCache } = require('../../object-store/bundle-cache');
+  const bundleCache = createBundleCache();
+  async function bundleResolve(flag) {
+    return {
+      type: 'control.resolve.done',
+      runtime: 'nodejs',
+      cfg: { flag },
+      secrets_ref: 'secret://demo',
+      source: {
+        entrypoint: 'main:factory',
+        sig_uri: 's3://aura-content/tenants/' + tenant + '/bundles/agent/demo/1/sig',
+        checksum,
+        bundle_uri: bundleUri,
+      },
+    };
+  }
+  const bundleDeps = {
+    recall: async () => ({ items: [] }),
+    publishStream: async () => {},
+    mcpTool: async () => ({ ok: true }),
+    objectFetch: async () => {
+      fetches += 1;
+      return { status: 200, body: bytes };
+    },
+    objectEndpoint: 'http://garage.aura.svc.cluster.local:3900',
+    objectRegion: 'garage',
+    objectAccessKeyId: 'lab-access',
+    objectSecretAccessKey: 'lab-secret-not-for-logs',
+    bundleCache,
+  };
+  const first = await invokeOnce(
+    {
+      run_id: '019a0000-0000-7000-8000-0000000000b1',
+      agent: 'demo',
+      version: '1.0.0',
+      stream: false,
+      principal: { id: 'user-1', tenant_id: tenant },
+    },
+    { ...bundleDeps, resolve: async () => bundleResolve('one') },
+  );
+  const second = await invokeOnce(
+    {
+      run_id: '019a0000-0000-7000-8000-0000000000b2',
+      agent: 'demo',
+      version: '1.0.0',
+      stream: false,
+      principal: { id: 'user-1', tenant_id: tenant },
+    },
+    { ...bundleDeps, resolve: async () => bundleResolve('two') },
+  );
+  assert.strictEqual(first.payload.output.text, 'bundle:one');
+  assert.strictEqual(second.payload.output.text, 'bundle:two');
+  assert.strictEqual(fetches, 1);
+
+  let platformFetches = 0;
+  const platform = await invokeOnce(
+    {
+      run_id: '019a0000-0000-7000-8000-0000000000b3',
+      agent: 'demo',
+      version: '1.0.0',
+      stream: false,
+      input: { text: 'ping' },
+      principal: { id: 'user-1', tenant_id: tenant },
+    },
+    {
+      resolve: async () => ({
+        runtime: 'nodejs',
+        cfg: {},
+        source: { entrypoint: 'aura:createAgent' },
+      }),
+      recall: async () => ({ items: [] }),
+      publishStream: async () => {},
+      mcpTool: async () => ({ ok: true }),
+      objectFetch: async () => {
+        platformFetches += 1;
+        return { status: 200, body: bytes };
+      },
+    },
+  );
+  assert.strictEqual(platform.type, 'agent.invoke.done');
+  assert.strictEqual(typeof platform.payload.output.text, 'string');
+  assert.strictEqual(platformFetches, 0);
 
   console.log('handler.selftest: PASS');
 }

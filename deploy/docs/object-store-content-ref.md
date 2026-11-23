@@ -5,7 +5,7 @@
 전제: NATS envelope §8 · CNPG Barman 초안 [`pg-ha-pitr-topology.md`](pg-ha-pitr-topology.md).
 
 **이 문서 범위:** Object Store **제품명** · S3 클라이언트 계약 · **버킷/경로(번들 공유 포함)** · `content_ref` JSON · 권한/암호화 · **256KB 초과 시 ref-only**.  
-**Non-goals:** 라이브 버킷·Garage 클러스터 **provision** · SDK 업로드 본구현 · Barman 자격증명 실값. GC 본구현=[`memory-object-gc.md`](memory-object-gc.md) · Parquet=[`memory-archive.md`](memory-archive.md).
+**Non-goals:** SDK 업로드 본구현 · Barman 자격증명 실값 · CI 라이브 Garage. 단일 노드 `aura-content` 매니페스트는 [`../k8s/garage/`](../k8s/garage/) · 리더·Pod LRU는 [`../../services/object-store/DESIGN.md`](../../services/object-store/DESIGN.md). GC 본구현=[`memory-object-gc.md`](memory-object-gc.md) · Parquet=[`memory-archive.md`](memory-archive.md).
 
 수치·제품 출처: ARCHITECTURE §8 256KB · ROADMAP V2.1. 운영 endpoint/비용 교체는 결정 로그 1행 + 이 문서·§8을 **같이** 고친다 — 여기서 새 스키마를 발명하지 않는다.
 
@@ -111,7 +111,7 @@ NATS envelope `content_ref` 필드(§8). `null` = 인라인 `payload`만 사용.
 
 | 항목 | 상태 |
 |------|------|
-| Garage Helm/StatefulSet · 실 버킷 생성 | **보류** — 설계만 고정 |
+| Garage 단일 노드 · `aura-content` · Secret | **매니페스트** [`../k8s/garage/`](../k8s/garage/) · 랩 `bootstrap.sh` · CI 라이브 비의존 |
 | NCP vs AWS vs self-host 디스크 비용 | **`@eric` escalate** |
 | SDK Put/Get 본구현 · 업로드 헬퍼 | 후속 티켓 (store/capture 경로) |
 | 고아 GC 알고리즘 | **고정** — [`object-store-orphan-gc.md`](object-store-orphan-gc.md) (V2.2 · 구현=M4) |

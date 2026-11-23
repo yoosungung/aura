@@ -11,6 +11,7 @@
 
 const { createAgentRunTurn } = require('./run-turn-create-agent');
 const { createCheckpointStore } = require('./checkpoints');
+const { resolveAgentRunTurn } = require('./bundle-turn');
 
 const SHORT_TERM_ITEM_CAP = 4;
 
@@ -92,7 +93,16 @@ function validateInvokeTask(task) {
     return { ok: false, error: 'principal_tenant_id_required' };
   }
   // Identifiers only — reject accidental bundle/config dumps (§1 #11).
-  if (task.bundle || task.bundle_uri || task.cfg || task.config || task.secrets) {
+  if (
+    task.bundle ||
+    task.bundle_uri ||
+    task.cfg ||
+    task.config ||
+    task.secrets ||
+    task.system_prompt ||
+    task.tools ||
+    task.sub_agents
+  ) {
     return { ok: false, error: 'identifiers_only' };
   }
   return { ok: true, task };
@@ -285,6 +295,10 @@ async function invokeOnce(task, deps) {
     throw err;
   }
 
+  const source = (resolved && resolved.source) || {};
+  const selectedTurn = await resolveAgentRunTurn(resolved, d, tenantId);
+  const turnFn = selectedTurn || runTurn;
+
   if (stream) {
     await publishStream(task.run_id, {
       type: 'run.started',
@@ -311,7 +325,7 @@ async function invokeOnce(task, deps) {
 
   let turnOut;
   try {
-    turnOut = await runTurn({
+    turnOut = await turnFn({
       run_id: task.run_id,
       agent: task.agent,
       version: task.version,
@@ -320,6 +334,10 @@ async function invokeOnce(task, deps) {
       principal: task.principal,
       cfg: (resolved && resolved.cfg) || {},
       secrets_ref: (resolved && resolved.secrets_ref) || null,
+      source,
+      resolve,
+      depth: 1,
+      agentStack: [],
       packed,
       memoryText,
       stream,

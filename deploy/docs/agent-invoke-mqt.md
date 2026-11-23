@@ -77,9 +77,9 @@ Subject: **`aura.stream.<run_id>`** — NATS **Core** only. JetStream/`AURA_EVEN
 | `type` | 필드 | 규칙 |
 |--------|------|------|
 | `run.started` | `run_id`, `session_id`, `agent`, `version` | 턴 시작 직후 |
-| `token` | `text` | incremental·슬림; **done 이전** 필수(대화형) |
-| `tool.started` | `tool`, `server?` | 툴 시작 |
-| `tool.finished` | `tool`, `server?`, `summary?` | 툴 종료 |
+| `token` | `text`, `agent?` | incremental·슬림; **done 이전** 필수(대화형). `agent` 의미는 [`agent-invoke-create-agent.md`](agent-invoke-create-agent.md) |
+| `tool.started` | `tool`, `server?`, `agent?` | 툴 시작 |
+| `tool.finished` | `tool`, `server?`, `summary?`, `agent?` | 툴 종료 |
 | `error` | `message` | UX 힌트; 정본=`aura.events.agent.invoke.error` |
 | `run.completed` | (없음/최소) | 스트림 종료 신호; **내구 완료는 events done** |
 

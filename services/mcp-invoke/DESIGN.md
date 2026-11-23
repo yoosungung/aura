@@ -30,9 +30,24 @@
 | `DESIGN.md` | 공통 계약 |
 | `nodejs/` | handler · streamable-http · factory |
 | `python/` | 패리티 handler · pytest |
-| `testdata/` | 공유 JSON |
+| `testdata/` | 공유 JSON (`mcp_identifiers_only` · `mcp_bundle`) |
 
 Streamable HTTP: [`deploy/docs/mcp-streamable-http.md`](../../deploy/docs/mcp-streamable-http.md) · `nodejs/streamable-http.js`.
+
+---
+
+## 코드·cfg 갈래
+
+resolve 한 번에 `source`(`entrypoint`·`bundle_uri`·`checksum`·`sig_uri`)와 `cfg`가 온다. 브리지와 Fission Router는 Function 이름만 고른다. 외부 URL은 Function 안에서만 연다.
+
+| 순서 | 조건 | 결과 |
+|------|------|------|
+| 1 | `cfg.mcp_endpoint` 또는 `transport=streamable_http` | JSON-RPC `tools/list`·`tools/call`. 제3자 서버 |
+| 2 | `entrypoint`가 `module.path:attr` | `sig_uri` 없음 → `bundle_untrusted`. checksum 불일치 → `bundle_checksum_mismatch`. 맞으면 `factory(cfg, secrets_ref)`의 `listTools`/`runTool` |
+| 3 | 테스트가 `listTools`/`runTool`을 주입 | 그 함수 |
+| 4 | 그 외 | `mcp_backend_missing` |
+
+기본 `loadBundle`은 [`services/object-store/DESIGN.md`](../object-store/DESIGN.md)의 Pod LRU다. 미스가 `aura-content` `GetObject`다. 테스트가 `loadBundle`을 넘기면 캐시와 GetObject를 타지 않는다. sha256 대조는 `sha256:` + hex이며 activate와 같다. 커스텀 이미지 빌드·gVisor 설치·서명 알고리즘 검증은 하지 않는다. 미서명 서버는 `runtime=custom`으로 남는다.
 
 ---
 

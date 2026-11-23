@@ -285,7 +285,20 @@ async function activateSource(client, objectStore, tenantId, actor, sourceId) {
       return { status: 409, body: { error: 'status_not_pending' } };
     }
 
-    const buf = await objectStore.getObject(row.bundle_uri);
+    let buf;
+    try {
+      buf = await objectStore.getObject(row.bundle_uri, { tenantId });
+    } catch (err) {
+      const code = err && err.message;
+      if (
+        code === 'object_store_unconfigured' ||
+        code === 'bundle_uri_tenant_mismatch' ||
+        code === 'bundle_missing'
+      ) {
+        return { status: 422, body: { error: code } };
+      }
+      throw err;
+    }
     if (!buf) {
       return { status: 422, body: { error: 'bundle_missing' } };
     }

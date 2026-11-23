@@ -5,7 +5,38 @@
  * M3.5: action=list|call · archive package · factory.js.
  */
 
+const fs = require('fs');
+const path = require('path');
 const { buildFactory } = require('./factory');
+
+function requireObjectStore(file) {
+  const candidates = [
+    path.join(__dirname, file),
+    path.join(__dirname, '..', '..', 'object-store', file),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return require(p);
+  }
+  const err = new Error('object_store_module_missing');
+  err.status = 500;
+  throw err;
+}
+
+function defaultLoadBundle(tenantId, deps) {
+  const { loadCachedBundle } = requireObjectStore('bundle-cache.js');
+  const d = deps || {};
+  return (source) =>
+    loadCachedBundle(source, {
+      tenantId,
+      fetchImpl: d.objectFetch,
+      endpoint: d.objectEndpoint,
+      region: d.objectRegion,
+      accessKeyId: d.objectAccessKeyId,
+      secretAccessKey: d.objectSecretAccessKey,
+      cache: d.bundleCache,
+      env: d.objectEnv,
+    });
+}
 
 function parseBody(req) {
   let raw = (req && req.body) != null ? req.body : '';
@@ -93,10 +124,13 @@ async function invokeToolOnce(req, deps) {
   }
 
   const cfg = (resolved && resolved.cfg) || {};
-  const factory = buildFactory(cfg, {
+  const factory = await buildFactory(cfg, {
     fetchImpl: d.fetchImpl,
     runTool: d.runTool,
     listTools: d.listTools,
+    source: (resolved && resolved.source) || {},
+    secrets_ref: (resolved && resolved.secrets_ref) || null,
+    loadBundle: typeof d.loadBundle === 'function' ? d.loadBundle : defaultLoadBundle(tenantId, d),
   });
 
   if (req.action === 'list') {

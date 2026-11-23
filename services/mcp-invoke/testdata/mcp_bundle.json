@@ -1,0 +1,6 @@
+{
+  "entrypoint": "main:factory",
+  "sig_uri": "s3://aura-content/tenants/t/bundles/mcp/demo/1/sig",
+  "js": "module.exports.factory = function factory(cfg, secretsRef) {\n  return {\n    async listTools() {\n      return { ok: true, tools: [{ name: 'bundled', description: 'from bundle' }] };\n    },\n    async runTool(ctx) {\n      return {\n        ok: true,\n        bundled: true,\n        tool: ctx && ctx.tool,\n        secrets_ref: secretsRef,\n        cfg_flag: cfg && cfg.flag\n      };\n    }\n  };\n};\n",
+  "py": "def factory(cfg, secrets_ref):\n    async def listTools(_ctx=None):\n        return {\"ok\": True, \"tools\": [{\"name\": \"bundled\", \"description\": \"from bundle\"}]}\n    async def runTool(ctx):\n        return {\n            \"ok\": True,\n            \"bundled\": True,\n            \"tool\": (ctx or {}).get(\"tool\"),\n            \"secrets_ref\": secrets_ref,\n            \"cfg_flag\": (cfg or {}).get(\"flag\"),\n        }\n    return {\"listTools\": listTools, \"runTool\": runTool}\n"
+}

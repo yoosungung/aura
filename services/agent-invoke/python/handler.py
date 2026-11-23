@@ -24,7 +24,7 @@ def validate_invoke_task(task: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": "principal_id_required"}
     if not isinstance(principal.get("tenant_id"), str) or not principal["tenant_id"]:
         return {"ok": False, "error": "principal_tenant_id_required"}
-    for k in ("bundle", "bundle_uri", "cfg", "config", "secrets"):
+    for k in ("bundle", "bundle_uri", "cfg", "config", "secrets", "system_prompt", "tools", "sub_agents"):
         if k in task and task[k] is not None:
             return {"ok": False, "error": "identifiers_only"}
     return {"ok": True, "task": task}
@@ -49,6 +49,7 @@ async def invoke_once(task: dict[str, Any], deps: dict[str, Any] | None = None) 
 
     resolve = d.get("resolve")
     resolved_runtime = "python"
+    resolved = None
     if callable(resolve):
         resolved = await resolve(
             {
@@ -67,10 +68,44 @@ async def invoke_once(task: dict[str, Any], deps: dict[str, Any] | None = None) 
                 "ok": False,
                 "error": "secrets_plaintext_forbidden",
             }
+        cfg = resolved.get("cfg") if isinstance(resolved, dict) else {}
+        if not isinstance(cfg, dict):
+            cfg = {}
+    else:
+        cfg = {}
 
     rt = assert_runtime_stamp(task, resolved_runtime)
     if not rt.get("ok"):
         return {"type": "agent.invoke.error", "ok": False, "error": rt["error"]}
+
+    source = resolved.get("source") if isinstance(resolved, dict) else {}
+    try:
+        from bundle_turn import open_agent_turn
+
+        bundled = await open_agent_turn(resolved if isinstance(resolved, dict) else None, d, task["principal"]["tenant_id"])
+    except RuntimeError as err:
+        return {"type": "agent.invoke.error", "ok": False, "error": str(err)}
+    if callable(bundled):
+        turn = await bundled(
+            {
+                "run_id": task["run_id"],
+                "agent": task["agent"],
+                "version": task["version"],
+                "input": task.get("input") or {},
+                "principal": task["principal"],
+                "cfg": cfg,
+                "source": source or {},
+                "secrets_ref": resolved.get("secrets_ref") if isinstance(resolved, dict) else None,
+            }
+        )
+        return {
+            "type": "agent.invoke.done",
+            "ok": True,
+            "run_id": task["run_id"],
+            "runtime": "python",
+            "agent": task["agent"],
+            "output": {"text": (turn or {}).get("text") or ""},
+        }
 
     run_turn = d.get("run_turn")
     if callable(run_turn):
@@ -79,6 +114,37 @@ async def invoke_once(task: dict[str, Any], deps: dict[str, Any] | None = None) 
             result.setdefault("type", "agent.invoke.done")
             result.setdefault("ok", True)
             return result
+
+    if callable(d.get("create_agent")):
+        from run_turn import run_agent_turn
+
+        turn = await run_agent_turn(
+            {
+                "run_id": task["run_id"],
+                "agent": task["agent"],
+                "version": task["version"],
+                "input": task.get("input") or {},
+                "principal": task["principal"],
+                "cfg": cfg,
+                "source": source or {},
+                "stream": task.get("stream", True),
+                "publish_stream": d.get("publish_stream"),
+                "mcp_tool": d.get("mcp_tool"),
+                "resolve": resolve,
+                "depth": 1,
+                "agent_stack": [],
+                "memory_text": "",
+            },
+            {"create_agent": d["create_agent"]},
+        )
+        return {
+            "type": "agent.invoke.done",
+            "ok": True,
+            "run_id": task["run_id"],
+            "runtime": "python",
+            "agent": task["agent"],
+            "output": {"text": (turn or {}).get("text") or ""},
+        }
 
     return {
         "type": "agent.invoke.done",

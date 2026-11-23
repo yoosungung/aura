@@ -2,8 +2,10 @@
 
 /**
  * Live entry for aura-control-admin Deployment.
- * Wires Pooler DSN → createAdminServer. Garage objectStore stub until provisioned.
+ * Activate GetObject uses services/object-store (no Pod bundle cache).
  */
+
+const { getObject } = require('../object-store/get-object');
 
 const { Pool } = require('pg');
 const { createAdminServer } = require('./admin-server');
@@ -34,8 +36,8 @@ function buildPool() {
 
 function buildObjectStore() {
   return {
-    async getObject() {
-      return null;
+    async getObject(uri, opts) {
+      return getObject(uri, { tenantId: opts && opts.tenantId });
     },
     async presignPut({ bundle_uri }) {
       return {
