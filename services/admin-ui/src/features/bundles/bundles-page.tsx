@@ -1,20 +1,33 @@
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { ConfigEntriesEditor } from '@/components/config-entries-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAdminApi } from '@/hooks/use-admin-api';
+import { putBundle, sha256Checksum } from '@/lib/bundle-upload';
+import {
+  configFromEntries,
+  entriesFromConfig,
+  type ConfigEntry,
+} from '@/lib/config-entries';
+import { shortId } from '@/lib/display';
 import { createSourceSchema, type CreateSourceInput } from '@/lib/schemas';
 import { useSession } from '@/stores/session';
 
-type FormValues = Omit<CreateSourceInput, 'config'> & { configText: string };
+type FormValues = Omit<CreateSourceInput, 'config' | 'checksum' | 'bundle_uri'> & {
+  checksum: string;
+  bundle_uri: string;
+};
 
 export function BundlesPage() {
   const api = useAdminApi();
   const tenantId = useSession((s) => s.tenantId);
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [entries, setEntries] = useState<ConfigEntry[]>(() => entriesFromConfig({}));
   const form = useForm<FormValues>({
     defaultValues: {
       kind: 'agent',
@@ -24,50 +37,78 @@ export function BundlesPage() {
       bundle_uri: '',
       checksum: '',
       runtime: 'nodejs',
-      configText: '{}',
     },
   });
+  const bundleUri = form.watch('bundle_uri');
+  const checksum = form.watch('checksum');
 
-  const presign = useMutation({
-    mutationFn: async () => {
-      const values = form.getValues();
-      const r = await api.post<{
+  async function onFileChosen(next: File | null) {
+    setFile(next);
+    form.setValue('bundle_uri', '');
+    form.setValue('checksum', '');
+    setStatus(null);
+    if (!next) return;
+    setStatus(`hashing ${next.name}…`);
+    try {
+      const digest = await sha256Checksum(next);
+      form.setValue('checksum', digest);
+      setStatus(`checksum ready · ${next.name}`);
+    } catch (err) {
+      setStatus(String(err));
+    }
+  }
+
+  const register = useMutation({
+    mutationFn: async (raw: FormValues) => {
+      if (!file) throw new Error('choose a bundle file first');
+      let digest = raw.checksum;
+      if (!digest) {
+        digest = await sha256Checksum(file);
+        form.setValue('checksum', digest);
+      }
+
+      const config = configFromEntries(entries);
+
+      setStatus('presigning…');
+      const signed = await api.post<{
         upload_url: string;
         bundle_uri: string;
         headers: Record<string, string>;
       }>('/v1/bundles/presign', {
-        kind: values.kind,
-        name: values.name,
-        version: values.version,
+        kind: raw.kind,
+        name: raw.name,
+        version: raw.version,
       });
-      if (r.status >= 400) throw new Error(JSON.stringify(r.body));
-      form.setValue('bundle_uri', r.body.bundle_uri);
-      return r.body;
-    },
-  });
+      if (signed.status >= 400) throw new Error(JSON.stringify(signed.body));
+      form.setValue('bundle_uri', signed.body.bundle_uri);
 
-  const createSource = useMutation({
-    mutationFn: async (raw: FormValues) => {
-      let config: Record<string, unknown> = {};
-      try {
-        config = JSON.parse(raw.configText || '{}') as Record<string, unknown>;
-      } catch {
-        throw new Error('config must be JSON object');
-      }
+      setStatus('uploading…');
+      await putBundle(signed.body.upload_url, file, signed.body.headers || {});
+
+      setStatus('creating pending source…');
       const parsed = createSourceSchema.parse({
         kind: raw.kind,
         name: raw.name,
         version: raw.version,
         entrypoint: raw.entrypoint,
-        bundle_uri: raw.bundle_uri,
-        checksum: raw.checksum,
+        bundle_uri: signed.body.bundle_uri,
+        checksum: digest,
         runtime: raw.runtime,
         config,
       });
-      const r = await api.post('/v1/sources', parsed);
-      if (r.status >= 400) throw new Error(JSON.stringify(r.body));
-      return r.body;
+      const created = await api.post<{ source?: { id?: string } }>('/v1/sources', parsed);
+      if (created.status >= 400) throw new Error(JSON.stringify(created.body));
+      return created.body;
     },
+    onSuccess: (body) => {
+      const id = body?.source?.id;
+      setStatus(
+        id
+          ? `pending source created · ${shortId(id)} — activate from Sources`
+          : 'pending source created — activate from Sources'
+      );
+    },
+    onError: (err) => setStatus(String(err)),
   });
 
   if (!tenantId) {
@@ -81,7 +122,7 @@ export function BundlesPage() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="kind" id="src-kind">
+          <Field label="Kind" id="src-kind">
             <select
               id="src-kind"
               className="h-9 w-full rounded-md border px-2 text-sm"
@@ -91,7 +132,7 @@ export function BundlesPage() {
               <option value="mcp">mcp</option>
             </select>
           </Field>
-          <Field label="runtime" id="src-runtime">
+          <Field label="Runtime" id="src-runtime">
             <select
               id="src-runtime"
               className="h-9 w-full rounded-md border px-2 text-sm"
@@ -102,57 +143,61 @@ export function BundlesPage() {
               <option value="custom">custom</option>
             </select>
           </Field>
-          <Field label="name" id="src-name">
+          <Field label="Name" id="src-name">
             <Input id="src-name" {...form.register('name')} />
           </Field>
-          <Field label="version" id="src-version">
+          <Field label="Version" id="src-version">
             <Input id="src-version" {...form.register('version')} />
           </Field>
-          <Field label="entrypoint" id="src-entrypoint">
+          <Field label="Entrypoint" id="src-entrypoint">
             <Input id="src-entrypoint" {...form.register('entrypoint')} />
           </Field>
-          <Field label="checksum sha256:…" id="src-checksum">
-            <Input id="src-checksum" {...form.register('checksum')} />
-          </Field>
+          <div className="space-y-1">
+            <Label htmlFor="src-file">Bundle file</Label>
+            <Input
+              id="src-file"
+              type="file"
+              onChange={(e) => onFileChosen(e.target.files?.[0] || null)}
+            />
+          </div>
         </div>
-        <Field label="bundle_uri" id="src-bundle-uri">
-          <Input id="src-bundle-uri" {...form.register('bundle_uri')} />
-        </Field>
-        <Field label="config JSON (no runtime key)" id="src-config">
-          <Textarea id="src-config" {...form.register('configText')} />
-        </Field>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="src-checksum">Checksum</Label>
+            <Input
+              id="src-checksum"
+              readOnly
+              value={checksum || ''}
+              placeholder="filled from file"
+              className="bg-neutral-50 font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="src-bundle-uri">Bundle location</Label>
+            <Input
+              id="src-bundle-uri"
+              readOnly
+              value={bundleUri || ''}
+              placeholder="filled on register"
+              className="bg-neutral-50 font-mono text-xs"
+            />
+          </div>
+        </div>
+        <ConfigEntriesEditor id="src-config" entries={entries} onChange={setEntries} />
         <div className="flex flex-wrap gap-2">
           <Button
             id="btn-presign"
             type="button"
-            variant="outline"
-            onClick={() => presign.mutate()}
+            disabled={!file || register.isPending}
+            onClick={form.handleSubmit((v) => register.mutate(v))}
           >
-            Presign
-          </Button>
-          <Button
-            id="btn-create-source"
-            type="button"
-            onClick={form.handleSubmit((v) => createSource.mutate(v))}
-          >
-            Create pending source
+            {register.isPending ? 'Working…' : 'Upload & create pending'}
           </Button>
         </div>
-        {(presign.data || createSource.data || presign.error || createSource.error) && (
-          <pre className="overflow-auto rounded bg-neutral-100 p-2 text-xs">
-            {JSON.stringify(
-              {
-                presign: presign.data,
-                created: createSource.data,
-                error: String(presign.error || createSource.error || ''),
-              },
-              null,
-              2
-            )}
-          </pre>
-        )}
+        {status && <p className="text-sm text-neutral-700">{status}</p>}
         <p className="text-xs text-neutral-500">
-          Client uploads to upload_url, then activate from Sources (server sha256).
+          Flow: pick file → client sha256 → presign → Garage PUT → pending source.
+          Activate from Sources (server re-checks sha256).
         </p>
       </CardContent>
     </Card>

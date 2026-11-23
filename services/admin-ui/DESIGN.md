@@ -19,6 +19,11 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | 시크릿 | `secrets_ref` 입력만 · 값 필드 없음 |
 | 이미지 | `aura/admin-ui:local` · Vite `dist/` + `nginx.conf` 베이크 · dist ConfigMap 금지 |
 
+## 표시 규칙
+
+계약 정본: [`deploy/docs/admin-ui.md`](../../deploy/docs/admin-ui.md) 「표시 규칙」.  
+요약: 첫 줄=`kind/name/version`·`shortId` · Overlay source=Sources select·행 클릭 채움·`?source=` · Config=키·값 행 · Bundle=파일→sha256→PUT→pending · tenants DDL 없음.
+
 ---
 
 ## 스택

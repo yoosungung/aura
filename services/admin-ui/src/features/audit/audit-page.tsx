@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { CopyableId } from '@/components/copyable-id';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,7 +44,7 @@ export function AuditPage() {
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
-            <Label htmlFor="audit-action">action filter</Label>
+            <Label htmlFor="audit-action">Action filter</Label>
             <Input
               id="audit-action"
               value={action}
@@ -82,8 +83,9 @@ export function AuditPage() {
                   <td className="py-2 whitespace-nowrap">{row.at}</td>
                   <td>{row.actor}</td>
                   <td>{row.action}</td>
-                  <td>
-                    {row.resource_type}:{row.resource_id}
+                  <td className="space-x-1">
+                    <span>{row.resource_type}:</span>
+                    <CopyableId value={row.resource_id} />
                   </td>
                   <td>{row.reason || ''}</td>
                 </tr>

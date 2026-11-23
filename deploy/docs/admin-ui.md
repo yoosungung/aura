@@ -154,6 +154,20 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 | Overlays | upsert · delete(reason) · `secrets_ref`만 |
 | Audit | 필터·커서 목록 (read-only) |
 
+### 표시 규칙 (사람 우선)
+
+API·세션 값은 그대로 UUID / `bundle_uri` / checksum. UI 첫 줄만 사람이 읽는 라벨로 둔다.
+
+| 규칙 | 내용 |
+|------|------|
+| 식별자 | 화면에는 `shortId` (앞 8자…) · 전체 값은 title·복사 |
+| Source | 선택·목록 라벨 = `kind / name / version · status` · 값은 `id` |
+| Tenant | tenants DDL 없음 → 표시도 UUID 단축 · 직접 입력 유지 |
+| Bundle | 파일 선택 → 브라우저 `sha256:` 계산 → Presign → Garage PUT → pending 생성 · `bundle_uri`/checksum은 읽기 전용 |
+| Overlay | source는 Sources 목록 select · 목록 행 클릭→폼 채움 · Sources→`/overlays?source=` |
+| Config | 키·값 행 폼 → 객체 · 빈 행=생략 · `runtime` 키 금지(스키마) |
+| 시크릿 | `secrets_ref` 입력만 · plaintext 금지 |
+
 ---
 
 ## 검증

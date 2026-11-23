@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { CopyableId } from '@/components/copyable-id';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAdminApi } from '@/hooks/use-admin-api';
 import { reasonSchema } from '@/lib/schemas';
+import { cn } from '@/lib/utils';
 import { useSession } from '@/stores/session';
 
 type SourceRow = {
@@ -80,7 +83,7 @@ export function SourcesPage() {
             placeholder="required for retire"
           />
         </div>
-        {message && <pre className="overflow-auto rounded bg-neutral-100 p-2 text-xs">{message}</pre>}
+        {message && <p className="text-sm text-neutral-700">{message}</p>}
         <div className="overflow-auto">
           <table className="w-full text-left text-sm">
             <thead>
@@ -90,6 +93,7 @@ export function SourcesPage() {
                 <th>version</th>
                 <th>runtime</th>
                 <th>status</th>
+                <th>id</th>
                 <th />
               </tr>
             </thead>
@@ -101,7 +105,18 @@ export function SourcesPage() {
                   <td>{s.version}</td>
                   <td>{s.runtime}</td>
                   <td>{s.status}</td>
+                  <td>
+                    <CopyableId value={s.id} />
+                  </td>
                   <td className="space-x-2 text-right">
+                    <Link
+                      to={`/overlays?source=${encodeURIComponent(s.id)}`}
+                      className={cn(
+                        'inline-flex h-8 items-center rounded-md border border-neutral-300 bg-white px-3 text-xs hover:bg-neutral-50'
+                      )}
+                    >
+                      Overlays
+                    </Link>
                     {s.status === 'pending' && (
                       <Button
                         id="btn-activate"

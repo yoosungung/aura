@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { CopyableId } from '@/components/copyable-id';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAdminApi } from '@/hooks/use-admin-api';
+import { shortId } from '@/lib/display';
 import { uuidSchema } from '@/lib/schemas';
 import { useSession } from '@/stores/session';
 
@@ -62,14 +64,14 @@ export function TenantsPage() {
           >
             <option value="">(select)</option>
             {(tenantsQuery.data || []).map((t) => (
-              <option key={t} value={t}>
-                {t}
+              <option key={t} value={t} title={t}>
+                {shortId(t)}
               </option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="tenant-input">Or UUID</Label>
+          <Label htmlFor="tenant-input">Or paste full UUID</Label>
           <div className="flex gap-2">
             <Input
               id="tenant-input"
@@ -83,8 +85,8 @@ export function TenantsPage() {
           </div>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <p className="text-sm text-neutral-600">
-          Active: <code>{tenantId || '(none)'}</code>
+        <p className="flex items-center gap-2 text-sm text-neutral-600">
+          Active: {tenantId ? <CopyableId value={tenantId} /> : <code>(none)</code>}
         </p>
       </CardContent>
     </Card>

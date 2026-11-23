@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { AuthModal } from '@/components/auth-modal';
 import { Button } from '@/components/ui/button';
 import { getApiBaseUrl } from '@/lib/api';
+import { shortId } from '@/lib/display';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/stores/session';
 
@@ -84,8 +85,12 @@ export function Shell() {
               id="tenant-banner"
               className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white"
               data-testid="active-tenant"
+              title={tenantId || undefined}
             >
-              active tenant: <span id="active-tenant">{tenantId || '(none)'}</span>
+              active tenant:{' '}
+              <span id="active-tenant">
+                {tenantId ? shortId(tenantId) : '(none)'}
+              </span>
             </div>
             {bearer ? (
               <Button

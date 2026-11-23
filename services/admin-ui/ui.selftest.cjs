@@ -23,6 +23,47 @@ assert.ok(/btn-presign|Bundles|presign/.test(
 assert.ok(/secrets_ref/.test(overlays), 'secrets_ref field');
 assert.ok(!/secret_value|plaintext|api_key/.test(overlays), 'no plaintext secret inputs');
 assert.ok(!/type="password"[^>]*id="ov-/.test(overlays), 'no overlay secret value password field');
+assert.ok(/ov-source/.test(overlays) && /select/.test(overlays), 'overlay source is select');
+assert.ok(!/source_meta id/.test(overlays), 'no raw source_meta id label');
+assert.ok(/formatSourceLabel|Sources/.test(overlays) || /select source/.test(overlays), 'source picker labels');
+assert.ok(/fillFromRow|Click a row/.test(overlays), 'overlay row fills form');
+assert.ok(/searchParams|source=/.test(overlays), 'overlay reads ?source=');
+assert.ok(/ConfigEntriesEditor/.test(overlays), 'overlay uses config entries editor');
+assert.ok(!/Config JSON/.test(overlays), 'overlay has no raw Config JSON label');
+
+const sourcesPage = fs.readFileSync(
+  path.join(root, 'src/features/sources/sources-page.tsx'),
+  'utf8'
+);
+assert.ok(/\/overlays\?source=/.test(sourcesPage), 'sources link to overlays');
+
+const bundles = fs.readFileSync(
+  path.join(root, 'src/features/bundles/bundles-page.tsx'),
+  'utf8'
+);
+assert.ok(/type="file"/.test(bundles), 'bundle file picker');
+assert.ok(/sha256Checksum/.test(bundles), 'client checksum from file');
+assert.ok(/putBundle/.test(bundles), 'Garage PUT via putBundle');
+assert.ok(/readOnly/.test(bundles), 'bundle_uri/checksum read-only');
+assert.ok(/disabled=\{!file/.test(bundles), 'register blocked until file chosen');
+assert.ok(/ConfigEntriesEditor/.test(bundles), 'bundles uses config entries editor');
+assert.ok(!/configText/.test(bundles), 'bundles no raw configText');
+
+const configEntries = fs.readFileSync(
+  path.join(root, 'src/lib/config-entries.ts'),
+  'utf8'
+);
+assert.ok(/function configFromEntries/.test(configEntries), 'configFromEntries');
+assert.ok(/function entriesFromConfig/.test(configEntries), 'entriesFromConfig');
+
+const display = fs.readFileSync(path.join(root, 'src/lib/display.ts'), 'utf8');
+assert.ok(/function shortId/.test(display), 'shortId helper');
+assert.ok(/function formatSourceLabel/.test(display), 'formatSourceLabel helper');
+assert.ok(/표시 규칙/.test(design), 'DESIGN documents display rules');
+
+const upload = fs.readFileSync(path.join(root, 'src/lib/bundle-upload.ts'), 'utf8');
+assert.ok(/function sha256Checksum/.test(upload), 'sha256Checksum helper');
+assert.ok(/function putBundle/.test(upload), 'putBundle helper');
 
 assert.ok(/x-aura-tenant-id/i.test(api), 'app must send X-Aura-Tenant-Id');
 assert.ok(/\/v1\/tenants/.test(api) || /\/v1\/tenants/.test(
