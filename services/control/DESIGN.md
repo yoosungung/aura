@@ -65,7 +65,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | retire | `active→retired` + `reason` + audit |
 | overlays | PUT upsert · DELETE+reason · audit |
 | audit | `GET /v1/audit` · limit·cursor·`action`(optional) · RLS SELECT |
-| tenants | `tenant_meta` ∪ DISTINCT · POST/PATCH alias |
+| tenants | `tenant_meta` ∪ DISTINCT · POST(`display_name`, `id?` 자동 UUID) · PATCH rename |
 | 콘텐츠 | UPDATE 경로 없음 |
 | Phase 2 quota | `GET/POST …/quotas` · injectable `quotaLimiter`/`quotaRpc` · 한도 수정 금지 · **KV 직접 금지** |
 

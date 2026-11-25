@@ -93,8 +93,8 @@ Deployment `aura-control-admin` · ns `aura` · replicas≥2.
 
 | 메서드 | 경로 | 용도 |
 |--------|------|------|
-| `GET` | `/v1/tenants` | picker 목록 `{ id, display_name }` (`tenant_meta` ∪ DISTINCT ∪ env) |
-| `POST` | `/v1/tenants` | upsert `tenant_meta` · body `{ id, display_name }` · audit |
+| `GET` | `/v1/tenants` | picker 목록 `{ id, display_name }` (`tenant_meta` ∪ DISTINCT) |
+| `POST` | `/v1/tenants` | create/upsert · body `{ display_name, id? }` · **id 생략 시 서버 UUID 생성** · audit |
 | `PATCH` | `/v1/tenants/{id}` | rename `display_name` · audit |
 | `GET` | `/v1/quotas/{tenant_id}` | Phase 2 조회 · Gateway RR injectable · 한도 수정 금지 |
 | `POST` | `/v1/quotas/{tenant_id}/reset` | Phase 2 리셋 · Gateway RR injectable |
@@ -120,7 +120,8 @@ Deployment `aura-control-admin` · ns `aura` · replicas≥2.
 ### Tenant picker / `tenant_meta`
 
 `GET /v1/tenants` = `tenant_meta` ∪ `DISTINCT source_meta.tenant_id` ∪ UI UUID 입력.  
-응답 행: `{ id, display_name }` — 메타 없으면 `display_name=null`. `POST/PATCH`로 alias 등록·변경. OIDC/SSO·ACL·env CSV tenant seed 비범위.
+응답 행: `{ id, display_name }` — 메타 없으면 `display_name=null`.  
+`POST`는 `display_name`만으로 생성(UUID 자동) · `id` 주면 upsert. `PATCH`는 rename. OIDC/SSO·ACL·env CSV seed 비범위.
 
 ### `control_audit`
 

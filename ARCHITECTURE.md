@@ -326,7 +326,7 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 -- 요약. tenant_meta = ops catalog (FORCE RLS · policy ALL true; grants=control-admin).
 -- source/user/audit = FORCE RLS + set_config('app.tenant_id', $1, true) — §2.1
 CREATE TABLE tenant_meta (
-  id UUID PRIMARY KEY,           -- tenant UUID
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),  -- omit on create → auto
   display_name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

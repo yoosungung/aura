@@ -301,6 +301,21 @@ async function main() {
   assert.strictEqual(tenants0.status, 200);
   assert.ok(Array.isArray(tenants0.body.tenants));
 
+  const createdAuto = await dispatch({
+    method: 'POST',
+    path: '/v1/tenants',
+    authorization: 'Bearer ops-token',
+    body: { display_name: 'Auto Lab' },
+  });
+  assert.strictEqual(createdAuto.status, 200);
+  assert.ok(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      createdAuto.body.tenant.id
+    ),
+    'auto-generated tenant UUID'
+  );
+  assert.strictEqual(createdAuto.body.tenant.display_name, 'Auto Lab');
+
   const upsertT = await dispatch({
     method: 'POST',
     path: '/v1/tenants',

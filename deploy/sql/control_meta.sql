@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS tenant_meta CASCADE;
 -- Ops tenant catalog (alias). id = tenant UUID used everywhere else.
 -- Platform ops table: RLS policies allow ALL (grants only to control-admin role).
 CREATE TABLE tenant_meta (
-  id            UUID PRIMARY KEY,
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   display_name  TEXT NOT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),

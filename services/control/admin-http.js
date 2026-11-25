@@ -174,15 +174,23 @@ async function listTenants(client) {
 }
 
 async function upsertTenant(client, actor, body) {
-  const id = body && body.id != null ? String(body.id).trim() : '';
   const display_name =
     body && body.display_name != null ? String(body.display_name).trim() : '';
-  if (!UUID_RE.test(id)) {
-    return { status: 400, body: { error: 'tenant_id_required' } };
-  }
   if (!display_name) {
     return { status: 400, body: { error: 'display_name_required' } };
   }
+
+  const rawId = body && body.id != null ? String(body.id).trim() : '';
+  let id;
+  if (rawId) {
+    if (!UUID_RE.test(rawId)) {
+      return { status: 400, body: { error: 'tenant_id_invalid' } };
+    }
+    id = rawId;
+  } else {
+    id = crypto.randomUUID();
+  }
+
   const row = await withTenantTx(client, id, async (c) => {
     const ins = await c.query(
       `INSERT INTO tenant_meta (id, display_name)

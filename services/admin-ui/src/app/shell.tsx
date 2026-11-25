@@ -53,10 +53,17 @@ export function Shell() {
   const isConnected = health.isSuccess && health.data?.ok !== false;
   const isChecking = health.isPending;
 
-  function handleDisconnect() {
+  function handleSignOut() {
     clearAuth(null);
     queryClient.clear();
   }
+
+  const healthLabel = isChecking ? 'Control · …' : isConnected ? 'Control · OK' : 'Control · Down';
+  const healthTitle = isChecking
+    ? 'Checking control-admin /healthz'
+    : isConnected
+      ? 'control-admin healthy'
+      : 'control-admin unreachable';
 
   function onTenantSelect(value: string) {
     if (!value) {
@@ -90,6 +97,7 @@ export function Shell() {
           <div className="flex flex-wrap items-center gap-2">
             <span
               data-testid="health-badge"
+              title={healthTitle}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
                 isChecking
@@ -109,7 +117,7 @@ export function Shell() {
                       : 'bg-red-500'
                 )}
               />
-              {isChecking ? 'Checking...' : isConnected ? 'Connected' : 'Unreachable'}
+              {healthLabel}
             </span>
             {bearer ? (
               <div
@@ -149,9 +157,9 @@ export function Shell() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleDisconnect}
+                onClick={handleSignOut}
               >
-                Disconnect
+                Sign out
               </Button>
             ) : null}
           </div>

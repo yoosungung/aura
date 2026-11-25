@@ -13,6 +13,8 @@ import { normalizeTenantList } from '@/lib/tenants';
 import { useSession } from '@/stores/session';
 import { useToast } from '@/stores/toast';
 
+type TenantCreated = { tenant?: { id?: string; display_name?: string } };
+
 export function TenantsPage() {
   const api = useAdminApi();
   const tenantId = useSession((s) => s.tenantId);
@@ -20,9 +22,11 @@ export function TenantsPage() {
   const pushToast = useToast((s) => s.push);
   const qc = useQueryClient();
   const [manual, setManual] = useState('');
-  const [newId, setNewId] = useState('');
   const [newName, setNewName] = useState('');
+  const [customId, setCustomId] = useState('');
+  const [showCustomId, setShowCustomId] = useState(false);
   const [renameName, setRenameName] = useState('');
+  const [lastCreatedId, setLastCreatedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const tenantsQuery = useQuery({
@@ -34,18 +38,24 @@ export function TenantsPage() {
     },
   });
 
-  const upsert = useMutation({
-    mutationFn: async (body: { id: string; display_name: string }) => {
-      const r = await api.post('/v1/tenants', body);
+  const create = useMutation({
+    mutationFn: async (body: { display_name: string; id?: string }) => {
+      const r = await api.post<TenantCreated>('/v1/tenants', body);
       if (r.status >= 400) throw new Error(formatApiError(r));
       return r.body;
     },
-    onSuccess: (_body, vars) => {
-      pushToast(`Saved ${vars.display_name}`, 'success');
+    onSuccess: (body) => {
+      const id = body?.tenant?.id;
+      const name = body?.tenant?.display_name || newName.trim();
+      pushToast(id ? `Created ${name} · ${shortId(id)}` : `Saved ${name}`, 'success');
       qc.invalidateQueries({ queryKey: ['tenants'] });
-      setTenantId(vars.id);
-      setNewId('');
+      if (id) {
+        setTenantId(id);
+        setLastCreatedId(id);
+      }
       setNewName('');
+      setCustomId('');
+      setShowCustomId(false);
       setRenameName('');
     },
     onError: (e) => pushToast(formatApiError(e), 'error'),
@@ -78,17 +88,22 @@ export function TenantsPage() {
   }
 
   function saveNew() {
-    const id = uuidSchema.safeParse(newId.trim());
-    if (!id.success) {
-      setError(id.error.issues[0]?.message || 'invalid tenant');
-      return;
-    }
     if (!newName.trim()) {
       setError('display_name required');
       return;
     }
+    if (showCustomId && customId.trim()) {
+      const id = uuidSchema.safeParse(customId.trim());
+      if (!id.success) {
+        setError(id.error.issues[0]?.message || 'invalid tenant');
+        return;
+      }
+      setError(null);
+      create.mutate({ display_name: newName.trim(), id: id.data });
+      return;
+    }
     setError(null);
-    upsert.mutate({ id: id.data, display_name: newName.trim() });
+    create.mutate({ display_name: newName.trim() });
   }
 
   function saveRename() {
@@ -108,8 +123,8 @@ export function TenantsPage() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-neutral-600">
-          Header switcher uses this list. Register a display name in{' '}
-          <code>tenant_meta</code>, or paste a UUID (does not create a row until you save a name).
+          Create with a display name — UUID is generated server-side. Paste a UUID only to
+          select an existing tenant without creating a row.
         </p>
         {tenantsQuery.isError && (
           <p className="text-sm text-red-600">{formatApiError(tenantsQuery.error)}</p>
@@ -139,20 +154,43 @@ export function TenantsPage() {
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2 rounded-md border border-neutral-200 p-3">
-            <Label>Register / upsert alias</Label>
+            <Label htmlFor="tenant-create-name">Create tenant</Label>
             <Input
-              value={newId}
-              onChange={(e) => setNewId(e.target.value)}
-              placeholder="tenant UUID"
-            />
-            <Input
+              id="tenant-create-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="display name"
             />
-            <Button type="button" onClick={saveNew} disabled={upsert.isPending}>
-              Save alias
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
+              <input
+                type="checkbox"
+                checked={showCustomId}
+                onChange={(e) => setShowCustomId(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-neutral-300"
+              />
+              Advanced · set UUID manually
+            </label>
+            {showCustomId ? (
+              <Input
+                id="tenant-create-id"
+                value={customId}
+                onChange={(e) => setCustomId(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              />
+            ) : null}
+            <Button
+              id="btn-create-tenant"
+              type="button"
+              onClick={saveNew}
+              disabled={create.isPending}
+            >
+              {create.isPending ? 'Creating…' : 'Create'}
             </Button>
+            {lastCreatedId ? (
+              <p className="flex flex-wrap items-center gap-2 text-xs text-neutral-600">
+                Last created: <CopyableId value={lastCreatedId} />
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2 rounded-md border border-neutral-200 p-3">
             <Label>Rename active tenant</Label>
@@ -177,7 +215,7 @@ export function TenantsPage() {
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="tenant-input">Advanced · paste full UUID</Label>
+          <Label htmlFor="tenant-input">Advanced · paste full UUID to select</Label>
           <div className="flex gap-2">
             <Input
               id="tenant-input"

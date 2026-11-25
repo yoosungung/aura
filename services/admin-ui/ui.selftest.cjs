@@ -70,7 +70,8 @@ const tenantsPage = fs.readFileSync(
 );
 assert.ok(!/btn-load-tenants/.test(tenantsPage), 'no manual Load tenants button');
 assert.ok(/paste full UUID|Advanced/.test(tenantsPage), 'UUID paste is advanced');
-assert.ok(/display_name|Save alias|tenant_meta/.test(tenantsPage), 'tenant alias upsert');
+assert.ok(/btn-create-tenant|Create tenant|display_name/.test(tenantsPage), 'tenant create');
+assert.ok(/set UUID manually|customId|showCustomId/.test(tenantsPage), 'optional manual UUID');
 assert.ok(/formatTenantLabel|normalizeTenantList/.test(shell), 'shell uses tenant labels');
 assert.ok(/quotas/.test(shell), 'quotas nav');
 assert.ok(/QuotasPage|\/v1\/quotas\//.test(
