@@ -112,6 +112,28 @@ assert.ok(
   'scaffold zip SoT includes requirements.txt'
 );
 
+function reqLines(rel) {
+  return fs
+    .readFileSync(path.join(root, '../..', rel), 'utf8')
+    .split('\n')
+    .map((l) => l.replace(/#.*$/, '').trim())
+    .filter(Boolean);
+}
+function reqHas(lines, name) {
+  const re = new RegExp(`^${name.replace(/[[\\]]/g, '\\$&')}([=<>!~]|\\[|$)`);
+  return lines.some((l) => re.test(l));
+}
+const agentPyPin = reqLines('services/agent-invoke/python/requirements.txt');
+const agentPyScaf = reqLines('scaffolds/agent-python/requirements.txt');
+const mcpPyPin = reqLines('services/mcp-invoke/python/requirements.txt');
+const mcpPyScaf = reqLines('scaffolds/mcp-python/requirements.txt');
+for (const pkg of ['langchain', 'langchain-core', 'nats-py', 'psycopg']) {
+  assert.ok(reqHas(agentPyPin, pkg), `agent-invoke python pin has ${pkg}`);
+  assert.ok(reqHas(agentPyScaf, pkg), `agent-python scaffold mirror has ${pkg}`);
+}
+assert.ok(reqHas(mcpPyPin, 'nats-py'), 'mcp-invoke python pin has nats-py');
+assert.ok(reqHas(mcpPyScaf, 'nats-py'), 'mcp-python scaffold mirror has nats-py');
+
 const configEntries = fs.readFileSync(
   path.join(root, 'src/lib/config-entries.ts'),
   'utf8'

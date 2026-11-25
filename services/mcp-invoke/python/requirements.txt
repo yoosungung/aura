@@ -1,2 +1,4 @@
-# M3.6 mcp_invoke python — fastapi-env entry; runtime image already has fastapi.
+# M3.6 mcp_invoke python — Node package.json 대등 핀 (nats만; PG 금지).
+# fastapi: fastapi-env 런타임에도 있음 · 로컬/archive 명시.
 fastapi>=0.115,<1
+nats-py>=2.16,<3

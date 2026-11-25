@@ -24,8 +24,11 @@ scaffold 쪽 `package.json` / `requirements.txt` 는 위 핀의 **미러**(로�
 ### mcp · nodejs
 `nats`
 
-### agent / mcp · python
-`fastapi` (+ 로컬 `pytest`) · fastapi-env stdlib
+### agent · python
+`fastapi` · `langchain` · `langchain-core` · `nats-py` · `psycopg[binary]` (+ 로컬 `pytest`)
+
+### mcp · python
+`fastapi` · `nats-py` (+ 로컬 `pytest`) · PG 금지(Node `mcp`와 동일)
 
 ## custom
 이미지 자체 deps — 이 zip/allowlist **비적용**.

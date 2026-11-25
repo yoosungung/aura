@@ -1,3 +1,7 @@
-# M3.6 agent_invoke python — langchain pinned when create_agent path lands.
-# fastapi/starlette: test + fastapi-env entry typing (runtime image already has them).
+# M3.6 agent_invoke python — Node package.json 대등 핀 (테넌트 번들 allowlist SoT).
+# fastapi: fastapi-env 런타임에도 있음 · 로컬/archive 명시.
 fastapi>=0.115,<1
+langchain>=1,<2
+langchain-core>=1,<2
+nats-py>=2.16,<3
+psycopg[binary]>=3,<4

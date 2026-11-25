@@ -32,7 +32,7 @@ checksum / activate = **객체 바이트 전체** (zip이면 zip 파일 sha256).
 ## 의존성
 
 - zip **안** 상대 모듈: 허용.
-- `require('langchain')` / `import fastapi`: **공유 Function** deps만 ([`scaffolds/ALLOWED_PACKAGES.md`](../../scaffolds/ALLOWED_PACKAGES.md)).
+- `require('langchain')` / `import langchain` · `nats`/`nats-py` · `pg`/`psycopg`: **공유 Function** deps만 ([`scaffolds/ALLOWED_PACKAGES.md`](../../scaffolds/ALLOWED_PACKAGES.md)).
 - zip에 `node_modules` / site-packages 포함 **금지**(업로드·로드 모두).
 
 ## 업로드 (Admin)
