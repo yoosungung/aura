@@ -11,7 +11,10 @@ RUN node scripts/sync-scaffolds.cjs --from /tmp/scaffolds-sot
 RUN npm run build \
   && test -f dist/aura-logo.jpg \
   && test -f dist/scaffolds/agent-nodejs/main.js \
-  && test -f dist/scaffolds/mcp-python/main.py
+  && test -f dist/scaffolds/agent-nodejs/package.json \
+  && test -f dist/scaffolds/agent-nodejs.zip \
+  && test -f dist/scaffolds/mcp-python/requirements.txt \
+  && test -f dist/scaffolds/mcp-python.zip
 
 FROM nginx:1.27-alpine
 COPY services/admin-ui/nginx.conf /etc/nginx/conf.d/default.conf

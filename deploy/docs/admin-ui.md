@@ -188,7 +188,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 
 | 규칙 | 내용 |
 |------|------|
-| Bundles | runtime 분기 · **Download scaffold**(SoT=`scaffolds/`) · 등록 후 Activate / Sources CTA |
+| Bundles | runtime 분기 · **Download scaffold (.zip)**(폴더+deps) · 등록 후 Activate / Sources CTA |
 | Sources | status·kind 필터 · 행/그룹에서 `GET /v1/sources/{kind}/{name}` 버전 타임라인 · **Create → `/bundles`** |
 | Overlays | 목록 중심 · New/Edit **drawer** · Delete는 ConfirmDialog 유지 |
 | Audit | `GET /v1/audit?action=` 서버 필터 · source/overlay 리소스 딥링크 |
@@ -204,7 +204,7 @@ API·세션 값은 그대로 UUID / `bundle_uri` / checksum. UI 첫 줄만 사�
 | 식별자 | 화면에는 `shortId` (앞 8자…) · 전체 값은 title·복사 |
 | Source | 선택·목록 라벨 = `kind / name / version · status` · 값은 `id` |
 | Tenant | tenants DDL 없음 → 표시도 UUID 단축 · 직접 입력 유지 |
-| Bundle | **nodejs/python**: **Download scaffold**(정적 `/scaffolds/…`)→로컬 테스트→업로드 → Entrypoint. **custom**: `function`만. Sources **Download**=등록본 패치 보조 |
+| Bundle | **nodejs/python**: scaffold zip→로컬 개발→**소스 zip 업로드**(멀티파일 · `node_modules` 제외) · 단일 파일 하위호환. **custom**: `function`만 |
 | Overlay | source는 Sources 목록 select · New/Edit drawer · Sources→`/overlays?source=` |
 | Config | 키·값 행 폼 → 객체 · 빈 행=생략 · `runtime` 키 금지(스키마) |
 | 시크릿 | `secrets_ref` 입력만 · plaintext 금지 |

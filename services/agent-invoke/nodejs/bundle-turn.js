@@ -28,18 +28,15 @@ function isModuleEntrypoint(entrypoint) {
 }
 
 function loadJsFactory(bytes, entrypoint) {
-  const attr = String(entrypoint).slice(String(entrypoint).lastIndexOf(':') + 1);
-  const code = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes);
-  const module = { exports: {} };
-  const compiled = new Function('module', 'exports', 'require', code);
-  compiled(module, module.exports, require);
-  const factory = module.exports && module.exports[attr];
-  if (typeof factory !== 'function') {
-    const err = new Error('factory_export_missing');
-    err.status = 500;
+  const { loadJsFactory: load } = requireObjectStore('bundle-zip.js');
+  try {
+    return load(bytes, entrypoint, require);
+  } catch (err) {
+    if (err && err.message === 'factory_export_missing') {
+      err.status = err.status || 500;
+    }
     throw err;
   }
-  return factory;
 }
 
 function cacheOpts(deps, tenantId) {

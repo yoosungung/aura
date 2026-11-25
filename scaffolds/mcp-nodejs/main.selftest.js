@@ -12,6 +12,7 @@ async function main() {
 
   const ran = await mcp.runTool({ tool: 'echo', input: { x: 1 } });
   assert.strictEqual(ran.ok, true);
+  assert.strictEqual(ran.tag, 'scaffold-mcp');
   assert.strictEqual(ran.tool, 'echo');
   assert.strictEqual(ran.flag, 'lab');
   assert.strictEqual(ran.secrets_ref, 'vault:ref');

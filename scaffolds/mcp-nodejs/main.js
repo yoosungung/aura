@@ -1,8 +1,10 @@
 /**
  * Tenant MCP bundle scaffold (nodejs).
- * Upload this file via Admin → Bundles. Entrypoint: main:factory
+ * Upload folder as zip (without node_modules). Entrypoint: main:factory
  */
 'use strict';
+
+const { tag } = require('./lib/meta');
 
 /**
  * @param {object} cfg
@@ -20,6 +22,7 @@ function factory(cfg, secrets_ref) {
     async runTool(ctx) {
       return {
         ok: true,
+        tag,
         tool: ctx && ctx.tool,
         flag: flag || null,
         secrets_ref: secrets_ref || null,

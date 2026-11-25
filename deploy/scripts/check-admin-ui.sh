@@ -119,7 +119,8 @@ node "$UI/ui.selftest.cjs" || fail "admin-ui ui.selftest failed"
   npm test || fail "admin-ui vitest failed"
   npm run build || fail "admin-ui build failed"
   [[ -f dist/aura-logo.jpg ]] || fail "vite build must copy aura-logo.jpg into dist"
-  [[ -f dist/scaffolds/agent-nodejs/main.js ]] || fail "vite build must mirror scaffolds into dist"
+  [[ -f dist/scaffolds/agent-nodejs.zip ]] || fail "vite build must emit scaffold zips"
+  [[ -f dist/scaffolds/agent-nodejs/package.json ]] || fail "scaffold mirror must include package.json"
 )
 
 ok "admin-ui docs + audit API + React SPA + vitest + build"

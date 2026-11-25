@@ -1,6 +1,7 @@
 # mcp · nodejs scaffold
 
 ```bash
-node main.selftest.js
-# then Admin Bundles: runtime=nodejs · entrypoint=main:factory · file=main.js
+npm install
+npm test
+# upload only main.js — runtime=nodejs · entrypoint=main:factory
 ```

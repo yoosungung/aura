@@ -51,7 +51,7 @@ export function BundlesPage() {
       kind: 'agent',
       name: '',
       version: '1.0.0',
-      entrypoint: 'index:handler',
+      entrypoint: 'main:factory',
       function: 'aura-agent-invoke-',
       bundle_uri: '',
       checksum: '',
@@ -97,7 +97,7 @@ export function BundlesPage() {
         );
       }
     } else if (!form.getValues('entrypoint') || !form.getValues('entrypoint').includes(':')) {
-      form.setValue('entrypoint', 'index:handler');
+      form.setValue('entrypoint', 'main:factory');
     }
   }
 
@@ -219,8 +219,9 @@ export function BundlesPage() {
             href={scaffold.href}
             download={scaffold.file}
             className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium hover:bg-neutral-50"
+            title={`Includes ${scaffold.depsFile} for local install`}
           >
-            Download scaffold
+            Download scaffold (.zip)
           </a>
         ) : null}
       </CardHeader>
@@ -266,7 +267,7 @@ export function BundlesPage() {
             <Field label="Entrypoint" id="src-entrypoint">
               <Input
                 id="src-entrypoint"
-                placeholder="index:handler"
+                placeholder="main:factory"
                 {...form.register('entrypoint')}
               />
             </Field>
@@ -277,8 +278,16 @@ export function BundlesPage() {
               <Input
                 id="src-file"
                 type="file"
+                accept=".zip,.js,.py,application/zip"
                 onChange={(e) => onFileChosen(e.target.files?.[0] || null)}
               />
+              <p className="text-xs text-neutral-500">
+                Prefer a source zip (e.g. <span className="font-mono">main.js</span> +{' '}
+                <span className="font-mono">lib/</span>). No{' '}
+                <span className="font-mono">node_modules</span>. Single{' '}
+                <span className="font-mono">.js</span>/<span className="font-mono">.py</span>{' '}
+                still works.
+              </p>
             </div>
           ) : (
             <p className="self-end text-xs text-neutral-500 md:col-span-1">
@@ -348,7 +357,7 @@ export function BundlesPage() {
         <p className="text-xs text-neutral-500">
           {isCustom
             ? 'Flow: function (allowlisted prefix) → pending · entrypoint=null → Activate (no Garage).'
-            : 'Flow: copy scaffolds/* → edit factory → upload single .js/.py → entrypoint main:factory → Activate. Download from Sources to patch.'}
+            : 'Flow: Download scaffold → npm/pip locally → zip sources at zip root (main + lib/, no node_modules) → upload → entrypoint main:factory → Activate.'}
         </p>
         <ConfirmDialog
           open={activateOpen}

@@ -2,8 +2,10 @@ export type ScaffoldSlot = {
   kind: 'agent' | 'mcp';
   runtime: 'nodejs' | 'python';
   dir: string;
+  /** Zip download filename */
   file: string;
   href: string;
+  depsFile: string;
 };
 
 const SLOTS: ScaffoldSlot[] = [
@@ -11,29 +13,33 @@ const SLOTS: ScaffoldSlot[] = [
     kind: 'agent',
     runtime: 'nodejs',
     dir: 'agent-nodejs',
-    file: 'main.js',
-    href: '/scaffolds/agent-nodejs/main.js',
+    file: 'agent-nodejs.zip',
+    href: '/scaffolds/agent-nodejs.zip',
+    depsFile: 'package.json',
   },
   {
     kind: 'agent',
     runtime: 'python',
     dir: 'agent-python',
-    file: 'main.py',
-    href: '/scaffolds/agent-python/main.py',
+    file: 'agent-python.zip',
+    href: '/scaffolds/agent-python.zip',
+    depsFile: 'requirements.txt',
   },
   {
     kind: 'mcp',
     runtime: 'nodejs',
     dir: 'mcp-nodejs',
-    file: 'main.js',
-    href: '/scaffolds/mcp-nodejs/main.js',
+    file: 'mcp-nodejs.zip',
+    href: '/scaffolds/mcp-nodejs.zip',
+    depsFile: 'package.json',
   },
   {
     kind: 'mcp',
     runtime: 'python',
     dir: 'mcp-python',
-    file: 'main.py',
-    href: '/scaffolds/mcp-python/main.py',
+    file: 'mcp-python.zip',
+    href: '/scaffolds/mcp-python.zip',
+    depsFile: 'requirements.txt',
   },
 ];
 

@@ -18,18 +18,32 @@ function sha256Prefixed(buf) {
 }
 
 function loadFactoryFromBundle(bytes, entrypoint) {
-  const attr = String(entrypoint).slice(String(entrypoint).lastIndexOf(':') + 1);
-  const code = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes);
-  const module = { exports: {} };
-  const compiled = new Function('module', 'exports', 'require', code);
-  compiled(module, module.exports, require);
-  const factory = module.exports && module.exports[attr];
-  if (typeof factory !== 'function') {
-    const err = new Error('factory_export_missing');
+  const path = require('path');
+  const fs = require('fs');
+  const candidates = [
+    path.join(__dirname, '..', '..', 'object-store', 'bundle-zip.js'),
+    path.join(__dirname, 'bundle-zip.js'),
+  ];
+  let load;
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      load = require(p).loadJsFactory;
+      break;
+    }
+  }
+  if (typeof load !== 'function') {
+    const err = new Error('object_store_module_missing');
     err.status = 500;
     throw err;
   }
-  return factory;
+  try {
+    return load(bytes, entrypoint, require);
+  } catch (err) {
+    if (err && err.message === 'factory_export_missing') {
+      err.status = err.status || 500;
+    }
+    throw err;
+  }
 }
 
 /**

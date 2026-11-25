@@ -8,6 +8,7 @@ async function main() {
   assert.strictEqual(typeof agent.runTurn, 'function');
   const out = await agent.runTurn({ message: 'hi' });
   assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.tag, 'scaffold-agent');
   assert.strictEqual(out.echo, 'hi');
   assert.strictEqual(out.system, 'test');
   assert.strictEqual(out.secrets_ref, 'vault:ref');

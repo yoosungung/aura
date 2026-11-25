@@ -13,6 +13,7 @@ cp "$SRC/factory.js" "$STAGE/"
 cp "$SRC/bundle-factory.js" "$STAGE/"
 cp "$ROOT/services/object-store/get-object.js" "$STAGE/"
 cp "$ROOT/services/object-store/bundle-cache.js" "$STAGE/"
+cp "$ROOT/services/object-store/bundle-zip.js" "$STAGE/"
 cp "$SRC/package.json" "$STAGE/"
 # Fission entry: default export is handler (RPC path via x-aura-rpc / body).
 cat >"$STAGE/index.js" <<'JS'

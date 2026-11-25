@@ -1,0 +1,4 @@
+# Pin mirror of services/mcp-invoke/python/requirements.txt (+ pytest for local).
+# pip install -r requirements.txt  (use .venv). Do not upload site-packages — Admin Bundles takes main.py alone.
+fastapi>=0.115,<1
+pytest>=8,<9

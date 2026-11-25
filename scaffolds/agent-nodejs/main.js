@@ -1,8 +1,10 @@
 /**
  * Tenant agent bundle scaffold (nodejs).
- * Upload this file via Admin → Bundles. Entrypoint: main:factory
+ * Upload this folder as zip (without node_modules). Entrypoint: main:factory
  */
 'use strict';
+
+const { tag } = require('./lib/echo');
 
 /**
  * @param {object} cfg
@@ -15,6 +17,7 @@ function factory(cfg, secrets_ref) {
     async runTurn(input) {
       return {
         ok: true,
+        tag,
         echo: input && input.message,
         system,
         secrets_ref: secrets_ref || null,

@@ -19,7 +19,7 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | Quotas | 조회·리셋만 · `/quotas` |
 | 시크릿 | `secrets_ref` 입력만 · 값 필드 없음 |
 | 이미지 | `aura/admin-ui:local` · Vite `dist/` + `nginx.conf` 베이크 · dist ConfigMap 금지 |
-| Scaffold | SoT=`scaffolds/` · `sync-scaffolds`→`public/scaffolds/` · Bundles **Download scaffold** |
+| Scaffold | SoT=`scaffolds/` · `sync-scaffolds`→`public/scaffolds/` · Bundles **Download scaffold** · 업로드 권장=멀티파일 zip (`main:factory`) |
 
 ## 표시 규칙
 

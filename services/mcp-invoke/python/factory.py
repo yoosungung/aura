@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
+from pathlib import Path
 from typing import Any
 
 _ATTR = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -42,14 +44,22 @@ def _fail(message: str) -> RuntimeError:
     return RuntimeError(message)
 
 
-def load_factory(source: str, entrypoint: str):
-    attr = entrypoint.rsplit(":", 1)[-1]
-    ns: dict[str, Any] = {}
-    exec(source, ns, ns)  # noqa: S102 — signed checksummed bundle only
-    factory = ns.get(attr)
-    if not callable(factory):
-        raise _fail("factory_export_missing")
-    return factory
+def _ensure_object_store_path() -> None:
+    here = Path(__file__).resolve().parent
+    for cand in (here, here.parent.parent / "object-store"):
+        if (cand / "bundle_zip.py").exists():
+            p = str(cand)
+            if p not in sys.path:
+                sys.path.insert(0, p)
+            return
+
+
+def load_factory(source: str | bytes, entrypoint: str):
+    _ensure_object_store_path()
+    from bundle_zip import load_factory_from_bytes  # type: ignore
+
+    body = source.encode("utf-8") if isinstance(source, str) else source
+    return load_factory_from_bytes(body, entrypoint)
 
 
 async def _read_json_or_sse(resp_text: str, content_type: str, want_id: Any) -> dict:
@@ -130,8 +140,7 @@ async def open_bundle(source: dict, cfg: dict, deps: dict) -> dict:
     body = raw if isinstance(raw, (bytes, bytearray)) else str(raw).encode("utf-8")
     if sha256_prefixed(body) != source.get("checksum"):
         raise _fail("bundle_checksum_mismatch")
-    text = body.decode("utf-8")
-    factory = load_factory(text, source["entrypoint"])
+    factory = load_factory(bytes(body), source["entrypoint"])
     instance = factory(cfg, deps.get("secrets_ref"))
     if not isinstance(instance, dict):
         raise _fail("factory_instance_missing")

@@ -79,7 +79,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-25 | **Admin UI quota 한도 수정 = 이번 범위 밖** — Phase 2 UI는 **조회+리셋만**(KV 카운터 · Gateway RR). `rate/burst/maxInflight` 등 **한도 수정**은 PG `tenant_plan`(후보) SoR + Gateway 재로드 후속. OIDC/SSO 제외 유지 · Tenant alias=`tenant_meta` DDL 방향 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · 아래 M6.2 후보 |
 | 2026-11-25 | **`AURA_ADMIN_TENANT_IDS` 제거** — picker=`tenant_meta` ∪ `DISTINCT source_meta` ∪ UI UUID. env CSV seed 폐기 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `control-admin` Deployment |
 | 2026-11-25 | **`source_meta.function` 분리** — custom Router 이름 ≠ zip `entrypoint` · CHECK runtime 필드 · resolve top-level `function` · Admin Bundles UI 분기 | §1 #11 · §6.1.1 · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql) · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) |
-| 2026-11-25 | **Tenant bundle scaffold + Download** — 로컬 단일 모듈 소스→Bundles 업로드 · Sources `GET …/bundle` 패치 보조 · Admin **Download scaffold**(SoT=`scaffolds/` 정적 미러) · multi-file zip 해제 Non-goal | [`deploy/docs/tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · [`scaffolds/`](scaffolds/) |
+| 2026-11-25 | **Tenant bundle scaffold + Download** — 로컬 소스→Bundles 업로드 · Sources `GET …/bundle` 패치 보조 · Admin **Download scaffold**(SoT=`scaffolds/` 정적 미러) | [`deploy/docs/tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · [`scaffolds/`](scaffolds/) |
+| 2026-11-25 | **Tenant allowed packages** — 공유 Function deps allowlist 문서 · 테넌트 `requirements.txt` 설치 비채택 · 핀 SoT=`package.json`/`requirements.txt` | [`scaffolds/ALLOWED_PACKAGES.md`](scaffolds/ALLOWED_PACKAGES.md) |
+| 2026-11-25 | **Tenant multi-file zip** — Garage 객체=소스 zip · `entrypoint` 모듈 · zip 내 상대 require/import · 단일 파일 하위호환 · `node_modules` 금지 | §1 #11 · [`deploy/docs/tenant-bundle-multifile.md`](deploy/docs/tenant-bundle-multifile.md) · `bundle-zip` |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---

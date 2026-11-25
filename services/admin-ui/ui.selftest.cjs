@@ -98,9 +98,18 @@ assert.ok(/btn-activate-now|Activate now/.test(bundles), 'bundles Activate now C
 assert.ok(/Go to Sources/.test(bundles), 'bundles Go to Sources CTA');
 assert.ok(/Create pending/.test(bundles), 'custom create CTA label');
 assert.ok(/btn-download-scaffold|scaffoldFor/.test(bundles), 'bundles Download scaffold');
+assert.ok(/\.zip|agent-nodejs\.zip/.test(bundles), 'scaffold download is zip');
 assert.ok(
   fs.existsSync(path.join(root, 'scripts/sync-scaffolds.cjs')),
   'sync-scaffolds copies SoT into public/'
+);
+assert.ok(
+  fs.existsSync(path.join(root, '../../scaffolds/agent-nodejs/package.json')),
+  'scaffold zip SoT includes package.json'
+);
+assert.ok(
+  fs.existsSync(path.join(root, '../../scaffolds/agent-python/requirements.txt')),
+  'scaffold zip SoT includes requirements.txt'
 );
 
 const configEntries = fs.readFileSync(

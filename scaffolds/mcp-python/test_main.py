@@ -11,6 +11,7 @@ def test_mcp_factory_list_and_run():
 
     ran = asyncio.run(mcp["runTool"]({"tool": "echo", "input": {"x": 1}}))
     assert ran["ok"] is True
+    assert ran["tag"] == "scaffold-mcp"
     assert ran["tool"] == "echo"
     assert ran["flag"] == "lab"
     assert ran["secrets_ref"] == "vault:ref"

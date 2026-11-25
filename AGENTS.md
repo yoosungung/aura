@@ -17,8 +17,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
-| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **multi-env** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) · **nats-task-bridge** · **관리 UI** [`admin-ui.md`](deploy/docs/admin-ui.md) · MVP [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · **tenant scaffold** [`tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · **lab Ollama embed** [`memory-embed-ollama-lab.md`](deploy/docs/memory-embed-ollama-lab.md)) | `deploy/docs/` |
-| `scaffolds/` | 테넌트 agent/MCP **로컬 번들 샘플** (단일 `main.js`/`main.py` · Admin 업로드용) | 루트 |
+| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **tenant scaffold** [`tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · **multi-file zip** [`tenant-bundle-multifile.md`](deploy/docs/tenant-bundle-multifile.md) · **관리 UI** [`admin-ui.md`](deploy/docs/admin-ui.md) · …) | `deploy/docs/` |
+| `scaffolds/` | 테넌트 agent/MCP **로컬 번들 샘플** + [`ALLOWED_PACKAGES.md`](scaffolds/ALLOWED_PACKAGES.md) allowlist (핀=`services/*/package.json`·`requirements.txt`) | 루트 |
 | `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (… · **`tenant_meta`/`source_meta`/`user_meta`/`control_audit`** · **`agent_checkpoints`**) | `deploy/sql/` |
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |

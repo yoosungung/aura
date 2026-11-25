@@ -1,0 +1,22 @@
+{
+  "name": "aura-scaffold-agent-nodejs",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node main.selftest.js"
+  },
+  "dependencies": {
+    "langchain": "^1.0.0",
+    "@langchain/core": "^1.0.0",
+    "nats": "^2.29.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.0"
+  },
+  "aura": {
+    "pin_from": "services/agent-invoke/nodejs/package.json",
+    "note": "Install for local factory tests only. Do not upload node_modules — Admin Bundles takes main.js alone."
+  }
+}

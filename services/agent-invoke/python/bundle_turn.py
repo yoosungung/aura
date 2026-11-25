@@ -30,14 +30,12 @@ def is_module_entrypoint(entrypoint: Any) -> bool:
     return True
 
 
-def load_factory(source: str, entrypoint: str):
-    attr = entrypoint.rsplit(":", 1)[-1]
-    ns: dict[str, Any] = {}
-    exec(source, ns, ns)  # noqa: S102 — signed checksummed bundle only
-    factory = ns.get(attr)
-    if not callable(factory):
-        raise RuntimeError("factory_export_missing")
-    return factory
+def load_factory(source: str | bytes, entrypoint: str):
+    _load_store()
+    from bundle_zip import load_factory_from_bytes  # type: ignore
+
+    body = source.encode("utf-8") if isinstance(source, str) else source
+    return load_factory_from_bytes(body, entrypoint)
 
 
 async def open_agent_turn(resolved: dict | None, deps: dict | None, tenant_id: str):
@@ -75,7 +73,7 @@ async def open_agent_turn(resolved: dict | None, deps: dict | None, tenant_id: s
     body = raw if isinstance(raw, (bytes, bytearray)) else str(raw).encode("utf-8")
     if get_object.sha256_prefixed(bytes(body)) != source.get("checksum"):
         raise RuntimeError("bundle_checksum_mismatch")
-    factory = load_factory(bytes(body).decode("utf-8"), entry)
+    factory = load_factory(bytes(body), entry)
     cfg = resolved.get("cfg") if isinstance(resolved, dict) else {}
     if not isinstance(cfg, dict):
         cfg = {}

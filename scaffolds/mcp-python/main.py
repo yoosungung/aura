@@ -1,4 +1,6 @@
-"""Tenant MCP bundle scaffold (python). Upload via Admin Bundles. Entrypoint: main:factory"""
+"""Tenant MCP bundle scaffold (python). Zip-upload without .venv. Entrypoint: main:factory"""
+
+from lib.meta import TAG
 
 
 def factory(cfg, secrets_ref):
@@ -11,6 +13,7 @@ def factory(cfg, secrets_ref):
         ctx = ctx or {}
         return {
             "ok": True,
+            "tag": TAG,
             "tool": ctx.get("tool"),
             "flag": flag,
             "secrets_ref": secrets_ref,

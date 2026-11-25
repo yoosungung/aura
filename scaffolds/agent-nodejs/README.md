@@ -1,6 +1,11 @@
 # agent · nodejs scaffold
 
+Admin **Download scaffold (.zip)** → 압축 해제:
+
 ```bash
-node main.selftest.js
-# then Admin Bundles: runtime=nodejs · entrypoint=main:factory · file=main.js
+npm install
+npm test
+# upload only main.js — runtime=nodejs · entrypoint=main:factory
 ```
+
+`package.json` = 공유 Function allowlist 미러 (업로드에 `node_modules` 넣지 말 것).

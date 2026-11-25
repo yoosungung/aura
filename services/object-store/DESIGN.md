@@ -4,7 +4,7 @@
 버킷·prefix: [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md).  
 매니페스트: [`deploy/k8s/garage/`](../../deploy/k8s/garage/).
 
-**이 문서 범위:** `aura-content` 번들 `GetObject`와 Function Pod LRU.  
+**이 문서 범위:** `aura-content` 번들 `GetObject` · Function Pod LRU · **테넌트 zip 해제**(`bundle-zip`).  
 **Non-goals:** `content_ref` 업로드 SDK · `PutObject` · 서명 알고리즘 검증 · Barman 버킷 `aura-pg` · NCP/AWS 전환 · CI 라이브 Garage.
 
 ---
@@ -29,14 +29,20 @@ digest는 `sha256:` + hex. 비교는 호출한 Function과 activate가 한다. �
 
 ---
 
+## Tenant zip
+
+`bundle-zip.js` / `bundle_zip.py` — PK zip → 파일 맵 · `entrypoint` 모듈 로드 · 상대 require/import · `node_modules`/`..` 거부.  
+정본: [`deploy/docs/tenant-bundle-multifile.md`](../../deploy/docs/tenant-bundle-multifile.md).
+
 ## Commands
 
 ```bash
 node services/object-store/get-object.selftest.js
 node services/object-store/bundle-cache.selftest.js
+node services/object-store/bundle-zip.selftest.js
 python3 -m venv services/object-store/.venv
 services/object-store/.venv/bin/pip install pytest
-services/object-store/.venv/bin/python -m pytest services/object-store/test_get_object.py
+services/object-store/.venv/bin/python -m pytest services/object-store/test_get_object.py services/object-store/test_bundle_zip.py
 bash deploy/scripts/check-object-store-garage.sh
 ```
 

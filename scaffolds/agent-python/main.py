@@ -1,4 +1,6 @@
-"""Tenant agent bundle scaffold (python). Upload via Admin Bundles. Entrypoint: main:factory"""
+"""Tenant agent bundle scaffold (python). Zip-upload without .venv. Entrypoint: main:factory"""
+
+from lib.echo import TAG
 
 
 def factory(cfg, secrets_ref):
@@ -8,6 +10,7 @@ def factory(cfg, secrets_ref):
         payload = input_msg or {}
         return {
             "ok": True,
+            "tag": TAG,
             "echo": payload.get("message"),
             "system": system,
             "secrets_ref": secrets_ref,
