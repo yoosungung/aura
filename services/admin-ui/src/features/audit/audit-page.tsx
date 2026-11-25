@@ -1,34 +1,45 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CopyableId } from '@/components/copyable-id';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAdminApi } from '@/hooks/use-admin-api';
+import { formatApiError } from '@/lib/errors';
 import { auditListSchema } from '@/lib/schemas';
 import { useSession } from '@/stores/session';
+
+function resourceLink(resourceType: string, resourceId: string): string | null {
+  if (resourceType === 'source_meta') {
+    return `/sources?focus=${encodeURIComponent(resourceId)}`;
+  }
+  if (resourceType === 'user_meta') {
+    const sourceId = resourceId.split(':')[0];
+    if (sourceId) return `/overlays?source=${encodeURIComponent(sourceId)}`;
+  }
+  return null;
+}
 
 export function AuditPage() {
   const api = useAdminApi();
   const tenantId = useSession((s) => s.tenantId);
   const [action, setAction] = useState('');
+  const [appliedAction, setAppliedAction] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
   const audit = useQuery({
-    queryKey: ['audit', tenantId, action, cursor],
+    queryKey: ['audit', tenantId, appliedAction, cursor],
     enabled: !!tenantId,
     queryFn: async () => {
       const r = await api.get<unknown>('/v1/audit', {
         limit: '50',
         cursor,
+        action: appliedAction || undefined,
       });
-      if (r.status >= 400) throw new Error(JSON.stringify(r.body));
-      const parsed = auditListSchema.parse(r.body);
-      const items = action
-        ? parsed.items.filter((i) => i.action.includes(action))
-        : parsed.items;
-      return { ...parsed, items };
+      if (r.status >= 400) throw new Error(formatApiError(r));
+      return auditListSchema.parse(r.body);
     },
   });
 
@@ -49,10 +60,27 @@ export function AuditPage() {
               id="audit-action"
               value={action}
               onChange={(e) => setAction(e.target.value)}
-              placeholder="source.activate"
+              placeholder="source.activate or source"
             />
           </div>
-          <Button type="button" variant="outline" onClick={() => setCursor(undefined)}>
+          <Button
+            type="button"
+            onClick={() => {
+              setCursor(undefined);
+              setAppliedAction(action.trim());
+            }}
+          >
+            Apply
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setAction('');
+              setAppliedAction('');
+              setCursor(undefined);
+            }}
+          >
             Newest
           </Button>
           <Button
@@ -64,7 +92,7 @@ export function AuditPage() {
           </Button>
         </div>
         {audit.isError && (
-          <p className="text-sm text-red-600">{String(audit.error)}</p>
+          <p className="text-sm text-red-600">{formatApiError(audit.error)}</p>
         )}
         <div className="overflow-auto">
           <table className="w-full text-left text-sm">
@@ -78,18 +106,30 @@ export function AuditPage() {
               </tr>
             </thead>
             <tbody>
-              {(audit.data?.items || []).map((row) => (
-                <tr key={row.id} className="border-b">
-                  <td className="py-2 whitespace-nowrap">{row.at}</td>
-                  <td>{row.actor}</td>
-                  <td>{row.action}</td>
-                  <td className="space-x-1">
-                    <span>{row.resource_type}:</span>
-                    <CopyableId value={row.resource_id} />
-                  </td>
-                  <td>{row.reason || ''}</td>
-                </tr>
-              ))}
+              {(audit.data?.items || []).map((row) => {
+                const href = resourceLink(row.resource_type, row.resource_id);
+                return (
+                  <tr key={row.id} className="border-b">
+                    <td className="py-2 whitespace-nowrap">{row.at}</td>
+                    <td>{row.actor}</td>
+                    <td>{row.action}</td>
+                    <td className="space-x-1">
+                      <span>{row.resource_type}:</span>
+                      {href ? (
+                        <Link
+                          to={href}
+                          className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                        >
+                          <CopyableId value={row.resource_id} />
+                        </Link>
+                      ) : (
+                        <CopyableId value={row.resource_id} />
+                      )}
+                    </td>
+                    <td>{row.reason || ''}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

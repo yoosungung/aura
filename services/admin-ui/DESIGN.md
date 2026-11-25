@@ -15,14 +15,15 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | 항목 | 값 |
 |------|-----|
 | 호출 | `aura-control-admin` HTTP만 (`AURA_CONTROL_ADMIN_URL`) |
-| 테넌트 | 배너 + `X-Aura-Tenant-Id` · 목록=`GET /v1/tenants` · UUID 직접 입력 |
+| 테넌트 | 헤더 switcher(`display_name`) + `X-Aura-Tenant-Id` · `tenant_meta` upsert/rename · UUID paste |
+| Quotas | 조회·리셋만 · `/quotas` |
 | 시크릿 | `secrets_ref` 입력만 · 값 필드 없음 |
 | 이미지 | `aura/admin-ui:local` · Vite `dist/` + `nginx.conf` 베이크 · dist ConfigMap 금지 |
 
 ## 표시 규칙
 
-계약 정본: [`deploy/docs/admin-ui.md`](../../deploy/docs/admin-ui.md) 「표시 규칙」.  
-요약: 첫 줄=`kind/name/version`·`shortId` · Overlay source=Sources select·행 클릭 채움·`?source=` · Config=키·값 행 · Bundle=파일→sha256→PUT→pending · tenants DDL 없음.
+계약 정본: [`deploy/docs/admin-ui.md`](../../deploy/docs/admin-ui.md) 「표시 규칙」·「UX (Sprint A)」.  
+요약: 첫 줄=`kind/name/version`·`display_name` · Overlay=목록+drawer · Bundle→Activate CTA · Sources 필터·타임라인 · Quotas 조회·리셋 · Audit `?action=` · `tenant_meta` · ConfirmDialog · toast/`formatApiError`.
 
 ---
 
@@ -49,8 +50,11 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | `src/app/routes.tsx` | 라우트 |
 | `src/features/*` | tenants · sources · bundles · overlays · audit |
 | `src/components/ui/` | shadcn 스타일 프리미티브 |
-| `src/lib/{api,schemas}.ts` | fetch 클라이언트 · Zod |
-| `src/stores/session.ts` | Bearer · tenant · baseUrl |
+| `src/components/confirm-dialog.tsx` | Activate/Retire/Delete confirm (+ optional reason) |
+| `src/components/drawer.tsx` | Overlays New/Edit 슬라이드오버 |
+| `src/components/toast-host.tsx` | 전역 toast |
+| `src/lib/{api,schemas,errors}.ts` | fetch · Zod · `formatApiError` |
+| `src/stores/{session,toast}.ts` | Bearer·tenant · toast 큐 |
 | `ui.selftest.cjs` | 계약·금지사항 정적 게이트 (소스/디자인) |
 | `public/aura-logo.jpg` | 헤더·파비콘 마크. Vite `dist/`로 복사되어 이미지에 포함 |
 | `Dockerfile` · `nginx.conf` | 이미지에 굽는 정적 서버 (`listen 8080` · `/v1` → control-admin · `dev.orbstack.icon`) |

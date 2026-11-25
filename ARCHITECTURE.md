@@ -308,11 +308,11 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 | 테이블 | 쓰기 소유 |
 |--------|-----------|
 | `memory_items`, `memory_embeddings`, `memory_nodes`, `memory_edges`, `memory_audit` | **`svc-memory`만** |
-| `source_meta`, `user_meta`, `control_audit` (DDL·resolve/admin wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
-| tenants/ACL (후속) | **`svc-control`만** |
+| `tenant_meta`, `source_meta`, `user_meta`, `control_audit` (DDL·resolve/admin wire: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql)) | **`svc-control`만** |
+| ACL/membership (후속) | **`svc-control`만** |
 | `agent_checkpoints` (DDL·소유: [`deploy/docs/agent-checkpoints.md`](deploy/docs/agent-checkpoints.md) · [`deploy/sql/agent_checkpoints.sql`](deploy/sql/agent_checkpoints.sql)) | **`agent_invoke`만** (예외) |
 
-### 6.1.1 컨트롤 메타 DDL (`source_meta` / `user_meta` / `control_audit`)
+### 6.1.1 컨트롤 메타 DDL (`tenant_meta` / `source_meta` / `user_meta` / `control_audit`)
 
 정본 DDL: [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql). resolve: [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md). 관리 HTTP·Admin UI: [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) (MVP 스냅샷 [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)).
 
@@ -320,10 +320,18 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 
 **activate checksum:** 클라이언트 제출 checksum은 기대값. `POST …/activate` 시 `svc-control`이 Garage 객체를 읽어 sha256을 **서버에서** 계산·대조한 뒤에만 `pending→active`.
 
-**Tenant picker (tenants 테이블 없음):** `DISTINCT source_meta.tenant_id` ∪ env `AURA_ADMIN_TENANT_IDS` ∪ UI UUID 직접 입력.
+**Tenant picker:** `tenant_meta` ∪ `DISTINCT source_meta.tenant_id` ∪ UI UUID 직접 입력. `display_name`은 `tenant_meta`만. ACL/OIDC·env CSV tenant seed 비범위.
 
 ```sql
--- 요약 (FORCE RLS + set_config('app.tenant_id', $1, true) — §2.1)
+-- 요약. tenant_meta = ops catalog (FORCE RLS · policy ALL true; grants=control-admin).
+-- source/user/audit = FORCE RLS + set_config('app.tenant_id', $1, true) — §2.1
+CREATE TABLE tenant_meta (
+  id UUID PRIMARY KEY,           -- tenant UUID
+  display_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE source_meta (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,

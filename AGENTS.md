@@ -18,7 +18,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
 | `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **multi-env** [`multi-env-followup.md`](deploy/docs/multi-env-followup.md) · **nats-task-bridge** · **관리 UI** [`admin-ui.md`](deploy/docs/admin-ui.md) · MVP [`admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · **lab Ollama embed** [`memory-embed-ollama-lab.md`](deploy/docs/memory-embed-ollama-lab.md)) | `deploy/docs/` |
-| `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (… · **`source_meta`/`user_meta`/`control_audit`** · **`agent_checkpoints`**) | `deploy/sql/` |
+| `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (… · **`tenant_meta`/`source_meta`/`user_meta`/`control_audit`** · **`agent_checkpoints`**) | `deploy/sql/` |
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
 | `deploy/k8s/base/` | NATS JetStream Kustomize | `deploy/k8s/base/` |
 | `deploy/k8s/runtime-envs/` | Fission 런타임×계급 공용 Environment — `aura-nodejs-async|sync` · `aura-python-async|sync` (후속 custom) | `deploy/k8s/runtime-envs/` |

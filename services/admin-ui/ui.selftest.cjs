@@ -17,6 +17,9 @@ const overlays = fs.readFileSync(
 
 assert.ok(/Aura Admin/.test(shell), 'brand Aura in shell');
 assert.ok(/active-tenant|tenant-banner/.test(shell), 'tenant banner required');
+assert.ok(/header-tenant-select/.test(shell), 'header tenant switcher');
+assert.ok(/ToastHost/.test(shell), 'toast host in shell');
+assert.ok(/queryKey:\s*\['tenants'\]/.test(shell) || /enabled: !!bearer/.test(shell), 'tenants auto-fetch');
 assert.ok(/btn-presign|Bundles|presign/.test(
   fs.readFileSync(path.join(root, 'src/features/bundles/bundles-page.tsx'), 'utf8')
 ), 'bundle flow controls');
@@ -26,16 +29,53 @@ assert.ok(!/type="password"[^>]*id="ov-/.test(overlays), 'no overlay secret valu
 assert.ok(/ov-source/.test(overlays) && /select/.test(overlays), 'overlay source is select');
 assert.ok(!/source_meta id/.test(overlays), 'no raw source_meta id label');
 assert.ok(/formatSourceLabel|Sources/.test(overlays) || /select source/.test(overlays), 'source picker labels');
-assert.ok(/fillFromRow|Click a row/.test(overlays), 'overlay row fills form');
+assert.ok(/Drawer|drawer/.test(overlays), 'overlay edit uses drawer');
+assert.ok(/openEdit|New overlay|Edit overlay/.test(overlays), 'overlay list + edit/create');
 assert.ok(/searchParams|source=/.test(overlays), 'overlay reads ?source=');
 assert.ok(/ConfigEntriesEditor/.test(overlays), 'overlay uses config entries editor');
 assert.ok(!/Config JSON/.test(overlays), 'overlay has no raw Config JSON label');
+assert.ok(/ConfirmDialog/.test(overlays), 'overlay delete uses ConfirmDialog');
+assert.ok(!/id="ov-reason"/.test(overlays), 'no always-visible overlay reason field');
 
 const sourcesPage = fs.readFileSync(
   path.join(root, 'src/features/sources/sources-page.tsx'),
   'utf8'
 );
 assert.ok(/\/overlays\?source=/.test(sourcesPage), 'sources link to overlays');
+assert.ok(/ConfirmDialog/.test(sourcesPage), 'sources activate/retire ConfirmDialog');
+assert.ok(!/id="retire-reason"/.test(sourcesPage), 'no always-visible retire reason field');
+assert.ok(/formatApiError/.test(sourcesPage), 'sources uses formatApiError');
+assert.ok(/filter-status|statusFilter/.test(sourcesPage), 'sources status filter');
+assert.ok(/Timeline|source-versions/.test(sourcesPage), 'sources version timeline');
+
+const auditPage = fs.readFileSync(
+  path.join(root, 'src/features/audit/audit-page.tsx'),
+  'utf8'
+);
+assert.ok(/action: appliedAction|action:/.test(auditPage), 'audit sends action query');
+assert.ok(/resourceLink|\/sources\?focus=|\/overlays\?source=/.test(auditPage), 'audit deep links');
+
+const confirmDialog = fs.readFileSync(
+  path.join(root, 'src/components/confirm-dialog.tsx'),
+  'utf8'
+);
+assert.ok(/requireReason/.test(confirmDialog), 'confirm dialog supports reason');
+assert.ok(/formatApiError/.test(
+  fs.readFileSync(path.join(root, 'src/lib/errors.ts'), 'utf8')
+), 'formatApiError helper');
+
+const tenantsPage = fs.readFileSync(
+  path.join(root, 'src/features/tenants/tenants-page.tsx'),
+  'utf8'
+);
+assert.ok(!/btn-load-tenants/.test(tenantsPage), 'no manual Load tenants button');
+assert.ok(/paste full UUID|Advanced/.test(tenantsPage), 'UUID paste is advanced');
+assert.ok(/display_name|Save alias|tenant_meta/.test(tenantsPage), 'tenant alias upsert');
+assert.ok(/formatTenantLabel|normalizeTenantList/.test(shell), 'shell uses tenant labels');
+assert.ok(/quotas/.test(shell), 'quotas nav');
+assert.ok(/QuotasPage|\/v1\/quotas\//.test(
+  fs.readFileSync(path.join(root, 'src/features/quotas/quotas-page.tsx'), 'utf8')
+), 'quotas page');
 
 const bundles = fs.readFileSync(
   path.join(root, 'src/features/bundles/bundles-page.tsx'),
@@ -48,6 +88,8 @@ assert.ok(/readOnly/.test(bundles), 'bundle_uri/checksum read-only');
 assert.ok(/disabled=\{!file/.test(bundles), 'register blocked until file chosen');
 assert.ok(/ConfigEntriesEditor/.test(bundles), 'bundles uses config entries editor');
 assert.ok(!/configText/.test(bundles), 'bundles no raw configText');
+assert.ok(/btn-activate-now|Activate now/.test(bundles), 'bundles Activate now CTA');
+assert.ok(/Go to Sources/.test(bundles), 'bundles Go to Sources CTA');
 
 const configEntries = fs.readFileSync(
   path.join(root, 'src/lib/config-entries.ts'),

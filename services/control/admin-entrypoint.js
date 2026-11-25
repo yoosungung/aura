@@ -74,7 +74,6 @@ function main() {
   const server = createAdminServer({
     client: pool,
     objectStore: buildObjectStore(),
-    adminTenantIds: process.env.AURA_ADMIN_TENANT_IDS || '',
     authenticate: buildAuthenticate(),
   });
   server.listen(port, () => {

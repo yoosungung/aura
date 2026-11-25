@@ -236,7 +236,63 @@ function createTenantRateLimiter(opts) {
     return tryAcquire(tenantId, runId);
   }
 
-  return { tryAcquire, release, ensureAdmitted, kv, limits };
+  /** Read-only snapshot for ops (Admin Phase 2 get). */
+  async function peek(tenantId) {
+    const key = quotaKey(tenantId);
+    const nowMs = now();
+    const raw = await kv.get(key);
+    if (!raw) {
+      const empty = emptyState(limits.burst, nowMs);
+      return {
+        ok: true,
+        tenant_id: tenantId,
+        present: false,
+        tokens: empty.tokens,
+        inflight: 0,
+        limits: { ...limits },
+        updated_at_ms: nowMs,
+      };
+    }
+    const state = refill(
+      {
+        tokens: typeof raw.value.tokens === 'number' ? raw.value.tokens : limits.burst,
+        updated_at_ms:
+          typeof raw.value.updated_at_ms === 'number' ? raw.value.updated_at_ms : nowMs,
+        inflight: typeof raw.value.inflight === 'number' ? raw.value.inflight : 0,
+        runs: raw.value.runs && typeof raw.value.runs === 'object' ? raw.value.runs : {},
+      },
+      nowMs,
+      limits
+    );
+    return {
+      ok: true,
+      tenant_id: tenantId,
+      present: true,
+      tokens: state.tokens,
+      inflight: state.inflight,
+      limits: { ...limits },
+      updated_at_ms: state.updated_at_ms,
+      run_count: Object.keys(state.runs).length,
+    };
+  }
+
+  /** Clear KV counter for tenant (Admin Phase 2 reset). Does not change plan limits. */
+  async function reset(tenantId) {
+    const key = quotaKey(tenantId);
+    const nowMs = now();
+    for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+      const raw = await kv.get(key);
+      const revision = raw ? raw.revision : 0;
+      const next = emptyState(limits.burst, nowMs);
+      const cas = await kv.cas(key, revision, next);
+      if (cas.ok) {
+        return { ok: true, tenant_id: tenantId, reset: true };
+      }
+    }
+    return { ok: false, error: 'quota_cas_contention', tenant_id: tenantId };
+  }
+
+  return { tryAcquire, release, ensureAdmitted, peek, reset, kv, limits };
 }
 
 function isTerminalStreamFrame(frame) {

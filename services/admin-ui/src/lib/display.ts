@@ -15,3 +15,15 @@ export type SourceLabelInput = {
 export function formatSourceLabel(s: SourceLabelInput): string {
   return `${s.kind} / ${s.name} / ${s.version} · ${s.status}`;
 }
+
+export type TenantLabelInput = {
+  id: string;
+  display_name?: string | null;
+};
+
+/** Prefer display_name; fall back to shortId(id). */
+export function formatTenantLabel(t: TenantLabelInput): string {
+  const name = (t.display_name || '').trim();
+  if (name) return name;
+  return shortId(t.id);
+}

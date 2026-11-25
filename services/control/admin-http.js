@@ -26,8 +26,9 @@ const CONTENT_IMMUTABLE = new Set([
  * @param {object} opts
  * @param {{ query: Function }} opts.client
  * @param {{ getObject: (uri: string) => Promise<Buffer|null>, presignPut?: Function }} [opts.objectStore]
- * @param {string} [opts.adminTenantIds] CSV from AURA_ADMIN_TENANT_IDS
  * @param {(token: string|null) => {ok:boolean, actor?:string, error?:string}} [opts.authenticate]
+ * @param {{ peek: Function, reset: Function }} [opts.quotaLimiter] Phase 2 local/injectable (live = NATS RR→Gateway)
+ * @param {(req: {op:string, tenant_id:string}) => Promise<object>} [opts.quotaRpc]
  */
 function createAdminHandlers(opts = {}) {
   const client = opts.client;
@@ -46,13 +47,14 @@ function createAdminHandlers(opts = {}) {
       };
     },
   };
-  const staticTenants = parseTenantCsv(opts.adminTenantIds || process.env.AURA_ADMIN_TENANT_IDS || '');
   const authenticate =
     opts.authenticate ||
     ((token) =>
       token && token.length > 0
         ? { ok: true, actor: 'ops' }
         : { ok: false, error: 'unauthorized' });
+  const quotaLimiter = opts.quotaLimiter || null;
+  const quotaRpc = typeof opts.quotaRpc === 'function' ? opts.quotaRpc : null;
 
   async function dispatch(req) {
     const method = (req.method || 'GET').toUpperCase();
@@ -70,7 +72,23 @@ function createAdminHandlers(opts = {}) {
     const actor = auth.actor || 'ops';
 
     if (method === 'GET' && path === '/v1/tenants') {
-      return listTenants(client, staticTenants);
+      return listTenants(client);
+    }
+    if (method === 'POST' && path === '/v1/tenants') {
+      return upsertTenant(client, actor, req.body || {});
+    }
+    const tenantPatch = path.match(/^\/v1\/tenants\/([^/]+)$/);
+    if (method === 'PATCH' && tenantPatch) {
+      return patchTenant(client, actor, decodeURIComponent(tenantPatch[1]), req.body || {});
+    }
+
+    const quotaGet = path.match(/^\/v1\/quotas\/([^/]+)$/);
+    if (method === 'GET' && quotaGet) {
+      return getQuota(quotaRpc, quotaLimiter, decodeURIComponent(quotaGet[1]), req);
+    }
+    const quotaReset = path.match(/^\/v1\/quotas\/([^/]+)\/reset$/);
+    if (method === 'POST' && quotaReset) {
+      return resetQuota(quotaRpc, quotaLimiter, client, actor, decodeURIComponent(quotaReset[1]), req);
     }
 
     const tenantId = req.headers && req.headers['x-aura-tenant-id'];
@@ -134,20 +152,156 @@ function normalizePath(p) {
   return base.length > 1 && base.endsWith('/') ? base.slice(0, -1) : base;
 }
 
-function parseTenantCsv(csv) {
-  return String(csv || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => UUID_RE.test(s));
-}
+async function listTenants(client) {
+  const metaRes = await client.query(
+    `SELECT id::text AS id, display_name FROM tenant_meta ORDER BY display_name, id`
+  );
+  const metaRows = metaRes.rows || [];
+  const metaById = new Map(metaRows.map((r) => [r.id, r.display_name]));
 
-async function listTenants(client, staticTenants) {
-  const res = await client.query(
+  const srcRes = await client.query(
     `SELECT DISTINCT tenant_id::text AS tenant_id FROM source_meta ORDER BY 1`
   );
-  const fromDb = (res.rows || []).map((r) => r.tenant_id);
-  const set = new Set([...staticTenants, ...fromDb]);
-  return { status: 200, body: { tenants: [...set].sort() } };
+  const fromDb = (srcRes.rows || []).map((r) => r.tenant_id);
+  const set = new Set([...fromDb, ...metaById.keys()]);
+  const tenants = [...set]
+    .sort()
+    .map((id) => ({
+      id,
+      display_name: metaById.has(id) ? metaById.get(id) : null,
+    }));
+  return { status: 200, body: { tenants } };
+}
+
+async function upsertTenant(client, actor, body) {
+  const id = body && body.id != null ? String(body.id).trim() : '';
+  const display_name =
+    body && body.display_name != null ? String(body.display_name).trim() : '';
+  if (!UUID_RE.test(id)) {
+    return { status: 400, body: { error: 'tenant_id_required' } };
+  }
+  if (!display_name) {
+    return { status: 400, body: { error: 'display_name_required' } };
+  }
+  const row = await withTenantTx(client, id, async (c) => {
+    const ins = await c.query(
+      `INSERT INTO tenant_meta (id, display_name)
+       VALUES ($1::uuid, $2)
+       ON CONFLICT (id) DO UPDATE
+         SET display_name = EXCLUDED.display_name, updated_at = now()
+       RETURNING id::text AS id, display_name, created_at, updated_at`,
+      [id, display_name]
+    );
+    await insertAudit(c, {
+      tenantId: id,
+      actor,
+      action: 'tenant.upsert',
+      resource_type: 'tenant_meta',
+      resource_id: id,
+      reason: body.reason || null,
+    });
+    return ins.rows[0];
+  });
+  return { status: 200, body: { tenant: row } };
+}
+
+async function patchTenant(client, actor, id, body) {
+  if (!UUID_RE.test(id)) {
+    return { status: 400, body: { error: 'tenant_id_required' } };
+  }
+  const display_name =
+    body && body.display_name != null ? String(body.display_name).trim() : '';
+  if (!display_name) {
+    return { status: 400, body: { error: 'display_name_required' } };
+  }
+  return withTenantTx(client, id, async (c) => {
+    const upd = await c.query(
+      `UPDATE tenant_meta
+          SET display_name = $2, updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text AS id, display_name, created_at, updated_at`,
+      [id, display_name]
+    );
+    if (!upd.rows || !upd.rows[0]) {
+      return { status: 404, body: { error: 'tenant_not_found' } };
+    }
+    await insertAudit(c, {
+      tenantId: id,
+      actor,
+      action: 'tenant.rename',
+      resource_type: 'tenant_meta',
+      resource_id: id,
+      reason: body.reason || null,
+    });
+    return { status: 200, body: { tenant: upd.rows[0] } };
+  });
+}
+
+function headerTenant(req) {
+  return req.headers && req.headers['x-aura-tenant-id'];
+}
+
+async function getQuota(quotaRpc, quotaLimiter, pathTenantId, req) {
+  if (!UUID_RE.test(pathTenantId)) {
+    return { status: 400, body: { error: 'tenant_id_required' } };
+  }
+  const hdr = headerTenant(req);
+  if (hdr && hdr !== pathTenantId) {
+    return { status: 400, body: { error: 'tenant_id_mismatch' } };
+  }
+  const result = await invokeQuota(quotaRpc, quotaLimiter, 'get', pathTenantId);
+  if (result.status) return result;
+  return { status: 200, body: result };
+}
+
+async function resetQuota(quotaRpc, quotaLimiter, client, actor, pathTenantId, req) {
+  if (!UUID_RE.test(pathTenantId)) {
+    return { status: 400, body: { error: 'tenant_id_required' } };
+  }
+  const hdr = headerTenant(req);
+  if (hdr && hdr !== pathTenantId) {
+    return { status: 400, body: { error: 'tenant_id_mismatch' } };
+  }
+  const result = await invokeQuota(quotaRpc, quotaLimiter, 'reset', pathTenantId);
+  if (result.status) return result;
+  if (!result.ok) {
+    return { status: 503, body: { error: result.error || 'quota_reset_failed' } };
+  }
+  await withTenantTx(client, pathTenantId, async (c) => {
+    await insertAudit(c, {
+      tenantId: pathTenantId,
+      actor,
+      action: 'quota.reset',
+      resource_type: 'quota',
+      resource_id: pathTenantId,
+      reason: (req.body && req.body.reason) || null,
+    });
+  });
+  return { status: 200, body: result };
+}
+
+async function invokeQuota(quotaRpc, quotaLimiter, op, tenantId) {
+  if (quotaRpc) {
+    const out = await quotaRpc({ op, tenant_id: tenantId });
+    if (out && out.status) return out;
+    return out || { ok: false, error: 'quota_rpc_empty' };
+  }
+  if (!quotaLimiter) {
+    return { status: 501, body: { error: 'quota_unavailable' } };
+  }
+  if (op === 'get') {
+    if (typeof quotaLimiter.peek !== 'function') {
+      return { status: 501, body: { error: 'quota_unavailable' } };
+    }
+    return quotaLimiter.peek(tenantId);
+  }
+  if (op === 'reset') {
+    if (typeof quotaLimiter.reset !== 'function') {
+      return { status: 501, body: { error: 'quota_unavailable' } };
+    }
+    return quotaLimiter.reset(tenantId);
+  }
+  return { status: 400, body: { error: 'quota_op_invalid' } };
 }
 
 async function presign(objectStore, tenantId, body) {
@@ -456,6 +610,8 @@ async function listAudit(client, tenantId, query) {
   if (!Number.isFinite(limit) || limit < 1) limit = 50;
   if (limit > 200) limit = 200;
   const cursor = query.cursor ? String(query.cursor) : null;
+  const action = query.action ? String(query.action).trim() : null;
+  const actionFilter = action || null;
 
   const rows = await withTenantTx(client, tenantId, async (c) => {
     const res = await c.query(
@@ -463,9 +619,10 @@ async function listAudit(client, tenantId, query) {
          FROM control_audit
         WHERE tenant_id = $1::uuid
           AND ($2::text IS NULL OR at < (SELECT at FROM control_audit WHERE id = $2::uuid AND tenant_id = $1::uuid))
+          AND ($4::text IS NULL OR action = $4 OR action LIKE $4 || '.%')
         ORDER BY at DESC, id DESC
         LIMIT $3`,
-      [tenantId, cursor, limit]
+      [tenantId, cursor, limit, actionFilter]
     );
     return res.rows;
   });

@@ -1,6 +1,8 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ConfigEntriesEditor } from '@/components/config-entries-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,8 +16,10 @@ import {
   type ConfigEntry,
 } from '@/lib/config-entries';
 import { shortId } from '@/lib/display';
+import { formatApiError } from '@/lib/errors';
 import { createSourceSchema, type CreateSourceInput } from '@/lib/schemas';
 import { useSession } from '@/stores/session';
+import { useToast } from '@/stores/toast';
 
 type FormValues = Omit<CreateSourceInput, 'config' | 'checksum' | 'bundle_uri'> & {
   checksum: string;
@@ -25,8 +29,12 @@ type FormValues = Omit<CreateSourceInput, 'config' | 'checksum' | 'bundle_uri'> 
 export function BundlesPage() {
   const api = useAdminApi();
   const tenantId = useSession((s) => s.tenantId);
+  const pushToast = useToast((s) => s.push);
+  const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [activateOpen, setActivateOpen] = useState(false);
   const [entries, setEntries] = useState<ConfigEntry[]>(() => entriesFromConfig({}));
   const form = useForm<FormValues>({
     defaultValues: {
@@ -47,6 +55,7 @@ export function BundlesPage() {
     form.setValue('bundle_uri', '');
     form.setValue('checksum', '');
     setStatus(null);
+    setCreatedId(null);
     if (!next) return;
     setStatus(`hashing ${next.name}…`);
     try {
@@ -79,7 +88,7 @@ export function BundlesPage() {
         name: raw.name,
         version: raw.version,
       });
-      if (signed.status >= 400) throw new Error(JSON.stringify(signed.body));
+      if (signed.status >= 400) throw new Error(formatApiError(signed));
       form.setValue('bundle_uri', signed.body.bundle_uri);
 
       setStatus('uploading…');
@@ -97,18 +106,39 @@ export function BundlesPage() {
         config,
       });
       const created = await api.post<{ source?: { id?: string } }>('/v1/sources', parsed);
-      if (created.status >= 400) throw new Error(JSON.stringify(created.body));
+      if (created.status >= 400) throw new Error(formatApiError(created));
       return created.body;
     },
     onSuccess: (body) => {
-      const id = body?.source?.id;
-      setStatus(
-        id
-          ? `pending source created · ${shortId(id)} — activate from Sources`
-          : 'pending source created — activate from Sources'
-      );
+      const id = body?.source?.id || null;
+      setCreatedId(id);
+      const msg = id
+        ? `pending source created · ${shortId(id)}`
+        : 'pending source created';
+      setStatus(msg);
+      pushToast(msg, 'success');
+      qc.invalidateQueries({ queryKey: ['sources', tenantId] });
     },
-    onError: (err) => setStatus(String(err)),
+    onError: (err) => {
+      const msg = formatApiError(err);
+      setStatus(msg);
+      pushToast(msg, 'error');
+    },
+  });
+
+  const activate = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await api.post(`/v1/sources/${id}/activate`);
+      if (r.status >= 400) throw new Error(formatApiError(r));
+      return r.body;
+    },
+    onSuccess: () => {
+      pushToast('Source activated', 'success');
+      setActivateOpen(false);
+      setStatus((prev) => `${prev || 'pending'} · activated`);
+      qc.invalidateQueries({ queryKey: ['sources', tenantId] });
+    },
+    onError: (e) => pushToast(formatApiError(e), 'error'),
   });
 
   if (!tenantId) {
@@ -195,10 +225,46 @@ export function BundlesPage() {
           </Button>
         </div>
         {status && <p className="text-sm text-neutral-700">{status}</p>}
+        {createdId ? (
+          <div className="flex flex-wrap gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+            <Button
+              id="btn-activate-now"
+              type="button"
+              disabled={activate.isPending}
+              onClick={() => setActivateOpen(true)}
+            >
+              Activate now
+            </Button>
+            <Link
+              to={`/sources?focus=${encodeURIComponent(createdId)}&status=pending`}
+              className="inline-flex h-9 items-center rounded-md border border-neutral-300 bg-white px-4 text-sm hover:bg-neutral-50"
+            >
+              Go to Sources
+            </Link>
+          </div>
+        ) : null}
         <p className="text-xs text-neutral-500">
-          Flow: pick file → client sha256 → presign → Garage PUT → pending source.
-          Activate from Sources (server re-checks sha256).
+          Flow: pick file → client sha256 → presign → Garage PUT → pending source →
+          Activate (server re-checks sha256).
         </p>
+        <ConfirmDialog
+          open={activateOpen}
+          title="Activate source?"
+          description={
+            <div className="space-y-1">
+              <p>
+                Activate pending source <span className="font-mono text-xs">{shortId(createdId || '')}</span>
+              </p>
+              <p className="font-mono text-xs text-neutral-500">{checksum || ''}</p>
+            </div>
+          }
+          confirmLabel="Activate"
+          confirming={activate.isPending}
+          onCancel={() => !activate.isPending && setActivateOpen(false)}
+          onConfirm={() => {
+            if (createdId) activate.mutate(createdId);
+          }}
+        />
       </CardContent>
     </Card>
   );

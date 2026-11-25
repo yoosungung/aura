@@ -123,7 +123,9 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 
 | 메서드 | 경로 | 용도 |
 |--------|------|------|
-| `GET` | `/v1/tenants` | Tenant picker (`DISTINCT` ∪ `AURA_ADMIN_TENANT_IDS`) |
+| `GET` | `/v1/tenants` | Tenant picker (`tenant_meta` ∪ `DISTINCT`) |
+| `POST`/`PATCH` | `/v1/tenants` · `/v1/tenants/{id}` | `tenant_meta` alias |
+| `GET`/`POST` | `/v1/quotas/{id}` · `…/reset` | Phase 2 조회·리셋 (한도 수정 금지) |
 | `POST` | `/v1/bundles/presign` | Garage PUT URL |
 | `POST` | `/v1/sources` | INSERT `pending` (콘텐츠 불변; UNIQUE 409) |
 | `GET` | `/v1/sources` · `/v1/sources/{kind}/{name}` | 목록·버전 타임라인 |

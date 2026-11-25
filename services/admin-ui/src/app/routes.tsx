@@ -5,6 +5,7 @@ import { SourcesPage } from '@/features/sources/sources-page';
 import { BundlesPage } from '@/features/bundles/bundles-page';
 import { OverlaysPage } from '@/features/overlays/overlays-page';
 import { AuditPage } from '@/features/audit/audit-page';
+import { QuotasPage } from '@/features/quotas/quotas-page';
 
 export function AppRoutes() {
   return (
@@ -14,6 +15,7 @@ export function AppRoutes() {
         <Route path="sources" element={<SourcesPage />} />
         <Route path="bundles" element={<BundlesPage />} />
         <Route path="overlays" element={<OverlaysPage />} />
+        <Route path="quotas" element={<QuotasPage />} />
         <Route path="audit" element={<AuditPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

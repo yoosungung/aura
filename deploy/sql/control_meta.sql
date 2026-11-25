@@ -1,6 +1,6 @@
--- control meta: source_meta + user_meta + control_audit + RLS
--- Contract: ARCHITECTURE §1 #6 · §6.1 · deploy/docs/svc-control-resolve.md · deploy/docs/admin-ui-mvp.md
--- Non-goals: tenants/ACL tables. Admin HTTP + resolve Pooler = M6.
+-- control meta: tenant_meta + source_meta + user_meta + control_audit + RLS
+-- Contract: ARCHITECTURE §1 #6 · §6.1 · deploy/docs/svc-control-resolve.md · deploy/docs/admin-ui.md
+-- Non-goals: ACL/membership · OIDC. Admin HTTP + resolve Pooler = M6+.
 -- Idempotent for smoke/dev (DROP CASCADE). Production migrate path is later.
 
 BEGIN;
@@ -8,6 +8,28 @@ BEGIN;
 DROP TABLE IF EXISTS control_audit CASCADE;
 DROP TABLE IF EXISTS user_meta CASCADE;
 DROP TABLE IF EXISTS source_meta CASCADE;
+DROP TABLE IF EXISTS tenant_meta CASCADE;
+
+-- Ops tenant catalog (alias). id = tenant UUID used everywhere else.
+-- Platform ops table: RLS policies allow ALL (grants only to control-admin role).
+CREATE TABLE tenant_meta (
+  id            UUID PRIMARY KEY,
+  display_name  TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_tenant_meta_display_name CHECK (char_length(btrim(display_name)) >= 1)
+);
+
+CREATE INDEX idx_tenant_meta_display_name ON tenant_meta (display_name);
+
+ALTER TABLE tenant_meta ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_meta FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_meta_ops_all ON tenant_meta;
+CREATE POLICY tenant_meta_ops_all ON tenant_meta
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 -- Immutable versioned bundle/code definition (per tenant).
 CREATE TABLE source_meta (

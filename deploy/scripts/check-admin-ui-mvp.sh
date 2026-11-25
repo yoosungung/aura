@@ -34,7 +34,7 @@ ok() { echo "OK: $*"; }
 # Doc contracts
 grep -Eqi 'pending.*active|activate' "$DOC" || fail "doc must lock activate status machine"
 grep -Eqi 'checksum|sha256|Garage|GetObject' "$DOC" || fail "doc must lock server-side checksum"
-grep -Eqi 'AURA_ADMIN_TENANT_IDS|DISTINCT' "$DOC" || fail "doc must lock tenant picker source"
+grep -Eqi 'tenant_meta|DISTINCT|AURA_ADMIN_TENANT_IDS' "$DOC" || fail "doc must lock tenant picker source"
 grep -Eqi 'control_audit' "$DOC" || fail "doc must name control_audit"
 grep -Eq 'POST.*/v1/sources|/activate|/overlays' "$DOC" || fail "doc must list admin HTTP paths"
 grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals"

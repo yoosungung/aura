@@ -13,12 +13,14 @@ function createMemoryStore() {
   const sources = [];
   const overlays = [];
   const audits = [];
+  const tenants = [];
   let guc = null;
 
   const client = {
     sources,
     overlays,
     audits,
+    tenants,
     async query(text, params = []) {
       if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') {
         if (text === 'ROLLBACK' || text === 'COMMIT') guc = null;
@@ -27,6 +29,55 @@ function createMemoryStore() {
       if (/set_config\('app\.tenant_id'/.test(text)) {
         guc = params[0];
         return { rows: [{ set_config: params[0] }] };
+      }
+      if (/FROM tenant_meta ORDER BY display_name/.test(text)) {
+        return {
+          rows: [...tenants]
+            .sort((a, b) =>
+              String(a.display_name).localeCompare(String(b.display_name)) ||
+              String(a.id).localeCompare(String(b.id))
+            )
+            .map((t) => ({ id: t.id, display_name: t.display_name })),
+        };
+      }
+      if (/INSERT INTO tenant_meta/.test(text)) {
+        const id = params[0];
+        const display_name = params[1];
+        const existing = tenants.find((t) => t.id === id);
+        const now = new Date().toISOString();
+        if (existing) {
+          existing.display_name = display_name;
+          existing.updated_at = now;
+          return {
+            rows: [
+              {
+                id: existing.id,
+                display_name: existing.display_name,
+                created_at: existing.created_at,
+                updated_at: existing.updated_at,
+              },
+            ],
+          };
+        }
+        const row = { id, display_name, created_at: now, updated_at: now };
+        tenants.push(row);
+        return { rows: [row] };
+      }
+      if (/UPDATE tenant_meta/.test(text)) {
+        const row = tenants.find((t) => t.id === params[0]);
+        if (!row) return { rows: [] };
+        row.display_name = params[1];
+        row.updated_at = new Date().toISOString();
+        return {
+          rows: [
+            {
+              id: row.id,
+              display_name: row.display_name,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+            },
+          ],
+        };
       }
       if (/SELECT DISTINCT tenant_id/.test(text)) {
         const ids = [...new Set(sources.map((s) => s.tenant_id))];
@@ -170,8 +221,13 @@ function createMemoryStore() {
       }
       if (/FROM control_audit/.test(text)) {
         assert.strictEqual(guc, params[0]);
+        const actionFilter = params[3] || null;
         let rows = audits
           .filter((a) => a.tenant_id === params[0])
+          .filter((a) => {
+            if (!actionFilter) return true;
+            return a.action === actionFilter || a.action.startsWith(actionFilter + '.');
+          })
           .map((a, i) => ({
             id: a.id || `audit-${i}`,
             actor: a.actor,
@@ -206,9 +262,12 @@ async function main() {
   const goodChecksum = 'sha256:' + crypto.createHash('sha256').update(blob).digest('hex');
   const objects = new Map();
 
+  const { createMemoryKv, createTenantRateLimiter } = require('../gateway/rate-limit');
+  const quotaLimiter = createTenantRateLimiter({ kv: createMemoryKv() });
+
   const { dispatch } = createAdminHandlers({
     client: store,
-    adminTenantIds: TENANT_B,
+    quotaLimiter,
     authenticate: (t) => (t === 'Bearer ops-token' ? { ok: true, actor: 'ops@aura' } : { ok: false }),
     objectStore: {
       async getObject(uri) {
@@ -239,7 +298,32 @@ async function main() {
     path: '/v1/tenants',
     authorization: 'Bearer ops-token',
   });
-  assert.ok(tenants0.body.tenants.includes(TENANT_B));
+  assert.strictEqual(tenants0.status, 200);
+  assert.ok(Array.isArray(tenants0.body.tenants));
+
+  const upsertT = await dispatch({
+    method: 'POST',
+    path: '/v1/tenants',
+    authorization: 'Bearer ops-token',
+    body: { id: TENANT_A, display_name: 'Acme Lab' },
+  });
+  assert.strictEqual(upsertT.status, 200);
+  assert.strictEqual(upsertT.body.tenant.display_name, 'Acme Lab');
+  const upsertB = await dispatch({
+    method: 'POST',
+    path: '/v1/tenants',
+    authorization: 'Bearer ops-token',
+    body: { id: TENANT_B, display_name: 'Beta' },
+  });
+  assert.strictEqual(upsertB.status, 200);
+  const tenantsNamed = await dispatch({
+    method: 'GET',
+    path: '/v1/tenants',
+    authorization: 'Bearer ops-token',
+  });
+  const acme = tenantsNamed.body.tenants.find((t) => t.id === TENANT_A);
+  assert.ok(acme && acme.display_name === 'Acme Lab');
+  assert.ok(tenantsNamed.body.tenants.some((t) => t.id === TENANT_B));
 
   const noTenant = await dispatch({
     method: 'POST',
@@ -414,8 +498,25 @@ async function main() {
     path: '/v1/tenants',
     authorization: 'Bearer ops-token',
   });
-  assert.ok(tenants1.body.tenants.includes(TENANT_A));
-  assert.ok(tenants1.body.tenants.includes(TENANT_B));
+  assert.ok(tenants1.body.tenants.some((t) => t.id === TENANT_A));
+  assert.ok(tenants1.body.tenants.some((t) => t.id === TENANT_B));
+
+  const qGet = await dispatch({
+    ...auth,
+    method: 'GET',
+    path: `/v1/quotas/${TENANT_A}`,
+  });
+  assert.strictEqual(qGet.status, 200);
+  assert.strictEqual(qGet.body.tenant_id, TENANT_A);
+  const qReset = await dispatch({
+    ...auth,
+    method: 'POST',
+    path: `/v1/quotas/${TENANT_A}/reset`,
+    body: { reason: 'ops clear' },
+  });
+  assert.strictEqual(qReset.status, 200);
+  assert.ok(qReset.body.reset);
+  assert.ok(store.audits.some((a) => a.action === 'quota.reset'));
 
   const audit = await dispatch({
     ...auth,
@@ -427,6 +528,29 @@ async function main() {
   assert.ok(Array.isArray(audit.body.items), 'audit.items array');
   assert.ok(audit.body.items.length >= 1, 'audit has entries after activate/retire/overlay');
   assert.ok(audit.body.items.every((i) => i.action && i.actor), 'audit rows shaped');
+
+  const auditFiltered = await dispatch({
+    ...auth,
+    method: 'GET',
+    path: '/v1/audit',
+    query: { limit: '50', action: 'source.retire' },
+  });
+  assert.strictEqual(auditFiltered.status, 200);
+  assert.ok(
+    auditFiltered.body.items.length >= 1 &&
+      auditFiltered.body.items.every((i) => i.action === 'source.retire'),
+    'audit action filter exact'
+  );
+  const auditPrefix = await dispatch({
+    ...auth,
+    method: 'GET',
+    path: '/v1/audit',
+    query: { action: 'overlay' },
+  });
+  assert.ok(
+    auditPrefix.body.items.every((i) => i.action === 'overlay' || i.action.startsWith('overlay.')),
+    'audit action filter prefix'
+  );
 
   console.log('admin-http.selftest: PASS');
 }

@@ -76,6 +76,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-23 | **번들 GetObject + Pod LRU** — `aura-content`만 · 키=`checksum` · 값은 검증 바이트 · activate는 캐시 없음 · agent `module.path:attr` factory · `aura:createAgent`는 GetObject 스킵 · Garage 단일 노드 매니페스트 · CI는 이름 게이트만 | §8 · [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md) · `check-object-store-garage.sh` · [`deploy/k8s/garage/`](deploy/k8s/garage/) |
 | 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/Garage · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 Garage sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
 | 2026-11-20 | **Admin UI React 재설계 M6.1** — Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · 전수 인벤토리 · PG=SoR · KV=`quota.*`는 Gateway만 · Phase2=control-admin HTTP→`aura.rpc.gateway.quota` · `GET /v1/audit` · Audit 화면 | §2·§6.1 · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md)·`check-admin-ui.sh` · [`services/admin-ui/`](services/admin-ui/) |
+| 2026-11-25 | **Admin UI quota 한도 수정 = 이번 범위 밖** — Phase 2 UI는 **조회+리셋만**(KV 카운터 · Gateway RR). `rate/burst/maxInflight` 등 **한도 수정**은 PG `tenant_plan`(후보) SoR + Gateway 재로드 후속. OIDC/SSO 제외 유지 · Tenant alias=`tenant_meta` DDL 방향 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · 아래 M6.2 후보 |
+| 2026-11-25 | **`AURA_ADMIN_TENANT_IDS` 제거** — picker=`tenant_meta` ∪ `DISTINCT source_meta` ∪ UI UUID. env CSV seed 폐기 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `control-admin` Deployment |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -369,6 +371,21 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 ---
 
+## M6.2 후보 — Admin UI 후속 (ops-only)
+
+**목표**: Tenant SoR·Phase 2 quota 배선. 한도 정책 편집과 SSO는 분리.
+
+**작업**
+
+- [x] `tenant_meta` DDL + Admin HTTP/UI alias (UUID + `display_name` · RLS) — OIDC/SSO **제외**
+- [x] Phase 2 quota **조회·리셋** — UI → control-admin `GET/POST /v1/quotas/…` · injectable `quotaLimiter`/`quotaRpc` (live NATS RR→Gateway 배선=후속) · 한도 숫자 편집 UI **금지**
+- [~] **Quota 한도 수정** (`rate`/`burst`/`maxInflight` · 플랜 tier) — PG `tenant_plan`(후보) SoR + Gateway 로드 · **이번(M6.1/M6.2 조회·리셋) 범위 밖** · M5/후속 티켓으로 승격 시 착수
+- [~] live `aura.rpc.gateway.quota` Core RR 배선 (control-admin→Gateway) — injectable 이후
+
+**Non-goals:** OIDC/SSO · KV 직접 접속 · Admin→Gateway HTTP · 과금 SPA.
+
+---
+
 ## 미결정
 
 - ~~활성 임베딩 모델·version·dims(N) 실값~~ — **M1 고정** (`BAAI/bge-m3`/`1`/`1024` · [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md))
@@ -379,7 +396,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - ~~Object store **아카이브 Parquet 경로가 번들/`content_ref`와 버킷 공유인지**~~ — **M2 고정:** 동일 `aura-content` 버킷 · prefix 분리(`refs/` vs `archive/` vs `bundles/`); Barman=`aura-pg` 비공유 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)). ~~GC 설계~~ **고정** ([`object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)) · 아카이브·GC 본구현=M4
 - short_term/episodic/audit 핫 일수 운영 튜닝 — M1 정책 수립 → M4 부하 후 조정
 - NATS account 격리 — **출시 후**
-- 테넌트 rate/burst/inflight·플랜 tier 최종 숫자 — **M3 DESIGN**(기능은 M3 필수)
+- 테넌트 rate/burst/inflight·플랜 tier 최종 숫자 — **M3 DESIGN**(기능은 M3 필수) · **Admin UI에서 한도 수정**은 M6.2 후보 `[~]` (조회·리셋과 분리)
 - F1 테넌트 subject 샤딩 — **M3 노이지 픽스처 후**
 - ~~gVisor vs Kata 최종 선택~~ — **M3 고정:** 기본=`gvisor`(`runsc`) · 고위험=`kata` ([`mcp-bundle-isolation.md`](deploy/docs/mcp-bundle-isolation.md)); 라이브 apply·실측=후속
 - sync 연쇄 p95 최종(1s vs 2s) — **M0 측정**

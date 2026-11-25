@@ -1,9 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet } from 'react-router-dom';
 import { AuthModal } from '@/components/auth-modal';
+import { ToastHost } from '@/components/toast-host';
 import { Button } from '@/components/ui/button';
+import { useAdminApi } from '@/hooks/use-admin-api';
 import { getApiBaseUrl } from '@/lib/api';
-import { shortId } from '@/lib/display';
+import { formatTenantLabel } from '@/lib/display';
+import { formatApiError } from '@/lib/errors';
+import { uuidSchema } from '@/lib/schemas';
+import { normalizeTenantList, type TenantRow } from '@/lib/tenants';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/stores/session';
 
@@ -12,14 +17,17 @@ const nav = [
   { to: '/sources', label: 'Sources' },
   { to: '/bundles', label: 'Bundles' },
   { to: '/overlays', label: 'Overlays' },
+  { to: '/quotas', label: 'Quotas' },
   { to: '/audit', label: 'Audit' },
 ];
 
 export function Shell() {
   const bearer = useSession((s) => s.bearer);
   const tenantId = useSession((s) => s.tenantId);
+  const setTenantId = useSession((s) => s.setTenantId);
   const clearAuth = useSession((s) => s.clearAuth);
   const queryClient = useQueryClient();
+  const api = useAdminApi();
 
   const health = useQuery({
     queryKey: ['control-admin-healthz'],
@@ -32,6 +40,16 @@ export function Shell() {
     retry: false,
   });
 
+  const tenants = useQuery({
+    queryKey: ['tenants'],
+    enabled: !!bearer,
+    queryFn: async () => {
+      const r = await api.get('/v1/tenants');
+      if (r.status >= 400) throw new Error(formatApiError(r));
+      return normalizeTenantList(r.body);
+    },
+  });
+
   const isConnected = health.isSuccess && health.data?.ok !== false;
   const isChecking = health.isPending;
 
@@ -39,6 +57,18 @@ export function Shell() {
     clearAuth(null);
     queryClient.clear();
   }
+
+  function onTenantSelect(value: string) {
+    if (!value) {
+      setTenantId(null);
+      return;
+    }
+    const parsed = uuidSchema.safeParse(value);
+    if (parsed.success) setTenantId(parsed.data);
+  }
+
+  const options: TenantRow[] = tenants.data || [];
+  const known = tenantId ? options.some((t) => t.id === tenantId) : true;
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -81,17 +111,39 @@ export function Shell() {
               />
               {isChecking ? 'Checking...' : isConnected ? 'Connected' : 'Unreachable'}
             </span>
-            <div
-              id="tenant-banner"
-              className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white"
-              data-testid="active-tenant"
-              title={tenantId || undefined}
-            >
-              active tenant:{' '}
-              <span id="active-tenant">
-                {tenantId ? shortId(tenantId) : '(none)'}
-              </span>
-            </div>
+            {bearer ? (
+              <div
+                id="tenant-banner"
+                className="flex items-center gap-2"
+                data-testid="active-tenant"
+              >
+                <label htmlFor="header-tenant-select" className="sr-only">
+                  Tenant
+                </label>
+                <select
+                  id="header-tenant-select"
+                  className="h-9 max-w-[14rem] rounded-md border border-neutral-300 bg-white px-2 text-sm"
+                  value={tenantId || ''}
+                  onChange={(e) => onTenantSelect(e.target.value)}
+                  title={tenantId || undefined}
+                >
+                  <option value="">(select tenant)</option>
+                  {!known && tenantId ? (
+                    <option value={tenantId}>
+                      {formatTenantLabel({ id: tenantId, display_name: null })} · pasted
+                    </option>
+                  ) : null}
+                  {options.map((t) => (
+                    <option key={t.id} value={t.id} title={t.id}>
+                      {formatTenantLabel(t)}
+                    </option>
+                  ))}
+                </select>
+                <span id="active-tenant" className="sr-only">
+                  {tenantId || '(none)'}
+                </span>
+              </div>
+            ) : null}
             {bearer ? (
               <Button
                 type="button"
@@ -127,6 +179,7 @@ export function Shell() {
         {bearer ? <Outlet /> : null}
       </main>
       {!bearer ? <AuthModal /> : null}
+      <ToastHost />
     </div>
   );
 }
