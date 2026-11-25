@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   auditListSchema,
+  createCustomSourceSchema,
   createSourceSchema,
   overlaySchema,
   reasonSchema,
@@ -35,6 +36,29 @@ describe('schemas', () => {
       config: { runtime: 'python' },
     });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts custom Function registration without bundle fields', () => {
+    const parsed = createCustomSourceSchema.parse({
+      kind: 'agent',
+      name: 'help',
+      version: '1.0.0',
+      entrypoint: 'aura-agent-invoke-help',
+      runtime: 'custom',
+    });
+    expect(parsed.runtime).toBe('custom');
+  });
+
+  it('rejects custom Function without allowlisted prefix', () => {
+    expect(
+      createCustomSourceSchema.safeParse({
+        kind: 'agent',
+        name: 'help',
+        version: '1.0.0',
+        entrypoint: 'my-fn',
+        runtime: 'custom',
+      }).success
+    ).toBe(false);
   });
 
   it('rejects plaintext secrets on overlay', () => {

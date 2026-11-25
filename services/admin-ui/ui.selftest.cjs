@@ -84,14 +84,17 @@ const bundles = fs.readFileSync(
   'utf8'
 );
 assert.ok(/type="file"/.test(bundles), 'bundle file picker');
+assert.ok(/isCustom|runtime === 'custom'|runtime === \"custom\"/.test(bundles), 'bundles runtime split');
+assert.ok(/createCustomSourceSchema|Function name/.test(bundles), 'custom Function path');
 assert.ok(/sha256Checksum/.test(bundles), 'client checksum from file');
 assert.ok(/putBundle/.test(bundles), 'Garage PUT via putBundle');
 assert.ok(/readOnly/.test(bundles), 'bundle_uri/checksum read-only');
-assert.ok(/disabled=\{!file/.test(bundles), 'register blocked until file chosen');
+assert.ok(/!isCustom && !file/.test(bundles), 'zip register blocked until file chosen');
 assert.ok(/ConfigEntriesEditor/.test(bundles), 'bundles uses config entries editor');
 assert.ok(!/configText/.test(bundles), 'bundles no raw configText');
 assert.ok(/btn-activate-now|Activate now/.test(bundles), 'bundles Activate now CTA');
 assert.ok(/Go to Sources/.test(bundles), 'bundles Go to Sources CTA');
+assert.ok(/Create pending/.test(bundles), 'custom create CTA label');
 
 const configEntries = fs.readFileSync(
   path.join(root, 'src/lib/config-entries.ts'),

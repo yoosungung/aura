@@ -346,11 +346,42 @@ function rejectRuntimeInConfig(config) {
   return false;
 }
 
-async function createSource(client, tenantId, actor, body) {
-  const required = ['kind', 'name', 'version', 'entrypoint', 'bundle_uri', 'checksum'];
-  for (const k of required) {
-    if (!body[k]) return { status: 400, body: { error: `${k}_required` } };
+function customBundleUri(entrypoint) {
+  return `custom://fission-function/${entrypoint}`;
+}
+
+function customChecksum(entrypoint) {
+  return (
+    'sha256:' +
+    crypto.createHash('sha256').update(`custom:${entrypoint}`, 'utf8').digest('hex')
+  );
+}
+
+/** @returns {string|null} error code */
+function assertCustomFunction(kind, entrypoint) {
+  const ep = String(entrypoint || '');
+  if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(ep)) {
+    return 'function_name_invalid';
   }
+  if (kind === 'agent') {
+    if (!ep.startsWith('aura-agent-invoke-') || ep === 'aura-agent-invoke-') {
+      return 'function_prefix_invalid';
+    }
+    return null;
+  }
+  if (kind === 'mcp') {
+    if (ep.startsWith('aura-mcp-invoke-rpc-')) {
+      return ep === 'aura-mcp-invoke-rpc-' ? 'function_prefix_invalid' : null;
+    }
+    if (ep.startsWith('aura-mcp-invoke-') && ep !== 'aura-mcp-invoke-') {
+      return null;
+    }
+    return 'function_prefix_invalid';
+  }
+  return 'kind_invalid';
+}
+
+async function createSource(client, tenantId, actor, body) {
   if (!['agent', 'mcp'].includes(body.kind)) {
     return { status: 400, body: { error: 'kind_invalid' } };
   }
@@ -358,11 +389,28 @@ async function createSource(client, tenantId, actor, body) {
   if (!['nodejs', 'python', 'custom'].includes(runtime)) {
     return { status: 400, body: { error: 'runtime_invalid' } };
   }
+
+  const required =
+    runtime === 'custom'
+      ? ['kind', 'name', 'version', 'entrypoint']
+      : ['kind', 'name', 'version', 'entrypoint', 'bundle_uri', 'checksum'];
+  for (const k of required) {
+    if (!body[k]) return { status: 400, body: { error: `${k}_required` } };
+  }
+
   const config = body.config && typeof body.config === 'object' ? body.config : {};
   if (rejectRuntimeInConfig(config)) {
     return { status: 400, body: { error: 'runtime_in_config_forbidden' } };
   }
-  if (!String(body.checksum).startsWith('sha256:')) {
+
+  let bundle_uri = body.bundle_uri;
+  let checksum = body.checksum;
+  if (runtime === 'custom') {
+    const fnErr = assertCustomFunction(body.kind, body.entrypoint);
+    if (fnErr) return { status: 400, body: { error: fnErr } };
+    bundle_uri = customBundleUri(body.entrypoint);
+    checksum = customChecksum(body.entrypoint);
+  } else if (!String(checksum).startsWith('sha256:')) {
     return { status: 400, body: { error: 'checksum_sha256_required' } };
   }
 
@@ -381,8 +429,8 @@ async function createSource(client, tenantId, actor, body) {
           body.name,
           body.version,
           body.entrypoint,
-          body.bundle_uri,
-          body.checksum,
+          bundle_uri,
+          checksum,
           body.sig_uri || null,
           JSON.stringify(config),
           runtime,
@@ -437,7 +485,7 @@ async function listSourceVersions(client, tenantId, kind, name) {
 async function activateSource(client, objectStore, tenantId, actor, sourceId) {
   return withTenantTx(client, tenantId, async (c) => {
     const cur = await c.query(
-      `SELECT id, status, bundle_uri, checksum FROM source_meta
+      `SELECT id, status, bundle_uri, checksum, runtime, entrypoint FROM source_meta
         WHERE tenant_id = $1::uuid AND id = $2::uuid LIMIT 1`,
       [tenantId, sourceId]
     );
@@ -447,26 +495,37 @@ async function activateSource(client, objectStore, tenantId, actor, sourceId) {
       return { status: 409, body: { error: 'status_not_pending' } };
     }
 
-    let buf;
-    try {
-      buf = await objectStore.getObject(row.bundle_uri, { tenantId });
-    } catch (err) {
-      const code = err && err.message;
-      if (
-        code === 'object_store_unconfigured' ||
-        code === 'bundle_uri_tenant_mismatch' ||
-        code === 'bundle_missing'
-      ) {
-        return { status: 422, body: { error: code } };
+    if (row.runtime === 'custom') {
+      const expectUri = customBundleUri(row.entrypoint);
+      const expectSum = customChecksum(row.entrypoint);
+      if (row.bundle_uri !== expectUri || row.checksum !== expectSum) {
+        return { status: 422, body: { error: 'custom_marker_mismatch' } };
       }
-      throw err;
-    }
-    if (!buf) {
-      return { status: 422, body: { error: 'bundle_missing' } };
-    }
-    const digest = 'sha256:' + crypto.createHash('sha256').update(buf).digest('hex');
-    if (digest !== row.checksum) {
-      return { status: 422, body: { error: 'checksum_mismatch', expected: row.checksum, actual: digest } };
+    } else {
+      let buf;
+      try {
+        buf = await objectStore.getObject(row.bundle_uri, { tenantId });
+      } catch (err) {
+        const code = err && err.message;
+        if (
+          code === 'object_store_unconfigured' ||
+          code === 'bundle_uri_tenant_mismatch' ||
+          code === 'bundle_missing'
+        ) {
+          return { status: 422, body: { error: code } };
+        }
+        throw err;
+      }
+      if (!buf) {
+        return { status: 422, body: { error: 'bundle_missing' } };
+      }
+      const digest = 'sha256:' + crypto.createHash('sha256').update(buf).digest('hex');
+      if (digest !== row.checksum) {
+        return {
+          status: 422,
+          body: { error: 'checksum_mismatch', expected: row.checksum, actual: digest },
+        };
+      }
     }
 
     const upd = await c.query(
@@ -655,4 +714,7 @@ module.exports = {
   createAdminHandlers,
   CONTENT_IMMUTABLE,
   UUID_RE,
+  customBundleUri,
+  customChecksum,
+  assertCustomFunction,
 };

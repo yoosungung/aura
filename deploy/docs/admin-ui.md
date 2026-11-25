@@ -110,12 +110,23 @@ Deployment `aura-control-admin` · ns `aura` · replicas≥2.
 | `GET` | `/v1/audit` | `control_audit` · `limit`·`cursor`·`action`(optional prefix/exact) · RLS |
 | `GET` | `/healthz` | ok |
 
-### activate checksum
+### activate checksum (`nodejs` / `python`)
 
 1. `POST /v1/bundles/presign` → 클라이언트 Garage PUT  
 2. `POST /v1/sources` — body checksum = 기대값 · `pending`  
 3. `POST …/activate` — Garage `GetObject` → sha256 → 행 checksum 일치 시에만 `active`  
 4. 불일치·부재·`status≠pending` → 거부(422/409)
+
+### `runtime=custom` (container executor)
+
+Package/zip/Garage 업로드 **없음**. Admin Bundles 폼도 file picker를 숨긴다.
+
+| 필드 | 내용 |
+|------|------|
+| `entrypoint` | Fission Router Function 이름 (Gateway가 payload `function`으로 스탬프할 값) |
+| prefix | `agent` → `aura-agent-invoke-…` · `mcp` → `aura-mcp-invoke-…` 또는 `aura-mcp-invoke-rpc-…` |
+| `bundle_uri` / `checksum` | 클라이언트가 보내지 않음 · 서버가 `custom://fission-function/{entrypoint}` + 결정적 sha256 마커로 채움 |
+| activate | Garage **미호출** · 마커 일치만 확인 후 `pending→active` |
 
 ### Tenant picker / `tenant_meta`
 
@@ -175,7 +186,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 
 | 규칙 | 내용 |
 |------|------|
-| Bundles | 등록 성공 후 **Activate now** / Sources 이동 CTA |
+| Bundles | runtime 분기(zip vs custom Function) · 등록 성공 후 **Activate now** / Sources 이동 CTA |
 | Sources | status·kind 필터 · 행/그룹에서 `GET /v1/sources/{kind}/{name}` 버전 타임라인 · **Create → `/bundles`** |
 | Overlays | 목록 중심 · New/Edit **drawer** · Delete는 ConfirmDialog 유지 |
 | Audit | `GET /v1/audit?action=` 서버 필터 · source/overlay 리소스 딥링크 |
@@ -191,7 +202,7 @@ API·세션 값은 그대로 UUID / `bundle_uri` / checksum. UI 첫 줄만 사�
 | 식별자 | 화면에는 `shortId` (앞 8자…) · 전체 값은 title·복사 |
 | Source | 선택·목록 라벨 = `kind / name / version · status` · 값은 `id` |
 | Tenant | tenants DDL 없음 → 표시도 UUID 단축 · 직접 입력 유지 |
-| Bundle | 파일 선택 → 브라우저 `sha256:` 계산 → Presign → Garage PUT → pending 생성 · `bundle_uri`/checksum은 읽기 전용 |
+| Bundle | **nodejs/python**: 파일 → sha256 → Presign → Garage PUT → pending · `bundle_uri`/checksum 읽기 전용. **custom**: Function 이름만 → pending(업로드 없음) |
 | Overlay | source는 Sources 목록 select · New/Edit drawer · Sources→`/overlays?source=` |
 | Config | 키·값 행 폼 → 객체 · 빈 행=생략 · `runtime` 키 금지(스키마) |
 | 시크릿 | `secrets_ref` 입력만 · plaintext 금지 |

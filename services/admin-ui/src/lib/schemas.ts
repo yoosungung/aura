@@ -38,10 +38,40 @@ export const createSourceSchema = z.object({
   entrypoint: z.string().min(1),
   bundle_uri: z.string().min(1),
   checksum: checksumSchema,
-  runtime: runtimeSchema.default('nodejs'),
+  runtime: z.enum(['nodejs', 'python']).default('nodejs'),
   sig_uri: z.string().optional(),
   config: configObjectSchema.default({}),
 });
+
+/** custom = container executor Function name in entrypoint; no Garage upload. */
+export const createCustomSourceSchema = z
+  .object({
+    kind: sourceKindSchema,
+    name: z.string().min(1),
+    version: z.string().min(1),
+    entrypoint: z.string().min(1),
+    runtime: z.literal('custom'),
+    sig_uri: z.string().optional(),
+    config: configObjectSchema.default({}),
+  })
+  .superRefine((val, ctx) => {
+    const ep = val.entrypoint;
+    let ok = false;
+    if (val.kind === 'agent') {
+      ok = ep.startsWith('aura-agent-invoke-') && ep.length > 'aura-agent-invoke-'.length;
+    } else if (ep.startsWith('aura-mcp-invoke-rpc-')) {
+      ok = ep.length > 'aura-mcp-invoke-rpc-'.length;
+    } else if (ep.startsWith('aura-mcp-invoke-')) {
+      ok = ep.length > 'aura-mcp-invoke-'.length;
+    }
+    if (!ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'function_prefix_invalid',
+        path: ['entrypoint'],
+      });
+    }
+  });
 
 export const overlaySchema = z
   .object({
@@ -80,4 +110,5 @@ export const auditListSchema = z.object({
 });
 
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
+export type CreateCustomSourceInput = z.infer<typeof createCustomSourceSchema>;
 export type OverlayInput = z.infer<typeof overlaySchema>;

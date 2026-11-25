@@ -17,13 +17,21 @@ import {
 } from '@/lib/config-entries';
 import { shortId } from '@/lib/display';
 import { formatApiError } from '@/lib/errors';
-import { createSourceSchema, type CreateSourceInput } from '@/lib/schemas';
+import {
+  createCustomSourceSchema,
+  createSourceSchema,
+  type CreateSourceInput,
+} from '@/lib/schemas';
 import { useSession } from '@/stores/session';
 import { useToast } from '@/stores/toast';
 
-type FormValues = Omit<CreateSourceInput, 'config' | 'checksum' | 'bundle_uri'> & {
+type FormValues = Omit<
+  CreateSourceInput,
+  'config' | 'checksum' | 'bundle_uri' | 'runtime'
+> & {
   checksum: string;
   bundle_uri: string;
+  runtime: 'nodejs' | 'python' | 'custom';
 };
 
 export function BundlesPage() {
@@ -49,6 +57,9 @@ export function BundlesPage() {
   });
   const bundleUri = form.watch('bundle_uri');
   const checksum = form.watch('checksum');
+  const runtime = form.watch('runtime');
+  const kind = form.watch('kind');
+  const isCustom = runtime === 'custom';
 
   async function onFileChosen(next: File | null) {
     setFile(next);
@@ -67,16 +78,60 @@ export function BundlesPage() {
     }
   }
 
+  function onRuntimeChange(next: FormValues['runtime']) {
+    form.setValue('runtime', next);
+    setCreatedId(null);
+    setStatus(null);
+    if (next === 'custom') {
+      setFile(null);
+      form.setValue('bundle_uri', '');
+      form.setValue('checksum', '');
+      const current = form.getValues('entrypoint');
+      if (!current || current.includes(':')) {
+        form.setValue(
+          'entrypoint',
+          kind === 'mcp' ? 'aura-mcp-invoke-' : 'aura-agent-invoke-'
+        );
+      }
+    } else if (!form.getValues('entrypoint') || form.getValues('entrypoint').startsWith('aura-')) {
+      form.setValue('entrypoint', 'index:handler');
+    }
+  }
+
   const register = useMutation({
     mutationFn: async (raw: FormValues) => {
+      const config = configFromEntries(entries);
+
+      if (raw.runtime === 'custom') {
+        setStatus('creating pending custom source…');
+        const parsed = createCustomSourceSchema.parse({
+          kind: raw.kind,
+          name: raw.name,
+          version: raw.version,
+          entrypoint: raw.entrypoint,
+          runtime: 'custom',
+          config,
+        });
+        const created = await api.post<{ source?: { id?: string; checksum?: string; bundle_uri?: string } }>(
+          '/v1/sources',
+          parsed
+        );
+        if (created.status >= 400) throw new Error(formatApiError(created));
+        if (created.body.source?.checksum) {
+          form.setValue('checksum', created.body.source.checksum);
+        }
+        if (created.body.source?.bundle_uri) {
+          form.setValue('bundle_uri', created.body.source.bundle_uri);
+        }
+        return created.body;
+      }
+
       if (!file) throw new Error('choose a bundle file first');
       let digest = raw.checksum;
       if (!digest) {
         digest = await sha256Checksum(file);
         form.setValue('checksum', digest);
       }
-
-      const config = configFromEntries(entries);
 
       setStatus('presigning…');
       const signed = await api.post<{
@@ -145,6 +200,11 @@ export function BundlesPage() {
     return <p className="text-sm text-neutral-600">Select a tenant first.</p>;
   }
 
+  const functionHint =
+    kind === 'mcp'
+      ? 'aura-mcp-invoke-… or aura-mcp-invoke-rpc-…'
+      : 'aura-agent-invoke-…';
+
   return (
     <Card>
       <CardHeader>
@@ -166,7 +226,8 @@ export function BundlesPage() {
             <select
               id="src-runtime"
               className="h-9 w-full rounded-md border px-2 text-sm"
-              {...form.register('runtime')}
+              value={runtime}
+              onChange={(e) => onRuntimeChange(e.target.value as FormValues['runtime'])}
             >
               <option value="nodejs">nodejs</option>
               <option value="python">python</option>
@@ -179,49 +240,68 @@ export function BundlesPage() {
           <Field label="Version" id="src-version">
             <Input id="src-version" {...form.register('version')} />
           </Field>
-          <Field label="Entrypoint" id="src-entrypoint">
-            <Input id="src-entrypoint" {...form.register('entrypoint')} />
+          <Field
+            label={isCustom ? 'Function name' : 'Entrypoint'}
+            id="src-entrypoint"
+          >
+            <Input
+              id="src-entrypoint"
+              placeholder={isCustom ? functionHint : 'index:handler'}
+              {...form.register('entrypoint')}
+            />
           </Field>
-          <div className="space-y-1">
-            <Label htmlFor="src-file">Bundle file</Label>
-            <Input
-              id="src-file"
-              type="file"
-              onChange={(e) => onFileChosen(e.target.files?.[0] || null)}
-            />
-          </div>
+          {!isCustom ? (
+            <div className="space-y-1">
+              <Label htmlFor="src-file">Bundle file</Label>
+              <Input
+                id="src-file"
+                type="file"
+                onChange={(e) => onFileChosen(e.target.files?.[0] || null)}
+              />
+            </div>
+          ) : (
+            <p className="self-end text-xs text-neutral-500 md:col-span-1">
+              custom uses a container Function — no zip/Garage upload.
+            </p>
+          )}
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="src-checksum">Checksum</Label>
-            <Input
-              id="src-checksum"
-              readOnly
-              value={checksum || ''}
-              placeholder="filled from file"
-              className="bg-neutral-50 font-mono text-xs"
-            />
+        {!isCustom ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="src-checksum">Checksum</Label>
+              <Input
+                id="src-checksum"
+                readOnly
+                value={checksum || ''}
+                placeholder="filled from file"
+                className="bg-neutral-50 font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="src-bundle-uri">Bundle location</Label>
+              <Input
+                id="src-bundle-uri"
+                readOnly
+                value={bundleUri || ''}
+                placeholder="filled on register"
+                className="bg-neutral-50 font-mono text-xs"
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="src-bundle-uri">Bundle location</Label>
-            <Input
-              id="src-bundle-uri"
-              readOnly
-              value={bundleUri || ''}
-              placeholder="filled on register"
-              className="bg-neutral-50 font-mono text-xs"
-            />
-          </div>
-        </div>
+        ) : null}
         <ConfigEntriesEditor id="src-config" entries={entries} onChange={setEntries} />
         <div className="flex flex-wrap gap-2">
           <Button
             id="btn-presign"
             type="button"
-            disabled={!file || register.isPending}
+            disabled={(!isCustom && !file) || register.isPending}
             onClick={form.handleSubmit((v) => register.mutate(v))}
           >
-            {register.isPending ? 'Working…' : 'Upload & create pending'}
+            {register.isPending
+              ? 'Working…'
+              : isCustom
+                ? 'Create pending'
+                : 'Upload & create pending'}
           </Button>
         </div>
         {status && <p className="text-sm text-neutral-700">{status}</p>}
@@ -244,8 +324,9 @@ export function BundlesPage() {
           </div>
         ) : null}
         <p className="text-xs text-neutral-500">
-          Flow: pick file → client sha256 → presign → Garage PUT → pending source →
-          Activate (server re-checks sha256).
+          {isCustom
+            ? 'Flow: Function name (allowlisted prefix) → pending source → Activate (no Garage).'
+            : 'Flow: pick file → client sha256 → presign → Garage PUT → pending source → Activate (server re-checks sha256).'}
         </p>
         <ConfirmDialog
           open={activateOpen}
@@ -253,9 +334,12 @@ export function BundlesPage() {
           description={
             <div className="space-y-1">
               <p>
-                Activate pending source <span className="font-mono text-xs">{shortId(createdId || '')}</span>
+                Activate pending source{' '}
+                <span className="font-mono text-xs">{shortId(createdId || '')}</span>
               </p>
-              <p className="font-mono text-xs text-neutral-500">{checksum || ''}</p>
+              {checksum ? (
+                <p className="font-mono text-xs text-neutral-500">{checksum}</p>
+              ) : null}
             </div>
           }
           confirmLabel="Activate"

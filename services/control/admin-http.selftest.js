@@ -138,7 +138,9 @@ function createMemoryStore() {
         };
       }
       if (
-        /SELECT id, status, bundle_uri, checksum FROM source_meta/.test(text) ||
+        /SELECT id, status, bundle_uri, checksum(?:, runtime, entrypoint)? FROM source_meta/.test(
+          text
+        ) ||
         /SELECT id, status FROM source_meta/.test(text) ||
         /SELECT id FROM source_meta WHERE tenant_id/.test(text)
       ) {
@@ -566,6 +568,54 @@ async function main() {
     auditPrefix.body.items.every((i) => i.action === 'overlay' || i.action.startsWith('overlay.')),
     'audit action filter prefix'
   );
+
+  const { customBundleUri, customChecksum } = require('./admin-http');
+  const badFn = await dispatch({
+    ...auth,
+    method: 'POST',
+    path: '/v1/sources',
+    body: {
+      kind: 'agent',
+      name: 'custom-demo',
+      version: '1.0.0',
+      entrypoint: 'wrong-prefix',
+      runtime: 'custom',
+    },
+  });
+  assert.strictEqual(badFn.status, 400);
+  assert.strictEqual(badFn.body.error, 'function_prefix_invalid');
+
+  const customCreated = await dispatch({
+    ...auth,
+    method: 'POST',
+    path: '/v1/sources',
+    body: {
+      kind: 'agent',
+      name: 'custom-demo',
+      version: '1.0.0',
+      entrypoint: 'aura-agent-invoke-demo',
+      runtime: 'custom',
+      config: { region: 'lab' },
+    },
+  });
+  assert.strictEqual(customCreated.status, 201);
+  assert.strictEqual(customCreated.body.source.runtime, 'custom');
+  assert.strictEqual(
+    customCreated.body.source.bundle_uri,
+    customBundleUri('aura-agent-invoke-demo')
+  );
+  assert.strictEqual(
+    customCreated.body.source.checksum,
+    customChecksum('aura-agent-invoke-demo')
+  );
+  const customId = customCreated.body.source.id;
+  const customActivated = await dispatch({
+    ...auth,
+    method: 'POST',
+    path: `/v1/sources/${customId}/activate`,
+  });
+  assert.strictEqual(customActivated.status, 200);
+  assert.strictEqual(customActivated.body.source.status, 'active');
 
   console.log('admin-http.selftest: PASS');
 }
