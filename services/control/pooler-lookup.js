@@ -20,7 +20,7 @@ function createPoolerLookup(client) {
     const tenantId = req.tenant_id;
     return withTenantTx(client, tenantId, async (c) => {
       const srcRes = await c.query(
-        `SELECT id, tenant_id, kind, name, version, entrypoint, bundle_uri,
+        `SELECT id, tenant_id, kind, name, version, entrypoint, function, bundle_uri,
                 checksum, sig_uri, config, runtime, status, created_at
            FROM source_meta
           WHERE tenant_id = $1::uuid
@@ -61,7 +61,8 @@ function mapSource(row) {
     kind: row.kind,
     name: row.name,
     version: row.version,
-    entrypoint: row.entrypoint,
+    entrypoint: row.entrypoint == null ? null : row.entrypoint,
+    function: row.function == null ? null : row.function,
     bundle_uri: row.bundle_uri,
     checksum: row.checksum,
     sig_uri: row.sig_uri == null ? null : row.sig_uri,

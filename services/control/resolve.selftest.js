@@ -96,6 +96,8 @@ function main() {
   assert.strictEqual(done.secrets_ref, 'k8s:secret/aura-user-demo');
   assert.strictEqual(done.runtime, 'nodejs');
   assert.strictEqual(done.source.runtime, 'nodejs');
+  assert.strictEqual(done.function, null);
+  assert.strictEqual(done.source.function, null);
   assert.ok(!('secrets' in done), 'plaintext secrets must not appear');
   assert.ok(!JSON.stringify(done).includes('sk-'), 'no secret material');
 
@@ -105,6 +107,21 @@ function main() {
   });
   assert.strictEqual(pyDone.runtime, 'python');
   assert.strictEqual(pyDone.source.runtime, 'python');
+
+  const customDone = buildResolveResponse({
+    source: {
+      ...source,
+      runtime: 'custom',
+      entrypoint: null,
+      function: 'aura-agent-invoke-demo',
+      bundle_uri: 'custom://fission-function/aura-agent-invoke-demo',
+    },
+    user: null,
+  });
+  assert.strictEqual(customDone.runtime, 'custom');
+  assert.strictEqual(customDone.function, 'aura-agent-invoke-demo');
+  assert.strictEqual(customDone.source.function, 'aura-agent-invoke-demo');
+  assert.strictEqual(customDone.source.entrypoint, null);
 
   const retired = buildResolveResponse({
     source: { ...source, status: 'retired' },

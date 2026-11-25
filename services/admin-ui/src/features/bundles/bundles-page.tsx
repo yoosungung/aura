@@ -31,6 +31,7 @@ type FormValues = Omit<
 > & {
   checksum: string;
   bundle_uri: string;
+  function: string;
   runtime: 'nodejs' | 'python' | 'custom';
 };
 
@@ -50,6 +51,7 @@ export function BundlesPage() {
       name: '',
       version: '1.0.0',
       entrypoint: 'index:handler',
+      function: 'aura-agent-invoke-',
       bundle_uri: '',
       checksum: '',
       runtime: 'nodejs',
@@ -86,14 +88,14 @@ export function BundlesPage() {
       setFile(null);
       form.setValue('bundle_uri', '');
       form.setValue('checksum', '');
-      const current = form.getValues('entrypoint');
+      const current = form.getValues('function');
       if (!current || current.includes(':')) {
         form.setValue(
-          'entrypoint',
+          'function',
           kind === 'mcp' ? 'aura-mcp-invoke-' : 'aura-agent-invoke-'
         );
       }
-    } else if (!form.getValues('entrypoint') || form.getValues('entrypoint').startsWith('aura-')) {
+    } else if (!form.getValues('entrypoint') || !form.getValues('entrypoint').includes(':')) {
       form.setValue('entrypoint', 'index:handler');
     }
   }
@@ -108,7 +110,7 @@ export function BundlesPage() {
           kind: raw.kind,
           name: raw.name,
           version: raw.version,
-          entrypoint: raw.entrypoint,
+          function: raw.function,
           runtime: 'custom',
           config,
         });
@@ -240,16 +242,23 @@ export function BundlesPage() {
           <Field label="Version" id="src-version">
             <Input id="src-version" {...form.register('version')} />
           </Field>
-          <Field
-            label={isCustom ? 'Function name' : 'Entrypoint'}
-            id="src-entrypoint"
-          >
-            <Input
-              id="src-entrypoint"
-              placeholder={isCustom ? functionHint : 'index:handler'}
-              {...form.register('entrypoint')}
-            />
-          </Field>
+          {isCustom ? (
+            <Field label="Function name" id="src-function">
+              <Input
+                id="src-function"
+                placeholder={functionHint}
+                {...form.register('function')}
+              />
+            </Field>
+          ) : (
+            <Field label="Entrypoint" id="src-entrypoint">
+              <Input
+                id="src-entrypoint"
+                placeholder="index:handler"
+                {...form.register('entrypoint')}
+              />
+            </Field>
+          )}
           {!isCustom ? (
             <div className="space-y-1">
               <Label htmlFor="src-file">Bundle file</Label>
@@ -261,7 +270,8 @@ export function BundlesPage() {
             </div>
           ) : (
             <p className="self-end text-xs text-neutral-500 md:col-span-1">
-              custom uses a container Function — no zip/Garage upload.
+              custom uses <span className="font-mono">source_meta.function</span> — no
+              entrypoint / zip / Garage.
             </p>
           )}
         </div>
@@ -325,8 +335,8 @@ export function BundlesPage() {
         ) : null}
         <p className="text-xs text-neutral-500">
           {isCustom
-            ? 'Flow: Function name (allowlisted prefix) → pending source → Activate (no Garage).'
-            : 'Flow: pick file → client sha256 → presign → Garage PUT → pending source → Activate (server re-checks sha256).'}
+            ? 'Flow: function (allowlisted prefix) → pending · entrypoint=null → Activate (no Garage).'
+            : 'Flow: entrypoint + file → client sha256 → presign → Garage PUT → pending → Activate (server re-checks sha256).'}
         </p>
         <ConfirmDialog
           open={activateOpen}

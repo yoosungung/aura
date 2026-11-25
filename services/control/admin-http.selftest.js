@@ -91,11 +91,12 @@ function createMemoryStore() {
           name: params[3],
           version: params[4],
           entrypoint: params[5],
-          bundle_uri: params[6],
-          checksum: params[7],
-          sig_uri: params[8],
-          config: JSON.parse(params[9]),
-          runtime: params[10],
+          function: params[6],
+          bundle_uri: params[7],
+          checksum: params[8],
+          sig_uri: params[9],
+          config: JSON.parse(params[10]),
+          runtime: params[11],
           status: 'pending',
           created_at: new Date().toISOString(),
         };
@@ -138,7 +139,7 @@ function createMemoryStore() {
         };
       }
       if (
-        /SELECT id, status, bundle_uri, checksum(?:, runtime, entrypoint)? FROM source_meta/.test(
+        /SELECT id, status, bundle_uri, checksum(?:, runtime, entrypoint(?:, function)?)? FROM source_meta/.test(
           text
         ) ||
         /SELECT id, status FROM source_meta/.test(text) ||
@@ -578,7 +579,7 @@ async function main() {
       kind: 'agent',
       name: 'custom-demo',
       version: '1.0.0',
-      entrypoint: 'wrong-prefix',
+      function: 'wrong-prefix',
       runtime: 'custom',
     },
   });
@@ -593,13 +594,15 @@ async function main() {
       kind: 'agent',
       name: 'custom-demo',
       version: '1.0.0',
-      entrypoint: 'aura-agent-invoke-demo',
+      function: 'aura-agent-invoke-demo',
       runtime: 'custom',
       config: { region: 'lab' },
     },
   });
   assert.strictEqual(customCreated.status, 201);
   assert.strictEqual(customCreated.body.source.runtime, 'custom');
+  assert.strictEqual(customCreated.body.source.function, 'aura-agent-invoke-demo');
+  assert.strictEqual(customCreated.body.source.entrypoint, null);
   assert.strictEqual(
     customCreated.body.source.bundle_uri,
     customBundleUri('aura-agent-invoke-demo')

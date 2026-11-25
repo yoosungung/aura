@@ -43,10 +43,11 @@ describe('schemas', () => {
       kind: 'agent',
       name: 'help',
       version: '1.0.0',
-      entrypoint: 'aura-agent-invoke-help',
+      function: 'aura-agent-invoke-help',
       runtime: 'custom',
     });
     expect(parsed.runtime).toBe('custom');
+    expect(parsed.function).toBe('aura-agent-invoke-help');
   });
 
   it('rejects custom Function without allowlisted prefix', () => {
@@ -55,7 +56,7 @@ describe('schemas', () => {
         kind: 'agent',
         name: 'help',
         version: '1.0.0',
-        entrypoint: 'my-fn',
+        function: 'my-fn',
         runtime: 'custom',
       }).success
     ).toBe(false);

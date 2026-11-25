@@ -19,7 +19,7 @@ export const runtimeSchema = z.enum(['nodejs', 'python', 'custom']);
 const configObjectSchema = z
   .record(z.unknown())
   .superRefine((val, ctx) => {
-    if ('runtime' in val) {
+    if ('runtime' in val || 'function' in val) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'runtime_in_config_forbidden',
@@ -43,32 +43,32 @@ export const createSourceSchema = z.object({
   config: configObjectSchema.default({}),
 });
 
-/** custom = container executor Function name in entrypoint; no Garage upload. */
+/** custom = container executor; `function` = Router name; no entrypoint/Garage. */
 export const createCustomSourceSchema = z
   .object({
     kind: sourceKindSchema,
     name: z.string().min(1),
     version: z.string().min(1),
-    entrypoint: z.string().min(1),
+    function: z.string().min(1),
     runtime: z.literal('custom'),
     sig_uri: z.string().optional(),
     config: configObjectSchema.default({}),
   })
   .superRefine((val, ctx) => {
-    const ep = val.entrypoint;
+    const fn = val.function;
     let ok = false;
     if (val.kind === 'agent') {
-      ok = ep.startsWith('aura-agent-invoke-') && ep.length > 'aura-agent-invoke-'.length;
-    } else if (ep.startsWith('aura-mcp-invoke-rpc-')) {
-      ok = ep.length > 'aura-mcp-invoke-rpc-'.length;
-    } else if (ep.startsWith('aura-mcp-invoke-')) {
-      ok = ep.length > 'aura-mcp-invoke-'.length;
+      ok = fn.startsWith('aura-agent-invoke-') && fn.length > 'aura-agent-invoke-'.length;
+    } else if (fn.startsWith('aura-mcp-invoke-rpc-')) {
+      ok = fn.length > 'aura-mcp-invoke-rpc-'.length;
+    } else if (fn.startsWith('aura-mcp-invoke-')) {
+      ok = fn.length > 'aura-mcp-invoke-'.length;
     }
     if (!ok) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'function_prefix_invalid',
-        path: ['entrypoint'],
+        path: ['function'],
       });
     }
   });

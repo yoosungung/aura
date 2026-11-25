@@ -62,7 +62,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 |------|------|
 | INSERT | `status=pending` |
 | activate | nodejs/python: Garage GetObject → sha256 == row.checksum → `pending→active`. **custom**: Garage 스킵 · Function 마커만 확인 → `pending→active` + audit |
-| custom create | `entrypoint`=Function 이름(접두사 allowlist) · `bundle_uri`/`checksum` 서버 마커 · 업로드 금지 |
+| custom create | `function`=Router 이름(접두사 allowlist) · `entrypoint` NULL · `bundle_uri`/`checksum` 서버 마커 · 업로드 금지 |
 | retire | `active→retired` + `reason` + audit |
 | overlays | PUT upsert · DELETE+reason · audit |
 | audit | `GET /v1/audit` · limit·cursor·`action`(optional) · RLS SELECT |

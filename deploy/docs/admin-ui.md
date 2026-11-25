@@ -78,11 +78,11 @@ NATS **subject 자체는 관리 대상이 아님**. 관리하는 것은 subject�
 
 | 규칙 | 내용 |
 |------|------|
-| 콘텐츠 불변 | `entrypoint`/`bundle_uri`/`checksum`/`sig_uri`/`config`/`runtime`/`kind`/`name`/`version` — INSERT 후 UPDATE 금지 · 변경=새 version |
+| 콘텐츠 불변 | `entrypoint`/`function`/`bundle_uri`/`checksum`/`sig_uri`/`config`/`runtime`/`kind`/`name`/`version` — INSERT 후 UPDATE 금지 · 변경=새 version |
 | status 예외 | `pending → active` (activate) · `active → retired` (retire) 만 |
 | INSERT | 항상 `status=pending` |
 | resolve | `status=active` 만 성공 |
-| config | `runtime` 키 금지 |
+| config | `runtime`/`function` 키 금지 |
 
 ---
 
@@ -123,9 +123,10 @@ Package/zip/Garage 업로드 **없음**. Admin Bundles 폼도 file picker를 숨
 
 | 필드 | 내용 |
 |------|------|
-| `entrypoint` | Fission Router Function 이름 (Gateway가 payload `function`으로 스탬프할 값) |
+| `function` | Fission Router Function 이름 (Gateway payload `function` SoT) · **`entrypoint`와 별도 컬럼** |
+| `entrypoint` | custom에서는 **NULL** (zip factory 경로 아님) |
 | prefix | `agent` → `aura-agent-invoke-…` · `mcp` → `aura-mcp-invoke-…` 또는 `aura-mcp-invoke-rpc-…` |
-| `bundle_uri` / `checksum` | 클라이언트가 보내지 않음 · 서버가 `custom://fission-function/{entrypoint}` + 결정적 sha256 마커로 채움 |
+| `bundle_uri` / `checksum` | 클라이언트가 보내지 않음 · 서버가 `custom://fission-function/{function}` + 결정적 sha256 마커로 채움 |
 | activate | Garage **미호출** · 마커 일치만 확인 후 `pending→active` |
 
 ### Tenant picker / `tenant_meta`
@@ -202,7 +203,7 @@ API·세션 값은 그대로 UUID / `bundle_uri` / checksum. UI 첫 줄만 사�
 | 식별자 | 화면에는 `shortId` (앞 8자…) · 전체 값은 title·복사 |
 | Source | 선택·목록 라벨 = `kind / name / version · status` · 값은 `id` |
 | Tenant | tenants DDL 없음 → 표시도 UUID 단축 · 직접 입력 유지 |
-| Bundle | **nodejs/python**: 파일 → sha256 → Presign → Garage PUT → pending · `bundle_uri`/checksum 읽기 전용. **custom**: Function 이름만 → pending(업로드 없음) |
+| Bundle | **nodejs/python**: 파일 → Entrypoint(`module:attr`) → Garage. **custom**: `function` 필드만(Entrypoint 숨김) → pending(업로드 없음) |
 | Overlay | source는 Sources 목록 select · New/Edit drawer · Sources→`/overlays?source=` |
 | Config | 키·값 행 폼 → 객체 · 빈 행=생략 · `runtime` 키 금지(스키마) |
 | 시크릿 | `secrets_ref` 입력만 · plaintext 금지 |

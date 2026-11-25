@@ -38,7 +38,8 @@ CREATE TABLE source_meta (
   kind         TEXT NOT NULL,
   name         TEXT NOT NULL,
   version      TEXT NOT NULL,
-  entrypoint   TEXT NOT NULL,
+  entrypoint   TEXT,                 -- module.path:attr (nodejs/python); NULL when custom
+  function     TEXT,                 -- Fission Router Function name; custom only
   bundle_uri   TEXT NOT NULL,
   checksum     TEXT NOT NULL,
   sig_uri      TEXT,
@@ -49,6 +50,20 @@ CREATE TABLE source_meta (
   CONSTRAINT chk_source_meta_kind CHECK (kind IN ('agent', 'mcp')),
   CONSTRAINT chk_source_meta_runtime CHECK (runtime IN ('nodejs', 'python', 'custom')),
   CONSTRAINT chk_source_meta_status CHECK (status IN ('pending', 'active', 'retired')),
+  CONSTRAINT chk_source_meta_runtime_fields CHECK (
+    (
+      runtime = 'custom'
+      AND function IS NOT NULL
+      AND char_length(btrim(function)) >= 1
+      AND entrypoint IS NULL
+    )
+    OR (
+      runtime IN ('nodejs', 'python')
+      AND function IS NULL
+      AND entrypoint IS NOT NULL
+      AND char_length(btrim(entrypoint)) >= 1
+    )
+  ),
   CONSTRAINT uq_source_meta_tenant_kind_name_version UNIQUE (tenant_id, kind, name, version)
 );
 

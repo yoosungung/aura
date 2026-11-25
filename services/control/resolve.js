@@ -74,7 +74,8 @@ function publicSource(source) {
     kind: source.kind,
     name: source.name,
     version: source.version,
-    entrypoint: source.entrypoint,
+    entrypoint: source.entrypoint ?? null,
+    function: source.function ?? null,
     bundle_uri: source.bundle_uri,
     checksum: source.checksum,
     sig_uri: source.sig_uri ?? null,
@@ -118,6 +119,7 @@ function buildResolveResponse({ source, user }) {
     cfg: mergeConfigs(src.config, usr ? usr.config : null),
     secrets_ref: usr ? usr.secrets_ref : null,
     runtime: src.runtime,
+    function: src.function,
   };
 }
 

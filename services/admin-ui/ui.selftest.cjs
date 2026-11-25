@@ -85,7 +85,8 @@ const bundles = fs.readFileSync(
 );
 assert.ok(/type="file"/.test(bundles), 'bundle file picker');
 assert.ok(/isCustom|runtime === 'custom'|runtime === \"custom\"/.test(bundles), 'bundles runtime split');
-assert.ok(/createCustomSourceSchema|Function name/.test(bundles), 'custom Function path');
+assert.ok(/createCustomSourceSchema|src-function|Function name/.test(bundles), 'custom Function path');
+assert.ok(/register\('function'\)|function: raw\.function/.test(bundles), 'custom posts function field');
 assert.ok(/sha256Checksum/.test(bundles), 'client checksum from file');
 assert.ok(/putBundle/.test(bundles), 'Garage PUT via putBundle');
 assert.ok(/readOnly/.test(bundles), 'bundle_uri/checksum read-only');

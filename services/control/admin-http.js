@@ -12,6 +12,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTENT_IMMUTABLE = new Set([
   'entrypoint',
+  'function',
   'bundle_uri',
   'checksum',
   'sig_uri',
@@ -339,41 +340,39 @@ async function presign(objectStore, tenantId, body) {
   };
 }
 
-function rejectRuntimeInConfig(config) {
-  if (config && typeof config === 'object' && !Array.isArray(config) && 'runtime' in config) {
-    return true;
-  }
-  return false;
+function rejectPlatformKeysInConfig(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return false;
+  return 'runtime' in config || 'function' in config;
 }
 
-function customBundleUri(entrypoint) {
-  return `custom://fission-function/${entrypoint}`;
+function customBundleUri(functionName) {
+  return `custom://fission-function/${functionName}`;
 }
 
-function customChecksum(entrypoint) {
+function customChecksum(functionName) {
   return (
     'sha256:' +
-    crypto.createHash('sha256').update(`custom:${entrypoint}`, 'utf8').digest('hex')
+    crypto.createHash('sha256').update(`custom:${functionName}`, 'utf8').digest('hex')
   );
 }
 
 /** @returns {string|null} error code */
-function assertCustomFunction(kind, entrypoint) {
-  const ep = String(entrypoint || '');
-  if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(ep)) {
+function assertCustomFunction(kind, functionName) {
+  const fn = String(functionName || '');
+  if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(fn)) {
     return 'function_name_invalid';
   }
   if (kind === 'agent') {
-    if (!ep.startsWith('aura-agent-invoke-') || ep === 'aura-agent-invoke-') {
+    if (!fn.startsWith('aura-agent-invoke-') || fn === 'aura-agent-invoke-') {
       return 'function_prefix_invalid';
     }
     return null;
   }
   if (kind === 'mcp') {
-    if (ep.startsWith('aura-mcp-invoke-rpc-')) {
-      return ep === 'aura-mcp-invoke-rpc-' ? 'function_prefix_invalid' : null;
+    if (fn.startsWith('aura-mcp-invoke-rpc-')) {
+      return fn === 'aura-mcp-invoke-rpc-' ? 'function_prefix_invalid' : null;
     }
-    if (ep.startsWith('aura-mcp-invoke-') && ep !== 'aura-mcp-invoke-') {
+    if (fn.startsWith('aura-mcp-invoke-') && fn !== 'aura-mcp-invoke-') {
       return null;
     }
     return 'function_prefix_invalid';
@@ -392,26 +391,33 @@ async function createSource(client, tenantId, actor, body) {
 
   const required =
     runtime === 'custom'
-      ? ['kind', 'name', 'version', 'entrypoint']
+      ? ['kind', 'name', 'version', 'function']
       : ['kind', 'name', 'version', 'entrypoint', 'bundle_uri', 'checksum'];
   for (const k of required) {
     if (!body[k]) return { status: 400, body: { error: `${k}_required` } };
   }
 
   const config = body.config && typeof body.config === 'object' ? body.config : {};
-  if (rejectRuntimeInConfig(config)) {
+  if (rejectPlatformKeysInConfig(config)) {
     return { status: 400, body: { error: 'runtime_in_config_forbidden' } };
   }
 
+  let entrypoint = body.entrypoint || null;
+  let functionName = body.function || null;
   let bundle_uri = body.bundle_uri;
   let checksum = body.checksum;
   if (runtime === 'custom') {
-    const fnErr = assertCustomFunction(body.kind, body.entrypoint);
+    const fnErr = assertCustomFunction(body.kind, functionName);
     if (fnErr) return { status: 400, body: { error: fnErr } };
-    bundle_uri = customBundleUri(body.entrypoint);
-    checksum = customChecksum(body.entrypoint);
-  } else if (!String(checksum).startsWith('sha256:')) {
-    return { status: 400, body: { error: 'checksum_sha256_required' } };
+    entrypoint = null;
+    functionName = String(functionName);
+    bundle_uri = customBundleUri(functionName);
+    checksum = customChecksum(functionName);
+  } else {
+    functionName = null;
+    if (!String(checksum).startsWith('sha256:')) {
+      return { status: 400, body: { error: 'checksum_sha256_required' } };
+    }
   }
 
   try {
@@ -419,16 +425,17 @@ async function createSource(client, tenantId, actor, body) {
       const id = body.id || crypto.randomUUID();
       const ins = await c.query(
         `INSERT INTO source_meta
-           (id, tenant_id, kind, name, version, entrypoint, bundle_uri, checksum, sig_uri, config, runtime, status)
-         VALUES ($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,'pending')
-         RETURNING id, tenant_id, kind, name, version, entrypoint, bundle_uri, checksum, sig_uri, config, runtime, status, created_at`,
+           (id, tenant_id, kind, name, version, entrypoint, function, bundle_uri, checksum, sig_uri, config, runtime, status)
+         VALUES ($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,'pending')
+         RETURNING id, tenant_id, kind, name, version, entrypoint, function, bundle_uri, checksum, sig_uri, config, runtime, status, created_at`,
         [
           id,
           tenantId,
           body.kind,
           body.name,
           body.version,
-          body.entrypoint,
+          entrypoint,
+          functionName,
           bundle_uri,
           checksum,
           body.sig_uri || null,
@@ -471,7 +478,7 @@ async function listSources(client, tenantId) {
 async function listSourceVersions(client, tenantId, kind, name) {
   const rows = await withTenantTx(client, tenantId, async (c) => {
     const res = await c.query(
-      `SELECT id, tenant_id, kind, name, version, entrypoint, bundle_uri, checksum, runtime, status, created_at
+      `SELECT id, tenant_id, kind, name, version, entrypoint, function, bundle_uri, checksum, runtime, status, created_at
          FROM source_meta
         WHERE tenant_id = $1::uuid AND kind = $2 AND name = $3
         ORDER BY created_at DESC`,
@@ -485,7 +492,7 @@ async function listSourceVersions(client, tenantId, kind, name) {
 async function activateSource(client, objectStore, tenantId, actor, sourceId) {
   return withTenantTx(client, tenantId, async (c) => {
     const cur = await c.query(
-      `SELECT id, status, bundle_uri, checksum, runtime, entrypoint FROM source_meta
+      `SELECT id, status, bundle_uri, checksum, runtime, entrypoint, function FROM source_meta
         WHERE tenant_id = $1::uuid AND id = $2::uuid LIMIT 1`,
       [tenantId, sourceId]
     );
@@ -496,8 +503,8 @@ async function activateSource(client, objectStore, tenantId, actor, sourceId) {
     }
 
     if (row.runtime === 'custom') {
-      const expectUri = customBundleUri(row.entrypoint);
-      const expectSum = customChecksum(row.entrypoint);
+      const expectUri = customBundleUri(row.function);
+      const expectSum = customChecksum(row.function);
       if (row.bundle_uri !== expectUri || row.checksum !== expectSum) {
         return { status: 422, body: { error: 'custom_marker_mismatch' } };
       }
@@ -598,7 +605,7 @@ async function listOverlays(client, tenantId, sourceId) {
 
 async function upsertOverlay(client, tenantId, actor, sourceId, principalId, body) {
   const config = body.config && typeof body.config === 'object' ? body.config : {};
-  if (rejectRuntimeInConfig(config)) {
+  if (rejectPlatformKeysInConfig(config)) {
     return { status: 400, body: { error: 'runtime_in_config_forbidden' } };
   }
   if (body.secrets != null || body.secret_value != null) {

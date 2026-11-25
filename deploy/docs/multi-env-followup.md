@@ -55,8 +55,8 @@ Fission container executor. Package·Environment·`/specialize` 없음. Router �
 | 항목 | 내용 |
 |------|------|
 | 실행 | `runtime=custom` · `POST {FISSION_ROUTER_URL}/fission-function/<function>` |
-| 등록 | Admin Bundles: zip/Garage **없음** · `source_meta.entrypoint` = Function 이름 · 서버가 `bundle_uri`/`checksum` 마커 채움 · activate는 Garage 스킵 ([`admin-ui.md`](admin-ui.md)) |
-| 스탬프 | Gateway가 resolve의 Function 이름(`entrypoint`)을 payload `function`에 넣는다. 브리지는 위 접두사만 허용하고 poolmgr 슬롯(`aura-agent-invoke-py` 등)은 거부한다 |
+| 등록 | Admin Bundles: zip/Garage **없음** · `source_meta.function` = Router 이름 · `entrypoint` NULL · 서버 마커 · activate Garage 스킵 ([`admin-ui.md`](admin-ui.md)) |
+| 스탬프 | Gateway가 resolve `source.function`(top-level `function`)을 payload `function`에 넣는다. 브리지는 위 접두사만 허용하고 poolmgr 슬롯(`aura-agent-invoke-py` 등)은 거부한다 |
 | 스케일 | async container `MinScale=0` · sync container `MinScale≥2` |
 | 재검증 | 이미지는 resolve로 `function`이 자기 소스인지 확인한다 |
 | 금지 | 이미지별 MQT · 이미지의 NATS 직접 구독 · 공유 `aura-custom-*` Environment |

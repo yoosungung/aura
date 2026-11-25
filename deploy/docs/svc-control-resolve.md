@@ -35,11 +35,12 @@ DDL: [`../sql/control_meta.sql`](../sql/control_meta.sql).
 | `tenant_id` | UUID NOT NULL | RLS 키 |
 | `kind` | TEXT | `'agent'` \| `'mcp'` |
 | `name` / `version` | TEXT | invoke 식별자 |
-| `entrypoint` | TEXT | `module.path:attr` → factory |
-| `bundle_uri` | TEXT | `s3://aura-content/tenants/{tenant_id}/bundles/…` |
-| `checksum` | TEXT | `sha256:…` |
+| `entrypoint` | TEXT NULL | nodejs/python: `module.path:attr` → factory. **custom이면 NULL** |
+| `function` | TEXT NULL | **custom만**: Fission Router Function 이름(접두사 allowlist). nodejs/python이면 NULL |
+| `bundle_uri` | TEXT | zip: `s3://aura-content/tenants/{tenant_id}/bundles/…` · custom: `custom://fission-function/{function}` |
+| `checksum` | TEXT | `sha256:…` (custom은 function 결정적 마커) |
 | `sig_uri` | TEXT NULL | 서명 객체(선택) |
-| `config` | JSONB | 번들 기본 cfg (**runtime 금지** — 플랫폼 필드는 아래) |
+| `config` | JSONB | 번들 기본 cfg (**runtime/`function` 키 금지** — 플랫폼 필드는 아래) |
 | `runtime` | TEXT | `'nodejs'` \| `'python'` \| `'custom'` · **DEFAULT `nodejs`** · func-env 권위 |
 | `status` | TEXT | `'pending'` \| `'active'` \| `'retired'` |
 | `created_at` | TIMESTAMPTZ | |
@@ -92,18 +93,20 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 {
   "type": "control.resolve.done",
   "source": { "id": "…", "tenant_id": "…", "kind": "agent", "name": "demo", "version": "1.0.0",
-              "entrypoint": "main:factory", "bundle_uri": "s3://…", "checksum": "sha256:…",
+              "entrypoint": "main:factory", "function": null, "bundle_uri": "s3://…", "checksum": "sha256:…",
               "sig_uri": null, "config": {}, "runtime": "nodejs", "status": "active", "created_at": "…" },
   "user": { "id": "…", "principal_id": "user-1", "config": {}, "secrets_ref": "k8s:secret/…", "updated_at": "…" },
   "cfg": {},
   "secrets_ref": "k8s:secret/…",
-  "runtime": "nodejs"
+  "runtime": "nodejs",
+  "function": null
 }
 ```
 
 | 필드 | 규칙 |
 |------|------|
 | `runtime` | `source.runtime` 복제 (top-level). Gateway 스탬프·브리지 라우팅용. **user_meta/cfg에 없음** |
+| `function` | `source.function` 복제 (top-level). custom이면 Router 이름 · 아니면 `null`. Gateway payload `function` 스탬프 SoT |
 | `cfg` | `mergeConfigs(source.config, user?.config)` — **1-depth 섹션 merge, user wins** |
 | `user` | 해당 principal 행 없으면 `null`; 이때 `cfg = source.config`, `secrets_ref = null` |
 | `secrets_ref` | ref 문자열만. **`secrets` plaintext 키 금지** |
