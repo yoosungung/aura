@@ -22,6 +22,7 @@ import {
   createSourceSchema,
   type CreateSourceInput,
 } from '@/lib/schemas';
+import { scaffoldFor } from '@/lib/scaffold';
 import { useSession } from '@/stores/session';
 import { useToast } from '@/stores/toast';
 
@@ -206,11 +207,22 @@ export function BundlesPage() {
     kind === 'mcp'
       ? 'aura-mcp-invoke-… or aura-mcp-invoke-rpc-…'
       : 'aura-agent-invoke-…';
+  const scaffold = !isCustom ? scaffoldFor(kind, runtime) : null;
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle>Bundle registration</CardTitle>
+        {scaffold ? (
+          <a
+            id="btn-download-scaffold"
+            href={scaffold.href}
+            download={scaffold.file}
+            className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium hover:bg-neutral-50"
+          >
+            Download scaffold
+          </a>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
@@ -336,7 +348,7 @@ export function BundlesPage() {
         <p className="text-xs text-neutral-500">
           {isCustom
             ? 'Flow: function (allowlisted prefix) → pending · entrypoint=null → Activate (no Garage).'
-            : 'Flow: entrypoint + file → client sha256 → presign → Garage PUT → pending → Activate (server re-checks sha256).'}
+            : 'Flow: copy scaffolds/* → edit factory → upload single .js/.py → entrypoint main:factory → Activate. Download from Sources to patch.'}
         </p>
         <ConfirmDialog
           open={activateOpen}

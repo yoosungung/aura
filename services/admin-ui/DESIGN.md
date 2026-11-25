@@ -19,6 +19,7 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | Quotas | 조회·리셋만 · `/quotas` |
 | 시크릿 | `secrets_ref` 입력만 · 값 필드 없음 |
 | 이미지 | `aura/admin-ui:local` · Vite `dist/` + `nginx.conf` 베이크 · dist ConfigMap 금지 |
+| Scaffold | SoT=`scaffolds/` · `sync-scaffolds`→`public/scaffolds/` · Bundles **Download scaffold** |
 
 ## 표시 규칙
 
@@ -57,7 +58,8 @@ API: [`../control/admin-http.js`](../control/admin-http.js).
 | `src/stores/{session,toast}.ts` | Bearer·tenant · toast 큐 |
 | `ui.selftest.cjs` | 계약·금지사항 정적 게이트 (소스/디자인) |
 | `public/aura-logo.jpg` | 헤더·파비콘 마크. Vite `dist/`로 복사되어 이미지에 포함 |
-| `Dockerfile` · `nginx.conf` | 이미지에 굽는 정적 서버 (`listen 8080` · `/v1` → control-admin · `dev.orbstack.icon`) |
+| `scripts/sync-scaffolds.cjs` | SoT `scaffolds/` → `public/scaffolds/` (gitignore) |
+| `Dockerfile` · `nginx.conf` | repo-root build · 이미지에 굽는 정적 서버 (`listen 8080` · `/v1` → control-admin) |
 | `dist/` | Vite 빌드 산출 (이미지에 포함, 클러스터 ConfigMap 아님) |
 
 ---
@@ -69,7 +71,7 @@ bash deploy/scripts/build-admin-images.sh
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 bash deploy/scripts/apply-admin-ui.sh
-cd services/admin-ui && npm test && npm run build
+cd services/admin-ui && npm run sync:scaffolds && npm test && npm run build
 node services/admin-ui/ui.selftest.cjs
 node services/control/admin-http.selftest.js
 node services/control/pooler-lookup.selftest.js

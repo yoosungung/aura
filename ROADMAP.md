@@ -79,6 +79,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-25 | **Admin UI quota 한도 수정 = 이번 범위 밖** — Phase 2 UI는 **조회+리셋만**(KV 카운터 · Gateway RR). `rate/burst/maxInflight` 등 **한도 수정**은 PG `tenant_plan`(후보) SoR + Gateway 재로드 후속. OIDC/SSO 제외 유지 · Tenant alias=`tenant_meta` DDL 방향 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · 아래 M6.2 후보 |
 | 2026-11-25 | **`AURA_ADMIN_TENANT_IDS` 제거** — picker=`tenant_meta` ∪ `DISTINCT source_meta` ∪ UI UUID. env CSV seed 폐기 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `control-admin` Deployment |
 | 2026-11-25 | **`source_meta.function` 분리** — custom Router 이름 ≠ zip `entrypoint` · CHECK runtime 필드 · resolve top-level `function` · Admin Bundles UI 분기 | §1 #11 · §6.1.1 · [`deploy/sql/control_meta.sql`](deploy/sql/control_meta.sql) · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) |
+| 2026-11-25 | **Tenant bundle scaffold + Download** — 로컬 단일 모듈 소스→Bundles 업로드 · Sources `GET …/bundle` 패치 보조 · Admin **Download scaffold**(SoT=`scaffolds/` 정적 미러) · multi-file zip 해제 Non-goal | [`deploy/docs/tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · [`scaffolds/`](scaffolds/) |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -381,6 +382,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `tenant_meta` DDL + Admin HTTP/UI alias (UUID + `display_name` · RLS) — OIDC/SSO **제외**
 - [x] Phase 2 quota **조회·리셋** — UI → control-admin `GET/POST /v1/quotas/…` · injectable `quotaLimiter`/`quotaRpc` (live NATS RR→Gateway 배선=후속) · 한도 숫자 편집 UI **금지**
 - [x] `source_meta.function` 컬럼 분리 — custom Router 이름 · zip `entrypoint`와 CHECK로 상호 배타 · Bundles UI 분기
+- [x] Tenant scaffold + Sources Download — [`scaffolds/`](scaffolds/) · `GET /v1/sources/{id}/bundle` (custom 제외)
 - [~] **Quota 한도 수정** (`rate`/`burst`/`maxInflight` · 플랜 tier) — PG `tenant_plan`(후보) SoR + Gateway 로드 · **이번(M6.1/M6.2 조회·리셋) 범위 밖** · M5/후속 티켓으로 승격 시 착수
 - [~] live `aura.rpc.gateway.quota` Core RR 배선 (control-admin→Gateway) — injectable 이후
 - [~] Gateway payload `function` 스탬프 live 배선 (`resolve.function` → task)

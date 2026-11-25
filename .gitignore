@@ -17,6 +17,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Generated from repo scaffolds/ SoT (Admin UI static download)
+services/admin-ui/public/scaffolds/
+
 # Python
 __pycache__/
 *.py[cod]

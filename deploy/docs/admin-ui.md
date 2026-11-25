@@ -102,6 +102,7 @@ Deployment `aura-control-admin` · ns `aura` · replicas≥2.
 | `POST` | `/v1/sources` | INSERT pending · UNIQUE 409 |
 | `GET` | `/v1/sources` | 목록 |
 | `GET` | `/v1/sources/{kind}/{name}` | 버전 타임라인 |
+| `GET` | `/v1/sources/{id}/bundle` | nodejs/python 객체 다운로드(`content_base64`) · custom 거부 · audit `source.bundle.download` |
 | `POST` | `/v1/sources/{id}/activate` | Garage sha256 서버 대조 후 active |
 | `POST` | `/v1/sources/{id}/retire` | body `reason` 필수 |
 | `GET` | `/v1/sources/{id}/overlays` | overlays |
@@ -187,7 +188,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 
 | 규칙 | 내용 |
 |------|------|
-| Bundles | runtime 분기(zip vs custom Function) · 등록 성공 후 **Activate now** / Sources 이동 CTA |
+| Bundles | runtime 분기 · **Download scaffold**(SoT=`scaffolds/`) · 등록 후 Activate / Sources CTA |
 | Sources | status·kind 필터 · 행/그룹에서 `GET /v1/sources/{kind}/{name}` 버전 타임라인 · **Create → `/bundles`** |
 | Overlays | 목록 중심 · New/Edit **drawer** · Delete는 ConfirmDialog 유지 |
 | Audit | `GET /v1/audit?action=` 서버 필터 · source/overlay 리소스 딥링크 |
@@ -203,7 +204,7 @@ API·세션 값은 그대로 UUID / `bundle_uri` / checksum. UI 첫 줄만 사�
 | 식별자 | 화면에는 `shortId` (앞 8자…) · 전체 값은 title·복사 |
 | Source | 선택·목록 라벨 = `kind / name / version · status` · 값은 `id` |
 | Tenant | tenants DDL 없음 → 표시도 UUID 단축 · 직접 입력 유지 |
-| Bundle | **nodejs/python**: 파일 → Entrypoint(`module:attr`) → Garage. **custom**: `function` 필드만(Entrypoint 숨김) → pending(업로드 없음) |
+| Bundle | **nodejs/python**: **Download scaffold**(정적 `/scaffolds/…`)→로컬 테스트→업로드 → Entrypoint. **custom**: `function`만. Sources **Download**=등록본 패치 보조 |
 | Overlay | source는 Sources 목록 select · New/Edit drawer · Sources→`/overlays?source=` |
 | Config | 키·값 행 폼 → 객체 · 빈 행=생략 · `runtime` 키 금지(스키마) |
 | 시크릿 | `secrets_ref` 입력만 · plaintext 금지 |

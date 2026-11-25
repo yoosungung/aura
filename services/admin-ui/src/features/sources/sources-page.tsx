@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useAdminApi } from '@/hooks/use-admin-api';
+import {
+  triggerBundleDownload,
+  type BundleDownloadBody,
+} from '@/lib/bundle-download';
 import { formatSourceLabel } from '@/lib/display';
 import { formatApiError } from '@/lib/errors';
 import { reasonSchema } from '@/lib/schemas';
@@ -120,6 +124,19 @@ export function SourcesPage() {
     onError: (e) => pushToast(formatApiError(e), 'error'),
   });
 
+  const download = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await api.get<BundleDownloadBody>(`/v1/sources/${encodeURIComponent(id)}/bundle`);
+      if (r.status >= 400) throw new Error(formatApiError(r));
+      triggerBundleDownload(r.body);
+      return r.body;
+    },
+    onSuccess: (body) => {
+      pushToast(`Downloaded ${body.filename || 'bundle'}`, 'success');
+    },
+    onError: (e) => pushToast(formatApiError(e), 'error'),
+  });
+
   if (!tenantId) {
     return <p className="text-sm text-neutral-600">Select a tenant first.</p>;
   }
@@ -219,6 +236,18 @@ export function SourcesPage() {
                       >
                         Timeline
                       </Button>
+                      {s.runtime !== 'custom' ? (
+                        <Button
+                          id="btn-download-bundle"
+                          size="sm"
+                          variant="outline"
+                          type="button"
+                          disabled={download.isPending}
+                          onClick={() => download.mutate(s.id)}
+                        >
+                          Download
+                        </Button>
+                      ) : null}
                       <Link
                         to={`/overlays?source=${encodeURIComponent(s.id)}`}
                         className={cn(

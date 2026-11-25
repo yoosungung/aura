@@ -139,7 +139,10 @@ function createMemoryStore() {
         };
       }
       if (
-        /SELECT id, status, bundle_uri, checksum(?:, runtime, entrypoint(?:, function)?)? FROM source_meta/.test(
+        /SELECT id, kind, name, version, runtime, bundle_uri, checksum, status\s+FROM source_meta/.test(
+          text
+        ) ||
+        /SELECT id, status, bundle_uri, checksum(?:, runtime, entrypoint(?:, function)?)?\s+FROM source_meta/.test(
           text
         ) ||
         /SELECT id, status FROM source_meta/.test(text) ||
@@ -619,6 +622,27 @@ async function main() {
   });
   assert.strictEqual(customActivated.status, 200);
   assert.strictEqual(customActivated.body.source.status, 'active');
+
+  const customDl = await dispatch({
+    ...auth,
+    method: 'GET',
+    path: `/v1/sources/${customId}/bundle`,
+  });
+  assert.strictEqual(customDl.status, 400);
+  assert.strictEqual(customDl.body.error, 'bundle_not_downloadable');
+
+  const zipDl = await dispatch({
+    ...auth,
+    method: 'GET',
+    path: `/v1/sources/${sourceId}/bundle`,
+  });
+  assert.strictEqual(zipDl.status, 200);
+  assert.strictEqual(zipDl.body.checksum, goodChecksum);
+  assert.strictEqual(
+    Buffer.from(zipDl.body.content_base64, 'base64').toString('utf8'),
+    blob.toString('utf8')
+  );
+  assert.ok(store.audits.some((a) => a.action === 'source.bundle.download'));
 
   console.log('admin-http.selftest: PASS');
 }

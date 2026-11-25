@@ -110,6 +110,17 @@ function createAdminHandlers(opts = {}) {
       return listAudit(client, tenantId, req.query || {});
     }
 
+    const bundleGet = path.match(/^\/v1\/sources\/([^/]+)\/bundle$/);
+    if (method === 'GET' && bundleGet) {
+      return downloadSourceBundle(
+        client,
+        objectStore,
+        tenantId,
+        actor,
+        decodeURIComponent(bundleGet[1])
+      );
+    }
+
     const kindName = path.match(/^\/v1\/sources\/([^/]+)\/([^/]+)$/);
     if (method === 'GET' && kindName) {
       return listSourceVersions(client, tenantId, decodeURIComponent(kindName[1]), decodeURIComponent(kindName[2]));
@@ -489,6 +500,68 @@ async function listSourceVersions(client, tenantId, kind, name) {
   return { status: 200, body: { sources: rows } };
 }
 
+const BUNDLE_DOWNLOAD_MAX_BYTES = 8 * 1024 * 1024;
+
+async function downloadSourceBundle(client, objectStore, tenantId, actor, sourceId) {
+  return withTenantTx(client, tenantId, async (c) => {
+    const cur = await c.query(
+      `SELECT id, kind, name, version, runtime, bundle_uri, checksum, status
+         FROM source_meta
+        WHERE tenant_id = $1::uuid AND id = $2::uuid LIMIT 1`,
+      [tenantId, sourceId]
+    );
+    const row = cur.rows && cur.rows[0];
+    if (!row) return { status: 404, body: { error: 'source_not_found' } };
+    if (row.runtime === 'custom' || !String(row.bundle_uri || '').startsWith('s3://')) {
+      return { status: 400, body: { error: 'bundle_not_downloadable' } };
+    }
+
+    let buf;
+    try {
+      buf = await objectStore.getObject(row.bundle_uri, { tenantId });
+    } catch (err) {
+      const code = err && err.message;
+      if (
+        code === 'object_store_unconfigured' ||
+        code === 'bundle_uri_tenant_mismatch' ||
+        code === 'bundle_missing'
+      ) {
+        return { status: 422, body: { error: code } };
+      }
+      throw err;
+    }
+    if (!buf) {
+      return { status: 422, body: { error: 'bundle_missing' } };
+    }
+    if (buf.length > BUNDLE_DOWNLOAD_MAX_BYTES) {
+      return { status: 413, body: { error: 'bundle_too_large', max_bytes: BUNDLE_DOWNLOAD_MAX_BYTES } };
+    }
+
+    await insertAudit(c, {
+      tenantId,
+      actor,
+      action: 'source.bundle.download',
+      resource_type: 'source_meta',
+      resource_id: row.id,
+      reason: null,
+    });
+
+    return {
+      status: 200,
+      body: {
+        source_id: row.id,
+        kind: row.kind,
+        name: row.name,
+        version: row.version,
+        checksum: row.checksum,
+        filename: `${row.kind}-${row.name}-${row.version}.bundle`,
+        byte_length: buf.length,
+        content_base64: Buffer.from(buf).toString('base64'),
+      },
+    };
+  });
+}
+
 async function activateSource(client, objectStore, tenantId, actor, sourceId) {
   return withTenantTx(client, tenantId, async (c) => {
     const cur = await c.query(
@@ -721,6 +794,7 @@ module.exports = {
   createAdminHandlers,
   CONTENT_IMMUTABLE,
   UUID_RE,
+  BUNDLE_DOWNLOAD_MAX_BYTES,
   customBundleUri,
   customChecksum,
   assertCustomFunction,

@@ -43,6 +43,7 @@ const sourcesPage = fs.readFileSync(
 );
 assert.ok(/\/overlays\?source=/.test(sourcesPage), 'sources link to overlays');
 assert.ok(/btn-create-source[\s\S]*to="\/bundles"|to="\/bundles"[\s\S]*Create/.test(sourcesPage), 'sources Create → Bundles');
+assert.ok(/btn-download-bundle|triggerBundleDownload/.test(sourcesPage), 'sources Download bundle');
 assert.ok(/ConfirmDialog/.test(sourcesPage), 'sources activate/retire ConfirmDialog');
 assert.ok(!/id="retire-reason"/.test(sourcesPage), 'no always-visible retire reason field');
 assert.ok(/formatApiError/.test(sourcesPage), 'sources uses formatApiError');
@@ -96,6 +97,11 @@ assert.ok(!/configText/.test(bundles), 'bundles no raw configText');
 assert.ok(/btn-activate-now|Activate now/.test(bundles), 'bundles Activate now CTA');
 assert.ok(/Go to Sources/.test(bundles), 'bundles Go to Sources CTA');
 assert.ok(/Create pending/.test(bundles), 'custom create CTA label');
+assert.ok(/btn-download-scaffold|scaffoldFor/.test(bundles), 'bundles Download scaffold');
+assert.ok(
+  fs.existsSync(path.join(root, 'scripts/sync-scaffolds.cjs')),
+  'sync-scaffolds copies SoT into public/'
+);
 
 const configEntries = fs.readFileSync(
   path.join(root, 'src/lib/config-entries.ts'),

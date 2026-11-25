@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "sync:scaffolds": "node scripts/sync-scaffolds.cjs",
+    "predev": "node scripts/sync-scaffolds.cjs",
+    "prebuild": "node scripts/sync-scaffolds.cjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
