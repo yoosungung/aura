@@ -42,6 +42,7 @@ const sourcesPage = fs.readFileSync(
   'utf8'
 );
 assert.ok(/\/overlays\?source=/.test(sourcesPage), 'sources link to overlays');
+assert.ok(/btn-create-source[\s\S]*to="\/bundles"|to="\/bundles"[\s\S]*Create/.test(sourcesPage), 'sources Create → Bundles');
 assert.ok(/ConfirmDialog/.test(sourcesPage), 'sources activate/retire ConfirmDialog');
 assert.ok(!/id="retire-reason"/.test(sourcesPage), 'no always-visible retire reason field');
 assert.ok(/formatApiError/.test(sourcesPage), 'sources uses formatApiError');

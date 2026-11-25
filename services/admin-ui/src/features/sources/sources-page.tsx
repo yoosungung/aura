@@ -129,8 +129,15 @@ export function SourcesPage() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>Sources</CardTitle>
+          <Link
+            id="btn-create-source"
+            to="/bundles"
+            className="inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800"
+          >
+            Create
+          </Link>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3">

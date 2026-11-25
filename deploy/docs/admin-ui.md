@@ -157,7 +157,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 | Session 셸 | Bearer · health · **헤더 Tenant switcher**(`display_name`) · toast |
 | Tenant | `tenant_meta` alias 등록/rename · UUID paste advanced |
 | Quotas | 조회·리셋 (한도 수정 금지) |
-| Sources | kind/name/version/runtime/status · activate/retire(**confirm dialog**) |
+| Sources | kind/name/version/runtime/status · activate/retire(**confirm dialog**) · **Create → Bundles** |
 | Bundle 등록 | presign → PUT → sources pending → activate |
 | Overlays | upsert · delete(**confirm + reason**) · `secrets_ref`만 |
 | Audit | 필터·커서 목록 (read-only) |
@@ -176,7 +176,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 | 규칙 | 내용 |
 |------|------|
 | Bundles | 등록 성공 후 **Activate now** / Sources 이동 CTA |
-| Sources | status·kind 필터 · 행/그룹에서 `GET /v1/sources/{kind}/{name}` 버전 타임라인 |
+| Sources | status·kind 필터 · 행/그룹에서 `GET /v1/sources/{kind}/{name}` 버전 타임라인 · **Create → `/bundles`** |
 | Overlays | 목록 중심 · New/Edit **drawer** · Delete는 ConfirmDialog 유지 |
 | Audit | `GET /v1/audit?action=` 서버 필터 · source/overlay 리소스 딥링크 |
 | Tenant alias | `tenant_meta` DDL + POST/PATCH · 헤더/목록에 `display_name` |
