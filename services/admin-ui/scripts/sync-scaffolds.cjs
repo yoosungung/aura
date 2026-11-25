@@ -13,7 +13,9 @@ const fromArg = process.argv.indexOf('--from');
 const srcRoot =
   fromArg >= 0 && process.argv[fromArg + 1]
     ? path.resolve(process.argv[fromArg + 1])
-    : path.resolve(root, '../../scaffolds');
+    : process.env.AURA_SCAFFOLDS_SOT
+      ? path.resolve(process.env.AURA_SCAFFOLDS_SOT)
+      : path.resolve(root, '../../scaffolds');
 const destRoot = path.join(root, 'public', 'scaffolds');
 
 const SLOTS = [
@@ -29,6 +31,11 @@ function copyFile(src, dest) {
 }
 
 if (!fs.existsSync(srcRoot)) {
+  // Docker: first RUN sync --from /tmp/…; npm prebuild may not see repo scaffolds/.
+  if (fs.existsSync(path.join(destRoot, 'agent-nodejs', 'main.js'))) {
+    console.log('sync-scaffolds: SoT missing; keeping existing public/scaffolds');
+    process.exit(0);
+  }
   console.error('sync-scaffolds: missing SoT at', srcRoot);
   process.exit(1);
 }

@@ -6,6 +6,7 @@ COPY services/admin-ui/package.json services/admin-ui/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY services/admin-ui/ ./
 COPY scaffolds /tmp/scaffolds-sot
+ENV AURA_SCAFFOLDS_SOT=/tmp/scaffolds-sot
 RUN node scripts/sync-scaffolds.cjs --from /tmp/scaffolds-sot
 RUN npm run build \
   && test -f dist/aura-logo.jpg \
