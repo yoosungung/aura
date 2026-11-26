@@ -30,12 +30,48 @@
 
 ## scaffold 목록
 
-| 경로 | kind | runtime | entrypoint |
-|------|------|---------|------------|
-| `scaffolds/agent-nodejs/` | agent | nodejs | `main:factory` |
-| `scaffolds/agent-python/` | agent | python | `main:factory` |
-| `scaffolds/mcp-nodejs/` | mcp | nodejs | `main:factory` |
-| `scaffolds/mcp-python/` | mcp | python | `main:factory` |
+| 경로 | kind | runtime | entrypoint | 샘플 |
+|------|------|---------|------------|------|
+| `scaffolds/agent-nodejs/` | agent | nodejs | `main:factory` | **동일 research agent** · tools=`naver_search`+`weather` |
+| `scaffolds/agent-python/` | agent | python | `main:factory` | **동일 research agent** · tools=`naver_search`+`weather` |
+| `scaffolds/mcp-nodejs/` | mcp | nodejs | `main:factory` | **Naver Search** (`naver_search`, 시크릿) |
+| `scaffolds/mcp-python/` | mcp | python | `main:factory` | **Open-Meteo** (`weather`, 키 없음) |
+
+### Agent 샘플 (nodejs ≡ python)
+
+두 런타임 agent는 **같은 `cfg.tools` / system prompt** 다. MCP 바이트는 agent zip에 넣지 않는다 — `runTurn`이 `mcpTool`(플랫폼) 또는 로컬 `_mcp_tool` mock으로 `naver-search`·`weather` 서버를 호출한다.
+
+### MCP 샘플 (이원화)
+
+echo만으로는 tool schema·외부 HTTPS·에러 경로를 배우기 어렵다. **두 슬롯이 다른 축**을 보여 준다.
+
+| | mcp-nodejs | mcp-python |
+|--|------------|------------|
+| tool | `naver_search` | `weather` |
+| API | `openapi.naver.com` Search | `api.open-meteo.com` forecast |
+| 시크릿 | `{ client_id, client_secret }` / `NAVER_*` env · Admin은 **`secrets_ref`만** | 없음 (`secrets` 자리만) |
+| HTTP 클라이언트 | `fetch` | **stdlib `urllib`** (`httpx` **미도입** — 공유 Function 핀 확대 보류) |
+| Egress 등록 | `openapi.naver.com` | `api.open-meteo.com` |
+| 오프라인 테스트 | mock `fetchImpl` | mock `fetch_impl` |
+
+공통 제약: Egress deny-default · gVisor · zip에 deps 금지 · **`mcp_invoke` PG 금지** · [`mcp-bundle-isolation.md`](mcp-bundle-isolation.md) · [`egress-block-verify.md`](egress-block-verify.md).  
+온디맨드 메모리 드릴은 scaffold 범위 밖(ARCHITECTURE §6.3 · ROADMAP 미결정).
+
+---
+
+## Admin UI 등록
+
+**슬롯별 따라 하기 SoT = 각 `scaffolds/*/README.md`** (Download zip 안에 README 포함).  
+이 절은 인덱스만 — 절차·폼 값·Overlay·Egress는 README에 중복하지 않고 README를 연다.
+
+| 슬롯 | README |
+|------|--------|
+| mcp-nodejs | [`scaffolds/mcp-nodejs/README.md`](../../scaffolds/mcp-nodejs/README.md) |
+| mcp-python | [`scaffolds/mcp-python/README.md`](../../scaffolds/mcp-python/README.md) |
+| agent-nodejs | [`scaffolds/agent-nodejs/README.md`](../../scaffolds/agent-nodejs/README.md) |
+| agent-python | [`scaffolds/agent-python/README.md`](../../scaffolds/agent-python/README.md) |
+
+권장 등록 순서(라이브 tool 경로): `naver-search`(+Overlay) → `weather` → `research-agent` (nodejs/python).
 
 ## Commands (로컬 factory)
 

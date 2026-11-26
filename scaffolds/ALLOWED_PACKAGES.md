@@ -30,5 +30,7 @@ scaffold 쪽 `package.json` / `requirements.txt` 는 위 핀의 **미러**(로�
 ### mcp · python
 `fastapi` · `nats-py` (+ 로컬 `pytest`) · PG 금지(Node `mcp`와 동일)
 
+**보류:** `httpx` — scaffold `weather`는 stdlib `urllib`로 충분. 공유 Function archive 전부에 들어가므로 필요해질 때만 **플랫폼 `services/mcp-invoke/python/requirements.txt`를 먼저** 핀한 뒤 미러.
+
 ## custom
 이미지 자체 deps — 이 zip/allowlist **비적용**.

@@ -5,8 +5,10 @@
 전제: `aura.rpc.memory.recall` hybrid RRF ([`../services/memory/DESIGN.md`](../../services/memory/DESIGN.md)).
 
 **이 문서 범위:** Agent가 recall 응답을 프롬프트에 넣는 **슬롯 분리·토큰 예산·금지 규칙**을 수치와 함께 고정.  
-**Non-goals:** LLM Gateway 호출 · Object Store/`content_ref` 제품·GC · graph walk(M4) · tokenizer 제품 확정.  
+**Non-goals:** LLM Gateway 호출 · Object Store/`content_ref` 제품·GC · graph walk(M4) · tokenizer 제품 확정 · **온디맨드 memory tool**(유형 드릴·`item_id` 상세 — 턴 시작 inject와 별개; ARCHITECTURE §6.3 · ROADMAP 미결정).  
 **패킹 구현:** M3 [`agent-invoke-mqt.md`](agent-invoke-mqt.md) · `services/agent-invoke` (`packRecallItems`, utf8/4 추정).
+
+**갭:** inject = 요약 슬롯 패킹. Agent가 tool로 메모리를 더 깊게 보는 API는 아직 없다. 채울 때는 NATS recall/`memory.get`만 — 테넌트 MCP의 PG 직접 읽기 **금지**.
 
 수치 출처: ARCHITECTURE §6.3 유형 예산 + recall 기본 `top_k=12` / short_term 슬롯 **4**. 운영 튜닝은 M3 부하 후 결정 로그 1행 + 이 문서·§6.3을 **같이** 고친다 — 여기서 새 숫자를 발명하지 않는다.
 

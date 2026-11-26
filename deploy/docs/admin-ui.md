@@ -188,7 +188,7 @@ append-only · FORCE RLS. activate / retire / overlay upsert·DELETE / source.cr
 
 | 규칙 | 내용 |
 |------|------|
-| Bundles | runtime 분기 · **Download scaffold (.zip)**(폴더+deps) · 등록 후 Activate / Sources CTA |
+| Bundles | runtime 분기 · **Download scaffold (.zip)**(폴더+deps·**README**) · 등록 후 Activate / Sources CTA · **등록 따라 하기=각 scaffold README** ([`scaffolds/`](../../scaffolds/)) |
 | Sources | status·kind 필터 · 행/그룹에서 `GET /v1/sources/{kind}/{name}` 버전 타임라인 · **Create → `/bundles`** |
 | Overlays | 목록 중심 · New/Edit **drawer** · Delete는 ConfirmDialog 유지 |
 | Audit | `GET /v1/audit?action=` 서버 필터 · source/overlay 리소스 딥링크 |

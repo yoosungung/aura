@@ -13,6 +13,6 @@
   },
   "aura": {
     "pin_from": "services/mcp-invoke/nodejs/package.json",
-    "note": "Install for local factory tests only. Do not upload node_modules — Admin Bundles takes main.js alone."
+    "note": "Install for local factory tests only. Do not upload node_modules — Admin Bundles takes source zip (main + lib)."
   }
 }

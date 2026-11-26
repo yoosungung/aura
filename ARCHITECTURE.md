@@ -557,6 +557,8 @@ RLS: `tenant_id::text = current_setting('app.tenant_id', true)` (또는 동등)�
 
 Agent는 **이 recall 응답 `items[]`만** 메모리 컨텍스트에 넣는다. 원문 전량·PG 직접 SELECT·`content_ref` 우회 덤프 금지(§1 #9).
 
+**주입 vs 온디맨드:** 현재 `agent_invoke`는 턴 시작 **1회 recall → 슬롯 패킹(요약)** 만 한다. 이는 Agent **tool이 아니다**. 유형별 재질의·`item_id` 상세·허용된 detail 조회 같은 **온디맨드 경로는 미구현**(후보: 플랫폼 내장/서명 tool → `aura.rpc.memory.recall` 재호출 또는 `memory.get`; **MCP/테넌트 번들의 PG SELECT 금지** · `mcp_invoke` PG 금지 유지). ROADMAP 미결정.
+
 **Agent 주입 슬롯·토큰 예산 (M2 고정 · 패킹 구현=M3)**
 
 | 슬롯 | 아이템 (default) | 토큰 상한 |
