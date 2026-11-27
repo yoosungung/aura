@@ -210,6 +210,38 @@ function loadEmbeddingsConfig(filePath, opts) {
   return embeddingsFromConfig(fs.readFileSync(filePath, 'utf8'), opts);
 }
 
+/**
+ * Optional routing.tiers from providers.json. Missing → null (aura-auto → routing_tiers_empty).
+ * @param {string} text
+ * @returns {{ tiers: Record<string, string> }|null}
+ */
+function routingFromConfig(text) {
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    throw fail('provider_config_invalid');
+  }
+  if (!doc || doc.routing == null) return null;
+  const tiers = doc.routing.tiers;
+  if (!tiers || typeof tiers !== 'object') return null;
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const k of ['simple', 'medium', 'complex']) {
+    if (tiers[k] != null && String(tiers[k])) out[k] = String(tiers[k]);
+  }
+  return Object.keys(out).length ? { tiers: out } : null;
+}
+
+/**
+ * @param {string} [filePath]
+ * @returns {{ tiers: Record<string, string> }|null}
+ */
+function loadRoutingConfig(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  return routingFromConfig(fs.readFileSync(filePath, 'utf8'));
+}
+
 module.exports = {
   PROVIDER_KINDS,
   providersFromConfig,
@@ -217,4 +249,6 @@ module.exports = {
   createEmbeddingsClient,
   embeddingsFromConfig,
   loadEmbeddingsConfig,
+  routingFromConfig,
+  loadRoutingConfig,
 };

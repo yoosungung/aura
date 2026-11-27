@@ -237,12 +237,27 @@ async def run_agent_turn(ctx: dict[str, Any], opts: dict[str, Any] | None = None
     if memory:
         system_prompt = f"{system_prompt}\n\nMemory context:\n{memory}"
 
+    chat_model = o.get("chat_model", ctx.get("chat_model"))
+    gateway_url = ctx.get("llm_gateway_base_url")
+    if chat_model is None and isinstance(gateway_url, str) and gateway_url:
+        from llm_gateway_model import assert_function_llm_egress, create_gateway_chat_model
+
+        assert_function_llm_egress(gateway_url)
+        principal = ctx.get("principal") if isinstance(ctx.get("principal"), dict) else {}
+        chat_model = create_gateway_chat_model(
+            base_url=gateway_url,
+            tenant_id=str(principal.get("tenant_id") or ""),
+            model=cfg.get("model") or "aura-default",
+            transport=ctx.get("llm_transport"),
+            route_pin=ctx.get("route_pin") or cfg.get("route_pin"),
+        )
+
     if not callable(create_agent):
         return await _stub(ctx, tools, publish, system_prompt)
 
     agent_obj = create_agent(
         {
-            "model": cfg.get("model") or "aura-default",
+            "model": chat_model if chat_model is not None else (cfg.get("model") or "aura-default"),
             "tools": tools,
             "system_prompt": system_prompt,
             "name": agent,

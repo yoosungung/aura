@@ -26,5 +26,12 @@ data:
         "kind": "ollama",
         "model": "embeddinggemma-2:270m-mxfp8-text",
         "baseUrl": "http://host.orb.internal:11434/v1"
+      },
+      "routing": {
+        "tiers": {
+          "simple": "gemma4:e2b-mlx",
+          "medium": "gemma4:e2b-mlx",
+          "complex": "gemma4:e2b-mlx"
+        }
       }
     }

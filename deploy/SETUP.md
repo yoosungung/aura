@@ -468,6 +468,7 @@ bash deploy/scripts/check-mcp-bundle-isolation.sh  # RuntimeClass/Egress/서명 
 bash deploy/scripts/check-egress-block-verify.sh   # NP+RuntimeClass 매니페스트 + offline simulator (no live CNI)
 bash deploy/scripts/check-llm-gateway.sh          # LLM Gateway 최소 + Function egress guard (no cluster)
 bash deploy/scripts/check-llm-gateway-fallback-billing.sh  # Fallback 모델 + 테넌트 과금 대시보드 (no live provider)
+bash deploy/scripts/check-llm-gateway-router.sh   # aura-auto 휴리스틱 콘텐츠 라우터 (no live provider)
 bash deploy/scripts/check-high-risk-tenant-nodepool.sh  # 고위험 RuntimeClass=kata + 전용 노드풀 정책 (no live pool)
 bash deploy/scripts/check-dlq-replay.sh                 # DLQ Replay 런북 + plan selftest (no live NATS)
 bash deploy/scripts/check-nats-mtls-secrets.sh  # NATS mTLS overlay + secrets mask/TTL cache (no live cert)
@@ -483,7 +484,7 @@ bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-sh
 | 매니페스트 | `k8s/mcp-invoke/` (MQT) · `k8s/mcp-invoke-rpc/` (poolmgr; **MQT 없음**) · `k8s/nats-rpc-bridge/` · `k8s/sandbox-egress/` · `k8s/llm-gateway/` |
 | PG | **금지** (Zero Direct Write) |
 | 격리 | RuntimeClass 기본=`gvisor` · Egress deny-default allowlist · 서명 vs 커스텀 ([`docs/mcp-bundle-isolation.md`](docs/mcp-bundle-isolation.md)) · 차단 검증 ([`docs/egress-block-verify.md`](docs/egress-block-verify.md)) · M5 고위험=`kata`+전용 노드풀 ([`docs/high-risk-tenant-nodepool.md`](docs/high-risk-tenant-nodepool.md) · `check-high-risk-tenant-nodepool.sh`) |
-| LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) · M5 Fallback/과금 [`docs/llm-gateway-fallback-billing.md`](docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` |
+| LLM | Function → `aura-llm-gateway`만 ([`docs/llm-gateway.md`](docs/llm-gateway.md) · `check-llm-gateway.sh`) · M5 Fallback/과금 [`docs/llm-gateway-fallback-billing.md`](docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` · M5.1 라우터 [`docs/llm-gateway-router.md`](docs/llm-gateway-router.md) · `check-llm-gateway-router.sh` |
 | NATS TLS | overlay [`k8s/nats-mtls/`](k8s/nats-mtls/) · mask/TTL [`docs/nats-mtls-secrets.md`](docs/nats-mtls-secrets.md) · `check-nats-mtls-secrets.sh` |
 | OTel (M4) | Function·NATS·PG attrs + mask [`docs/otel-function-nats-pg.md`](docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`../services/otel/`](../services/otel/) |
 | erase (M4) | crypto-shred + content_ref [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · [`../services/compliance/`](../services/compliance/) · `k8s/compliance-erase/` |

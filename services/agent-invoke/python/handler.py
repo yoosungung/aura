@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from fastapi import Request, Response
@@ -134,6 +135,10 @@ async def invoke_once(task: dict[str, Any], deps: dict[str, Any] | None = None) 
                 "depth": 1,
                 "agent_stack": [],
                 "memory_text": "",
+                "llm_gateway_base_url": d.get("llm_gateway_base_url")
+                or os.environ.get("AURA_LLM_GATEWAY_URL"),
+                "llm_transport": d.get("llm_transport"),
+                "route_pin": d.get("route_pin"),
             },
             {"create_agent": d["create_agent"]},
         )

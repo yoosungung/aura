@@ -2,6 +2,8 @@
 # Image: aura/llm-gateway:local (deploy/scripts/build-gateway-images.sh).
 # Provider catalog: ConfigMap aura-llm-gateway-providers (default ollama gemma4:e2b).
 # Kinds: stub | ollama | openai | vllm | sglang. Keys via Secret env, not this file.
+# HTTP: POST /v1/chat/completions · POST /v1/embeddings · GET /v1/billing/usage · GET /healthz
+# Routing: model aura-auto + ConfigMap routing.tiers · optional X-Aura-Route-Pin.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

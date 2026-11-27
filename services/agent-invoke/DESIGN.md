@@ -33,7 +33,7 @@ MCP: [`../mcp-invoke/DESIGN.md`](../mcp-invoke/DESIGN.md).
 |------|------|
 | `DESIGN.md` | 공통 계약 |
 | `nodejs/` | LangChain.js `createAgent` · selftest |
-| `python/` | 패리티 handler · pytest |
+| `python/` | 패리티 handler · `llm_gateway_model.py`(`aura-auto` pin) · pytest |
 | `testdata/` | 공유 JSON 픽스처 (`invoke_identifiers_only` · `agent_specs`) |
 
 ---
@@ -45,7 +45,7 @@ resolve `cfg` 최상위. `runtime` 키는 금지. user overlay는 기존 1-depth
 | 키 | 형태 | 규칙 |
 |----|------|------|
 | `system_prompt` | string | 없으면 `You are an Aura agent.` |
-| `model` | string | 없으면 `aura-default`. LLM은 Gateway client만 |
+| `model` | string | 없으면 `aura-default`. LLM은 Gateway client만. `aura-auto`면 Gateway 휴리스틱 라우팅 + 턴 간 `X-Aura-Route-Pin` 재전달(하향 금지) |
 | `tools` | `{ server, version, name }[]` | 이 목록만 MCP 바인딩. 키 없음=레거시 범용 `mcp_tool`(input.tool). `[]`=툴 없음 |
 | `sub_agents` | `{ name, version, description }[]` | 같은 테넌트 `kind=agent` active 행 참조. 프롬프트·툴 인라인 금지 |
 

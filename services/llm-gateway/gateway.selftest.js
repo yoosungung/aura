@@ -25,8 +25,18 @@ const {
   embeddingsFromConfig,
   loadEmbeddingsConfig,
   createEmbeddingsClient,
+  routingFromConfig,
 } = require('./providers');
+const { scorePrompt, resolveRoute, AUTO_MODEL } = require('./router');
 const { createServer } = require('./entrypoint');
+
+const ROUTING_TIERS = Object.freeze({
+  tiers: {
+    simple: 'model-cheap',
+    medium: 'model-mid',
+    complex: 'model-strong',
+  },
+});
 
 function fail(msg) {
   console.error('FAIL:', msg);
@@ -541,6 +551,204 @@ async function testEmbeddingsCatalog() {
   ok('embeddings catalog + OpenAI /embeddings proxy');
 }
 
+async function testRouterHeuristicUnits() {
+  const simple = scorePrompt([{ role: 'user', content: 'hi' }]);
+  assert.strictEqual(simple.tier, 'simple');
+
+  const complex = scorePrompt([
+    {
+      role: 'user',
+      content:
+        'Please analyze and design a step-by-step refactor plan for this ```js\nfunction x(){}\n``` and prove the complexity.',
+    },
+  ]);
+  assert.strictEqual(complex.tier, 'complex');
+
+  const pinned = resolveRoute({
+    model: AUTO_MODEL,
+    messages: [{ role: 'user', content: 'hi' }],
+    pin: 'complex',
+    routingConfig: ROUTING_TIERS,
+  });
+  assert.strictEqual(pinned.route.tier, 'complex');
+  assert.strictEqual(pinned.model, 'model-strong');
+  assert.strictEqual(pinned.route.pin, 'complex');
+
+  const fixed = resolveRoute({
+    model: 'aura-default',
+    messages: [{ role: 'user', content: 'hi' }],
+    routingConfig: ROUTING_TIERS,
+  });
+  assert.strictEqual(fixed.routed, false);
+  assert.strictEqual(fixed.model, 'aura-default');
+  ok('router heuristic units + pin never downgrade');
+}
+
+async function testAuraAutoRoutesSimpleAndComplex() {
+  const served = [];
+  const provider = {
+    name: 'stub-route',
+    async complete(req) {
+      served.push(req.model);
+      return {
+        id: 'chatcmpl-route',
+        object: 'chat.completion',
+        created: 1,
+        model: req.model,
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      };
+    },
+  };
+  const usage = createUsageLog();
+  const gw = createLlmGateway({
+    provider,
+    routing: ROUTING_TIERS,
+    usageLog: usage,
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+
+  const hi = await gw.handleChatCompletions({
+    tenant_id: 't-route',
+    body: { model: 'aura-auto', messages: [{ role: 'user', content: 'hi' }] },
+  });
+  assert.strictEqual(hi.status, 200);
+  assert.strictEqual(hi.body.aura.route.tier, 'simple');
+  assert.strictEqual(hi.body.aura.route.model_selected, 'model-cheap');
+  assert.strictEqual(hi.body.aura.model_requested, 'aura-auto');
+  assert.strictEqual(hi.body.aura.model_served, 'model-cheap');
+  assert.strictEqual(served[0], 'model-cheap');
+  assert.strictEqual(usage.entries[0].route_tier, 'simple');
+
+  const hard = await gw.handleChatCompletions({
+    tenant_id: 't-route',
+    body: {
+      model: 'aura-auto',
+      messages: [
+        {
+          role: 'user',
+          content:
+            'Analyze and design a step-by-step architecture; include ```python\ndef f():\n  pass\n``` and prove the theorem.',
+        },
+      ],
+    },
+  });
+  assert.strictEqual(hard.status, 200);
+  assert.strictEqual(hard.body.aura.route.tier, 'complex');
+  assert.strictEqual(hard.body.aura.model_served, 'model-strong');
+  assert.strictEqual(served[1], 'model-strong');
+  ok('aura-auto routes simple→cheap and complex→strong');
+}
+
+async function testPinnedModelSkipsRouter() {
+  const served = [];
+  const gw = createLlmGateway({
+    provider: {
+      name: 'stub',
+      async complete(req) {
+        served.push(req.model);
+        return {
+          id: 'c',
+          object: 'chat.completion',
+          created: 1,
+          model: req.model,
+          choices: [{ index: 0, message: { role: 'assistant', content: 'x' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        };
+      },
+    },
+    routing: ROUTING_TIERS,
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+  const res = await gw.handleChatCompletions({
+    tenant_id: 't-pin-model',
+    body: { model: 'aura-default', messages: [{ role: 'user', content: 'hi' }] },
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.aura.route, undefined);
+  assert.strictEqual(served[0], 'aura-default');
+  ok('concrete model skips content router');
+}
+
+async function testRoutePinNeverDowngrades() {
+  const gw = createLlmGateway({
+    provider: createStubProvider({ content: 'p' }),
+    routing: ROUTING_TIERS,
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+  const res = await gw.handleChatCompletions({
+    tenant_id: 't-pin',
+    route_pin: 'complex',
+    body: { model: 'aura-auto', messages: [{ role: 'user', content: 'hi' }] },
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.aura.route.tier, 'complex');
+  assert.strictEqual(res.body.aura.route.pin, 'complex');
+  assert.strictEqual(res.body.aura.model_served, 'model-strong');
+  ok('route pin never downgrades tier');
+}
+
+async function testRouteThenFallback() {
+  let primaryCalls = 0;
+  let fallbackCalls = 0;
+  const gw = createLlmGateway({
+    providers: [
+      {
+        name: 'primary',
+        async complete() {
+          primaryCalls += 1;
+          const err = new Error('boom');
+          err.code = 'provider_error';
+          throw err;
+        },
+      },
+      {
+        name: 'secondary',
+        async complete(req) {
+          fallbackCalls += 1;
+          return {
+            id: 'c',
+            object: 'chat.completion',
+            created: 1,
+            model: req.model,
+            choices: [{ index: 0, message: { role: 'assistant', content: 'fb' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          };
+        },
+      },
+    ],
+    routing: ROUTING_TIERS,
+    fallbackModels: { 'model-cheap': 'model-cheap-fb' },
+    limits: { ratePerSec: 100, burst: 100 },
+  });
+  const res = await gw.handleChatCompletions({
+    tenant_id: 't-rfb',
+    body: { model: 'aura-auto', messages: [{ role: 'user', content: 'hi' }] },
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.aura.route.tier, 'simple');
+  assert.strictEqual(res.body.aura.fallback_used, true);
+  assert.strictEqual(res.body.aura.model_served, 'model-cheap-fb');
+  assert.strictEqual(primaryCalls, 1);
+  assert.strictEqual(fallbackCalls, 1);
+  ok('content route then availability fallback');
+}
+
+async function testRoutingFromConfig() {
+  const r = routingFromConfig(
+    JSON.stringify({
+      providers: [{ kind: 'stub' }],
+      routing: { tiers: { simple: 'a', medium: 'b', complex: 'c' } },
+    }),
+  );
+  assert.deepStrictEqual(r.tiers, { simple: 'a', medium: 'b', complex: 'c' });
+  assert.strictEqual(
+    routingFromConfig(JSON.stringify({ providers: [{ kind: 'stub' }] })),
+    null,
+  );
+  ok('routingFromConfig parses tiers');
+}
+
 async function testEmbeddingsHttp() {
   const vec = Array(4).fill(0.25);
   let fetchCalls = 0;
@@ -633,6 +841,12 @@ async function testEmbeddingsHttp() {
     await testProviderKinds();
     await testEmbeddingsCatalog();
     await testEmbeddingsHttp();
+    await testRouterHeuristicUnits();
+    await testAuraAutoRoutesSimpleAndComplex();
+    await testPinnedModelSkipsRouter();
+    await testRoutePinNeverDowngrades();
+    await testRouteThenFallback();
+    await testRoutingFromConfig();
     console.log('llm-gateway.selftest: PASS');
   } catch (e) {
     fail(e && e.stack ? e.stack : String(e));

@@ -54,6 +54,31 @@ async function main() {
   assert.strictEqual(inv.content, 'hello-from-gw');
   assert.strictEqual(calls[0].headers['x-aura-tenant-id'], 'tenant-a');
 
+  // aura-auto: pin from response re-delivered on next invoke
+  const autoCalls = [];
+  const autoModel = createGatewayChatModel({
+    baseUrl: 'http://aura-llm-gateway.aura.svc.cluster.local:8080',
+    tenantId: 'tenant-a',
+    model: 'aura-auto',
+    transport: async (req) => {
+      autoCalls.push(req);
+      return {
+        status: 200,
+        body: {
+          choices: [{ message: { content: 'routed' } }],
+          aura: {
+            route: { tier: 'complex', reason: 'pin', model_selected: 'm', pin: null },
+          },
+        },
+      };
+    },
+  });
+  await autoModel.invoke([{ role: 'user', content: 'hi' }]);
+  assert.strictEqual(autoCalls[0].headers['x-aura-route-pin'], undefined);
+  assert.strictEqual(autoModel.getRoutePin(), 'complex');
+  await autoModel.invoke([{ role: 'user', content: 'again' }]);
+  assert.strictEqual(autoCalls[1].headers['x-aura-route-pin'], 'complex');
+
   // createAgent injectable path
   const frames = [];
   const fakeCreateAgent = () => ({

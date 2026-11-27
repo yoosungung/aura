@@ -4,8 +4,11 @@
  * Cluster LLM Gateway — sole Function→provider exit (ARCHITECTURE §9.4).
  * M3: chat completions · tenant rate limit · circuit breaker · usage/cost log.
  * M5: ordered Fallback 모델 · 테넌트 과금 대시보드(usage aggregate).
- * Non-goals: live provider 키 필수 CI · 가중치 서빙 · streaming SSE 본배선 · PG ledger.
+ * M5.1: aura-auto heuristic content router (before availability Fallback).
+ * Non-goals: live provider 키 필수 CI · 가중치 서빙 · streaming SSE 본배선 · PG ledger · learned router.
  */
+
+const { resolveRoute } = require('./router');
 
 const DEFAULT_LLM_LIMITS = Object.freeze({
   ratePerSec: 20,
@@ -275,6 +278,7 @@ function renderBillingDashboard(summary) {
  *   provider?: { name?: string, complete: Function },
  *   providers?: { name?: string, complete: Function }[],
  *   fallbackModels?: Record<string, string>,
+ *   routing?: { tiers?: Record<string, string> }|null,
  *   circuitBreaker?: ReturnType<typeof createCircuitBreaker>,
  *   usageLog?: ReturnType<typeof createUsageLog>,
  *   limits?: object,
@@ -288,6 +292,8 @@ function createLlmGateway(deps) {
     d.fallbackModels && typeof d.fallbackModels === 'object'
       ? d.fallbackModels
       : {};
+  const routing =
+    d.routing && typeof d.routing === 'object' ? d.routing : null;
   const breaker = d.circuitBreaker || createCircuitBreaker({ now: d.now });
   const usageLog = d.usageLog || createUsageLog();
   const limits = normalizeLimits(d.limits);
@@ -295,7 +301,7 @@ function createLlmGateway(deps) {
   const bucket = createTenantBucket(limits, now);
 
   /**
-   * @param {{ tenant_id?: string, body?: object }} req
+   * @param {{ tenant_id?: string, body?: object, route_pin?: string|null }} req
    * @returns {Promise<{ status: number, body: object }>}
    */
   async function handleChatCompletions(req) {
@@ -320,6 +326,18 @@ function createLlmGateway(deps) {
       };
     }
 
+    const routed = resolveRoute({
+      model: body.model,
+      messages: body.messages,
+      pin: r.route_pin,
+      routingConfig: routing,
+    });
+    if (routed.error === 'routing_tiers_empty') {
+      return { status: 400, body: { error: 'routing_tiers_empty', aura: { route: routed.route } } };
+    }
+    const effectiveModel = routed.routed ? routed.model : body.model;
+    const routeMeta = routed.routed ? routed.route : null;
+
     /** @type {{ provider: string, model: string, ok: boolean, error?: string }[]} */
     const attempts = [];
     let lastError = null;
@@ -327,7 +345,7 @@ function createLlmGateway(deps) {
     for (let i = 0; i < providers.length; i += 1) {
       const provider = providers[i];
       const providerName = provider.name || `provider-${i}`;
-      const model = modelForAttempt(body.model, i, fallbackModels);
+      const model = modelForAttempt(effectiveModel, i, fallbackModels);
       const gate = breaker.allow(providerName);
       if (!gate.allow) {
         attempts.push({
@@ -364,6 +382,7 @@ function createLlmGateway(deps) {
           total_tokens: usage.total_tokens,
           cost_usd: estimateCostUsd(usage),
           fallback_used: fallbackUsed,
+          route_tier: routeMeta ? routeMeta.tier : undefined,
           at_ms: now(),
         });
         const out = {
@@ -377,6 +396,7 @@ function createLlmGateway(deps) {
             attempts,
           },
         };
+        if (routeMeta) out.aura.route = routeMeta;
         return { status: 200, body: out };
       } catch (e) {
         breaker.recordFailure(providerName);

@@ -9,7 +9,11 @@
 
 const http = require('http');
 const { createLlmGateway } = require('./gateway');
-const { loadProvidersFile, loadEmbeddingsConfig } = require('./providers');
+const {
+  loadProvidersFile,
+  loadEmbeddingsConfig,
+  loadRoutingConfig,
+} = require('./providers');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -29,12 +33,19 @@ function tenantFrom(req) {
   );
 }
 
+function routePinFrom(req) {
+  const h = req.headers || {};
+  const pin = h['x-aura-route-pin'] || h['x-aura-route_pin'] || null;
+  return pin != null && pin !== '' ? String(pin) : null;
+}
+
 function gatewayDeps(opts) {
   if (opts.providers || opts.provider) {
     return {
       provider: opts.provider,
       providers: opts.providers,
       fallbackModels: opts.fallbackModels,
+      routing: opts.routing != null ? opts.routing : null,
       limits: opts.limits,
     };
   }
@@ -42,6 +53,7 @@ function gatewayDeps(opts) {
   return {
     providers: loadProvidersFile(file, { fetch: globalThis.fetch }),
     fallbackModels: opts.fallbackModels,
+    routing: opts.routing != null ? opts.routing : loadRoutingConfig(file),
     limits: opts.limits,
   };
 }
@@ -117,6 +129,7 @@ function createServer(opts = {}) {
         }
         const out = await gw.handleChatCompletions({
           tenant_id: tenantFrom(req),
+          route_pin: routePinFrom(req),
           body,
         });
         res.writeHead(out.status || 500, { 'content-type': 'application/json' });

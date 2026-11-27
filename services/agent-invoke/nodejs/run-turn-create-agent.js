@@ -278,6 +278,7 @@ async function createAgentRunTurn(ctx, opts) {
       tenantId: ctx.principal && ctx.principal.tenant_id,
       model: (ctx.cfg && ctx.cfg.model) || 'aura-default',
       transport: ctx.llmTransport,
+      routePin: ctx.routePin || (ctx.cfg && ctx.cfg.route_pin) || null,
     });
   }
 

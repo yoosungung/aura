@@ -90,7 +90,7 @@ function createLlmGatewayClient(opts) {
 
   return {
     /**
-     * @param {{ tenant_id: string, model: string, messages: object[], stream?: boolean }} req
+     * @param {{ tenant_id: string, model: string, messages: object[], stream?: boolean, route_pin?: string|null }} req
      */
     async chatCompletions(req) {
       const r = req && typeof req === 'object' ? req : {};
@@ -104,25 +104,26 @@ function createLlmGatewayClient(opts) {
         messages: r.messages,
       };
       if (r.stream != null) body.stream = r.stream;
+      const headers = {
+        'content-type': 'application/json',
+        'x-aura-tenant-id': r.tenant_id,
+      };
+      if (r.route_pin != null && r.route_pin !== '') {
+        headers['x-aura-route-pin'] = String(r.route_pin);
+      }
       const path = '/v1/chat/completions';
       if (typeof transport === 'function') {
         return transport({
           method: 'POST',
           url: `${base}${path}`,
           path,
-          headers: {
-            'content-type': 'application/json',
-            'x-aura-tenant-id': r.tenant_id,
-          },
+          headers,
           body,
         });
       }
       const res = await fetch(`${base}${path}`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-aura-tenant-id': r.tenant_id,
-        },
+        headers,
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));

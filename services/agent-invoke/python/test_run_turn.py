@@ -142,6 +142,69 @@ async def test_sub_agent_reenter_and_depth_cap():
 
 
 @pytest.mark.asyncio
+async def test_aura_auto_route_pin_redelivery():
+    from llm_gateway_model import create_gateway_chat_model
+
+    calls = []
+
+    async def transport(req):
+        calls.append(req)
+        return {
+            "status": 200,
+            "body": {
+                "choices": [{"message": {"content": "routed"}}],
+                "aura": {
+                    "route": {
+                        "tier": "complex",
+                        "reason": "pin",
+                        "model_selected": "m",
+                        "pin": None,
+                    }
+                },
+            },
+        }
+
+    with pytest.raises(Exception, match="provider_direct_forbidden"):
+        create_gateway_chat_model(
+            base_url="https://api.openai.com/v1",
+            tenant_id="t1",
+        )
+
+    model = create_gateway_chat_model(
+        base_url="http://aura-llm-gateway.aura.svc.cluster.local:8080",
+        tenant_id="tenant-a",
+        model="aura-auto",
+        transport=transport,
+    )
+    await model.invoke([{"role": "user", "content": "hi"}])
+    assert "x-aura-route-pin" not in calls[0]["headers"]
+    assert model.get_route_pin() == "complex"
+    await model.invoke([{"role": "user", "content": "again"}])
+    assert calls[1]["headers"]["x-aura-route-pin"] == "complex"
+
+    seen_models = []
+
+    def create_agent(args):
+        seen_models.append(args["model"])
+
+        class Agent:
+            async def invoke(self, _payload):
+                return {"content": "ok"}
+
+        return Agent()
+
+    await run_agent_turn(
+        _ctx(
+            cfg={"model": "aura-auto", "tools": [], "system_prompt": "x"},
+            llm_gateway_base_url="http://aura-llm-gateway.aura.svc.cluster.local:8080",
+            llm_transport=transport,
+        ),
+        {"create_agent": create_agent},
+    )
+    assert getattr(seen_models[0], "_aura_gateway", False) is True
+
+
+@pytest.mark.asyncio
 async def test_depth_and_cycle_rejected():
     with pytest.raises(RuntimeError, match="agent_depth_exceeded"):
         await run_agent_turn(
