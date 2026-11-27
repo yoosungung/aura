@@ -75,15 +75,25 @@ echo만으로는 tool schema·외부 HTTPS·에러 경로를 배우기 어렵다
 
 ## Commands (로컬 factory)
 
+모노레포 기여자(루트 workspaces + 공유 `.venv`):
+
+```bash
+npm install
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+npm test -w aura-scaffold-agent-nodejs
+npm test -w aura-scaffold-mcp-nodejs
+.venv/bin/python -m pytest -q scaffolds/agent-python
+node services/object-store/bundle-zip.selftest.js
+```
+
+테넌트 zip 단독(압축 해제 폴더):
+
 ```bash
 cd scaffolds/agent-nodejs && npm install && npm test
 cd scaffolds/mcp-nodejs && npm install && npm test
-
 python3 -m venv scaffolds/agent-python/.venv
 scaffolds/agent-python/.venv/bin/pip install -r scaffolds/agent-python/requirements.txt
 scaffolds/agent-python/.venv/bin/python -m pytest -q scaffolds/agent-python
-
-node services/object-store/bundle-zip.selftest.js
 ```
 
 Admin UI 정적 미러:

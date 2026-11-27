@@ -6,11 +6,15 @@
 
 ## 로컬
 
+테넌트 zip 단독:
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pytest -q
 ```
+
+모노레포 기여자: 루트 `.venv` + `pip install -r requirements.txt` 후 `.venv/bin/python -m pytest -q scaffolds/mcp-python`.
 
 업로드 zip: **`.venv` / site-packages 제외**. zip **루트**에 `main.py` · `lib/` 가 오게 묶는다. entrypoint=`main:factory`.
 

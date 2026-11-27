@@ -282,6 +282,8 @@ async function createAgentRunTurn(ctx, opts) {
     });
   }
 
+  const createAgentInjected =
+    o.createAgent !== undefined || (ctx && ctx.createAgent !== undefined);
   let createAgent =
     o.createAgent !== undefined ? o.createAgent : ctx.createAgent;
   if (createAgent === undefined) {
@@ -289,6 +291,11 @@ async function createAgentRunTurn(ctx, opts) {
   }
 
   if (typeof createAgent !== 'function') {
+    return stubAgentLoop(ctx, tools, publish);
+  }
+  // Auto-loaded langchain createAgent needs a BaseChatModel. Without chatModel
+  // (no gateway), keep stub even when root workspaces install langchain.
+  if (!createAgentInjected && !chatModel) {
     return stubAgentLoop(ctx, tools, publish);
   }
 

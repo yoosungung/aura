@@ -14,6 +14,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ARCHITECTURE.md` | **계약사항(불변 규칙)** + 컴포넌트 *간* 인터페이스 형태(스키마·레이아웃·이벤트) | 루트 |
 | `MESSAGE-FLOW.md` | 전체 시스템 **메시지·호출 흐름** 다이어그램 (채널·E2E·MQT 파드·메모리·RPC) | 루트 |
 | `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
+| `package.json` · `requirements.txt` · `.venv/` · `node_modules/` | 모노레포 **로컬 deps** (npm workspaces + 공유 venv; `admin-ui`는 제외·자체 lock) | 루트 |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |

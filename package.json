@@ -1,0 +1,19 @@
+{
+  "name": "aura",
+  "private": true,
+  "description": "Aura monorepo — npm workspaces (admin-ui excluded)",
+  "workspaces": [
+    "services/control",
+    "services/gateway",
+    "services/llm-gateway",
+    "services/memory",
+    "services/memory-capture",
+    "services/nats-rpc-bridge",
+    "services/nats-task-bridge",
+    "services/otel",
+    "services/agent-invoke/nodejs",
+    "services/mcp-invoke/nodejs",
+    "scaffolds/agent-nodejs",
+    "scaffolds/mcp-nodejs"
+  ]
+}

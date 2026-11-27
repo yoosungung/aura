@@ -5,10 +5,14 @@
 
 ## 로컬
 
+테넌트 zip 단독:
+
 ```bash
 npm install
 npm test
 ```
+
+모노레포 기여자: 루트 `npm install` 후 `npm test -w aura-scaffold-agent-nodejs`.
 
 업로드 zip: **`node_modules` 제외**. zip **루트**에 `main.js` · `lib/` 가 오게 묶는다. entrypoint=`main:factory`.
 

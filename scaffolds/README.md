@@ -16,9 +16,13 @@ Admin **Download scaffold (.zip)** = 해당 폴더 전체. 업로드 시 **`node
 
 ## 로컬 테스트
 
+**모노레포 기여자:** 루트에서 `npm install` + `.venv`(공유).  
+**테넌트 zip 단독:** 압축 해제 폴더 안 `npm install` / `.venv` + `pip -r requirements.txt` (미러 파일 유지).
+
 ```bash
-cd scaffolds/agent-nodejs && npm install && npm test
-cd scaffolds/mcp-nodejs && npm install && npm test
-# python: 각 폴더 README (.venv + pip -r requirements.txt + pytest)
+# from repo root (after npm install + .venv)
+npm test -w aura-scaffold-agent-nodejs
+npm test -w aura-scaffold-mcp-nodejs
+.venv/bin/python -m pytest -q scaffolds/agent-python scaffolds/mcp-python
 node services/object-store/bundle-zip.selftest.js
 ```

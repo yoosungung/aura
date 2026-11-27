@@ -40,9 +40,8 @@ digest는 `sha256:` + hex. 비교는 호출한 Function과 activate가 한다. �
 node services/object-store/get-object.selftest.js
 node services/object-store/bundle-cache.selftest.js
 node services/object-store/bundle-zip.selftest.js
-python3 -m venv services/object-store/.venv
-services/object-store/.venv/bin/pip install pytest
-services/object-store/.venv/bin/python -m pytest services/object-store/test_get_object.py services/object-store/test_bundle_zip.py
+# root shared .venv (see README Quickstart)
+.venv/bin/python -m pytest services/object-store/test_get_object.py services/object-store/test_bundle_zip.py
 bash deploy/scripts/check-object-store-garage.sh
 ```
 
