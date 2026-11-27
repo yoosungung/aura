@@ -86,6 +86,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-26 | **MCP scaffold 이원화** — nodejs=`naver_search`(시크릿) · python=`weather`(Open-Meteo·키 없음) · **httpx 미도입**(mcp allowlist/핀 확대 보류 · stdlib) · mock 오프라인 selftest | [`deploy/docs/tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · `scaffolds/mcp-*` |
 | 2026-11-26 | **온디맨드 memory tool = 갭** — inject(턴 시작 recall 요약) ≠ Agent tool. 유형 드릴/`item_id` 상세는 미구현. 후보=플랫폼 tool→`aura.rpc.memory.recall`\|`memory.get` · **MCP PG SELECT 금지** | §6.3 · [`agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · 아래 미결정 |
 | 2026-11-26 | **Agent scaffold = 동일 2-tool agent** — nodejs≡python · `cfg.tools`=`naver_search`+`weather` · MCP 인라인 금지 · `_mcp_tool`/ctx.`mcpTool` mock selftest | [`tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · `scaffolds/agent-*` |
+| 2026-11-27 | **Opik = LLM Agent 관측 후보** — **self-hosted / self-service (in-cluster K8s)** · Comet Cloud SaaS 비채택(현 시점) · OTLP sink · `services/otel`(attribute allowlist)과 **분리** · 스팬 출처 후보=LLM Gateway/`agent_invoke` · Collector live·마일스톤 배정=후속 | §9.2 · 아래 미결정 |
 | (M0) | async 콜드 p95 기입 | M0 잔여 |
 
 ---
@@ -336,6 +337,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] DLQ Replay 운영 도구 + 런북 — [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md) · `check-dlq-replay.sh` · `dlq-replay.sh` · [`services/ops/dlq-replay/`](services/ops/dlq-replay/)
 - [x] 정기 PG 복구 훈련 캘린더 — [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh` · [`services/ops/pitr-drill/calendar.js`](services/ops/pitr-drill/calendar.js) (분기≥1 · 스택변경≤14일 · lab-1이 2026-Q4 시드)
 - [~] (출시 후 후보) NATS Account 격리 설계 착수 — eric 연기 (2026-11-19)
+- [~] **Opik (LLM Agent 관측)** — self-hosted/self-service **in-cluster K8s** · OTLP → Opik · `services/otel` allowlist·마스킹 유지 · Gateway/`agent_invoke` 스팬 · Cloud SaaS 비범위 · 마일스톤 미배정 (2026-11-27)
 
 ---
 
@@ -414,6 +416,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - ~~RPO/RTO **드릴 실측으로 초안 교체**~~ — **M4 확정:** 예산 **RPO ≤ 5m · RTO ≤ 1h**(lab-1 ≈3.2s/3.1s 충족) · [`pg-pitr-drill.md`](deploy/docs/pg-pitr-drill.md). ~~CNPG/Barman 스케일 재드릴=M5~~ → **M5 캘린더** [`pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) (cluster 드릴은 슬롯·Barman live 시)
 - ~~암호화 키 KMS 제품~~ — **M4 고정:** OpenBao Transit (`openbao-transit`); 클라우드 KMS·live apply=`@eric`/M5
 - **온디맨드 memory tool** — 턴 시작 inject(요약 슬롯)만 존재. Agent가 유형별 재질의·item 상세를 tool로 보는 경로 미정. 후보: 플랫폼 내장/서명 MCP → NATS `aura.rpc.memory.recall` 재호출 또는 `memory.get`(예산·원문 덤프 금지는 inject와 동일) · **테넌트 번들/MCP의 PG 직접 SELECT 금지** · `mcp_invoke` PG 금지 유지. 마일스톤 배정=후속(M3.5+/M4 후보)
+- **Opik (LLM Agent 관측)** — **self-hosted/self-service in-cluster K8s** 후보(2026-11-27). OTLP sink · `services/otel` attribute 정책과 분리 · 스팬=LLM Gateway/`agent_invoke` · prompt/PII redaction·Egress·테넌트 매핑·Collector live·마일스톤=미정. Comet Cloud SaaS 비채택(현 시점)
 
 ---
 
