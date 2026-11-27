@@ -17,7 +17,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
-| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **tenant scaffold** [`tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · **multi-file zip** [`tenant-bundle-multifile.md`](deploy/docs/tenant-bundle-multifile.md) · **관리 UI** [`admin-ui.md`](deploy/docs/admin-ui.md) · **LLM 콘텐츠 라우터** [`llm-gateway-router.md`](deploy/docs/llm-gateway-router.md) · …) | `deploy/docs/` |
+| `deploy/docs/` | 배포·스모크 **계획** 문서 (… · **tenant scaffold** [`tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · **multi-file zip** [`tenant-bundle-multifile.md`](deploy/docs/tenant-bundle-multifile.md) · **관리 UI** [`admin-ui.md`](deploy/docs/admin-ui.md) · **LLM 콘텐츠 라우터** [`llm-gateway-router.md`](deploy/docs/llm-gateway-router.md) · **GHCR 이미지** [`ghcr-images.md`](deploy/docs/ghcr-images.md) · …) | `deploy/docs/` |
+| `.github/workflows/images.yml` | 제품 이미지 GHCR 게시 (`latest` + `sha-<short>` · tagged **최근 3**) | `.github/workflows/` |
 | `scaffolds/` | 테넌트 agent/MCP **로컬 번들 샘플** + [`ALLOWED_PACKAGES.md`](scaffolds/ALLOWED_PACKAGES.md) allowlist (핀=`services/*/package.json`·`requirements.txt`) | 루트 |
 | `deploy/sql/` | 메모리·컨트롤·런타임 PG DDL (… · **`tenant_meta`/`source_meta`/`user_meta`/`control_audit`** · **`agent_checkpoints`**) | `deploy/sql/` |
 | `deploy/k8s/` | **제품** 매니페스트 (NATS base · PG · memory/agent/mcp/gateway …) — 프로덕션 후보 | `deploy/k8s/` |
@@ -68,7 +69,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 - **`deploy/k8s/` = 제품**, **`deploy/dev/` = smoke·로컬 하네스**. 스모크 매니페스트를 `deploy/k8s/`에 두지 않는다. 프로덕션 apply 경로에 `deploy/dev/`·`apply-split-deploy.sh`·`smoke-*.sh`를 넣지 않는다.
 - **Fission Environment는 `deploy/k8s/runtime-envs/` 런타임×계급 공용** (`aura-nodejs-*` · `aura-python-*`; 후속 custom). 서비스별 Environment·서비스별 `*-rr` Deployment를 추가하지 않는다. sync RPC는 `aura-nats-rpc-bridge` → Fission Router → sync Function(`poolmgr`)만. agent/mcp async는 `aura-nats-task-bridge` → Router(언어별 MQT 금지).
 - 파일이 새로 생기거나 용도가 바뀌면 위 표를 즉시 갱신한다.
-- 배포 런북은 `deploy/SETUP.md`, Kustomize는 `deploy/k8s/base/`, CI는 `.github/workflows/ci.yml`. **빈 stub을 만들지 않는다** — 실제 절차·매니페스트가 생길 때 작성한다.
+- 배포 런북은 `deploy/SETUP.md`, Kustomize는 `deploy/k8s/base/`, CI는 `.github/workflows/ci.yml`(체크 게이트)·[`.github/workflows/images.yml`](.github/workflows/images.yml)(GHCR 이미지). **빈 stub을 만들지 않는다** — 실제 절차·매니페스트가 생길 때 작성한다.
 
 ## 2. 수행 방법 (How we work in this repo)
 
@@ -99,6 +100,7 @@ M4 진행: consolidate/graph/TTL/archive/object_gc/shared-bucket · **OTel** · 
 M5 진행: **LLM Gateway Fallback + 테넌트 과금 대시보드** · **M5.1 `aura-auto` 콘텐츠 라우터** [`deploy/docs/llm-gateway-router.md`](deploy/docs/llm-gateway-router.md) · **고위험 RuntimeClass/노드풀** · **DLQ Replay** · **정기 PITR 캘린더** (NATS Account=잔여).  
 M6 진행: **관리 UI ops-only MVP** [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · `check-admin-ui-mvp.sh` · 관리 HTTP · 서버 checksum activate · `control_audit` · resolve Pooler SELECT · [`services/admin-ui/`](services/admin-ui/).  
 M6.1 진행: **Admin UI React 재설계** [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `check-admin-ui.sh` · Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · `GET /v1/audit` · PG SoR · KV=Gateway만 · Phase2 quota=control-admin→NATS RR.  
-다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · 랩 Garage bootstrap · M6 live Pooler.
+**GHCR 이미지:** [`deploy/docs/ghcr-images.md`](deploy/docs/ghcr-images.md) · `check-ghcr-images.sh` · `images.yml` (`latest`+`sha-<short>` · keep 3 · 랩 `:local` 유지).  
+다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · 랩 Garage bootstrap · M6 live Pooler · k8s GHCR 컷오버.
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.
