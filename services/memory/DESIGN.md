@@ -4,7 +4,7 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk** · **ttl 월 파티션 DROP**).  
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
-**이 문서 범위:** `svc-memory` **store**/ **embed** **모듈**(capture in-process) + **recall**(sync Deployment) + **consolidate**/ **ttl**/ **archive**/ **object_gc**(async Deployment · `aura/memory-batch` · CronJob).  
+**이 문서 범위:** `svc-memory` **store**/ **embed** **모듈**(capture in-process) + **recall**(sync Deployment) + **consolidate**/ **ttl**/ **archive**/ **object_gc**(**CronJob one-shot** · `aura/memory-batch` · 상시 Deployment 없음).  
 하드코드 런북: [`deploy/docs/memory-control-hardcode.md`](../../deploy/docs/memory-control-hardcode.md) (`erase≠object_gc`).  
 캡처 통합: [`memory-capture-inline-pipeline.md`](../../deploy/docs/memory-capture-inline-pipeline.md).  
 **Non-goals (본 슬라이스):** LLM extract 본문 · 실 `halfvec` UPSERT · recall query 자동 embed · 파드→Ollama/TEI **직접** · live Pooler DSN/sqlx 본배선(RecordingClient 단위 경로만) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE`.
@@ -18,7 +18,7 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 | 항목 | 값 |
 |------|-----|
 | 유일 쓰기 | `svc-memory` **store 모듈**만 `memory_*` 쓰기 경계 (§1 #5) — capture가 in-process 호출 |
-| 실행 계급 (쓰기·배치) | capture=`aura/memory-capture` · 배치=`aura/memory-batch` Deployment · CronJob publish |
+| 실행 계급 (쓰기·배치) | capture=`aura/memory-capture` Deployment · 배치=`aura/memory-batch` **CronJob only**(상시 파드 없음) |
 | 실행 계급 (recall) | **sync** Deployment replicas=1 · NATS는 **공용 `aura-nats-rpc-bridge`** → Service HTTP · **MQT 없음** |
 | PG | **CloudNativePG Pooler**만 — host `aura-pg-pooler…` (`AURA_DATABASE_HOST`). primary/Pod IP 금지. recall 읽기는 **RO Pooler** 가능(§9.6) |
 | 테넌트 GUC | 매 트랜잭션 시작: `SELECT set_config('app.tenant_id', $1, true)` (SELECT 경로 포함) |

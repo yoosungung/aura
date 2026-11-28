@@ -1,3 +1,4 @@
+# CronJob runs archive handler once daily UTC — no always-on Deployment.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -16,7 +17,7 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      activeDeadlineSeconds: 120
+      activeDeadlineSeconds: 600
       backoffLimit: 1
       template:
         metadata:
@@ -25,12 +26,14 @@ spec:
         spec:
           restartPolicy: OnFailure
           containers:
-            - name: publish
+            - name: archive
               image: aura/memory-batch:local
               imagePullPolicy: IfNotPresent
-              command: ["/aura-memory-batch-cron"]
+              command: ["/aura-memory-archive"]
               env:
-                - name: NATS_URL
-                  value: nats://nats.aura.svc.cluster.local:4222
-                - name: TASK_SUBJECT
-                  value: aura.tasks.memory.archive
+                - name: AURA_DATABASE_HOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: aura-pg-dsn
+                      key: AURA_DATABASE_HOST
+                      optional: true

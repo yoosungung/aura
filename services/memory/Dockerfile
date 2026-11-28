@@ -10,6 +10,7 @@ COPY services/gateway ./services/gateway
 COPY services/llm-gateway ./services/llm-gateway
 COPY services/control ./services/control
 COPY services/memory ./services/memory
+COPY services/compliance ./services/compliance
 RUN cargo build --release -p aura-memory && touch /ok
 
 FROM gcr.io/distroless/cc-debian12:nonroot

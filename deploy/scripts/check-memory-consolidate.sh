@@ -34,16 +34,15 @@ grep -q 'insert_promoted' "$PROMOTE_RS" || fail "promote.rs must insert_promoted
 (cd "$ROOT" && cargo test -p aura-memory --lib promote --offline -- --nocapture) \
   || fail "aura-memory promote tests failed"
 
-DEP="$K8S_DIR/deployment.yaml"
+CJ="$K8S_DIR/cronjob.yaml"
 KUST="$K8S_DIR/kustomization.yaml"
-[[ -f "$DEP" ]] || fail "missing $DEP"
-grep -q 'kind: Deployment' "$DEP" || fail "deployment.yaml must be Deployment"
-grep -q 'aura.tasks.memory.consolidate' "$DEP" || fail "deployment TASK_SUBJECT"
-grep -q 'aura-memory-consolidate' "$DEP" || fail "deployment must run aura-memory-consolidate"
-grep -q 'aura/memory-batch' "$DEP" || fail "deployment image aura/memory-batch"
+[[ -f "$CJ" ]] || fail "missing cronjob.yaml"
+[[ ! -f "$K8S_DIR/deployment.yaml" ]] || fail "batch Deployment must be removed (CronJob-only)"
+grep -q 'aura/memory-batch' "$CJ" || fail "cronjob image aura/memory-batch"
+grep -q '/aura-memory-consolidate' "$CJ" || fail "cronjob must run /aura-memory-consolidate"
 if grep -qE 'function\.yaml|mqt\.yaml|package\.yaml' "$KUST"; then
   fail "kustomization must not list Fission resources"
 fi
 
-ok "consolidate promotion rules (Rust) + Deployment"
+ok "consolidate promotion rules (Rust) + CronJob one-shot"
 echo "check-memory-consolidate: PASS"

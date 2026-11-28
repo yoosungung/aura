@@ -32,9 +32,11 @@ grep -Eq '\[x\].*aura\.tasks\.memory\.archive' "$ROADMAP" || fail "ROADMAP M4 ar
 
 (cd "$ROOT" && cargo test -p aura-memory --lib wire_handlers --offline) || fail "handler wire tests failed"
 
-DEP="$K8S_DIR/deployment.yaml"
-grep -q 'aura-memory-archive' "$DEP" || fail "deployment must run aura-memory-archive"
-grep -q 'aura/memory-batch' "$DEP" || fail "image aura/memory-batch"
+CJ="$K8S_DIR/cronjob.yaml"
+[[ -f "$CJ" ]] || fail "missing cronjob.yaml"
+[[ ! -f "$K8S_DIR/deployment.yaml" ]] || fail "batch Deployment must be removed (CronJob-only)"
+grep -q '/aura-memory-archive' "$CJ" || fail "cronjob must run /aura-memory-archive"
+grep -q 'aura/memory-batch' "$CJ" || fail "image aura/memory-batch"
 
-ok "memory archive docs + Rust Deployment"
+ok "memory archive docs + CronJob one-shot"
 echo "check-memory-archive: PASS"

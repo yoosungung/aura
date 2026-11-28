@@ -1,4 +1,4 @@
-# aura/memory-batch (Rust) — four binaries; Deployment sets command.
+# aura/memory-batch (Rust) — CronJob one-shot binaries (no always-on Deployment).
 #   docker build -f services/memory/Dockerfile.batch -t aura/memory-batch:local .
 FROM rust:1.94-bookworm AS builder
 WORKDIR /src
@@ -27,5 +27,5 @@ COPY --from=builder /src/target/release/aura-memory-batch-cron /aura-memory-batc
 USER nonroot:nonroot
 LABEL org.opencontainers.image.logo="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg" \
       dev.orbstack.icon="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg"
-# Default; each Deployment/CronJob overrides command.
-ENTRYPOINT ["/aura-memory-consolidate"]
+# CronJob sets command to the batch binary.
+ENTRYPOINT ["/aura-memory-ttl"]

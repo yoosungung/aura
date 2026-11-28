@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M1+M4 gate: TTL policy + Rust batch worker Deployment.
+# M1+M4 gate: TTL policy + CronJob one-shot (no always-on Deployment).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -34,11 +34,12 @@ grep -Eq '\[x\].*aura\.tasks\.memory\.ttl' "$ROADMAP" || fail "ROADMAP M4 ttl ch
 
 (cd "$ROOT" && cargo test -p aura-memory --lib batch_payload --offline) || fail "batch_payload tests failed"
 
-DEP="$K8S_DIR/deployment.yaml"
-[[ -f "$DEP" ]] || fail "missing $DEP"
-grep -q 'aura.tasks.memory.ttl' "$DEP" || fail "deployment TASK_SUBJECT"
-grep -q 'aura-memory-ttl' "$DEP" || fail "deployment must run aura-memory-ttl"
-grep -q 'aura/memory-batch' "$DEP" || fail "image aura/memory-batch"
+CJ="$K8S_DIR/cronjob.yaml"
+[[ -f "$CJ" ]] || fail "missing cronjob.yaml"
+[[ ! -f "$K8S_DIR/deployment.yaml" ]] || fail "batch Deployment must be removed (CronJob-only)"
+grep -q 'aura/memory-batch' "$CJ" || fail "cronjob image aura/memory-batch"
+grep -q '/aura-memory-ttl' "$CJ" || fail "cronjob must run /aura-memory-ttl"
+grep -q 'cronjob.yaml' "$K8S_DIR/kustomization.yaml" || fail "kustomization must list cronjob"
 
-ok "memory ttl policy + Rust Deployment"
+ok "memory ttl policy + CronJob one-shot"
 echo "check-memory-ttl: PASS"

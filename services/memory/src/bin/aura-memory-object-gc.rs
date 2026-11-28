@@ -1,34 +1,32 @@
-//! aura-memory-object-gc JetStream worker.
+//! aura-memory-object-gc — CronJob one-shot (no always-on Deployment).
 
-use aura_js_worker::{run_jetstream_worker, Handler, WorkerConfig};
+use aura_memory::batch_payload::build_batch_payload;
 use aura_memory::handlers::handle_object_gc_request;
-use bytes::Bytes;
+use chrono::Utc;
 
-#[tokio::main]
-async fn main() {
-    let cfg = match WorkerConfig::from_env() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("aura-memory-object-gc env: {e}");
-            std::process::exit(2);
-        }
-    };
-    let handler: Handler = Box::new(|raw: Bytes| {
-        Box::pin(async move {
-            match handle_object_gc_request(&raw) {
-                Ok((s, b)) => Ok((s, Bytes::from(b))),
-                Err(e) => Ok((
-                    500,
-                    Bytes::from(format!(
-                        r#"{{"error":"handler_error","detail":{}}}"#,
-                        serde_json::to_string(&e).unwrap_or_default()
-                    )),
-                )),
+fn main() {
+    let tenant_id = std::env::var("TENANT_ID")
+        .unwrap_or_else(|_| "00000000-0000-0000-0000-000000000000".into());
+    let envelope =
+        match build_batch_payload("aura.tasks.memory.object_gc", &tenant_id, Utc::now()) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("aura-memory-object-gc payload: {e}");
+                std::process::exit(2);
             }
-        })
-    });
-    if let Err(e) = run_jetstream_worker(cfg, handler).await {
-        eprintln!("aura-memory-object-gc fatal: {e}");
-        std::process::exit(1);
+        };
+    let raw = envelope.to_string();
+    match handle_object_gc_request(raw.as_bytes()) {
+        Ok((status, body)) if (200..400).contains(&status) => {
+            eprintln!("aura-memory-object-gc ok status={status} body={body}");
+        }
+        Ok((status, body)) => {
+            eprintln!("aura-memory-object-gc failed status={status} body={body}");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("aura-memory-object-gc error: {e}");
+            std::process::exit(1);
+        }
     }
 }

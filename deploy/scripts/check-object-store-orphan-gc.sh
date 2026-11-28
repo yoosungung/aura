@@ -34,9 +34,11 @@ grep -Eq '\[x\].*aura\.tasks\.memory\.object_gc' "$ROADMAP" || fail "ROADMAP M4 
 
 (cd "$ROOT" && cargo test -p aura-memory --lib object_gc --offline) || fail "object_gc rust tests failed"
 
-DEP="$K8S_DIR/deployment.yaml"
-grep -q 'aura-memory-object-gc' "$DEP" || fail "deployment must run aura-memory-object-gc"
-grep -q 'aura/memory-batch' "$DEP" || fail "image aura/memory-batch"
+CJ="$K8S_DIR/cronjob.yaml"
+[[ -f "$CJ" ]] || fail "missing cronjob.yaml"
+[[ ! -f "$K8S_DIR/deployment.yaml" ]] || fail "batch Deployment must be removed (CronJob-only)"
+grep -q '/aura-memory-object-gc' "$CJ" || fail "cronjob must run /aura-memory-object-gc"
+grep -q 'aura/memory-batch' "$CJ" || fail "image aura/memory-batch"
 
-ok "object-store-orphan-gc docs + Rust object_gc Deployment"
+ok "object-store-orphan-gc docs + CronJob one-shot"
 echo "check-object-store-orphan-gc: PASS"

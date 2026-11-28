@@ -37,7 +37,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/dev/k8s/sync-smoke/` | sync Warm (`newdeploy` MinScale≥2) + Core RR Deployment `aura-rpc-smoke-rr` (MQT 없음) | `deploy/dev/k8s/sync-smoke/` |
 | `deploy/k8s/pg-pooler/` | CNPG `Cluster` `aura-pg` + `Pooler` `aura-pg-pooler` (transaction) + DSN ConfigMap · HA draft `cluster-ha.draft.yaml` · PITR restore draft `cluster-pitr-restore.draft.yaml` | `deploy/k8s/pg-pooler/` |
 | `deploy/k8s/memory-capture/` | `memory_capture` **Deployment** (`aura/memory-capture` Rust · extract→embed→store · ns `aura`) | `deploy/k8s/memory-capture/` |
-| `deploy/k8s/memory-consolidate/` · `memory-ttl/` · `memory-archive/` · `memory-object-gc/` | memory async **Deployment** + **CronJob** (`aura/memory-batch` Rust · UTC 일 1회 publish · ns `aura`) | `deploy/k8s/` |
+| `deploy/k8s/memory-consolidate/` · `memory-ttl/` · `memory-archive/` · `memory-object-gc/` | memory batch **CronJob only** (`aura/memory-batch` one-shot · 상시 Deployment 없음 · UTC 일 1회 · ns `aura`) | `deploy/k8s/` |
 | `deploy/k8s/memory-recall/` | `svc-memory` recall **Deployment+Service** (`aura/memory-recall` Rust · replicas=1 lab · rpc-bridge→Service HTTP) | `deploy/k8s/memory-recall/` |
 | `services/memory/` · `compliance/` | memory/compliance **Rust** → `aura/memory-{capture,recall,batch}` · `aura/compliance-erase` | `services/` |
 | `deploy/docs/memory-control-hardcode.md` | memory/control-resolve/compliance-erase Fission→Deployment 런북 | `deploy/docs/` |

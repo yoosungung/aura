@@ -81,8 +81,10 @@ for name in "${PRODUCT[@]}"; do
   kubectl apply -k "$ROOT/deploy/k8s/$name"
 done
 
-echo "== prune retired store/embed Deployments (inline capture) =="
+echo "== prune retired store/embed + batch always-on Deployments (CronJob-only batch) =="
 kubectl -n aura delete deploy/aura-memory-store deploy/aura-memory-embed \
+  deploy/aura-memory-ttl deploy/aura-memory-consolidate \
+  deploy/aura-memory-archive deploy/aura-memory-object-gc \
   --ignore-not-found --wait=false
 
 echo "== rustfs (aura-content) =="
