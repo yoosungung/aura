@@ -22,7 +22,7 @@ Fission MQT는 topic→Function **1:1**. 동일 `aura.tasks.agent.invoke`에 nod
 | Deployment | `aura-nats-task-bridge` · **ns `aura`** · **replicas≥2** · deps 포함 이미지 (initContainer `npm install` 금지) |
 | Subjects | `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` |
 | Consumer | pull · stream `AURA_TASKS` · durable `aura_task_bridge_agent` / `aura_task_bridge_mcp` · **AckWait≥150s** · `MaxDeliver=5` · `bash deploy/scripts/ensure-task-bridge-consumers.sh` |
-| 동시성 | `void dispatchTaskMessage` + `createInflightGate` · `TASK_MAX_INFLIGHT` 기본 **32**(권장 16–32) — consume 루프에서 `await handle` 금지(HOL) |
+| 동시성 | Rust `tokio::spawn` dispatch + `InflightGate` · `TASK_MAX_INFLIGHT` 기본 **32**(권장 16–32) — consume 루프에서 await handle 금지(HOL) |
 | Lease | 장시간 Router invoke 중 `msg.working()` heartbeat(`TASK_WORKING_INTERVAL_MS` 기본 **10s**) — AckWait 만료 재전송(중복 실행) 방지 |
 | 라우팅 | payload `runtime` (없으면 `nodejs`) → Function 표. `custom`은 payload `function` 접두사 allowlist ([`multi-env-followup.md`](multi-env-followup.md)) |
 | 호출 | `POST {FISSION_ROUTER_URL}/fission-function/<name>` |
@@ -39,6 +39,6 @@ Fission MQT는 topic→Function **1:1**. 동일 `aura.tasks.agent.invoke`에 nod
 
 ```bash
 bash deploy/scripts/check-nats-task-bridge.sh
-node services/nats-task-bridge/bridge.selftest.js
+cargo test -p aura-nats-task-bridge
 bash deploy/scripts/ensure-task-bridge-consumers.sh   # live: AckWait=150s · MaxDeliver=5
 ```

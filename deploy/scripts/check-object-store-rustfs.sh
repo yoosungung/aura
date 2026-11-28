@@ -52,10 +52,9 @@ done
 ADMIN="$ROOT/deploy/k8s/control-admin/deployment.yaml"
 grep -q 'AURA_S3_ENDPOINT' "$ADMIN" || fail "control-admin missing AURA_S3_ENDPOINT"
 grep -q 'aura-object-store-creds' "$ADMIN" || fail "control-admin missing secret"
-ENTRY="$ROOT/services/control/admin-entrypoint.js"
-if grep -q 'return null' "$ENTRY"; then
-  fail "production getObject must not return null"
-fi
-grep -q 'object-store/get-object' "$ENTRY" || fail "entrypoint must use the shared reader"
-ok "rustfs manifest names + function env + activate reader"
+READER="$ROOT/services/object-store/get-object.js"
+[[ -f "$READER" ]] || fail "missing shared get-object reader"
+grep -Eq 'assertBundleUri|s3://aura-content' "$READER" || fail "get-object must validate aura-content URIs"
+grep -Eq 'sha256|createHash' "$READER" || fail "get-object must checksum payloads"
+ok "rustfs manifest names + function env + shared GetObject reader"
 echo "check-object-store-rustfs: PASS"

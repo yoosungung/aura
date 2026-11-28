@@ -107,8 +107,12 @@ grep -Eq 'namespace:[[:space:]]*aura' "$BRIDGE_DEP" || fail "bridge deployment m
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
   || fail "bridge replicas must be >= 2"
 # queue name may be env RPC_QUEUE; image-baked bridge still documents aura-rpc-bridge in DESIGN/selftest
-grep -Eq 'aura-rpc-bridge|RPC_QUEUE' "$BRIDGE_DEP" "$ROOT/services/nats-rpc-bridge/bridge.js" \
+grep -Eq 'aura-rpc-bridge|RPC_QUEUE' "$BRIDGE_DEP" \
   || fail "bridge must use queue aura-rpc-bridge"
+grep -Eq 'aura-rpc-bridge|QUEUE_GROUP|RPC_QUEUE' \
+  "$ROOT/services/nats-rpc-bridge/rs/src/lib.rs" \
+  "$ROOT/services/nats-rpc-bridge/rs/src/main.rs" \
+  || fail "Rust rpc-bridge must document queue aura-rpc-bridge"
 if grep -q 'initContainers' "$BRIDGE_DEP"; then
   fail "rpc-bridge must not use initContainers"
 fi

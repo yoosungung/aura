@@ -55,5 +55,6 @@ lab은 동일 ollama model이라도 티어 메타는 기록한다.
 
 ```bash
 bash deploy/scripts/check-llm-gateway-router.sh
+cargo test -p aura-llm-gateway
 node services/llm-gateway/gateway.selftest.js
 ```

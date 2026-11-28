@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Bake gateway + llm-gateway images (real handlers; no node -e stubs).
+# Bake gateway + llm-gateway images (Rust distroless; repo-root context).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-docker build -t aura/gateway:local "$ROOT/services/gateway"
-docker build -t aura/llm-gateway:local "$ROOT/services/llm-gateway"
+docker build -f "$ROOT/services/gateway/rs/Dockerfile" -t aura/gateway:local "$ROOT"
+docker build -f "$ROOT/services/llm-gateway/rs/Dockerfile" -t aura/llm-gateway:local "$ROOT"
 echo "OK: aura/gateway:local · aura/llm-gateway:local"

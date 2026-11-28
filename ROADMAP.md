@@ -344,7 +344,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] LLM Gateway Fallback 모델 + 테넌트 과금 대시보드 — [`deploy/docs/llm-gateway-fallback-billing.md`](deploy/docs/llm-gateway-fallback-billing.md) · `check-llm-gateway-fallback-billing.sh` · [`services/llm-gateway/`](services/llm-gateway/)
-- [x] LLM Gateway 콘텐츠 라우터(휴리스틱) — [`deploy/docs/llm-gateway-router.md`](deploy/docs/llm-gateway-router.md) · `check-llm-gateway-router.sh` · `router.js` · `aura-auto` + `X-Aura-Route-Pin`
+- [x] LLM Gateway 콘텐츠 라우터(휴리스틱) — [`deploy/docs/llm-gateway-router.md`](deploy/docs/llm-gateway-router.md) · `check-llm-gateway-router.sh` · `rs/src/router.rs` · `aura-auto` + `X-Aura-Route-Pin`
 - [x] 고위험 테넌트 전용 RuntimeClass/노드풀 정책 — [`deploy/docs/high-risk-tenant-nodepool.md`](deploy/docs/high-risk-tenant-nodepool.md) · `check-high-risk-tenant-nodepool.sh` · `deploy/k8s/sandbox-egress/runtimeclass-kata.yaml` · `services/sandbox-egress/high-risk-placement.js`
 - [x] DLQ Replay 운영 도구 + 런북 — [`deploy/docs/dlq-replay.md`](deploy/docs/dlq-replay.md) · `check-dlq-replay.sh` · `dlq-replay.sh` · [`services/ops/dlq-replay/`](services/ops/dlq-replay/)
 - [x] 정기 PG 복구 훈련 캘린더 — [`deploy/docs/pg-pitr-drill-calendar.md`](deploy/docs/pg-pitr-drill-calendar.md) · `check-pg-pitr-drill-calendar.sh` · [`services/ops/pitr-drill/calendar.js`](services/ops/pitr-drill/calendar.js) (분기≥1 · 스택변경≤14일 · lab-1이 2026-Q4 시드)

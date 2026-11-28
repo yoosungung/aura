@@ -2,11 +2,8 @@
   "name": "aura-svc-control",
   "private": true,
   "version": "0.0.0",
-  "description": "svc-control resolve + admin HTTP + pooler-lookup (M3/M6)",
-  "dependencies": {
-    "pg": "8.13.1"
-  },
+  "description": "svc-control resolve Function helpers + pooler-lookup (admin HTTP = Rust aura-control-admin)",
   "scripts": {
-    "test": "node resolve.selftest.js && node bridge.selftest.js && node pooler-lookup.selftest.js && node admin-http.selftest.js"
+    "test": "node resolve.selftest.js && node bridge.selftest.js && node pooler-lookup.selftest.js && node secrets-mask.selftest.js && node secrets-cache.selftest.js && node nats-tls.selftest.js"
   }
 }

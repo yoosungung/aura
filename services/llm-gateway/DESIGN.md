@@ -16,8 +16,8 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |------|-----|
 | 역할 | Function·`agent_invoke`/`memory_capture` 등 → **클러스터 LLM Gateway만** → 공급자 |
 | 실행 계급 | **상시 ≥2** Deployment (`aura-llm-gateway`). Fission MQT / scale-to-zero **금지** |
-| 이미지 | `aura/llm-gateway:local` · `gateway.js`·`providers.js`·`router.js` 베이크 · 카탈로그 파일 없으면 stub · `dev.orbstack.icon` · `node -e` 금지 |
-| Rust (Phase 2B) | `rs/` (`aura-llm-gateway`) · `parity_tests.rs` · distroless · aura-auto/Fallback/billing stub · **`client.js`/`client.py` 유지** · live provider=canary |
+| 이미지 | `aura/llm-gateway:local` · **Rust** `rs/` (`aura-llm-gateway`) · distroless · `dev.orbstack.icon` |
+| 클라이언트 | `client.js` / `client.py` 유지 (Function egress 가드) · `gateway.selftest.js` = client만 |
 | PG | **없음** |
 | 라벨 | `app: aura-llm-gateway` (샌드박스 NP allow peer) |
 | 금지 | Function→`api.openai.com` 등 공급자 **직접** (`client.js` + NP) |
@@ -30,7 +30,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 |--------|------|------|
 | `GET` | `/healthz` | readiness |
 | `POST` | `/v1/chat/completions` | 테넌트 쿼터 → (**`aura-auto`면 라우트**) → Fallback chain(circuit skip) → usage log |
-| `POST` | `/v1/embeddings` | ConfigMap `embeddings` → OpenAI `POST {baseUrl}/embeddings` (미설정 시 **503** `embeddings_not_configured`) |
+| `POST` | `/v1/embeddings` | ConfigMap `embeddings` → OpenAI `POST {baseUrl}/embeddings` (미설정 시 **503** `embeddings_not_configured`) · **Rust live 배선=후속** |
 | `GET` | `/v1/billing/usage` | 테넌트별 tokens/`cost_usd` 집계 |
 
 헤더: `X-Aura-Tenant-Id` (chat 필수). 선택 `X-Aura-Route-Pin: simple|medium|complex` (하향 금지).  
@@ -39,7 +39,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 ---
 
-## 콘텐츠 라우팅 (`router.js`)
+## 콘텐츠 라우팅 (`rs/src/router.rs`)
 
 | 항목 | 값 |
 |------|-----|
@@ -54,17 +54,14 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 ## 모듈
 
-| 파일 | 역할 |
+| 경로 | 역할 |
 |------|------|
-| `gateway.js` | `createLlmGateway` · stub · bucket RL · circuit · **providers[] Fallback** · route resolve · usage · `handleBillingUsage` · `renderBillingDashboard` |
-| `router.js` | `scorePrompt` · `resolveRoute` · 티어 순위·매핑 |
-| `client.js` / `client.py` | Function egress 가드 · `chatCompletions` / `chat_completions` · `X-Aura-Route-Pin` (Node·Python 패리티) |
-| `providers.js` | ConfigMap JSON → `stub`/`ollama`/`openai`/`vllm`/`sglang` · `loadRoutingConfig` |
-| `entrypoint.js` | HTTP 배선 · `AURA_LLM_PROVIDERS_FILE` 없으면 stub |
-| `gateway.selftest.js` | egress · 429 · circuit · **fallback** · **billing** · **aura-auto 라우트/pin** |
+| `rs/` (`aura-llm-gateway`) | HTTP · aura-auto · Fallback · billing stub · `parity_tests.rs` |
+| `client.js` / `client.py` | Function egress 가드 · `chatCompletions` / `chat_completions` · `X-Aura-Route-Pin` |
+| `gateway.selftest.js` | client egress only (서버 패리티=`cargo test`) |
 
-기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_LLM_LIMITS`).  
-Deps: `providers[]` (또는 단일 `provider`) · `fallbackModels` · `routing` (`tiers`).
+기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_RATE_PER_SEC` / `DEFAULT_BURST`).  
+Deps: ConfigMap `providers[]` (또는 단일 `provider`) · `fallbackModels` · `routing` (`tiers`).
 
 ---
 
@@ -75,16 +72,16 @@ Deps: `providers[]` (또는 단일 `provider`) · `fallbackModels` · `routing` 
 | kind | 호출 | 기본 `baseUrl` | 기본 model |
 |------|------|----------------|------------|
 | `stub` | 프로세스 내 | — | — |
-| `ollama` | OpenAI `POST {baseUrl}/chat/completions` | ConfigMap 기본 `http://host.orb.internal:11434/v1` (OrbStack 호스트 Ollama; kind 코드 기본은 `ollama.aura.svc…:11434/v1`) | `gemma4:e2b` |
+| `ollama` | OpenAI `POST {baseUrl}/chat/completions` | ConfigMap 기본 `http://host.orb.internal:11434/v1` | `gemma4:e2b` |
 | `openai` | 동일 | `https://api.openai.com/v1` | 요청 model |
-| `vllm` | 동일 (vLLM OpenAI 서버, 기본 포트 **8000**) | `http://vllm.aura.svc.cluster.local:8000/v1` | 요청 model |
-| `sglang` | 동일 (SGLang HTTP, 기본 포트 **30000**) | `http://sglang.aura.svc.cluster.local:30000/v1` | 요청 model |
+| `vllm` | 동일 (기본 포트 **8000**) | `http://vllm.aura.svc.cluster.local:8000/v1` | 요청 model |
+| `sglang` | 동일 (기본 포트 **30000**) | `http://sglang.aura.svc.cluster.local:30000/v1` | 요청 model |
 
-`model`이 있으면 그 provider는 요청 model 대신 고정한다. `kind`가 위 표 밖이면 `provider_kind_invalid`. 순서 = Fallback 순서.
+`model`이 있으면 그 provider는 요청 model 대신 고정한다. 순서 = Fallback 순서.
 
-선택 키 `embeddings`: `{ name?, kind, model, baseUrl?, apiKeyEnv? }`. lab 기본은 `ollama` / `embeddinggemma-2:270m-mxfp8-text` / `http://host.orb.internal:11434/v1`. 없으면 `/v1/embeddings` → 503.
+선택 키 `embeddings`: `{ name?, kind, model, baseUrl?, apiKeyEnv? }`. lab 기본은 `ollama` / `embeddinggemma-2:270m-mxfp8-text` / `http://host.orb.internal:11434/v1`.
 
-선택 키 `routing.tiers`: `{ simple, medium, complex }` → model id. lab은 동일 ollama model로 채워 티어 메타만 기록.
+선택 키 `routing.tiers`: `{ simple, medium, complex }` → model id.
 
 ---
 

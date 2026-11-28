@@ -3,7 +3,7 @@
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §2 · §6.1.1.  
 정본: [`deploy/docs/admin-ui.md`](../../deploy/docs/admin-ui.md).  
 MVP 스냅샷: [`deploy/docs/admin-ui-mvp.md`](../../deploy/docs/admin-ui-mvp.md).  
-API: [`../control/admin-http.js`](../control/admin-http.js).
+API: [`../control/DESIGN.md`](../control/DESIGN.md) 관리 HTTP · 이미지 `aura/control-admin` (Rust).
 
 **이 문서 범위:** 플랫폼 ops SPA — Tenant picker · Sources · Bundle 등록 · overlays · Audit.  
 **Non-goals:** 테넌트 self-serve · Chat UI · 과금 SPA · OIDC 본구현(Bearer 토큰 입력만) · NATS 클라이언트 · Gateway HTTP · KV 직접 접속.

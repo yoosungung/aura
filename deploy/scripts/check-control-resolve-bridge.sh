@@ -74,12 +74,14 @@ PKG="$K8S_DIR/package.yaml"
 KUST="$K8S_DIR/kustomization.yaml"
 ARCH_ZIP="$K8S_DIR/archive.zip"
 BRIDGE_DEP="$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml"
+BRIDGE_RS="$ROOT/services/nats-rpc-bridge/rs/src/lib.rs"
 ENV_SYNC="$ROOT/deploy/k8s/runtime-envs/aura-nodejs-sync.yaml"
 [[ -f "$FN" ]] || fail "missing $FN"
 [[ -f "$PKG" ]] || fail "missing $PKG"
 [[ -f "$KUST" ]] || fail "missing $KUST"
 [[ -f "$ARCH_ZIP" ]] || fail "missing $ARCH_ZIP (run build-control-resolve-archive.sh)"
 [[ -f "$BRIDGE_DEP" ]] || fail "missing $BRIDGE_DEP"
+[[ -f "$BRIDGE_RS" ]] || fail "missing $BRIDGE_RS"
 [[ -f "$ENV_SYNC" ]] || fail "missing shared sync env $ENV_SYNC"
 [[ ! -f "$K8S_DIR/rpc-responder.yaml" ]] || fail "rpc-responder.yaml must be removed (shared bridge)"
 grep -q 'name: aura-nodejs-sync' "$FN" || fail "function must use aura-nodejs-sync"
@@ -108,6 +110,7 @@ grep -Eq 'namespace:[[:space:]]*aura' "$BRIDGE_DEP" || fail "bridge deployment m
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
   || fail "bridge replicas must be >= 2"
 grep -q 'aura-rpc-bridge' "$BRIDGE_DEP" || fail "bridge must use queue aura-rpc-bridge"
+grep -q 'service_url_for_subject' "$BRIDGE_RS" || fail "Rust bridge must expose service_url_for_subject"
 python3 - "$ARCH_ZIP" <<'PY' || fail "archive must include bridge.js + index.js"
 import zipfile, sys
 names = zipfile.ZipFile(sys.argv[1]).namelist()

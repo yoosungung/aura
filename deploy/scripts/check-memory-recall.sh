@@ -78,11 +78,13 @@ PKG="$K8S_DIR/package.yaml"
 KUST="$K8S_DIR/kustomization.yaml"
 ARCH_ZIP="$K8S_DIR/archive.zip"
 BRIDGE_DEP="$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml"
+BRIDGE_RS="$ROOT/services/nats-rpc-bridge/rs/src/lib.rs"
 [[ -f "$FN" ]] || fail "missing $FN"
 [[ -f "$PKG" ]] || fail "missing $PKG"
 [[ -f "$KUST" ]] || fail "missing $KUST"
 [[ -f "$ARCH_ZIP" ]] || fail "missing $ARCH_ZIP (run build-memory-recall-archive.sh)"
 [[ -f "$BRIDGE_DEP" ]] || fail "missing $BRIDGE_DEP"
+[[ -f "$BRIDGE_RS" ]] || fail "missing $BRIDGE_RS"
 [[ ! -f "$K8S_DIR/rpc-responder.yaml" ]] || fail "rpc-responder.yaml must be removed (shared bridge)"
 
 if grep -REq 'kind:[[:space:]]*MessageQueueTrigger|kind:[[:space:]]*ScaledObject' "$K8S_DIR"/*.yaml; then
@@ -108,6 +110,7 @@ grep -Eq 'namespace:[[:space:]]*aura' "$BRIDGE_DEP" || fail "bridge deployment m
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
   || fail "bridge replicas must be >= 2"
 grep -q 'aura-rpc-bridge' "$BRIDGE_DEP" || fail "bridge must use queue aura-rpc-bridge"
+grep -q 'service_url_for_subject' "$BRIDGE_RS" || fail "Rust bridge must route recall via service_url_for_subject"
 grep -q 'FISSION_ROUTER_URL' "$BRIDGE_DEP" || fail "bridge must set FISSION_ROUTER_URL"
 python3 - "$ARCH_ZIP" <<'PY' || fail "archive must include recall/handler.js + index.js"
 import zipfile, sys

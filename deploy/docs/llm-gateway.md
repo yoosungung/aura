@@ -47,7 +47,8 @@
 
 ```bash
 bash deploy/scripts/check-llm-gateway.sh
-node services/llm-gateway/gateway.selftest.js
+node services/llm-gateway/gateway.selftest.js   # client egress
+cargo test -p aura-llm-gateway                  # server parity
 ```
 
 M3 성공 기준: **LLM 직접 호출 없음** — 클라이언트 가드 + NP allowlist peer.

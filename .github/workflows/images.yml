@@ -13,6 +13,9 @@ on:
       - "services/control/**"
       - "services/admin-ui/**"
       - "services/object-store/get-object.js"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - "scaffolds/**"
       - ".github/workflows/images.yml"
   workflow_dispatch:
@@ -33,20 +36,20 @@ jobs:
       matrix:
         include:
           - name: aura-gateway
-            context: services/gateway
-            file: services/gateway/Dockerfile
+            context: .
+            file: services/gateway/rs/Dockerfile
           - name: aura-llm-gateway
-            context: services/llm-gateway
-            file: services/llm-gateway/Dockerfile
+            context: .
+            file: services/llm-gateway/rs/Dockerfile
           - name: aura-nats-rpc-bridge
-            context: services/nats-rpc-bridge
-            file: services/nats-rpc-bridge/Dockerfile
+            context: .
+            file: services/nats-rpc-bridge/rs/Dockerfile
           - name: aura-nats-task-bridge
-            context: services/nats-task-bridge
-            file: services/nats-task-bridge/Dockerfile
+            context: .
+            file: services/nats-task-bridge/rs/Dockerfile
           - name: aura-control-admin
             context: .
-            file: services/control/Dockerfile
+            file: services/control/rs/Dockerfile
           - name: aura-admin-ui
             context: .
             file: services/admin-ui/Dockerfile

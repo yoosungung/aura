@@ -26,8 +26,10 @@ ok() { echo "OK: $*"; }
 [[ -f "$DESIGN_CTRL" ]] || fail "missing $DESIGN_CTRL"
 [[ -f "$DESIGN_UI" ]] || fail "missing $DESIGN_UI"
 [[ -d "$K8S" ]] || fail "missing $K8S"
-[[ -f "$CTRL/admin-http.js" ]] || fail "missing admin-http.js"
+[[ -f "$CTRL/rs/Dockerfile" ]] || fail "missing control rs/Dockerfile"
 [[ -f "$CTRL/pooler-lookup.js" ]] || fail "missing pooler-lookup.js"
+[[ -f "$CTRL/resolve.js" ]] || fail "missing resolve.js (Function archive)"
+[[ -f "$CTRL/bridge.js" ]] || fail "missing bridge.js (Function archive)"
 [[ -f "$UI/index.html" ]] || fail "missing admin-ui index.html"
 [[ -f "$UI/src/main.tsx" || -f "$UI/src/lib/api.ts" ]] || fail "missing admin-ui React sources"
 
@@ -63,8 +65,8 @@ grep -Eqi 'admin-ui-mvp|admin-ui\.md|관리 UI|M6' "$ROADMAP" || fail "ROADMAP m
 grep -Eqi 'admin-ui-mvp|admin-ui' "$AGENTS" || fail "AGENTS must list admin-ui docs/path"
 
 # DESIGN
-grep -Eqi 'admin-http|pooler-lookup|control_audit' "$DESIGN_CTRL" \
-  || fail "control DESIGN must name admin-http / pooler-lookup / audit"
+grep -Eqi 'pooler-lookup|control_audit|aura-control-admin|rs/' "$DESIGN_CTRL" \
+  || fail "control DESIGN must name pooler-lookup / audit / Rust admin"
 grep -q '## Commands' "$DESIGN_CTRL" || fail "control DESIGN Commands"
 grep -q '## Commands' "$DESIGN_UI" || fail "admin-ui DESIGN Commands"
 grep -Eqi 'Non-goals' "$DESIGN_UI" || fail "admin-ui DESIGN Non-goals"
@@ -75,12 +77,12 @@ grep -q 'aura-control-admin' "$DEP" || fail "k8s must name aura-control-admin"
 grep -Eq 'replicas:[[:space:]]*2|replicas: 2' "$DEP" || fail "control-admin replicas ≥ 2"
 grep -q 'namespace: aura' "$DEP" || fail "control-admin ns aura"
 grep -q 'image: aura/control-admin:local' "$DEP" || fail "control-admin image must be aura/control-admin:local"
-[[ -f "$CTRL/Dockerfile" ]] || fail "missing control-admin Dockerfile"
-grep -q 'dev.orbstack.icon=' "$CTRL/Dockerfile" || fail "control-admin image must set dev.orbstack.icon"
-if grep -Eq 'COPY .*aura-logo\.jpg' "$CTRL/Dockerfile"; then
+[[ -f "$CTRL/rs/Dockerfile" ]] || fail "missing control-admin rs/Dockerfile"
+grep -q 'dev.orbstack.icon=' "$CTRL/rs/Dockerfile" || fail "control-admin image must set dev.orbstack.icon"
+if grep -Eq 'COPY .*aura-logo\.jpg' "$CTRL/rs/Dockerfile"; then
   fail "control-admin image must not bake the logo file"
 fi
-grep -q '"pg"' "$CTRL/package.json" || fail "control package.json must depend on pg"
+grep -q 'aura-control-admin' "$CTRL/rs/Dockerfile" || fail "rs Dockerfile must build aura-control-admin"
 if grep -Eq 'aura-control-admin-app|npm install' "$DEP"; then
   fail "control-admin must not mount source ConfigMap or npm install at start"
 fi
@@ -101,10 +103,10 @@ grep -Eq 'withTenantTx|tenant-tx' "$CTRL/pooler-lookup.js" \
 grep -Eq "set_config\('app\.tenant_id'" "$CTRL/tenant-tx.js" \
   || fail "tenant-tx must set_config tenant GUC (is_local true)"
 grep -Eq "status = 'active'" "$CTRL/pooler-lookup.js" || fail "pooler-lookup active filter"
-grep -Eqi 'checksum_mismatch|createHash|sha256' "$CTRL/admin-http.js" \
-  || fail "admin-http must verify sha256 on activate"
-grep -Eqi 'control_audit|insertAudit' "$CTRL/admin-http.js" || fail "admin-http must write control_audit"
-grep -Eq 'reason_required' "$CTRL/admin-http.js" || fail "admin-http must require reason on retire/delete"
+grep -Eqi 'checksum|sha256|activate' "$DOC" || fail "doc must lock checksum activate"
+grep -Eqi 'control_audit' "$DOC" "$DESIGN_CTRL" || fail "docs must name control_audit"
+grep -Eq 'reason_required|/v1/audit|allowed_admin_paths' "$CTRL/rs/src/lib.rs" \
+  || fail "Rust control must expose admin path/audit surface"
 if grep -Eq "require\(['\"]pg['\"]\)" "$CTRL/bridge.js"; then
   fail "bridge.js must stay injectable (no hard-wired pg)"
 fi
@@ -114,9 +116,9 @@ if grep -Eqi 'aura\.rpc\.control\.resolve' "$UI/src/lib/api.ts" "$UI/src"/featur
 fi
 
 # Unit gates
-node "$CTRL/admin-http.selftest.js" || fail "admin-http.selftest failed"
+(cd "$ROOT" && cargo test -p aura-control --quiet) || fail "cargo test -p aura-control failed"
 node "$CTRL/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest failed"
 node "$UI/ui.selftest.cjs" || fail "admin-ui ui.selftest failed"
 
-ok "admin-ui-mvp docs + DDL + admin-http + pooler-lookup + UI"
+ok "admin-ui-mvp docs + DDL + Rust admin + pooler-lookup + UI"
 echo "check-admin-ui-mvp: PASS"

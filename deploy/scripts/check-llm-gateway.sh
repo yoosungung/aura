@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # M3 static gate: LLM Gateway min + Function egress-only-via-gateway (ARCHITECTURE §9.4).
-# Exit 0 on PASS. Ticket b7910957. Non-goals: live provider keys · Fallback/billing dashboard · NATS mTLS · F1.
+# Exit 0 on PASS. Non-goals: live provider keys · Fallback/billing dashboard · NATS mTLS · F1.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DOC="$ROOT/deploy/docs/llm-gateway.md"
 DESIGN="$ROOT/services/llm-gateway/DESIGN.md"
-GW="$ROOT/services/llm-gateway/gateway.js"
 CLIENT="$ROOT/services/llm-gateway/client.js"
 SELFTEST="$ROOT/services/llm-gateway/gateway.selftest.js"
+RS_LIB="$ROOT/services/llm-gateway/rs/src/lib.rs"
+RS_MAIN="$ROOT/services/llm-gateway/rs/src/main.rs"
+RS_DF="$ROOT/services/llm-gateway/rs/Dockerfile"
 DEP="$ROOT/deploy/k8s/llm-gateway/deployment.yaml"
 CM="$ROOT/deploy/k8s/llm-gateway/providers-configmap.yaml"
-PROV="$ROOT/services/llm-gateway/providers.js"
 SVC="$ROOT/deploy/k8s/llm-gateway/service.yaml"
 KUST="$ROOT/deploy/k8s/llm-gateway/kustomization.yaml"
 ARCH="$ROOT/ARCHITECTURE.md"
@@ -26,36 +27,37 @@ ok() { echo "OK: $*"; }
 
 [[ -f "$DOC" ]] || fail "missing $DOC"
 [[ -f "$DESIGN" ]] || fail "missing $DESIGN"
-[[ -f "$GW" ]] || fail "missing $GW"
 [[ -f "$CLIENT" ]] || fail "missing $CLIENT"
 [[ -f "$SELFTEST" ]] || fail "missing $SELFTEST"
+[[ -f "$RS_LIB" ]] || fail "missing Rust lib"
+[[ -f "$RS_MAIN" ]] || fail "missing Rust main"
+[[ -f "$RS_DF" ]] || fail "missing llm-gateway rs/Dockerfile"
 [[ -f "$DEP" ]] || fail "missing $DEP"
 [[ -f "$CM" ]] || fail "missing $CM"
-[[ -f "$PROV" ]] || fail "missing $PROV"
 [[ -f "$SVC" ]] || fail "missing $SVC"
 [[ -f "$KUST" ]] || fail "missing $KUST"
 
-# Client: provider direct forbidden; gateway hosts only
 grep -q 'assertFunctionLlmEgress\|provider_direct_forbidden' "$CLIENT" \
   || fail "client must assertFunctionLlmEgress / provider_direct_forbidden"
 grep -q 'api.openai.com' "$CLIENT" || fail "client must blocklist api.openai.com"
 grep -q 'aura-llm-gateway' "$CLIENT" || fail "client must allow aura-llm-gateway"
 grep -q 'createLlmGatewayClient' "$CLIENT" || fail "client must export createLlmGatewayClient"
 
-# Gateway: chat path + rate + circuit + usage
-grep -Eq 'chat/completions|createLlmGateway' "$GW" || fail "gateway must implement chat completions"
-grep -Eqi 'rate|bucket|429|rate_limited' "$GW" || fail "gateway must rate-limit tenants"
-grep -Eqi 'circuit' "$GW" || fail "gateway must have circuit breaker"
-grep -Eqi 'cost_usd|usage|tokens' "$GW" || fail "gateway must log usage/cost"
+grep -Eq 'chat_completions|ChatProvider' "$RS_LIB" || fail "Rust must implement chat completions"
+grep -Eqi 'rate|429|rate_limited|LlmRateLimiter' "$RS_LIB" || fail "Rust must rate-limit tenants"
+grep -Eqi 'cost_usd|BillingStore|UsageEntry' "$RS_LIB" || fail "Rust must log usage/cost"
+grep -Eqi 'Fallback|fallback_used|all_providers_failed' "$RS_LIB" \
+  || fail "Rust must implement provider Fallback"
+grep -q '/v1/chat/completions' "$RS_MAIN" || fail "Rust main must expose chat completions"
+grep -q '/v1/billing/usage' "$RS_MAIN" || fail "Rust main must expose billing usage"
 
-# Docs
 grep -Eqi 'Non-goals' "$DOC" || fail "doc must state Non-goals"
 grep -Eqi 'Function|Egress|Gateway만|gateway만' "$DOC" || fail "doc must lock Function→Gateway-only egress"
 grep -q '/v1/chat/completions' "$DOC" || fail "doc must name /v1/chat/completions"
 grep -q 'aura-llm-gateway' "$DOC" || fail "doc must name aura-llm-gateway"
 grep -q 'llm-gateway.md' "$DESIGN" || fail "DESIGN must link llm-gateway.md"
+grep -Eq 'Rust|rs/' "$DESIGN" || fail "DESIGN must name Rust image"
 
-# K8s: replicas≥2, app label for NP peer, no MQT, baked image
 grep -q 'app: aura-llm-gateway' "$DEP" || fail "Deployment must label app: aura-llm-gateway"
 grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$DEP" \
   || fail "Deployment replicas must be ≥ 2"
@@ -69,22 +71,16 @@ grep -q '"kind": "ollama"' "$CM" || fail "provider ConfigMap default kind must b
 grep -q '"embeddings"' "$CM" || fail "provider ConfigMap must include embeddings block"
 grep -q 'embeddinggemma-2:270m-mxfp8-text' "$CM" \
   || fail "provider ConfigMap embeddings model must be embeddinggemma-2:270m-mxfp8-text"
-grep -q '/v1/embeddings' "$ROOT/services/llm-gateway/entrypoint.js" \
-  || fail "entrypoint must expose /v1/embeddings"
-grep -Eq 'loadEmbeddingsConfig|createEmbeddingsClient|embeddingsFromConfig' "$PROV" \
-  || fail "providers.js must load embeddings catalog"
+grep -q '/v1/embeddings' "$DOC" || fail "doc must name /v1/embeddings"
+grep -q 'embeddings' "$DESIGN" || fail "DESIGN must mention embeddings"
 for kind in stub ollama openai vllm sglang; do
-  grep -q "$kind" "$PROV" || fail "providers.js must allow kind $kind"
+  grep -q "$kind" "$CM" || fail "ConfigMap must allow kind $kind"
   grep -q "$kind" "$DESIGN" || fail "DESIGN must name kind $kind"
 done
-grep -q '8000' "$PROV" || fail "vllm default port must be 8000"
-grep -q '30000' "$PROV" || fail "sglang default port must be 30000"
-grep -q 'providers.js' "$ROOT/services/llm-gateway/Dockerfile" \
-  || fail "llm-gateway image must bake providers.js"
-[[ -f "$ROOT/services/llm-gateway/Dockerfile" ]] || fail "missing llm-gateway Dockerfile"
-[[ -f "$ROOT/services/llm-gateway/entrypoint.js" ]] || fail "missing llm-gateway entrypoint.js"
-grep -q 'dev.orbstack.icon=' "$ROOT/services/llm-gateway/Dockerfile" \
-  || fail "llm-gateway image must set dev.orbstack.icon"
+grep -q '8000' "$DESIGN" || fail "DESIGN must name vllm port 8000"
+grep -q '30000' "$DESIGN" || fail "DESIGN must name sglang port 30000"
+grep -q 'dev.orbstack.icon=' "$RS_DF" || fail "llm-gateway image must set dev.orbstack.icon"
+grep -q 'aura-llm-gateway' "$RS_DF" || fail "rs Dockerfile must build aura-llm-gateway"
 if grep -Eq 'node -e|node:22-alpine' "$DEP"; then
   fail "llm-gateway must not use node:22-alpine / node -e stub"
 fi
@@ -93,7 +89,6 @@ if grep -Eqi 'MessageQueueTrigger|kind:[[:space:]]*ScaledObject' "$DEP" "$SVC" "
   fail "llm-gateway must not use MQT/ScaledObject"
 fi
 
-# Cross-links + ROADMAP checkbox
 grep -Eq 'llm-gateway\.md|services/llm-gateway' "$ARCH" \
   || fail "ARCHITECTURE must link llm-gateway"
 grep -Eq '\[x\].*LLM Gateway|\[x\].*llm-gateway' "$ROADMAP" \
@@ -101,12 +96,12 @@ grep -Eq '\[x\].*LLM Gateway|\[x\].*llm-gateway' "$ROADMAP" \
 grep -q 'check-llm-gateway' "$SETUP" || fail "SETUP must name check-llm-gateway.sh"
 grep -q 'llm-gateway' "$AGENTS" || fail "AGENTS must mention llm-gateway"
 
-# Egress NP still peers gateway
 [[ -f "$NP" ]] || fail "missing sandbox NP"
 grep -q 'aura-llm-gateway' "$NP" || fail "sandbox NP must allow aura-llm-gateway"
 grep -Eqi 'llm-gateway|LLM Gateway' "$EGRESS_DOC" || fail "egress doc must reference LLM Gateway"
 
 node "$SELFTEST" || fail "gateway.selftest.js failed"
+(cd "$ROOT" && cargo test -p aura-llm-gateway --quiet) || fail "cargo test -p aura-llm-gateway failed"
 
-ok "llm-gateway client egress guard + gateway RL/circuit + Deployment≥2"
+ok "llm-gateway client egress guard + Rust RL/circuit + Deployment≥2"
 echo "check-llm-gateway: PASS"
