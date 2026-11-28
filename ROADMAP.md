@@ -41,6 +41,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-28 | **랩 RustFS cutover** — 이미지 `rustfs/rustfs:1.0.3` · S3 `:9000` · region `us-east-1` · PVC `local-path` · `check-object-store-rustfs.sh` · Garage 클러스터·git 0 | [`deploy/k8s/rustfs/`](deploy/k8s/rustfs/) · `bootstrap.sh` |
 | 2026-11-28 | **플랫폼 서비스 Rust 전환 범위** — 브리지·Gateway·LLM Gateway·control·`svc-memory`·**`memory_capture` 포함**·agent/mcp **오케스트레이터**. Admin UI·테넌트 agent/MCP 번들은 Node/Python 유지. capture는 **성능 이득 낮음**(병목=LLM Gateway)이나 **Node 단독 잔존 방지(관리 일관성)** 로 포함. Object Store RustFS와 **별 트랙** | 캔버스 `service-rust-migration` · 아래 「플랫폼 서비스 Rust 전환」 |
 | 2026-11-28 | **Rust lab cutover (Deployment)** — Gateway·LLM·control-admin·nats-rpc/task-bridge → `*:rust-local` replicas=2 · Node RS desired=0 (orbstack). Function(`memory_*`·`control-resolve`·`agent/mcp-invoke`)는 Node/Python 유지 · Rust Function 이미지 **미배선**. Pooler/PG live·S3·sqlx 본배선=후속. Object Store(**RustFS 단독**·Garage 제거)=**별 인프라 트랙** | [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service-rust-strangler-lab.md) · 아래 「플랫폼 서비스 Rust 전환」 |
+| 2026-11-28 | **메모리 본구현 미완 재표기** — store/embed/consolidate는 MQT·GUC·Gateway 호출 **스켈레톤만** (`SELECT` stub). **실** `memory_items` INSERT/UPSERT · `memory_embeddings` halfvec UPSERT · `memory_nodes`/`memory_edges` **쓰기(그래프 구축)** 는 미구현. recall **graph walk(읽기)**·DDL·계약 문서는 유지 | 코드 실측 · 아래 M1/M2/M4 미완 항목 |
 | 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
 | 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Warm은 별 항목 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 Warm M3 고정** — subject/queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` replicas≥2 · MQT 금지 · stub/injectable handler · live Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · `deploy/k8s/control-resolve/` |
@@ -171,7 +172,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN — [`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md) · `check-memory-embed-guard.sh` · `smoke-memory-embed-guard.sh`
 - [x] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2 — [`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md) · `check-memory-hnsw-multitenant.sh` · `smoke-memory-hnsw-multitenant.sh`
 - [x] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정) — [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md) · `check-memory-embedding-active.sh` (`BAAI/bge-m3` · `1` · `1024`)
-- [x] `services/memory/DESIGN.md` + store MQT — 매 트랜잭션 `set_config(..., true)` (`services/memory/` · `deploy/k8s/memory-store/` · `check-memory-store.sh`)
+- [x] `services/memory/DESIGN.md` + store MQT **스켈레톤** — 매 트랜잭션 `set_config(..., true)` (`services/memory/` · `deploy/k8s/memory-store/` · `check-memory-store.sh`) · **실 DDL INSERT 아님**
+- [ ] **`memory_items` 실 INSERT/UPSERT** — Pooler + `withTenantTx` · 멱등 `id` · `content`/`content_ref` · GENERATED `content_tsv` (현 `store/handler.js` = `SELECT` stub · **미완**)
 - [x] (스모크) 무차원 HNSW 실패; short_term→embed 거부 (`smoke-memory-embed-guard.sh`; live 또는 `SMOKE_MEMORY_EMBED_GUARD_STATIC=1`)
 
 **검증 체크리스트 (권고 반영)**
@@ -184,8 +186,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **성공 기준**
 
-- `svc-memory` 외 쓰기 거부; store 멱등; short_term 비-임베딩.
-- V1.1–V1.3 합격.
+- `svc-memory` 외 쓰기 거부; store 멱등; short_term 비-임베딩. (**멱등 실 INSERT = 위 미완 항목**)
+- V1.1–V1.3 합격 (DDL·정책·픽스처).
 - **소형 테넌트 B recall ≥1** (iterative_scan); 앱 post-filter 없음.
 
 ---
@@ -197,9 +199,10 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] `memory_capture` Function (PG 금지, MQT) → `aura.events.memory.candidates` (`services/memory-capture/` · `deploy/k8s/memory-capture/` · `check-memory-capture.sh`)
-- [x] embed Function (MQT) — **short_term 스킵**; episodic/long_term/semantic만 HNSW/BM25 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`)
+- [x] embed Function (MQT) **스켈레톤** — **short_term 스킵**; Gateway `POST /v1/embeddings` + dims 가드 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`) · **`memory_embeddings` UPSERT 아님**
+- [ ] **임베딩 PG 적재** — Gateway 벡터 → `memory_embeddings` `halfvec(N)` + `model_key` 실 UPSERT/멱등 (현 `embed/handler.js` = `SELECT` stub · **미완**)
 - [x] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음 (`services/memory/recall/` · `deploy/k8s/memory-recall/` · `check-memory-recall.sh`)
-- [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph walk M4); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
+- [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph walk M4); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`) — **읽기 경로** (시드 데이터는 픽스처/수동)
 - [x] Agent 주입 계약(프롬프트 슬롯·토큰 예산) — [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · `check-agent-inject-contract.sh` (패킹 구현=M3)
 - [x] **Object Store 제품 확정** → **RustFS 단독**(Garage 제거) · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · [`object-store-rustfs-migration.md`](deploy/docs/object-store-rustfs-migration.md) · `check-object-store-content-ref.sh`
 - [x] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · `check-object-store-orphan-gc.sh` (구현=M4)
@@ -310,8 +313,10 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [x] `aura.tasks.memory.consolidate` — 유형 승격 규칙 ([`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md) · `check-memory-consolidate.sh` · `services/memory/consolidate/`)
-- [x] recall graph **방어적** 1–2홉: visited, per_hop_limit, supernode_degree_cap, 유효 predicate, out+in 인덱스 사용 ([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md) · `check-memory-graph-traversal.sh` · `services/memory/recall/graph-walk.js`)
+- [x] `aura.tasks.memory.consolidate` — 유형 승격 **규칙·MQT 스켈레톤** ([`deploy/docs/memory-consolidate-promotion.md`](deploy/docs/memory-consolidate-promotion.md) · `check-memory-consolidate.sh` · `services/memory/consolidate/`) · **soft_close+insert_promoted 실 SQL 아님**
+- [ ] consolidate **실 PG 승격 쓰기** — soft_close + `insert_promoted` (현 consolidate handler = `SELECT` stub · **미완**)
+- [x] recall graph **방어적** 1–2홉 **읽기(walk)**: visited, per_hop_limit, supernode_degree_cap, 유효 predicate, out+in ([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md) · `check-memory-graph-traversal.sh` · `services/memory/recall/graph-walk.js`)
+- [ ] **그래프 구축(쓰기)** — `memory_nodes` / `memory_edges` INSERT·유효기간·엔티티 추출 경로 (현 Non-goal · walk만 존재 · **미완**)
 - [x] 슈퍼노드 픽스처: 허브 1노드에 엣지 ≫ cap → 쿼리 시간/반환 상한 준수(폭발 없음) ([`deploy/docs/memory-graph-supernode-fixture.md`](deploy/docs/memory-graph-supernode-fixture.md) · `check-memory-graph-supernode.sh` · `services/memory/recall/supernode-fixture.js`)
 - [x] `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션 DROP** — [`deploy/docs/memory-ttl-drop.md`](deploy/docs/memory-ttl-drop.md) · `services/memory/ttl/` · `deploy/k8s/memory-ttl/` · `check-memory-ttl.sh` (episodic cold=`needs_archive` until archive)
 - [x] `aura.tasks.memory.archive` — 콜드 episodic → Object Storage Parquet → DETACH/DROP + `aura.events.memory.archived` ([`deploy/docs/memory-archive.md`](deploy/docs/memory-archive.md) · `check-memory-archive.sh` · `services/memory/archive/`)
@@ -470,6 +475,7 @@ Strangler lab: [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service
 **Phase 4 (메모리)** — capture → store/embed/recall → consolidate/ttl/archive/object_gc
 
 - [x] `memory-capture/rs` · `memory/rs` — PG 금지/가드 · candidates envelope · subject/idempotency (**로컬 패리티**)
+- [ ] **Node 본구현(우선)** — `memory_items` INSERT/UPSERT · `memory_embeddings` halfvec UPSERT · `memory_nodes`/`memory_edges` 쓰기 · consolidate 실 SQL (현 **stub** · M1/M2/M4 미완과 동일)
 - [ ] Rust Function/`custom` 이미지 · Fission cutover (현 **Node** `aura-memory-*`)
 - [ ] live Pooler/S3 · Function canary의 live `check-memory-*.sh` assert (**문서 보강 · 실행 범위 밖**)
 
@@ -493,6 +499,7 @@ Strangler lab: [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service
 
 ## 미결정
 
+- **메모리 본구현 잔여(스텁→실 SQL)** — store `memory_items` · embed `memory_embeddings` · graph **write** · consolidate soft_close+insert — 체크는 M1/M2/M4 `- [ ]` (2026-11-28 재표기)
 - ~~활성 임베딩 모델·version·dims(N) 실값~~ — **M1 고정** (`BAAI/bge-m3`/`1`/`1024` · [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md))
 - iterative_scan만으로 충분한지 vs T1/T2 승격 — **M1 픽스처 PASS**(공유+iterative_scan 유지; T1/T2=실패·KPI 시에만)
 - 그래프 `per_hop_limit` / `supernode_degree_cap` 운영 튜닝 — **M1 수치 고정**([`deploy/docs/memory-graph-traversal.md`](deploy/docs/memory-graph-traversal.md)) → **M4 부하 후 조정**
