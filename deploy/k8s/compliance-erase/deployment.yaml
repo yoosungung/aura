@@ -1,0 +1,53 @@
+# compliance-erase JetStream Deployment (Fission MQT replaced).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-compliance-erase
+  namespace: aura
+  labels:
+    aura.runtime/class: async
+    aura.service: compliance
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-compliance-erase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aura-compliance-erase
+  template:
+    metadata:
+      labels:
+        aura.runtime/class: async
+        aura.service: compliance
+        app.kubernetes.io/part-of: aura
+        app.kubernetes.io/name: aura-compliance-erase
+    spec:
+      containers:
+        - name: worker
+          image: aura/compliance-erase:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              value: nats://nats.aura.svc.cluster.local:4222
+            - name: STREAM
+              value: AURA_TASKS
+            - name: TASK_SUBJECT
+              value: aura.tasks.compliance.erase
+            - name: DURABLE
+              value: aura_compliance_erase
+            - name: RESP_TOPIC
+              value: aura.events.compliance.erase.done
+            - name: ERROR_TOPIC
+              value: aura.events.compliance.erase.error
+            - name: AURA_DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: aura-pg-dsn
+                  key: AURA_DATABASE_HOST
+                  optional: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 512Mi

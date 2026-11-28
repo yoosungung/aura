@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Apply product workloads (not deploy/dev smoke). Requires install-runtime + install-pg-pooler.
-# Shared Fission Environments: async poolsize 1 / sync poolsize 2 (poolmgr).
-# Sync RPC: aura-nats-rpc-bridge → router-internal:8889 → sync Functions (no per-service *-rr).
+# Shared Fission Environments: agent/mcp only (async/sync poolmgr).
+# Sync: rpc-bridge → Deployment Service (recall/resolve) or Fission (mcp.tool).
+# Memory/compliance async: JetStream Deployments (no Fission MQT).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -40,13 +41,13 @@ PY
   echo "OK: package $name (zip literal)"
 }
 
-echo "== build sync/async archives =="
-bash "$ROOT/deploy/scripts/build-memory-recall-archive.sh"
-bash "$ROOT/deploy/scripts/build-control-resolve-archive.sh"
+echo "== build agent/mcp archives + hardcoded memory images =="
 bash "$ROOT/deploy/scripts/build-agent-invoke-archive.sh"
 bash "$ROOT/deploy/scripts/build-mcp-invoke-archive.sh"
 bash "$ROOT/deploy/scripts/build-agent-invoke-python-archive.sh"
 bash "$ROOT/deploy/scripts/build-mcp-invoke-python-archive.sh"
+bash "$ROOT/deploy/scripts/build-hardcoded-memory-images.sh" \
+  || echo "WARN: docker build hardcoded images deferred (need docker)"
 
 echo "== shared runtime Environments (nodejs + python) =="
 kubectl apply -k "$ROOT/deploy/k8s/runtime-envs"
@@ -66,9 +67,7 @@ echo "== product kustomize =="
 PRODUCT=(
   gateway
   llm-gateway
-  memory-store
   memory-capture
-  memory-embed
   memory-recall
   memory-consolidate
   memory-archive
@@ -81,6 +80,10 @@ for name in "${PRODUCT[@]}"; do
   echo "-- $name"
   kubectl apply -k "$ROOT/deploy/k8s/$name"
 done
+
+echo "== prune retired store/embed Deployments (inline capture) =="
+kubectl -n aura delete deploy/aura-memory-store deploy/aura-memory-embed \
+  --ignore-not-found --wait=false
 
 echo "== rustfs (aura-content) =="
 kubectl apply -k "$ROOT/deploy/k8s/rustfs"
@@ -103,10 +106,6 @@ apply_pkg_zip_literal aura-agent-invoke aura-nodejs-async \
   "$ROOT/deploy/k8s/agent-invoke/archive.zip" async agent-invoke
 apply_pkg_zip_literal aura-mcp-invoke aura-nodejs-async \
   "$ROOT/deploy/k8s/mcp-invoke/archive.zip" async mcp-invoke
-apply_pkg_zip_literal aura-memory-recall aura-nodejs-sync \
-  "$ROOT/deploy/k8s/memory-recall/archive.zip" sync memory
-apply_pkg_zip_literal aura-control-resolve aura-nodejs-sync \
-  "$ROOT/deploy/k8s/control-resolve/archive.zip" sync control
 apply_pkg_zip_literal aura-mcp-invoke-rpc aura-nodejs-sync \
   "$ROOT/deploy/k8s/mcp-invoke-rpc/archive.zip" sync mcp-invoke
 apply_pkg_zip_literal aura-agent-invoke-py aura-python-async \
@@ -115,6 +114,14 @@ apply_pkg_zip_literal aura-mcp-invoke-py aura-python-async \
   "$ROOT/deploy/k8s/mcp-invoke-py/archive.zip" async mcp-invoke
 apply_pkg_zip_literal aura-mcp-invoke-rpc-py aura-python-sync \
   "$ROOT/deploy/k8s/mcp-invoke-rpc-py/archive.zip" sync mcp-invoke
+
+echo "== prune retired memory/control/compliance Fission CRDs =="
+for fn in aura-memory-store aura-memory-capture aura-memory-embed aura-memory-recall \
+  aura-memory-consolidate aura-memory-ttl aura-memory-archive aura-memory-object-gc \
+  aura-control-resolve aura-compliance-erase; do
+  kubectl -n default delete function.fission.io/"$fn" package.fission.io/"$fn" \
+    messagequeuetrigger.fission.io/"$fn" --ignore-not-found --wait=false 2>/dev/null || true
+done
 
 echo "== prune legacy per-service Environments / *-rr / mcp RR ConfigMap =="
 while read -r env; do

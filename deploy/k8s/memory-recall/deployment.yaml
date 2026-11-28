@@ -1,0 +1,71 @@
+# aura-memory-recall — sync RPC Deployment (rpc-bridge → Service HTTP).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-memory-recall
+  namespace: aura
+  labels:
+    aura.runtime/class: sync
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-recall
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aura-memory-recall
+  template:
+    metadata:
+      labels:
+        aura.runtime/class: sync
+        aura.service: memory
+        app.kubernetes.io/part-of: aura
+        app.kubernetes.io/name: aura-memory-recall
+    spec:
+      containers:
+        - name: recall
+          image: aura/memory-recall:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: AURA_DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: aura-pg-dsn
+                  key: AURA_DATABASE_HOST
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-memory-recall
+  namespace: aura
+  labels:
+    app.kubernetes.io/name: aura-memory-recall
+spec:
+  selector:
+    app.kubernetes.io/name: aura-memory-recall
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

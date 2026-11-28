@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/part-of: aura
     app.kubernetes.io/name: aura-nats-rpc-bridge
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: aura-nats-rpc-bridge

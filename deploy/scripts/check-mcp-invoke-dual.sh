@@ -110,8 +110,8 @@ grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_D
 grep -Eq 'aura-rpc-bridge|RPC_QUEUE' "$BRIDGE_DEP" \
   || fail "bridge must use queue aura-rpc-bridge"
 grep -Eq 'aura-rpc-bridge|QUEUE_GROUP|RPC_QUEUE' \
-  "$ROOT/services/nats-rpc-bridge/rs/src/lib.rs" \
-  "$ROOT/services/nats-rpc-bridge/rs/src/main.rs" \
+  "$ROOT/services/nats-rpc-bridge/src/lib.rs" \
+  "$ROOT/services/nats-rpc-bridge/src/main.rs" \
   || fail "Rust rpc-bridge must document queue aura-rpc-bridge"
 if grep -q 'initContainers' "$BRIDGE_DEP"; then
   fail "rpc-bridge must not use initContainers"

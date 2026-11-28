@@ -10,8 +10,8 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 1. **NATS 단일 백본.** MSA 통신은 NATS만 한다. 서비스 간 HTTP/gRPC를 두지 않는다. Redis Pub/Sub·별도 사이드카 큐를 도입하지 않는다. (예외: `svc-control` 관리 API, Gateway→클라이언트 **SSE/WebSocket** 브리지, 테넌트 MCP Streamable HTTP 경계.)
 2. **실행 삼원화 (Fission + Core 스트림).** 프레임워크는 Fission이다. OpenFaaS·bare KEDA Deployment **폴백 없음**.
-   - **비동기 파이프라인** (`aura.tasks.*`): 기본은 Fission MessageQueueTrigger(`mqtype=nats-jetstream`, `mqtkind=keda`). KEDA lag 스케일, idle 시 **scale-to-zero 허용** (`minReplicaCount = 0`). 내구성·완료 감사는 여기. **예외 — `agent_invoke` / `mcp_invoke` async**: 동일 subject에 다중 `runtime`(nodejs/python/custom)이 있으므로 **MQT 1:1 바인딩 대신** 공용 **`aura-nats-task-bridge`**(JetStream pull → Fission Router)가 대상을 고른다. 도메인 handler는 브리지에 두지 않는다. 이미지별 MQT 금지. memory 등 기타 tasks는 기존 MQT 유지. nodejs/python Environment는 런타임×계급 공용(`aura-nodejs-async` / `aura-python-async`, `poolmgr`, `poolsize ≥ 1`). **`runtime=custom`은 Package·Environment·specialize 없는 Fission container executor 이미지**다. 브리지는 payload `function`(Gateway가 resolve에서 스탬프)이 접두사 `aura-agent-invoke-` 또는 `aura-mcp-invoke-`(다만 `aura-mcp-invoke-rpc-` 제외, poolmgr 슬롯 이름 제외)일 때만 Router로 넘긴다. async container `MinScale=0` 허용.
-   - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. **구독은 공용 `aura-nats-rpc-bridge`만**(replicas ≥ 2). 브리지는 handler를 실행하지 않고 Fission **router-internal**(`POST /fission-function/<name>`, 기본 `:8889`)로 중계한다. **`aura.rpc.mcp.tool`은 `runtime`→Function 매핑**(기본 nodejs). nodejs/python Sync Environment는 런타임×계급 공용(`aura-nodejs-sync` / `aura-python-sync`, **`poolmgr`**, `poolsize ≥ 2`). **`runtime=custom`도 같은 브리지**이며 container executor(`MinScale≥2`, 접두사 `aura-mcp-invoke-rpc-`)다. poolmgr는 임의 이미지를 specialize하지 못한다. 서비스별 `*-rr` Deployment·sync `newdeploy` MinScale 상주 **금지**. 이미지가 NATS에 직접 구독하지 않는다. Core RR은 JetStream lag가 없으므로 브리지·sync 풀을 scale-to-zero와 **함께 쓰지 않는다**.
+   - **비동기 파이프라인** (`aura.tasks.*`): **`agent_invoke` / `mcp_invoke` async**는 공용 **`aura-nats-task-bridge`**(JetStream pull → Fission Router · runtime→Function). 도메인 handler는 브리지에 두지 않는다. 이미지별 MQT 금지. nodejs/python Environment는 런타임×계급 공용(`aura-nodejs-async` / `aura-python-async`, `poolmgr`, `poolsize ≥ 1`). **`runtime=custom`은 Package·Environment·specialize 없는 Fission container executor 이미지**다. 브리지는 payload `function` 접두사 allowlist만 Router로 넘긴다. async container `MinScale=0` 허용. **memory_* · `compliance.erase` async**는 Fission MQT 대신 **ns `aura` Deployment**가 동일 stream/durable로 JetStream pull → handler → resp/error publish한다([`deploy/docs/memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md)).
+   - **동기 RPC** (`aura.rpc.*`): NATS Core Request-Reply. **구독은 공용 `aura-nats-rpc-bridge`만**(replicas ≥ 2). 브리지는 handler를 실행하지 않는다. **`aura.rpc.mcp.tool`** → Fission **router-internal**(`POST /fission-function/<name>`, 기본 `:8889`) · `runtime`→Function(기본 nodejs) · custom 접두사 `aura-mcp-invoke-rpc-`. nodejs/python Sync Environment=`aura-nodejs-sync` / `aura-python-sync` (**`poolmgr`**, `poolsize ≥ 2`). **`aura.rpc.memory.recall` / `aura.rpc.control.resolve`** → ns `aura` **Deployment Service HTTP**(replicas≥2) — Fission Function 아님([`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md)). 서비스별 NATS 직접 구독·`*-rr` 복원 **금지**. Core RR은 scale-to-zero와 **함께 쓰지 않는다**.
    - **실시간 스트림** (`aura.stream.*`): NATS **Core** pub/sub. LLM 토큰·툴 상태 등 UX용. **유실 허용**(JetStream에 넣지 않음). 완료의 정본은 `aura.events.agent.invoke.done` / error다.
 3. **단일 PostgreSQL + 필수 Connection Pooler.** 관계형 + pgvector + BM25(전문) + 그래프 엣지를 한 클러스터 ACID로 다룬다. 메모리 전용 외부 DB를 두지 않는다. 임베딩 인덱스는 **`halfvec` + `(model, version)` LIST 파티션** 패턴만 쓴다(§6.2.1). 차원 미지정 컬럼에 HNSW를 직접 걸지 않는다. FaaS/런타임 파드는 PG에 **직접 붙지 않고** **CloudNativePG `Pooler`**(transaction)만 경유한다(§2.1). standalone PgBouncer는 CNPG 미도입 폴백만.
 4. **RLS 테넌트 GUC는 트랜잭션 로컬만.** `SELECT set_config('app.tenant_id', $1, true)` (세 번째 인자 `is_local = true`)만 허용한다. 세션 수명 `SET`/`set_config(..., false)` 금지 — transaction pooling에서 커넥션 재사용 시 테넌트 오염을 막는다.
@@ -32,10 +32,10 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 
 ### 이것만은 하지 말 것
 
-- OpenFaaS 또는 bare KEDA+Deployment로 Fission MQT를 대체하지 말 것.
+- OpenFaaS로 Fission을 대체하지 말 것. **memory/control-resolve/compliance-erase**만 플랫폼 Deployment hardcode 허용([`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md)); agent/mcp async는 task-bridge+Fission 유지.
 - **`aura-nats-rpc-bridge` 또는 sync poolmgr(`aura-nodejs-sync` / `aura-python-sync`)를 scale-to-zero하지 말 것** — Core Request-Reply는 JetStream lag로 깨우지 못해 No Responders가 된다.
 - **동일 `aura.tasks.agent.invoke` / `aura.tasks.mcp.invoke`에 언어별 MQT를 이중 구독하지 말 것** — task-bridge + `runtime` 매핑만.
-- **서비스별 `aura-*-rr` Deployment로 sync handler를 다시 두지 말 것** — NATS 구독은 공용 브리지만, 로직은 Fission Sync Function만.
+- **서비스별 NATS sync 구독(`*-rr`)을 다시 두지 말 것** — NATS 구독은 공용 rpc-bridge만. recall/resolve 로직은 Service HTTP Deployment, mcp.tool 로직은 Fission Sync Function.
 - 동기 RPC를 “깨우기용”으로 JetStream에 우회 적재하지 말 것 — 계약은 Core RR + 공용 브리지 + sync poolmgr Warm이다.
 - **`aura.stream.*`를 JetStream에 넣거나 완료 정본으로 쓰지 말 것** — 유실 가능한 UX 채널이다. 완료·감사는 `aura.events.*`.
 - **Function/파드가 PostgreSQL 호스트·포트에 직접 연결하지 말 것** — Connection Pooler VIP만.
@@ -65,16 +65,17 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
    ▼                       ▼
 [Gateway] ──pub tasks──► NATS ◄──sub aura.stream.<run_id>── [Gateway]
                               │
-        │ ── async AURA_TASKS (agent/mcp: task-bridge · memory: MQT; scale-to-zero OK) ──
+        │ ── async AURA_TASKS (agent/mcp: task-bridge · memory/compliance: Deployment JetStream) ──
         ├── aura-nats-task-bridge → agent_invoke / mcp_invoke (runtime→Function)
         │         └── agent_invoke ──pub──► aura.stream.<run_id> (Core, 유실 허용)
-        ├── memory_capture   (MQT)
-        ├── svc-memory store/embed/consolidate (MQT)
+        ├── memory_capture   (Deployment JetStream)
+        ├── svc-memory store/embed/consolidate (Deployment JetStream)
+        ├── compliance.erase (별도 Deployment)
         │
-        │ ── sync aura.rpc.* (Core RR → aura-nats-rpc-bridge → Fission Router) ──
-        ├── aura-memory-recall      (poolmgr sync)
+        │ ── sync aura.rpc.* (Core RR → aura-nats-rpc-bridge → Service HTTP | Fission mcp) ──
+        ├── aura-memory-recall      (Deployment Service)
         ├── aura-mcp-invoke-rpc     (poolmgr sync)
-        └── aura-control-resolve    (poolmgr sync)
+        └── aura-control-resolve    (Deployment Service)
                 │
                 ▼
    Connection Pooler → PostgreSQL 16+
@@ -88,10 +89,11 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | `agent_invoke` | 턴 실행; recall/mcp/resolve RPC; **스트림 프레임 publish**; capture 발행; done/error 이벤트 | **async** task-bridge (0 허용) | 체크포인트만 (**Pooler**) |
 | `mcp_invoke` (task) | 비동기 MCP 작업 | **async** task-bridge (0 허용) | 없음 |
 | `mcp_invoke` (rpc) | `aura.rpc.mcp.tool` → Function `aura-mcp-invoke-rpc` | **sync** poolmgr Warm | 없음 |
-| `memory_capture` | LLM 후보 추출 → 이벤트 | **async** MQT (0 허용) | **쓰기·읽기 금지** |
-| `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
-| `svc-memory` recall | hybrid Top-K → Function `aura-memory-recall` | **sync** poolmgr Warm | 메모리 SELECT → **Pooler** |
-| `svc-control` + resolve Function | 메타 쓰기(HTTP); `aura.rpc.control.resolve` → `aura-control-resolve` | 관리 HTTP + **sync** poolmgr Warm | 컨트롤 메타 **유일 쓰기** → **Pooler** |
+| `memory_capture` | LLM 후보 추출 → 이벤트 | **async** Deployment JetStream (scale 정책 런북) | **쓰기·읽기 금지** |
+| `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** Deployment JetStream | 메모리 **유일 쓰기** → **Pooler** |
+| `svc-memory` recall | hybrid Top-K → Service `aura-memory-recall` | **sync** Deployment replicas≥2 | 메모리 SELECT → **Pooler** |
+| `svc-control` + resolve | 메타 쓰기(HTTP); `aura.rpc.control.resolve` → Service `aura-control-resolve` | 관리 HTTP + **sync** Deployment replicas≥2 | 컨트롤 메타 **유일 쓰기** → **Pooler** |
+| `compliance.erase` | crypto-shred + redact | **async** **별도** Deployment (memory 파드 금지) | OpenBao · Pooler redact |
 | **`aura-control-admin`** | ops 관리 HTTP (`/v1/sources`·bundles·overlays·`/v1/audit`) · **ns `aura`** · Admin UI 전용 · Phase 2 quota는 NATS RR로 Gateway만 호출(KV 직접 금지) | 상시 ≥2 | 컨트롤 메타 쓰기 + `control_audit` → **Pooler**; RustFS GetObject(activate checksum) |
 | **Admin UI** | 플랫폼 ops 콘솔(소스·번들·overlay·audit). Chat UI·테넌트 self-serve **비범위** · Gateway HTTP 금지 | Vite SPA → `aura-control-admin`만 | 없음(API 경유) |
 | **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | **CloudNativePG `Pooler`**, **transaction** 모드 |
@@ -160,15 +162,16 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 |---------|---------------|-------------|----------------------|
 | `aura.tasks.agent.invoke` | `aura_task_bridge_agent` | **task-bridge** → `agent_invoke` | `aura.events.agent.invoke.done` / `aura.events.agent.invoke.error` |
 | `aura.tasks.mcp.invoke` | `aura_task_bridge_mcp` | **task-bridge** → `mcp_invoke` | `aura.events.mcp.invoke.done` / `aura.events.mcp.invoke.error` |
-| `aura.tasks.memory.capture` | `aura_memory_capture` | MQT → `memory_capture` | `aura.events.memory.candidates` / `aura.events.memory.capture.error` |
-| `aura.tasks.memory.store` | `aura_memory_store` | MQT → `svc-memory` store | `aura.events.memory.stored` / `aura.events.memory.store.error` |
-| `aura.tasks.memory.embed` | `aura_memory_embed` | MQT → `svc-memory` embed | `aura.events.memory.embedded` / `aura.events.memory.embed.error` |
-| `aura.tasks.memory.consolidate` | `aura_memory_consolidate` | MQT → `svc-memory` consolidate | `aura.events.memory.consolidated` / `aura.events.memory.consolidate.error` |
-| `aura.tasks.memory.ttl` | `aura_memory_ttl` | MQT → `svc-memory` ttl | `aura.events.memory.ttl.done` / `aura.events.memory.ttl.error` |
-| `aura.tasks.memory.archive` | `aura_memory_archive` | MQT → `svc-memory` archive | `aura.events.memory.archived` / `aura.events.memory.archive.error` |
-| `aura.tasks.memory.object_gc` | `aura_memory_object_gc` | MQT → `svc-memory` object_gc | `aura.events.memory.object_gc.done` / `aura.events.memory.object_gc.error` |
+| `aura.tasks.memory.capture` | `aura_memory_capture` | Deployment → `memory_capture` (in-process extract→embed→store) | `aura.events.memory.capture.done` / `aura.events.memory.capture.error` |
+| `aura.tasks.memory.store` | — | **퇴역** (모듈 `services/memory/store` · capture in-process) | — |
+| `aura.tasks.memory.embed` | — | **퇴역** (모듈 `services/memory/embed` · capture in-process) | — |
+| `aura.tasks.memory.consolidate` | `aura_memory_consolidate` | Deployment → `svc-memory` consolidate | `aura.events.memory.consolidated` / `aura.events.memory.consolidate.error` |
+| `aura.tasks.memory.ttl` | `aura_memory_ttl` | Deployment → `svc-memory` ttl | `aura.events.memory.ttl.done` / `aura.events.memory.ttl.error` |
+| `aura.tasks.memory.archive` | `aura_memory_archive` | Deployment → `svc-memory` archive | `aura.events.memory.archived` / `aura.events.memory.archive.error` |
+| `aura.tasks.memory.object_gc` | `aura_memory_object_gc` | Deployment → `svc-memory` object_gc | `aura.events.memory.object_gc.done` / `aura.events.memory.object_gc.error` |
+| `aura.tasks.compliance.erase` | `aura_compliance_erase` | **별도** Deployment → `compliance` erase | `aura.events.compliance.erase.done` / `…error` |
 
-**MQT**(memory 등): `mqtype=nats-jetstream`, `mqtkind=keda`. `topic`은 위 subject, `metadata.stream`은 `AURA_TASKS`. **task-bridge**(agent/mcp): 언어별 MQT 금지 — [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
+**memory/compliance Deployment**: stream `AURA_TASKS` · durable=위 consumer 열 · subject 불변 — [`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md). **task-bridge**(agent/mcp): 언어별 MQT 금지 — [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
 
 **MaxDeliver · DLQ (독약 메시지)**
 
@@ -184,13 +187,13 @@ Fission이 KEDA로 수십~수백 파드로 늘 때 각 프로세스가 PG에 붙
 
 `aura.rpc.>` 는 **스트림에 넣지 않는다**. 응답자는 NATS queue group 구독으로 HA한다. **KEDA JetStream MQT로 깨우지 않는다.**
 
-| Subject | 요청자 | NATS 구독 | Fission Function | Warm |
-|---------|--------|-----------|------------------|------|
-| `aura.rpc.memory.recall` | `agent_invoke` | `aura-nats-rpc-bridge` (queue `aura-rpc-bridge`) | `aura-memory-recall` | bridge ≥2 · sync poolmgr `poolsize ≥ 2` |
-| `aura.rpc.mcp.tool` | `agent_invoke` | 동일 브리지 | `aura-mcp-invoke-rpc` | 동일 |
-| `aura.rpc.control.resolve` | agent/mcp Function | 동일 브리지 | `aura-control-resolve` | 동일 |
+| Subject | 요청자 | NATS 구독 | Target | Warm |
+|---------|--------|-----------|--------|------|
+| `aura.rpc.memory.recall` | `agent_invoke` | `aura-nats-rpc-bridge` (queue `aura-rpc-bridge`) | Deployment Service `aura-memory-recall` | bridge ≥2 · recall replicas ≥ 2 |
+| `aura.rpc.mcp.tool` | `agent_invoke` | 동일 브리지 | Fission `aura-mcp-invoke-rpc` (+py) | bridge ≥2 · sync poolmgr `poolsize ≥ 2` |
+| `aura.rpc.control.resolve` | agent/mcp Function | 동일 브리지 | Deployment Service `aura-control-resolve` | bridge ≥2 · resolve replicas ≥ 2 |
 
-스케일 아웃(상한)은 sync poolmgr / Function concurrency·requestsPerPod 및 브리지 HPA로 한다. JetStream lag scaler를 RPC 경로에 연결하지 않는다. 매니페스트: [`deploy/k8s/nats-rpc-bridge/`](deploy/k8s/nats-rpc-bridge/) · [`deploy/k8s/runtime-envs/`](deploy/k8s/runtime-envs/).
+스케일 아웃(상한)은 sync Deployment replicas / mcp poolmgr concurrency·requestsPerPod 및 브리지 HPA로 한다. JetStream lag scaler를 RPC 경로에 연결하지 않는다. 매니페스트: [`deploy/k8s/nats-rpc-bridge/`](deploy/k8s/nats-rpc-bridge/) · [`deploy/k8s/runtime-envs/`](deploy/k8s/runtime-envs/) · hardcode [`deploy/docs/memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md).
 
 RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에 수치를 적는다. 초과 본문은 object store `content_ref`만 실는다(제품·스키마: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)).
 
@@ -198,7 +201,8 @@ RPC 타임아웃·페이로드 상한(기본 256KB)은 구현 시 `DESIGN.md`에
 
 | Subject | 발행 | 의미 |
 |---------|------|------|
-| `aura.events.memory.candidates` | `memory_capture` | store 입력 후보 |
+| `aura.events.memory.capture.done` | `memory_capture` | extract+embed+store 요약 (구 `candidates` 대체) |
+| `aura.events.memory.candidates` | — | **deprecated** (inline capture 이전) |
 | `aura.events.memory.stored` | `svc-memory` | item 적재 완료 |
 | `aura.events.memory.embedded` | `svc-memory` | 인덱스 갱신 완료 |
 | `aura.events.memory.consolidated` | `svc-memory` | 승격/dedupe 완료 |
@@ -237,13 +241,13 @@ task-bridge·프레임·RPC 순서 고정: [`deploy/docs/nats-task-bridge.md`](d
 
 두 계급을 섞지 않는다. (Core RR + scale-to-zero는 No Responders.)
 
-### 4.1 비동기 — JetStream MQT (+ agent/mcp task-bridge)
+### 4.1 비동기 — JetStream Deployment / task-bridge (+ dev MQT smoke)
 
-- **대상(MQT)**: §3.2 `aura.tasks.*` 중 memory capture/store/embed/consolidate/ttl/archive 등 — MessageQueueTrigger `mqtype=nats-jetstream`, `mqtkind=keda`. 스트림·pull consumer 사전 생성. `resptopic` / `errortopic` + **MaxDeliver→DLQ**.
+- **대상(Deployment JetStream)**: §3.2 memory capture/store/embed/consolidate/ttl/archive/object_gc · `compliance.erase` — ns `aura` **Deployment**가 동일 stream/durable로 pull → handler → resp/error publish. Fission MessageQueueTrigger **아님**. 상세: [`deploy/docs/memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md).
 - **대상(task-bridge)**: `aura.tasks.agent.invoke` · `aura.tasks.mcp.invoke` — **`aura-nats-task-bridge`**가 JetStream pull 후 `runtime`→Function → Fission Router. 언어별 MQT 금지. Bridge **replicas≥2** + `void dispatchTaskMessage`/`TASK_MAX_INFLIGHT`(HOL 금지) + **AckWait≥150s**/`msg.working()`(중복 재전송 방지). Function 스케일=KEDA lag, **scale-to-zero 허용**. 상세: [`deploy/docs/nats-task-bridge.md`](deploy/docs/nats-task-bridge.md).
-- **스케일(MQT)**: KEDA JetStream lag. **`minReplicaCount = 0` 허용** (scale-to-zero).
+- **스케일**: memory/compliance Deployment는 replicas(또는 후속 KEDA). agent/mcp Function은 KEDA JetStream lag · **`minReplicaCount = 0` 허용**.
 - **콜드스타트 SLA (async만)**: 워밍 없이 p95 **< 15s** 베이스라인(M0 측정). 대화 턴의 **체감 지연 정본이 아님**.
-- **M0 샘플**: Function/MQT `aura-tasks-smoke` — topic `aura.tasks.smoke`, pull consumer `aura_tasks_smoke`, `respTopic`=`aura.events.tasks.smoke.done`, `errorTopic`=`aura.events.tasks.smoke.error` (이름 정본은 `deploy/SETUP.md`).
+- **M0 샘플 (dev)**: Function/MQT `aura-tasks-smoke` — topic `aura.tasks.smoke`, pull consumer `aura_tasks_smoke`, `respTopic`=`aura.events.tasks.smoke.done`, `errorTopic`=`aura.events.tasks.smoke.error` (이름 정본은 `deploy/SETUP.md` · 제품 경로 아님).
 
 ### 4.2 동기 — Core Request-Reply + 공용 NATS→Fission 브리지
 
@@ -259,7 +263,7 @@ task-bridge·프레임·RPC 순서 고정: [`deploy/docs/nats-task-bridge.md`](d
 
 - 동일 논리 서비스(`svc-memory`)라도 **async Function**과 **sync Function**을 배포 단위로 분리한다. 메모리 **쓰기** 소유권은 여전히 `svc-memory` async 쪽만.
 - Environment는 **nodejs/python × 계급 공용** (`aura-nodejs-async` / `aura-nodejs-sync` / `aura-python-async` / `aura-python-sync`). **`custom`은 공유 Environment가 아니라 container executor 이미지**다. **서비스별** Environment 금지.
-- **비채택**: OpenFaaS. **폴백 없음**: bare Deployment+KEDA ScaledObject로 **MQT**를 대체하지 않는다. NATS→Function HTTP는 MQT connector·**공용 RPC/task 브리지**만 (Aura 서비스 간 임의 HTTP API 금지 — §1 #1 예외는 Router 중계).
+- **비채택**: OpenFaaS. **예외(하드코드)**: memory_* · control-resolve · compliance-erase만 Fission Function/MQT 대신 ns `aura` Deployment(+Service) 허용([`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md)). agent/mcp는 task/rpc 브리지+Fission 유지. NATS→Function HTTP는 공용 RPC/task 브리지만 (Aura 서비스 간 임의 HTTP API 금지 — §1 #1 예외는 Router 중계).
 
 ---
 
@@ -284,10 +288,10 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 
 **파이프라인**
 
-1. Agent 턴 종료(또는 중간 훅) → `aura.tasks.memory.capture`
-2. `memory_capture` → `aura.events.memory.candidates` (PG 금지)
-3. `svc-memory` → `aura.tasks.memory.store` → `embed`
-4. 주기/임계 → `aura.tasks.memory.consolidate`
+1. Agent 턴 종료 → `aura.tasks.memory.capture` (agent_invoke publish)
+2. `memory_capture` **한 프로세스**: extract → Gateway embed(`short_term` 스킵) → **store 모듈** PG → `aura.events.memory.capture.done`
+3. 단독 `aura.tasks.memory.store` / `.embed` **퇴역**
+4. **K8s CronJob** (UTC 일 1회) → `aura.tasks.memory.consolidate` / `.ttl` / `.archive` / `.object_gc`
 5. 다음 턴 전 → `aura.rpc.memory.recall` → Agent 컨텍스트 주입
 
 ---
@@ -779,7 +783,7 @@ M4 OTel (Function·NATS·PG) attribute allowlist + 상관 ID + `maskSecrets` 재
 | 삭제 | 사용자/테넌트 탈퇴 → **crypto-shredding**(데이터 암호화 키 파기) + PG 파티션/행 삭제 배치 + object 삭제 |
 | `AURA_EVENTS` 90일 | 보관 중에도 PII 원문 최소화. 키 파기 후 잔존 ciphertext는 복호 불가 |
 | `memory_audit` | 무기한 원문 금지 — 요약/해시·ref만 또는 TTL 파티션(§6.2.2)과 정합 |
-| 작업 | `aura.tasks.compliance.erase` (MQT) — M4 초안: OpenBao Transit DEK shred → 핫 PG redact → `refs/` Delete · [`deploy/docs/compliance-erase.md`](deploy/docs/compliance-erase.md) · [`services/compliance/`](services/compliance/) · `check-compliance-erase.sh` (live KMS/M5 운영화=후속) |
+| 작업 | `aura.tasks.compliance.erase` (**별도** JetStream Deployment · memory 파드 비포함 · `erase≠object_gc`) — M4 초안: OpenBao Transit DEK shred → 핫 PG redact → `refs/` Delete · [`deploy/docs/compliance-erase.md`](deploy/docs/compliance-erase.md) · [`services/compliance/`](services/compliance/) · [`deploy/k8s/compliance-erase/`](deploy/k8s/compliance-erase/) · `check-compliance-erase.sh` (live KMS/M5 운영화=후속) |
 
 ### 9.4 중앙 LLM Gateway
 

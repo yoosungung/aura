@@ -12,7 +12,7 @@ embed: [`../../services/memory/DESIGN.md`](../../services/memory/DESIGN.md).
 
 ## Lab 핀
 
-Fission Function에는 `spec.env`가 없다. ConfigMap `aura-memory-embed-lab`을 Function에 붙이고, 핸들러가 `/configs/default/aura-memory-embed-lab/<KEY>`(또는 동일 이름 env)를 읽는다.
+ConfigMap `aura-memory-embed-lab`을 embed Deployment에 붙이고, 핸들러가 env(또는 마운트 경로)로 키를 읽는다.
 
 | Key | 값 |
 |-----|-----|
@@ -22,7 +22,7 @@ Fission Function에는 `spec.env`가 없다. ConfigMap `aura-memory-embed-lab`�
 | (파생) `model_key` | `embeddinggemma-2:270m-mxfp8-text:1` |
 | `AURA_LLM_GATEWAY_URL` | `http://aura-llm-gateway.aura.svc.cluster.local:8080` |
 
-매니페스트: [`../k8s/memory-embed/configmap-lab.yaml`](../k8s/memory-embed/configmap-lab.yaml) · [`../k8s/memory-embed/function.yaml`](../k8s/memory-embed/function.yaml).
+매니페스트: [`../k8s/memory-embed/configmap-lab.yaml`](../k8s/memory-embed/configmap-lab.yaml) · [`../k8s/memory-embed/deployment.yaml`](../k8s/memory-embed/deployment.yaml).
 
 ---
 

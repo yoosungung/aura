@@ -45,7 +45,7 @@ Deployment는 **deps 포함 이미지**만 사용한다. OrbStack 아이콘은 `
 ```bash
 node services/nats-rpc-bridge/bridge.selftest.js
 cargo test -p aura-nats-rpc-bridge
-docker build -f services/nats-rpc-bridge/rs/Dockerfile -t aura/nats-rpc-bridge:local .
+docker build -f services/nats-rpc-bridge/Dockerfile -t aura/nats-rpc-bridge:local .
 bash deploy/scripts/build-nats-bridge-images.sh
 bash deploy/scripts/check-memory-control-hardcode.sh
 ```

@@ -63,14 +63,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
-name = "aura-agent-invoke-orch"
+name = "aura-compliance-erase"
 version = "0.1.0"
 dependencies = [
  "aura-envelope",
- "aura-tenant-tx",
+ "aura-js-worker",
+ "bytes",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]
@@ -112,6 +114,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-js-worker"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "aura-nats",
+ "bytes",
+ "futures-util",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "aura-llm-gateway"
 version = "0.1.0"
 dependencies = [
@@ -125,34 +141,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "aura-mcp-invoke-orch"
-version = "0.1.0"
-dependencies = [
- "aura-envelope",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "aura-memory"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
  "aura-envelope",
+ "aura-js-worker",
+ "aura-nats",
  "aura-tenant-tx",
+ "axum",
+ "bytes",
+ "chrono",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "aura-memory-capture"
-version = "0.1.0"
-dependencies = [
- "aura-envelope",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

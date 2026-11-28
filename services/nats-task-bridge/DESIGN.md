@@ -32,7 +32,7 @@ Rust 전환: [ROADMAP.md](../../ROADMAP.md) Phase 1 · [`deploy/docs/service-rus
 
 ```bash
 cargo test -p aura-nats-task-bridge
-docker build -f services/nats-task-bridge/rs/Dockerfile -t aura/nats-task-bridge:local .
+docker build -f services/nats-task-bridge/Dockerfile -t aura/nats-task-bridge:local .
 bash deploy/scripts/check-nats-task-bridge.sh
 bash deploy/scripts/ensure-task-bridge-consumers.sh
 ```

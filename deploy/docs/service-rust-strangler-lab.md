@@ -32,9 +32,9 @@ live NATS/PG/provider assert는 **canary 창에서만** 필수. 즉시 트랙은
 ```bash
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
-docker build -f services/gateway/rs/Dockerfile -t aura/gateway:local .
-docker build -f services/llm-gateway/rs/Dockerfile -t aura/llm-gateway:local .
-docker build -f services/control/rs/Dockerfile -t aura/control-admin:local .
+docker build -f services/gateway/Dockerfile -t aura/gateway:local .
+docker build -f services/llm-gateway/Dockerfile -t aura/llm-gateway:local .
+docker build -f services/control/Dockerfile -t aura/control-admin:local .
 ```
 
 ## 롤백 (Deployment · 계획 종료)

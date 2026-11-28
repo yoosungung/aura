@@ -14,7 +14,7 @@ cp "$SRC/run_turn.py" "$STAGE/" 2>/dev/null || true
 cp "$SRC/bundle_turn.py" "$STAGE/" 2>/dev/null || true
 cp "$SRC/llm_gateway_model.py" "$STAGE/" 2>/dev/null || true
 # LLM egress client (archive layout: llm_gateway_client.py next to llm_gateway_model.py)
-cp "$ROOT/services/llm-gateway/client.py" "$STAGE/llm_gateway_client.py"
+cp "$ROOT/services/llm-gateway/clients/client.py" "$STAGE/llm_gateway_client.py"
 cp "$ROOT/services/object-store/get_object.py" "$STAGE/"
 cp "$ROOT/services/object-store/bundle_cache.py" "$STAGE/"
 cp "$ROOT/services/object-store/bundle_zip.py" "$STAGE/"

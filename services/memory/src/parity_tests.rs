@@ -4,6 +4,20 @@ use crate::*;
 use serde_json::json;
 
 #[test]
+fn supernode_caps() {
+    assert_eq!(SUPERNODE_HUB_DEGREE, 500);
+    assert!(SUPERNODE_HUB_DEGREE > SUPERNODE_DEGREE_CAP);
+    assert!(SUPERNODE_HUB_DEGREE > SUPERNODE_PER_HOP_LIMIT);
+    assert_eq!(SUPERNODE_DEGREE_CAP, 64);
+    assert_eq!(SUPERNODE_PER_HOP_LIMIT, 50);
+    assert_eq!(GRAPH_MAX_DEPTH, 2);
+    assert_eq!(GRAPH_PER_HOP_LIMIT, 50);
+    assert_eq!(GRAPH_MAX_NODES_TOTAL, 100);
+    assert_eq!(GRAPH_MAX_EDGES_TOTAL, 200);
+    assert_eq!(GRAPH_SUPERNODE_DEGREE_CAP, 64);
+}
+
+#[test]
 fn pipeline_subjects_order() {
     assert_eq!(STORE_TASK, "aura.tasks.memory.store");
     assert_eq!(EMBED_TASK, "aura.tasks.memory.embed");
@@ -38,6 +52,26 @@ fn object_gc_and_idempotency() {
 }
 
 #[test]
+fn wire_handlers_stub_ok() {
+    use crate::handlers::*;
+    let (st, body) = handle_store_request(
+        br#"{"id":"1","tenant_id":"t","payload":{"items":[{"id":"a","kind":"episodic"}]}}"#,
+    )
+    .unwrap();
+    assert_eq!(st, 200);
+    assert!(body.contains("memory.stored"));
+    let (st, body) = handle_recall_request(br#"{"tenant_id":"t","query":"hi"}"#).unwrap();
+    assert_eq!(st, 200);
+    assert!(body.contains("hybrid_rrf"));
+    let (st, body) = handle_object_gc_request(
+        br#"{"tenant_id":"t","payload":{"scope":"all","yyyy_mm_dd":"2026-11-28","ref_still_linked":true}}"#,
+    )
+    .unwrap();
+    assert_eq!(st, 200);
+    assert!(body.contains("skipped_ref_linked"));
+}
+
+#[test]
 fn store_and_recall_helpers() {
     assert_eq!(
         store_item_kind(&json!({"kind":"episodic","text":"x"})),
@@ -56,3 +90,50 @@ fn store_and_recall_helpers() {
     assert!(recall);
     assert!(!recall_request_ok(&json!({"tenant_id":"t"})));
 }
+
+#[test]
+fn capture_subjects_and_no_sqlx() {
+    use crate::capture::*;
+    assert_eq!(TASK_SUBJECT, "aura.tasks.memory.capture");
+    assert_eq!(DONE_SUBJECT, "aura.events.memory.capture.done");
+    assert_eq!(ERROR_SUBJECT, "aura.events.memory.capture.error");
+    let manifest = include_str!("../Cargo.toml");
+    assert!(!manifest.contains("sqlx"));
+    assert!(!manifest.contains("postgres"));
+    let lib = include_str!("capture.rs");
+    assert!(!lib.contains("set_config"));
+    assert!(!lib.contains("INSERT INTO"));
+}
+
+#[test]
+fn capture_extract_embed_store_sequence() {
+    use crate::capture::*;
+    assert_eq!(extract_candidates("hi")[0]["memory_type"], "short_term");
+    assert_eq!(
+        extract_candidates_with_kind("trip", Some("episodic"))[0]["memory_type"],
+        "episodic"
+    );
+    assert!(extract_candidates("   ").is_empty());
+    assert_eq!(plan_embed("short_term")["status"], "skipped_short_term");
+    assert_eq!(plan_embed("episodic")["status"], "accepted");
+    assert_eq!(plan_store("episodic")["status"], "accepted_stub");
+
+    let env = handle_capture("tenant-a", "remember the meeting").unwrap();
+    assert_eq!(env.event_type, "memory.capture.done");
+    assert_eq!(env.tenant_id, "tenant-a");
+    let cands = env.payload["candidates"].as_array().unwrap();
+    let emb = env.payload["embedded"].as_array().unwrap();
+    let stored = env.payload["stored"].as_array().unwrap();
+    assert_eq!(cands.len(), 1);
+    assert_eq!(cands[0]["memory_type"], "short_term");
+    assert_eq!(emb.len(), 1);
+    assert_eq!(emb[0]["status"], "skipped_short_term");
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0]["status"], "accepted_stub");
+    assert_eq!(handle_capture("t", "").unwrap_err(), CaptureError::TextRequired);
+    assert_eq!(
+        build_capture_done_envelope("", vec![], vec![], vec![]).unwrap_err(),
+        CaptureError::TenantIdRequired
+    );
+}
+

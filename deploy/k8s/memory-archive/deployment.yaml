@@ -1,0 +1,54 @@
+# memory-archive JetStream Deployment (Fission MQT replaced).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-memory-archive
+  namespace: aura
+  labels:
+    aura.runtime/class: async
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-archive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aura-memory-archive
+  template:
+    metadata:
+      labels:
+        aura.runtime/class: async
+        aura.service: memory
+        app.kubernetes.io/part-of: aura
+        app.kubernetes.io/name: aura-memory-archive
+    spec:
+      containers:
+        - name: worker
+          image: aura/memory-batch:local
+          imagePullPolicy: IfNotPresent
+          command: ["/aura-memory-archive"]
+          env:
+            - name: NATS_URL
+              value: nats://nats.aura.svc.cluster.local:4222
+            - name: STREAM
+              value: AURA_TASKS
+            - name: TASK_SUBJECT
+              value: aura.tasks.memory.archive
+            - name: DURABLE
+              value: aura_memory_archive
+            - name: RESP_TOPIC
+              value: aura.events.memory.archived
+            - name: ERROR_TOPIC
+              value: aura.events.memory.archive.error
+            - name: AURA_DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: aura-pg-dsn
+                  key: AURA_DATABASE_HOST
+                  optional: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 512Mi

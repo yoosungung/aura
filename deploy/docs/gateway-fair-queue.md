@@ -46,7 +46,7 @@ terminal `release` / `ensureAdmitted` 우회 재확인은 [`gateway-inflight-rel
 ## Fairness (V3.2)
 
 - 버킷/inflight가 비면 **해당 테넌트만** 429 — 다른 `tenant_id` publish는 막지 않는다.
-- 노이지 픽스처: A가 rate/inflight를 소진해도 B는 202 + publish 성공 (`gateway.selftest.js`).
+- 노이지 픽스처: A가 rate/inflight를 소진해도 B는 202 + publish 성공 (`cargo test -p aura-gateway`).
 
 ---
 
@@ -66,5 +66,5 @@ terminal `release` / `ensureAdmitted` 우회 재확인은 [`gateway-inflight-rel
 ```bash
 bash deploy/scripts/check-gateway-fair-queue.sh
 bash deploy/scripts/check-gateway-inflight-release.sh
-node services/gateway/gateway.selftest.js
+cargo test -p aura-gateway
 ```

@@ -37,19 +37,19 @@ jobs:
         include:
           - name: aura-gateway
             context: .
-            file: services/gateway/rs/Dockerfile
+            file: services/gateway/Dockerfile
           - name: aura-llm-gateway
             context: .
-            file: services/llm-gateway/rs/Dockerfile
+            file: services/llm-gateway/Dockerfile
           - name: aura-nats-rpc-bridge
             context: .
-            file: services/nats-rpc-bridge/rs/Dockerfile
+            file: services/nats-rpc-bridge/Dockerfile
           - name: aura-nats-task-bridge
             context: .
-            file: services/nats-task-bridge/rs/Dockerfile
+            file: services/nats-task-bridge/Dockerfile
           - name: aura-control-admin
             context: .
-            file: services/control/rs/Dockerfile
+            file: services/control/Dockerfile
           - name: aura-admin-ui
             context: .
             file: services/admin-ui/Dockerfile

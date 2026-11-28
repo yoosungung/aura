@@ -54,7 +54,6 @@ grep -Eq 'pg-pitr-drill-calendar|정기.*PITR|PITR.*캘린더' "$AGENTS" \
 
 grep -Eqi 'calendar|캘린더' "$DRILL_DOC" || fail "pg-pitr-drill.md must point at calendar"
 
-node "$SELFTEST" || fail "calendar.selftest.js failed"
 
 # Seed must satisfy evaluateCalendar at committed as-of (lab-1 day)
 node - <<NODE
@@ -78,6 +77,8 @@ console.log('seed-ok', {
   next: r.next_due_quarter_id,
 });
 NODE
+
+node "$SELFTEST" || fail "selftest failed"
 
 ok "PG PITR drill calendar policy"
 echo "check-pg-pitr-drill-calendar: PASS"

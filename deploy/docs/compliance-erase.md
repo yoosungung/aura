@@ -2,7 +2,7 @@
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #17 · §9.3.  
 `content_ref`/`enc.kid`: [`object-store-content-ref.md`](object-store-content-ref.md).  
-코드: [`services/compliance/erase/`](../../services/compliance/erase/) · 매니페스트: [`../k8s/compliance-erase/`](../k8s/compliance-erase/).
+코드: [`services/compliance/`](../../services/compliance/) · 매니페스트: [`../k8s/compliance-erase/`](../k8s/compliance-erase/).
 
 **이 문서 범위:** GDPR 잊힐 권리 **초안** — DEK **crypto-shred** → 핫 PG redact → `aura-content` `refs/` DeleteObject(방어) · MQT 와이어 · `test:` 게이트.  
 **Non-goals:** live OpenBao/Transit apply CI 필수 · 전 테넌트 wipe 라이브 · PITR 드릴 · archive/bundles 물리 삭제 · OTel Collector · M5 운영화.
@@ -71,6 +71,6 @@
 
 ```bash
 bash deploy/scripts/check-compliance-erase.sh
-node services/compliance/erase/plan.selftest.js
-node services/compliance/erase/handler.selftest.js
+cargo test -p aura-compliance-erase
+bash deploy/scripts/check-compliance-erase.sh
 ```

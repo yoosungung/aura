@@ -1,0 +1,14 @@
+**/node_modules
+**/*selftest*
+**/*.selftest.js
+**/*.selftest.cjs
+**/DESIGN.md
+**/*.md
+**/rs/
+**/.git
+**/dist/
+**/coverage/
+agent-tools/
+deploy/dev/
+scaffolds/
+services/admin-ui/

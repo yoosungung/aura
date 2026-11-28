@@ -7,8 +7,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DOC="$ROOT/deploy/docs/llm-gateway-fallback-billing.md"
 BASE_DOC="$ROOT/deploy/docs/llm-gateway.md"
 DESIGN="$ROOT/services/llm-gateway/DESIGN.md"
-RS_LIB="$ROOT/services/llm-gateway/rs/src/lib.rs"
-SELFTEST="$ROOT/services/llm-gateway/gateway.selftest.js"
+RS_LIB="$ROOT/services/llm-gateway/src/lib.rs"
 DEP="$ROOT/deploy/k8s/llm-gateway/deployment.yaml"
 ARCH="$ROOT/ARCHITECTURE.md"
 ROADMAP="$ROOT/ROADMAP.md"
@@ -22,7 +21,6 @@ ok() { echo "OK: $*"; }
 [[ -f "$BASE_DOC" ]] || fail "missing $BASE_DOC"
 [[ -f "$DESIGN" ]] || fail "missing $DESIGN"
 [[ -f "$RS_LIB" ]] || fail "missing Rust lib.rs"
-[[ -f "$SELFTEST" ]] || fail "missing $SELFTEST"
 [[ -f "$DEP" ]] || fail "missing $DEP"
 
 grep -Eq 'fallback_used|attempts|ChatProvider' "$RS_LIB" \
@@ -53,7 +51,6 @@ grep -Eq 'llm-gateway-fallback-billing|Fallback.*과금' "$AGENTS" \
   || fail "AGENTS must mention fallback/billing"
 
 (cd "$ROOT" && cargo test -p aura-llm-gateway --quiet) || fail "cargo test -p aura-llm-gateway failed"
-node "$SELFTEST" || fail "gateway.selftest.js failed"
 
 ok "llm-gateway Fallback chain + tenant billing usage dashboard"
 echo "check-llm-gateway-fallback-billing: PASS"

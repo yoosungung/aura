@@ -1,9 +1,0 @@
-{
-  "name": "aura-gateway",
-  "private": true,
-  "type": "commonjs",
-  "main": "entrypoint.js",
-  "dependencies": {
-    "nats": "^2.29.3"
-  }
-}

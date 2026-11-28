@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/part-of: aura
     app.kubernetes.io/name: aura-nats-task-bridge
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: aura-nats-task-bridge

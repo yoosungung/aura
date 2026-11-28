@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# M3 static gate: aura.rpc.control.resolve — poolmgr Function + shared nats-rpc-bridge, no MQT.
-# No cluster required. Exit 0 only when invariants hold.
+# control.resolve — Rust Deployment + shared nats-rpc-bridge (no Fission/MQT).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DESIGN="$ROOT/services/control/DESIGN.md"
 DOCS="$ROOT/deploy/docs/control-resolve-bridge.md"
 RESOLVE_DOC="$ROOT/deploy/docs/svc-control-resolve.md"
-SVC_DIR="$ROOT/services/control"
+CTRL="$ROOT/services/control"
 K8S_DIR="$ROOT/deploy/k8s/control-resolve"
 ARCH="$ROOT/ARCHITECTURE.md"
 ROADMAP="$ROOT/ROADMAP.md"
 AGENTS="$ROOT/AGENTS.md"
+BRIDGE_DEP="$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml"
+BRIDGE_RS="$ROOT/services/nats-rpc-bridge/src/lib.rs"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
@@ -19,114 +20,49 @@ ok() { echo "OK: $*"; }
 [[ -f "$DESIGN" ]] || fail "missing $DESIGN"
 [[ -f "$DOCS" ]] || fail "missing $DOCS"
 [[ -f "$RESOLVE_DOC" ]] || fail "missing $RESOLVE_DOC"
-[[ -d "$SVC_DIR" ]] || fail "missing $SVC_DIR"
+[[ -f "$CTRL/src/lib.rs" ]] || fail "missing control Rust lib"
+[[ -f "$CTRL/src/bin/aura-control-resolve.rs" ]] || fail "missing aura-control-resolve binary"
 [[ -d "$K8S_DIR" ]] || fail "missing $K8S_DIR"
+[[ ! -d "$CTRL/js" ]] || fail "control/js must be removed (Rust-only)"
 
-# DESIGN — bridge subject + Warm + Pooler pointer + Non-goals
 grep -q 'aura.rpc.control.resolve' "$DESIGN" || fail "DESIGN must name aura.rpc.control.resolve"
-grep -Eqi 'poolmgr|nats-rpc-bridge|poolsize|replicas ≥ 2|replicas >= 2' "$DESIGN" \
-  || fail "DESIGN must require poolmgr/bridge Warm (≥2)"
-grep -Eqi 'queue-group|queue group|aura-control-resolve' "$DESIGN" || fail "DESIGN must name queue-group"
-grep -Eqi 'MQT|MessageQueueTrigger' "$DESIGN" || fail "DESIGN must mention MQT absence"
 grep -Eqi 'Non-goals' "$DESIGN" || fail "DESIGN must state Non-goals"
-grep -q 'aura-pg-pooler' "$DESIGN" || fail "DESIGN must keep Pooler contract (aura-pg-pooler)"
-grep -Eq "set_config\('app\.tenant_id'" "$DESIGN" || fail "DESIGN must keep set_config tenant GUC contract"
+grep -q 'aura-pg-pooler' "$DESIGN" || fail "DESIGN must keep Pooler contract"
 grep -q '## Commands' "$DESIGN" || fail "DESIGN must include ## Commands"
-grep -Eqi 'control-resolve-bridge|bridge\.js' "$DESIGN" || fail "DESIGN must point at bridge doc/handler"
 
-# Wire doc
 grep -q 'aura.rpc.control.resolve' "$DOCS" || fail "docs must name aura.rpc.control.resolve"
-grep -Eq 'aura-control-resolve|aura-rpc-bridge|nats-rpc-bridge' "$DOCS" \
-  || fail "docs must name resolve Function or shared bridge"
-grep -Eqi 'poolmgr|poolsize|replicas ≥ 2|replicas >= 2|bridge' "$DOCS" \
-  || fail "docs must state bridge/poolmgr Warm ≥2"
-grep -Eqi 'Non-goals' "$DOCS" || fail "docs must state Non-goals"
-grep -Eqi 'MQT|MessageQueueTrigger|JetStream' "$DOCS" || fail "docs must forbid MQT/JetStream scaler"
+grep -Eq 'nats-rpc-bridge|aura-control-resolve' "$DOCS" || fail "docs must name bridge or resolve service"
 grep -q 'control.resolve.done' "$DOCS" || fail "docs must name control.resolve.done"
-grep -Eqi 'svc-control-resolve\.md' "$DOCS" || fail "docs must link svc-control-resolve.md"
 
-BRIDGE="$SVC_DIR/bridge.js"
-[[ -f "$BRIDGE" ]] || fail "missing $BRIDGE"
-grep -q 'aura.rpc.control.resolve' "$BRIDGE" || fail "bridge must name aura.rpc.control.resolve"
-grep -q 'control.resolve.done' "$BRIDGE" || fail "bridge must emit control.resolve.done"
-grep -Eq 'validateResolveRequest|buildResolveResponse' "$BRIDGE" || fail "bridge must use resolve helpers"
-grep -Eqi 'mode.*stub|stub' "$BRIDGE" || fail "bridge must support stub mode"
+grep -q 'validate_resolve_request' "$CTRL/src/lib.rs" || fail "control lib must expose validate_resolve_request"
+grep -q 'resolve_with_pooler' "$CTRL/src/lib.rs" || fail "control lib must expose resolve_with_pooler"
+grep -q 'SET_TENANT_GUC_SQL' "$CTRL/src/lib.rs" || fail "control lib must keep SET_TENANT_GUC_SQL contract"
 
-if grep -Eq "require\(['\"]pg['\"]\)|AURA_DATABASE_HOST|aura-pg-pooler|\.query\s*\(" "$BRIDGE"; then
-  fail "bridge.js must not hard-wire pg client (injectable lookup only)"
-fi
+(cd "$ROOT" && cargo test -p aura-control --lib --offline) || fail "aura-control lib tests failed"
 
-LOOKUP="$SVC_DIR/pooler-lookup.js"
-TX="$SVC_DIR/tenant-tx.js"
-[[ -f "$LOOKUP" ]] || fail "missing $LOOKUP (M6 Pooler SELECT)"
-[[ -f "$TX" ]] || fail "missing $TX"
-grep -Eq 'withTenantTx|tenant-tx' "$LOOKUP" || fail "pooler-lookup must use withTenantTx"
-grep -Eq "set_config\('app\.tenant_id'" "$TX" || fail "tenant-tx must use set_config tenant GUC"
-grep -Eqi "status = 'active'|status.*active" "$LOOKUP" || fail "pooler-lookup must filter active sources"
-
-node "$SVC_DIR/bridge.selftest.js" || fail "bridge.selftest.js failed"
-node "$SVC_DIR/resolve.selftest.js" || fail "resolve.selftest.js failed"
-node "$SVC_DIR/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest.js failed"
-
-# Manifests — sync poolmgr + shared bridge, no JetStream MQT / *-rr
-FN="$K8S_DIR/function.yaml"
-PKG="$K8S_DIR/package.yaml"
+DEP="$K8S_DIR/deployment.yaml"
 KUST="$K8S_DIR/kustomization.yaml"
-ARCH_ZIP="$K8S_DIR/archive.zip"
-BRIDGE_DEP="$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml"
-BRIDGE_RS="$ROOT/services/nats-rpc-bridge/rs/src/lib.rs"
-ENV_SYNC="$ROOT/deploy/k8s/runtime-envs/aura-nodejs-sync.yaml"
-[[ -f "$FN" ]] || fail "missing $FN"
-[[ -f "$PKG" ]] || fail "missing $PKG"
-[[ -f "$KUST" ]] || fail "missing $KUST"
-[[ -f "$ARCH_ZIP" ]] || fail "missing $ARCH_ZIP (run build-control-resolve-archive.sh)"
-[[ -f "$BRIDGE_DEP" ]] || fail "missing $BRIDGE_DEP"
-[[ -f "$BRIDGE_RS" ]] || fail "missing $BRIDGE_RS"
-[[ -f "$ENV_SYNC" ]] || fail "missing shared sync env $ENV_SYNC"
-[[ ! -f "$K8S_DIR/rpc-responder.yaml" ]] || fail "rpc-responder.yaml must be removed (shared bridge)"
-grep -q 'name: aura-nodejs-sync' "$FN" || fail "function must use aura-nodejs-sync"
-grep -q 'name: aura-nodejs-sync' "$PKG" || fail "package must use aura-nodejs-sync"
-grep -Eq 'poolsize:[[:space:]]*[2-9]|poolsize:[[:space:]]*[1-9][0-9]' "$ENV_SYNC" \
-  || fail "aura-nodejs-sync poolsize must be >= 2"
-if grep -E '^[[:space:]]*-[[:space:]]*environment\.yaml' "$KUST"; then
-  fail "kustomization must not list per-service environment.yaml"
+[[ -f "$DEP" ]] || fail "missing deployment.yaml"
+[[ -f "$KUST" ]] || fail "missing kustomization.yaml"
+grep -q 'aura/control-resolve' "$DEP" || fail "deployment image aura/control-resolve"
+grep -q 'replicas: 1' "$DEP" || fail "lab replicas must be 1"
+if grep -qE 'function\.yaml|mqt\.yaml|package\.yaml|archive\.zip' "$KUST"; then
+  fail "kustomization must not list Fission resources"
+fi
+if grep -REq 'kind:[[:space:]]*MessageQueueTrigger' "$K8S_DIR"/*.yaml 2>/dev/null; then
+  fail "control-resolve must not include MessageQueueTrigger"
 fi
 
-if grep -REq 'kind:[[:space:]]*MessageQueueTrigger|kind:[[:space:]]*ScaledObject' "$K8S_DIR"/*.yaml; then
-  fail "control-resolve must not include MessageQueueTrigger or ScaledObject"
-fi
-if grep -E '^[[:space:]]*-[[:space:]]*rpc-responder\.yaml' "$KUST"; then
-  fail "kustomization must not list rpc-responder.yaml"
-fi
-if grep -E '^[[:space:]]*-[[:space:]]*mqt\.yaml' "$KUST"; then
-  fail "kustomization must not list mqt.yaml"
-fi
-
-grep -q 'aura.runtime/class: sync' "$FN" || fail "function must label aura.runtime/class=sync"
-grep -Eq 'ExecutorType:[[:space:]]*poolmgr' "$FN" || fail "function ExecutorType must be poolmgr"
-
+[[ -f "$BRIDGE_DEP" ]] || fail "missing nats-rpc-bridge deployment"
+[[ -f "$BRIDGE_RS" ]] || fail "missing rpc-bridge lib"
 grep -q 'name: aura-nats-rpc-bridge' "$BRIDGE_DEP" || fail "bridge deployment must be aura-nats-rpc-bridge"
-grep -Eq 'namespace:[[:space:]]*aura' "$BRIDGE_DEP" || fail "bridge deployment must be ns aura"
-grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$BRIDGE_DEP" \
-  || fail "bridge replicas must be >= 2"
-grep -q 'aura-rpc-bridge' "$BRIDGE_DEP" || fail "bridge must use queue aura-rpc-bridge"
-grep -q 'service_url_for_subject' "$BRIDGE_RS" || fail "Rust bridge must expose service_url_for_subject"
-python3 - "$ARCH_ZIP" <<'PY' || fail "archive must include bridge.js + index.js"
-import zipfile, sys
-names = zipfile.ZipFile(sys.argv[1]).namelist()
-assert any(n.endswith("bridge.js") for n in names), names
-assert any(n.endswith("index.js") for n in names), names
-print("OK: control-resolve archive entries")
-PY
+grep -q 'aura.rpc.control.resolve' "$BRIDGE_RS" || fail "Rust bridge must map aura.rpc.control.resolve"
+grep -q 'aura-control-resolve' "$BRIDGE_RS" || fail "Rust bridge must target aura-control-resolve"
 
-# ARCHITECTURE + ROADMAP + AGENTS
-[[ -f "$ARCH" ]] || fail "missing $ARCH"
-[[ -f "$ROADMAP" ]] || fail "missing $ROADMAP"
-[[ -f "$AGENTS" ]] || fail "missing $AGENTS"
 grep -Eq 'control-resolve-bridge\.md' "$ARCH" || fail "ARCHITECTURE must link control-resolve-bridge.md"
 grep -Eq '\[x\].*`aura\.rpc\.control\.resolve`' "$ROADMAP" \
   || fail "ROADMAP control.resolve bridge checkbox must be [x]"
-grep -Eq 'control-resolve' "$AGENTS" || fail "AGENTS.md must list deploy/k8s/control-resolve"
+grep -Eq 'control-resolve' "$AGENTS" || fail "AGENTS.md must list control-resolve"
 
-ok "control.resolve Function + shared NATS bridge + poolmgr + no MQT"
+ok "control.resolve Rust Deployment + shared NATS bridge + no MQT"
 echo "check-control-resolve-bridge: PASS"

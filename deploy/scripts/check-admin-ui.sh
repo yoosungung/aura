@@ -23,9 +23,9 @@ ok() { echo "OK: $*"; }
 [[ -f "$SQL" ]] || fail "missing $SQL"
 [[ -f "$DESIGN_CTRL" ]] || fail "missing $DESIGN_CTRL"
 [[ -f "$DESIGN_UI" ]] || fail "missing $DESIGN_UI"
-[[ -f "$CTRL/rs/Dockerfile" ]] || fail "missing control rs/Dockerfile"
-[[ -f "$CTRL/resolve.js" ]] || fail "missing resolve.js (Function archive)"
-[[ -f "$CTRL/bridge.js" ]] || fail "missing bridge.js (Function archive)"
+[[ -f "$CTRL/Dockerfile" ]] || fail "missing control Dockerfile"
+[[ -f "$CTRL/src/lib.rs" ]] || fail "missing control Rust lib"
+[[ ! -d "$CTRL/js" ]] || fail "control/js must be removed"
 [[ -f "$UI/package.json" ]] || fail "missing admin-ui package.json"
 [[ -f "$UI/src/main.tsx" ]] || fail "missing admin-ui src/main.tsx"
 [[ -f "$UI/src/lib/schemas.ts" ]] || fail "missing schemas.ts"
@@ -72,12 +72,12 @@ grep -Eq 'aura/admin-ui:local' "$DESIGN_UI" || fail "admin-ui DESIGN must name b
 DEP="$ROOT/deploy/k8s/control-admin/deployment.yaml"
 UI_DEP="$ROOT/deploy/k8s/admin-ui/deployment.yaml"
 APPLY="$ROOT/deploy/scripts/apply-admin-ui.sh"
-[[ -f "$CTRL/rs/Dockerfile" ]] || fail "missing control-admin rs/Dockerfile"
+[[ -f "$CTRL/Dockerfile" ]] || fail "missing control-admin Dockerfile"
 [[ -f "$UI/Dockerfile" ]] || fail "missing admin-ui Dockerfile"
 [[ -f "$UI/nginx.conf" ]] || fail "missing admin-ui nginx.conf"
-grep -q 'aura-control-admin' "$CTRL/rs/Dockerfile" || fail "control image must run aura-control-admin"
-grep -q 'dev.orbstack.icon=' "$CTRL/rs/Dockerfile" || fail "control-admin image must set dev.orbstack.icon"
-if grep -Eq 'COPY .*aura-logo\.jpg' "$CTRL/rs/Dockerfile"; then
+grep -q 'aura-control-admin' "$CTRL/Dockerfile" || fail "control image must run aura-control-admin"
+grep -q 'dev.orbstack.icon=' "$CTRL/Dockerfile" || fail "control-admin image must set dev.orbstack.icon"
+if grep -Eq 'COPY .*aura-logo\.jpg' "$CTRL/Dockerfile"; then
   fail "control-admin image must not bake the logo file"
 fi
 grep -q 'listen 8080' "$UI/nginx.conf" || fail "nginx.conf must listen 8080"
@@ -99,7 +99,7 @@ if grep -Eq 'create configmap aura-control-admin-app|create configmap aura-admin
 fi
 
 # Code invariants (admin HTTP server = Rust; checksum activate contract stays in docs)
-grep -Eq '/v1/audit|allowed_admin_paths' "$CTRL/rs/src/lib.rs" \
+grep -Eq '/v1/audit|allowed_admin_paths' "$CTRL/src/lib.rs" \
   || fail "Rust control must expose /v1/audit paths"
 grep -Eqi 'checksum|sha256|activate' "$DOC" || fail "doc must lock checksum activate"
 grep -Eqi 'control_audit' "$DOC" "$DESIGN_CTRL" || fail "docs must name control_audit"
@@ -112,7 +112,6 @@ grep -Eq 'runtime_in_config_forbidden' "$UI/src/lib/schemas.ts" \
 
 # Unit + build
 (cd "$ROOT" && cargo test -p aura-control --quiet) || fail "cargo test -p aura-control failed"
-node "$CTRL/pooler-lookup.selftest.js" || fail "pooler-lookup.selftest failed"
 node "$UI/ui.selftest.cjs" || fail "admin-ui ui.selftest failed"
 (
   cd "$UI"

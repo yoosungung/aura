@@ -72,13 +72,40 @@ async function createNatsDeps(opts) {
         sc.encode(JSON.stringify(frame || {})),
       );
     },
+    async publishCapture(envelope) {
+      const js = nc.jetstream ? nc.jetstream() : null;
+      const payload = sc.encode(JSON.stringify(envelope || {}));
+      if (js && typeof js.publish === 'function') {
+        await js.publish('aura.tasks.memory.capture', payload);
+        return;
+      }
+      nc.publish('aura.tasks.memory.capture', payload);
+    },
     async close() {
       if (nc && typeof nc.close === 'function') await nc.close();
     },
   };
 }
 
+/**
+ * Lazy JetStream publisher for turn-end → aura.tasks.memory.capture.
+ * @param {{ servers?: string, connect?: Function }} opts
+ */
+function createCapturePublisher(opts) {
+  const o = opts || {};
+  let depsPromise = null;
+  async function ensure() {
+    if (!depsPromise) depsPromise = createNatsDeps(o);
+    return depsPromise;
+  }
+  return async function publishCapture(envelope) {
+    const deps = await ensure();
+    return deps.publishCapture(envelope);
+  };
+}
+
 module.exports = {
   buildStreamSubject,
   createNatsDeps,
+  createCapturePublisher,
 };

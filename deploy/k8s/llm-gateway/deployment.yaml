@@ -15,7 +15,7 @@ metadata:
     app.kubernetes.io/name: aura-llm-gateway
     app: aura-llm-gateway
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: aura-llm-gateway

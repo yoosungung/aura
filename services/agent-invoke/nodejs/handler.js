@@ -383,6 +383,26 @@ async function invokeOnce(task, deps) {
     await publishStream(task.run_id, { type: 'run.completed' });
   }
 
+  const capturePublish = d.publishCapture;
+  if (typeof capturePublish === 'function') {
+    const text =
+      (task.input && typeof task.input.text === 'string' && task.input.text) ||
+      (turnOut && turnOut.text) ||
+      '';
+    if (text) {
+      await capturePublish({
+        id: `capture:${task.run_id}`,
+        type: 'memory.capture',
+        tenant_id: tenantId,
+        payload: {
+          session_id: task.session_id || null,
+          text,
+          messages: (task.input && task.input.messages) || undefined,
+        },
+      });
+    }
+  }
+
   return {
     id: task.run_id,
     type: 'agent.invoke.done',
@@ -429,7 +449,19 @@ module.exports = async function (context) {
     llmTransport: context && context.llmTransport,
     createAgent: context && context.createAgent,
     chatModel: context && context.chatModel,
+    publishCapture: context && context.publishCapture,
   };
+
+  if (!deps.publishCapture && process.env.NATS_URL) {
+    try {
+      const { createCapturePublisher } = require('./nats-deps');
+      deps.publishCapture = createCapturePublisher({
+        servers: process.env.NATS_URL,
+      });
+    } catch (_) {
+      /* optional until NATS packaged in Function image */
+    }
+  }
 
   if (!deps.checkpoints && process.env.AURA_DATABASE_URL) {
     try {

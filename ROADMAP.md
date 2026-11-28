@@ -42,6 +42,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-28 | **플랫폼 서비스 Rust 전환 범위** — 브리지·Gateway·LLM Gateway·control·`svc-memory`·**`memory_capture` 포함**·agent/mcp **오케스트레이터**. Admin UI·테넌트 agent/MCP 번들은 Node/Python 유지. capture는 **성능 이득 낮음**(병목=LLM Gateway)이나 **Node 단독 잔존 방지(관리 일관성)** 로 포함. Object Store RustFS와 **별 트랙** | 캔버스 `service-rust-migration` · 아래 「플랫폼 서비스 Rust 전환」 |
 | 2026-11-28 | **Rust lab cutover (Deployment)** — Gateway·LLM·control-admin·nats-rpc/task-bridge → `*:rust-local` replicas=2 · Node RS desired=0 (orbstack). Function(`memory_*`·`control-resolve`·`agent/mcp-invoke`)는 Node/Python 유지 · Rust Function 이미지 **미배선**. Pooler/PG live·S3·sqlx 본배선=후속. Object Store(**RustFS 단독**·Garage 제거)=**별 인프라 트랙** | [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service-rust-strangler-lab.md) · 아래 「플랫폼 서비스 Rust 전환」 |
 | 2026-11-28 | **메모리 본구현 미완 재표기** — store/embed/consolidate는 MQT·GUC·Gateway 호출 **스켈레톤만** (`SELECT` stub). **실** `memory_items` INSERT/UPSERT · `memory_embeddings` halfvec UPSERT · `memory_nodes`/`memory_edges` **쓰기(그래프 구축)** 는 미구현. recall **graph walk(읽기)**·DDL·계약 문서는 유지 | 코드 실측 · 아래 M1/M2/M4 미완 항목 |
+| 2026-11-28 | **capture inline pipeline 계획** — capture **한 프로세스** 순차(extract→동기 Gateway embed→store 모듈 PG). store/embed **단독 JetStream Deployment 퇴역** 목표. 로컬 K8s **replicas=1** 고정. ARCHITECTURE §5 개정은 착수 PR | [`deploy/docs/memory-capture-inline-pipeline.md`](deploy/docs/memory-capture-inline-pipeline.md) |
+| 2026-11-28 | **memory 배치 스케줄 = K8s CronJob** — consolidate/TTL/archive/object_gc · UTC **일 1회** · JetStream subject publish only · Deployment가 handler 소비. NATS KV/JetStream native schedule **비채택** | [`deploy/docs/memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md) · 사용자 “크론 잡으로 하자” |
+| 2026-11-28 | **memory 이미지 이름 확정** — 캡처 **`aura/memory-capture`** · 리콜 **`aura/memory-recall`** · 배치(consolidate/TTL/archive/object_gc+CronJob) **`aura/memory-batch`**. 캡처 이미지에 배치 핸들러 금지 | [`memory-capture-inline-pipeline.md`](deploy/docs/memory-capture-inline-pipeline.md) · [`memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md) |
 | 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
 | 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Warm은 별 항목 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 Warm M3 고정** — subject/queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` replicas≥2 · MQT 금지 · stub/injectable handler · live Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · `deploy/k8s/control-resolve/` |
@@ -172,7 +175,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **short_term embed 거부** 가드; pgvector **≥ 0.8**; `ef_search` / `iterative_scan` DESIGN — [`deploy/docs/memory-embed-guard-iterative-scan.md`](deploy/docs/memory-embed-guard-iterative-scan.md) · `check-memory-embed-guard.sh` · `smoke-memory-embed-guard.sh`
 - [x] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2 — [`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md) · `check-memory-hnsw-multitenant.sh` · `smoke-memory-hnsw-multitenant.sh`
 - [x] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정) — [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md) · `check-memory-embedding-active.sh` (`BAAI/bge-m3` · `1` · `1024`)
-- [x] `services/memory/DESIGN.md` + store MQT **스켈레톤** — 매 트랜잭션 `set_config(..., true)` (`services/memory/` · `deploy/k8s/memory-store/` · `check-memory-store.sh`) · **실 DDL INSERT 아님**
+- [x] `services/memory/DESIGN.md` + store Deployment **스켈레톤** — 매 트랜잭션 `set_config(..., true)` (`services/memory/` · `deploy/k8s/memory-store/` · `check-memory-store.sh`) · **실 DDL INSERT 아님**
 - [ ] **`memory_items` 실 INSERT/UPSERT** — Pooler + `withTenantTx` · 멱등 `id` · `content`/`content_ref` · GENERATED `content_tsv` (현 `store/handler.js` = `SELECT` stub · **미완**)
 - [x] (스모크) 무차원 HNSW 실패; short_term→embed 거부 (`smoke-memory-embed-guard.sh`; live 또는 `SMOKE_MEMORY_EMBED_GUARD_STATIC=1`)
 
@@ -198,8 +201,9 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **작업**
 
-- [x] `memory_capture` Function (PG 금지, MQT) → `aura.events.memory.candidates` (`services/memory-capture/` · `deploy/k8s/memory-capture/` · `check-memory-capture.sh`)
-- [x] embed Function (MQT) **스켈레톤** — **short_term 스킵**; Gateway `POST /v1/embeddings` + dims 가드 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`) · **`memory_embeddings` UPSERT 아님**
+- [x] `memory_capture` Deployment (JetStream · inline pipeline) → `aura.events.memory.capture.done` (`services/memory/DESIGN.md` · `deploy/k8s/memory-capture/` · `check-memory-capture.sh`)
+- [x] embed Deployment (JetStream) **스켈레톤** — **short_term 스킵**; Gateway `POST /v1/embeddings` + dims 가드 (`services/memory/embed/` · `deploy/k8s/memory-embed/` · `check-memory-embed.sh`) · **`memory_embeddings` UPSERT 아님**
+- [x] **capture inline pipeline** — in-process extract→embed→store · store/embed Deployment 퇴역 · 이미지=`aura/memory-capture`·`aura/memory-recall`·`aura/memory-batch` · agent publish · CronJob — [`deploy/docs/memory-capture-inline-pipeline.md`](deploy/docs/memory-capture-inline-pipeline.md) · [`memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md)
 - [ ] **임베딩 PG 적재** — Gateway 벡터 → `memory_embeddings` `halfvec(N)` + `model_key` 실 UPSERT/멱등 (현 `embed/handler.js` = `SELECT` stub · **미완**)
 - [x] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음 (`services/memory/recall/` · `deploy/k8s/memory-recall/` · `check-memory-recall.sh`)
 - [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph walk M4); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`) — **읽기 경로** (시드 데이터는 픽스처/수동)
@@ -231,7 +235,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `svc-control` 최소 resolve API/스키마 (`source_meta`/`user_meta`) — [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md) · `control_meta.sql` · `check-svc-control-resolve.sh`
 - [x] `agent_invoke` MQT — recall/mcp/resolve RPC + **`aura.stream.<run_id>` 토큰/툴 프레임** 설계·구현 — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · [`services/agent-invoke/`](services/agent-invoke/) · `deploy/k8s/agent-invoke/` · `check-agent-invoke.sh`
 - [x] Gateway: `run_id` 발급; SSE/WS 브리지 + principal 인가 — [`deploy/docs/gateway-sse-ws.md`](deploy/docs/gateway-sse-ws.md) · [`services/gateway/`](services/gateway/) · `deploy/k8s/gateway/` · `check-gateway-sse-ws.sh`
-- [x] Gateway: **테넌트별 Rate Limiting** — Token Bucket + max_inflight(§2.2); NATS KV; 429; 노이지 픽스처 — [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md) · `services/gateway/rate-limit.js` · `check-gateway-fair-queue.sh` (10/s·burst30·inflight20)
+- [x] Gateway: **테넌트별 Rate Limiting** — Token Bucket + max_inflight(§2.2); NATS KV; 429; 노이지 픽스처 — [`deploy/docs/gateway-fair-queue.md`](deploy/docs/gateway-fair-queue.md) · `services/gateway/src/rate_limit.rs` · `check-gateway-fair-queue.sh` (10/s·burst30·inflight20)
 - [x] done/error 시 inflight 감산; 우회 시 `agent_invoke` 재확인 — [`deploy/docs/gateway-inflight-release.md`](deploy/docs/gateway-inflight-release.md) · `ensureAdmitted` · `check-gateway-inflight-release.sh`
 - [x] 프레임 계약 확정: `run.started` / `token` / `tool.*` / `run.completed` + events done — [`deploy/docs/agent-invoke-mqt.md`](deploy/docs/agent-invoke-mqt.md) · `check-agent-invoke.sh`
 - [x] `mcp_invoke` **이원화**: task(MQT) + rpc(`aura.rpc.mcp.tool`, minReplicas ≥ 2) — [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) · [`services/mcp-invoke/`](services/mcp-invoke/) · `deploy/k8s/mcp-invoke/` · `deploy/k8s/mcp-invoke-rpc/` · `check-mcp-invoke-dual.sh`
@@ -321,6 +325,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] `aura.tasks.memory.ttl` — 만료 short_term/episodic/audit **월 파티션 DROP** — [`deploy/docs/memory-ttl-drop.md`](deploy/docs/memory-ttl-drop.md) · `services/memory/ttl/` · `deploy/k8s/memory-ttl/` · `check-memory-ttl.sh` (episodic cold=`needs_archive` until archive)
 - [x] `aura.tasks.memory.archive` — 콜드 episodic → Object Storage Parquet → DETACH/DROP + `aura.events.memory.archived` ([`deploy/docs/memory-archive.md`](deploy/docs/memory-archive.md) · `check-memory-archive.sh` · `services/memory/archive/`)
 - [x] `aura.tasks.memory.object_gc` — 유예 90일 미참조 `content_ref` 삭제 ([`object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · [`memory-object-gc.md`](deploy/docs/memory-object-gc.md) · `check-object-store-orphan-gc.sh` · `services/memory/object-gc/`)
+- [x] **memory 배치 CronJob** — consolidate/TTL/archive/object_gc · UTC 일 1회 JetStream publish · `cronjob.yaml` · 이미지 **`aura/memory-batch`** — [`deploy/docs/memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md)
 - [x] object store 버킷/경로 계약(번들 스토어와 공유 가능) → 결정 로그 ([`object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh`)
 - [x] OTel (Function·NATS·PG) + 시크릿 마스킹 검증 — [`deploy/docs/otel-function-nats-pg.md`](deploy/docs/otel-function-nats-pg.md) · `check-otel-function-nats-pg.sh` · [`services/otel/`](services/otel/)
 - [x] `aura.tasks.compliance.erase` 초안 — content_ref + crypto-shredding 키 파기 흐름 ([`compliance-erase.md`](deploy/docs/compliance-erase.md) · `check-compliance-erase.sh` · [`services/compliance/`](services/compliance/) · `deploy/k8s/compliance-erase/`)
@@ -454,17 +459,17 @@ Strangler lab: [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service
 
 **Phase 1 (NATS 브리지)** — 동일 queue-group/durable · inflight·AckWait 이식 · Strangler
 
-- [x] `nats-rpc-bridge` Rust (`services/nats-rpc-bridge/rs`) — mapping/inflight/handle 패리티 · distroless
-- [x] `nats-task-bridge` Rust (`services/nats-task-bridge/rs`) — AckWait≥150s · Progress heartbeat · MaxDeliver=5 · durable 동일
+- [x] `nats-rpc-bridge` Rust (`services/nats-rpc-bridge`) — mapping/inflight/handle 패리티 · distroless
+- [x] `nats-task-bridge` Rust (`services/nats-task-bridge`) — AckWait≥150s · Progress heartbeat · MaxDeliver=5 · durable 동일
 - [x] lab canary(동일 queue-group/durable) → 이미지 cutover → Node replicas 0 / deprecate (orbstack · `*:local` Rust ×2 · 2026-11-28)
 
 **Phase 2 (엣지 게이트웨이)** — Gateway → LLM Gateway · client.js/py 유지
 
-- [x] Gateway Rust (`services/gateway/rs`) — UUIDv7 · Fair Queue · submit 202/429 · release · distroless · **parity_tests 8 passed**
-- [x] LLM Gateway Rust (`services/llm-gateway/rs`) — aura-auto · Fallback · billing stub · **parity_tests 11 passed**
+- [x] Gateway Rust (`services/gateway`) — UUIDv7 · Fair Queue · submit 202/429 · release · distroless · **parity_tests 8 passed**
+- [x] LLM Gateway Rust (`services/llm-gateway`) — aura-auto · Fallback · billing stub · **parity_tests 11 passed**
 - [x] lab canary → cutover → Node deprecate (orbstack · `*:local` Rust ×2 · Node RS desired=0 · 2026-11-28)
 
-**Phase 3 (svc-control)** — `services/control/rs`
+**Phase 3 (svc-control)** — `services/control`
 
 - [x] resolve mergeConfigs / validate · `aura-tenant-tx` GUC · secrets 미노출 · **StubPooler**
 - [x] control-admin stub `/v1` · audit mask(`aura-otel`) · distroless
@@ -474,10 +479,11 @@ Strangler lab: [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service
 
 **Phase 4 (메모리)** — capture → store/embed/recall → consolidate/ttl/archive/object_gc
 
-- [x] `memory-capture/rs` · `memory/rs` — PG 금지/가드 · candidates envelope · subject/idempotency (**로컬 패리티**)
-- [ ] **Node 본구현(우선)** — `memory_items` INSERT/UPSERT · `memory_embeddings` halfvec UPSERT · `memory_nodes`/`memory_edges` 쓰기 · consolidate 실 SQL (현 **stub** · M1/M2/M4 미완과 동일)
-- [ ] Rust Function/`custom` 이미지 · Fission cutover (현 **Node** `aura-memory-*`)
-- [ ] live Pooler/S3 · Function canary의 live `check-memory-*.sh` assert (**문서 보강 · 실행 범위 밖**)
+- [x] `memory/capture/rs` · `memory/rs` — PG 금지/가드 · candidates envelope · subject/idempotency (**로컬 패리티**)
+- [x] **Rust Deployment 바이너리** — `aura-memory-capture` · `aura-memory-recall` · batch 4종 + cron · 이미지 `aura/memory-{capture,recall,batch}:local` · **Node memory/compliance 핸들러 삭제** · **live sqlx/PG 본배선=후속**(wire stub)
+- [x] **compliance-erase / control-resolve Rust** — `aura-compliance-erase` · `aura-control-resolve` · 이미지 `:local` · OpenBao/Pooler live=후속
+- [ ] **실 SQL** — `memory_items` INSERT/UPSERT · `memory_embeddings` halfvec · graph write · consolidate soft_close+insert (현 **stub**)
+- [ ] live Pooler/S3 · live `check-memory-*.sh` assert (**후속**)
 
 **Phase 5 (invoke 셸)** — 오케스트레이터만
 

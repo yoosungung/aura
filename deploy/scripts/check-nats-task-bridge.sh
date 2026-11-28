@@ -4,10 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-RPC_RS="$ROOT/services/nats-rpc-bridge/rs/src/lib.rs"
-TASK_RS="$ROOT/services/nats-task-bridge/rs/src/lib.rs"
-RPC_DF="$ROOT/services/nats-rpc-bridge/rs/Dockerfile"
-TASK_DF="$ROOT/services/nats-task-bridge/rs/Dockerfile"
+RPC_RS="$ROOT/services/nats-rpc-bridge/src/lib.rs"
+TASK_RS="$ROOT/services/nats-task-bridge/src/lib.rs"
+RPC_DF="$ROOT/services/nats-rpc-bridge/Dockerfile"
+TASK_DF="$ROOT/services/nats-task-bridge/Dockerfile"
 
 [[ -f "$TASK_RS" ]] || fail "missing task-bridge Rust lib"
 [[ -f "$RPC_RS" ]] || fail "missing rpc-bridge Rust lib"

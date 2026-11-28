@@ -12,7 +12,7 @@ const fs = require('fs');
 function loadGatewayClient() {
   const candidates = [
     path.join(__dirname, 'llm-gateway-client.js'), // archive layout
-    path.join(__dirname, '..', '..', 'llm-gateway', 'client.js'), // monorepo services/*/nodejs
+    path.join(__dirname, '..', '..', 'llm-gateway', 'clients', 'client.js'), // monorepo
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) return require(p);

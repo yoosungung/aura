@@ -38,8 +38,8 @@ flowchart LR
   GW -->|agent.invoke| TASKS
   AI -->|done/error| EVENTS
   AI -->|token/tool| STREAM
-  CAP -->|candidates| EVENTS
-  MEM -->|stored/embedded| EVENTS
+  CAP -->|capture.done| EVENTS
+  MEM -->|consolidated/ttl/archive/gc| EVENTS
   AI <-->|resolve/recall/mcp| RPC
   TASKS -.->|MaxDeliver Term| DLQ
   STREAM --> GW
@@ -66,9 +66,9 @@ flowchart TB
     MCP_T[mcp_invoke task]
   end
 
-  subgraph mqt["async MQT — scale-to-zero OK"]
-    CAP[memory_capture]
-    STORE[svc-memory store/embed/…]
+  subgraph mqt["async Deployment — memory"]
+    CAP[memory_capture inline]
+    BATCH[memory-batch CronJob→tasks]
   end
 
   subgraph sync["sync — bridge ns aura + poolmgr Warm"]
@@ -246,30 +246,26 @@ sequenceDiagram
 
 ---
 
-## 5. 메모리 파이프라인 (async MQT)
+## 5. 메모리 파이프라인 (inline capture + batch CronJob)
 
-`agent_invoke`는 메모리를 PG에 쓰지 않는다. capture → (event) → store/embed. consolidate/ttl/archive/object_gc도 같은 MQT 계급(ARCHITECTURE §3.2).
+`agent_invoke`는 `memory_*`에 직접 쓰지 않는다. 턴 종료 시 `aura.tasks.memory.capture` publish → capture 파드가 extract→embed→store 모듈을 **in-process** 실행. 배치(consolidate/ttl/archive/object_gc)는 **K8s CronJob**이 subject publish (ARCHITECTURE §3.2 · §5).
 
 ```mermaid
 sequenceDiagram
   participant AI as agent_invoke
   participant T as AURA_TASKS
   participant Cap as memory_capture
-  participant Ev as AURA_EVENTS
-  participant Store as svc-memory store
-  participant Embed as svc-memory embed
+  participant GW as llm-gateway
   participant PG as Pooler→PG
+  participant Ev as AURA_EVENTS
+  participant Cron as K8s CronJob
 
   AI->>T: aura.tasks.memory.capture
-  Note over Cap: MQT · PG 금지
-  Cap->>Ev: aura.events.memory.candidates
-  Note over Store: 후보 관찰 후 store 태스크<br/>(구현·트리거는 DESIGN)
-  Store->>T: aura.tasks.memory.store
-  Store->>PG: set_config tenant local + INSERT
-  Store->>Ev: aura.events.memory.stored
-  Embed->>T: aura.tasks.memory.embed
-  Embed->>PG: embedding upsert
-  Embed->>Ev: aura.events.memory.embedded
+  Note over Cap: extract → embed → storeOnce
+  Cap->>GW: POST /v1/embeddings (skip short_term)
+  Cap->>PG: store 모듈 withTenantTx
+  Cap->>Ev: aura.events.memory.capture.done
+  Cron->>T: consolidate/ttl/archive/object_gc (UTC daily)
 ```
 
 대화 턴 중 **읽기**는 sync: `agent_invoke` → `aura.rpc.memory.recall` → bridge → `aura-memory-recall` → Pooler.

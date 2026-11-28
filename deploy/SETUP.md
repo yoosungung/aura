@@ -325,17 +325,17 @@ bash deploy/scripts/check-memory-store.sh   # DESIGN + MQT + withTenantTx selfte
 | 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` (`is_local=true`); `false`/세션 `SET` 금지 |
 | Non-goals | embed/recall/consolidate 본구현 · TEI · live apply 필수 · 실 `memory_items` UPSERT(동일 헬퍼 위 후속) |
 
-### memory_capture MQT (M2 · PG 금지)
+### memory_capture Deployment (M2 · PG 금지)
 
 ```bash
-bash deploy/scripts/check-memory-capture.sh   # DESIGN + MQT + PG-forbidden selftest (no cluster)
+bash deploy/scripts/check-memory-capture.sh   # DESIGN + Deployment + PG-forbidden selftest (no cluster)
 ```
 
 | 항목 | 값 |
 |------|-----|
-| DESIGN | [`../services/memory-capture/DESIGN.md`](../services/memory-capture/DESIGN.md) |
-| 코드 | `services/memory-capture/handler.js` |
-| 매니페스트 | [`k8s/memory-capture/`](k8s/memory-capture/) — topic `aura.tasks.memory.capture` · consumer `aura_memory_capture` · resp/error `aura.events.memory.candidates` / `.capture.error` · `minReplicaCount=0` |
+| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Capture Deployment) |
+| 코드 | `services/memory/src/capture.rs` · bin `aura-memory-capture` (`aura-memory`) |
+| 매니페스트 | [`k8s/memory-capture/`](k8s/memory-capture/) Deployment — topic `aura.tasks.memory.capture` · durable `aura_memory_capture` · resp/error `aura.events.memory.candidates` / `.capture.error` · **replicas=1** · ScaledObject/MQT 없음 |
 | PG | **금지** — Pooler DSN/`set_config`/`query` 미사용 |
 | Non-goals | 라이브 LLM Gateway · `content_ref` Object Store 업로드 · live apply 필수 |
 
@@ -453,9 +453,9 @@ bash deploy/scripts/check-svc-control-resolve.sh      # DDL + resolve wire (no c
 | 항목 | M3 고정 |
 |------|---------|
 | 문서 | [`docs/control-resolve-bridge.md`](docs/control-resolve-bridge.md) · [`docs/svc-control-resolve.md`](docs/svc-control-resolve.md) · [`../services/control/DESIGN.md`](../services/control/DESIGN.md) |
-| sync | `aura.rpc.control.resolve` · 공용 bridge queue `aura-rpc-bridge` · Function **poolmgr** |
+| sync | `aura.rpc.control.resolve` · 공용 bridge queue `aura-rpc-bridge` · Deployment Service HTTP |
 | 매니페스트 | [`k8s/control-resolve/`](k8s/control-resolve/) · [`k8s/nats-rpc-bridge/`](k8s/nats-rpc-bridge/) — **MQT 없음** |
-| handler | `services/control/bridge.js` — stub / injectable lookup |
+| handler | `aura-control` Rust · StubPooler / injectable lookup |
 | PG | Pooler + `set_config(..., true)` **의도만** (라이브 SELECT Non-goal) |
 | Non-goals | HTTP admin 본구현 · live Pooler 배선 · tenants/ACL · `*-rr` |
 

@@ -6,8 +6,8 @@ FROM rust:1.94-bookworm AS builder
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-COPY services/nats-rpc-bridge/rs ./services/nats-rpc-bridge/rs
-COPY services/nats-task-bridge/rs ./services/nats-task-bridge/rs
+COPY services/nats-rpc-bridge ./services/nats-rpc-bridge
+COPY services/nats-task-bridge ./services/nats-task-bridge
 RUN cargo build -p aura-nats-smoke --release
 
 FROM gcr.io/distroless/cc-debian12:nonroot

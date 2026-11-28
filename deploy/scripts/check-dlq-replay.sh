@@ -51,7 +51,8 @@ grep -q 'check-dlq-replay\|dlq-replay' "$SETUP" \
 grep -Eq 'dlq-replay|DLQ Replay' "$AGENTS" \
   || fail "AGENTS must mention DLQ Replay"
 
-node "$SELFTEST" || fail "replay.selftest.js failed"
+
+node "$SELFTEST" || fail "selftest failed"
 
 ok "DLQ Replay ops tool + runbook"
 echo "check-dlq-replay: PASS"

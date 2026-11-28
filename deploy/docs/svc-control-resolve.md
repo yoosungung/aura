@@ -112,7 +112,7 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 | `secrets_ref` | ref 문자열만. **`secrets` plaintext 키 금지** |
 | 실패 | `{ "type": "control.resolve.error", "error": "source_not_active" \| … }` |
 
-헬퍼·셀프테스트: [`../../services/control/resolve.js`](../../services/control/resolve.js).
+헬퍼·테스트: [`../../services/control/src/lib.rs`](../../services/control/src/lib.rs) · `cargo test -p aura-control`.
 
 ### factory 계약 (§1 #11)
 
@@ -147,7 +147,7 @@ UNIQUE `(source_meta_id, principal_id)`. FORCE RLS.
 
 ```bash
 ./deploy/scripts/check-svc-control-resolve.sh
-node services/control/resolve.selftest.js
+cargo test -p aura-control --lib
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
 ```

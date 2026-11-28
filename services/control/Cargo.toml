@@ -9,6 +9,10 @@ rust-version.workspace = true
 name = "aura-control-admin"
 path = "src/main.rs"
 
+[[bin]]
+name = "aura-control-resolve"
+path = "src/bin/aura-control-resolve.rs"
+
 [dependencies]
 aura-tenant-tx = { workspace = true }
 aura-otel = { workspace = true }

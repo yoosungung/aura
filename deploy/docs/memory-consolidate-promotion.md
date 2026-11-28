@@ -2,7 +2,7 @@
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #7 · **§5** · §3.2 `aura.tasks.memory.consolidate`.  
 일정: [ROADMAP.md](../../ROADMAP.md) M4.  
-코드: [`services/memory/consolidate/`](../../services/memory/consolidate/) (`promote.js` · `handler.js`).
+코드: [`services/memory/src/promote.rs`](../../services/memory/src/promote.rs).
 
 **이 문서 범위:** 허용 전이·사유·물리 연산(soft_close+INSERT)·유사도 단독 금지 수치/규칙을 **고정**.  
 **Non-goals:** LLM extract 본문 · graph node/edge 쓰기 · TTL/archive · 실 `memory_items` UPSERT 본문(동일 헬퍼 위 후속).
@@ -71,4 +71,4 @@ MQT · `minReplicaCount=0` · stream `AURA_TASKS` (§3.2 · §4.1).
 
 - §5 승격 요약 · §3.2 task 표 · §6.1 쓰기 소유
 - 정적 게이트: `bash deploy/scripts/check-memory-consolidate.sh`
-- selftest: `node services/memory/consolidate/promote.selftest.js` · `handler.selftest.js`
+- tests: `cargo test -p aura-memory --lib promote`

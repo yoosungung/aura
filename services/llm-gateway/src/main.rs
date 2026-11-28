@@ -1,5 +1,5 @@
 //! aura-llm-gateway — HTTP surface (Phase 2B). Live provider HTTP = canary follow-up.
-//! Function clients stay at services/llm-gateway/client.js · client.py.
+//! Function clients stay at services/llm-gateway/clients/client.js · client.py.
 
 use aura_llm_gateway::{
     chat_completions, BillingStore, LlmRateLimiter, StubProvider, DEFAULT_BURST,
@@ -72,6 +72,7 @@ async fn chat(
         &providers,
         &st.billing,
         Some(&st.rate),
+        None,
     );
     (
         axum::http::StatusCode::from_u16(out.status)

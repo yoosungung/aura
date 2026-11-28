@@ -24,11 +24,11 @@
 
 | GHCR 패키지 | context | Dockerfile | 로컬 대응 |
 |-------------|---------|------------|-----------|
-| `ghcr.io/<owner>/aura-gateway` | 저장소 루트 | `services/gateway/rs/Dockerfile` | `aura/gateway:local` |
-| `ghcr.io/<owner>/aura-llm-gateway` | 저장소 루트 | `services/llm-gateway/rs/Dockerfile` | `aura/llm-gateway:local` |
-| `ghcr.io/<owner>/aura-nats-rpc-bridge` | 저장소 루트 | `services/nats-rpc-bridge/rs/Dockerfile` | `aura/nats-rpc-bridge:local` |
-| `ghcr.io/<owner>/aura-nats-task-bridge` | 저장소 루트 | `services/nats-task-bridge/rs/Dockerfile` | `aura/nats-task-bridge:local` |
-| `ghcr.io/<owner>/aura-control-admin` | 저장소 루트 | `services/control/rs/Dockerfile` | `aura/control-admin:local` |
+| `ghcr.io/<owner>/aura-gateway` | 저장소 루트 | `services/gateway/Dockerfile` | `aura/gateway:local` |
+| `ghcr.io/<owner>/aura-llm-gateway` | 저장소 루트 | `services/llm-gateway/Dockerfile` | `aura/llm-gateway:local` |
+| `ghcr.io/<owner>/aura-nats-rpc-bridge` | 저장소 루트 | `services/nats-rpc-bridge/Dockerfile` | `aura/nats-rpc-bridge:local` |
+| `ghcr.io/<owner>/aura-nats-task-bridge` | 저장소 루트 | `services/nats-task-bridge/Dockerfile` | `aura/nats-task-bridge:local` |
+| `ghcr.io/<owner>/aura-control-admin` | 저장소 루트 | `services/control/Dockerfile` | `aura/control-admin:local` |
 | `ghcr.io/<owner>/aura-admin-ui` | 저장소 루트 | `services/admin-ui/Dockerfile` | `aura/admin-ui:local` |
 
 `<owner>` = `github.repository_owner`.

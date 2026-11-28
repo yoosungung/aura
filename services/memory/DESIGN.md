@@ -4,10 +4,12 @@
 일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk** · **ttl 월 파티션 DROP**).  
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
-**이 문서 범위:** `svc-memory` **store** + **embed**(async MQT) + **recall**(sync Core RR + hybrid SELECT + **graph walk**) + **consolidate**(async MQT · 유형 승격 규칙) + **ttl**(async MQT · 월 파티션 DROP) + **archive**(async MQT · Parquet→DETACH/DROP) + **object_gc**(async MQT · 고아 refs/).  
-**Non-goals (본 슬라이스):** LLM extract 본문 · 실 `halfvec`/`memory_items` UPSERT 본문 · recall query 자동 embed · Function→Ollama/TEI **직접** · capture Function(→ [`../memory-capture/DESIGN.md`](../memory-capture/DESIGN.md)) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE` · 슈퍼노드 픽스처는 [`memory-graph-supernode-fixture.md`](../../deploy/docs/memory-graph-supernode-fixture.md).
+**이 문서 범위:** `svc-memory` **store**/ **embed** **모듈**(capture in-process) + **recall**(sync Deployment) + **consolidate**/ **ttl**/ **archive**/ **object_gc**(async Deployment · `aura/memory-batch` · CronJob).  
+하드코드 런북: [`deploy/docs/memory-control-hardcode.md`](../../deploy/docs/memory-control-hardcode.md) (`erase≠object_gc`).  
+캡처 통합: [`memory-capture-inline-pipeline.md`](../../deploy/docs/memory-capture-inline-pipeline.md).  
+**Non-goals (본 슬라이스):** LLM extract 본문 · 실 `halfvec`/`memory_items` UPSERT 본문 · recall query 자동 embed · 파드→Ollama/TEI **직접** · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE`.
 
-수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀 ([`memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md)). store는 `memory_items` 적재만; embed는 Gateway `/v1/embeddings`로 벡터를 받은 뒤 `memory_embeddings`(HNSW) 의도 + BM25 적격 표시(`content_tsv`는 store GENERATED). lab 오버레이: [`memory-embed-ollama-lab.md`](../../deploy/docs/memory-embed-ollama-lab.md).
+수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 Gateway `/v1/embeddings`. 단독 store/embed Deployment **퇴역**.
 
 ---
 
@@ -15,45 +17,27 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 | 항목 | 값 |
 |------|-----|
-| 유일 쓰기 | `svc-memory`만 `memory_*` INSERT/UPDATE/DELETE (§1 #5) — **async store/embed만** |
-| 실행 계급 (쓰기) | **async** MQT · `minReplicaCount=0` |
-| 실행 계급 (recall) | **sync** poolmgr (`aura-nodejs-sync` poolsize≥2) · NATS는 **공용 `aura-nats-rpc-bridge`** · **MQT 없음** |
+| 유일 쓰기 | `svc-memory` **store 모듈**만 `memory_*` 쓰기 경계 (§1 #5) — capture가 in-process 호출 |
+| 실행 계급 (쓰기·배치) | capture=`aura/memory-capture` · 배치=`aura/memory-batch` Deployment · CronJob publish |
+| 실행 계급 (recall) | **sync** Deployment replicas=1 · NATS는 **공용 `aura-nats-rpc-bridge`** → Service HTTP · **MQT 없음** |
 | PG | **CloudNativePG Pooler**만 — host `aura-pg-pooler…` (`AURA_DATABASE_HOST`). primary/Pod IP 금지. recall 읽기는 **RO Pooler** 가능(§9.6) |
 | 테넌트 GUC | 매 트랜잭션 시작: `SELECT set_config('app.tenant_id', $1, true)` (SELECT 경로 포함) |
 | 금지 | `set_config(..., false)` · 세션 `SET app.tenant_id` · 트랜잭션 밖 테넌트 상태 의존 · **`short_term` embed INSERT** · **recall에 MessageQueueTrigger / JetStream lag ScaledObject** |
 
 ---
 
-## Store MQT (§3.2)
+## Store 모듈 (Deployment 퇴역)
 
-| 필드 | 값 |
-|------|-----|
-| topic | `aura.tasks.memory.store` |
-| consumer | `aura_memory_store` |
-| stream | `AURA_TASKS` |
-| respTopic | `aura.events.memory.stored` |
-| errorTopic | `aura.events.memory.store.error` |
-| mqtype / kind | `nats-jetstream` / `keda` |
-| 매니페스트 | [`deploy/k8s/memory-store/`](../../deploy/k8s/memory-store/) |
-
-입력 envelope: §8 (`id` 멱등 키 · `tenant_id` · `payload` / `content_ref`).  
-`content_ref` / 256KB / Object Store(**Garage**) 계약: [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md) — 본 슬라이스는 업로드 본구현 없음(스키마만 준수).  
-고아 `content_ref` GC(V2.2): [`deploy/docs/object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) — `aura.tasks.memory.object_gc` · 90일 grace · live 참조 시 스킵 · 구현=M4.  
-스켈레톤: `tenant_id` 검증 → `withTenantTx` → (stub) idempotent upsert 자리 · 성공 시 `type: memory.stored` 본문. 실 DDL INSERT·멱등 UNIQUE는 동일 헬퍼 위에서 확장(체크는 GUC 경로만 고정).
+코드: `services/memory` `handle_store_request` · capture in-process.  
+단독 topic `aura.tasks.memory.store` / `deploy/k8s/memory-store` Deployment **제거**.  
+스켈레톤: `withTenantTx` → stub SELECT · 실 `memory_items` INSERT 후속.
 
 ---
 
-## Embed MQT (§3.2 · M2)
+## Embed 모듈 (Deployment 퇴역)
 
-| 필드 | 값 |
-|------|-----|
-| topic | `aura.tasks.memory.embed` |
-| consumer | `aura_memory_embed` |
-| stream | `AURA_TASKS` |
-| respTopic | `aura.events.memory.embedded` |
-| errorTopic | `aura.events.memory.embed.error` |
-| mqtype / kind | `nats-jetstream` / `keda` |
-| 매니페스트 | [`deploy/k8s/memory-embed/`](../../deploy/k8s/memory-embed/) |
+코드: `services/memory` `embed_plan` / `handle_embed_request` · Gateway embeddings (sqlx 후속).  
+단독 topic `aura.tasks.memory.embed` / `deploy/k8s/memory-embed` Deployment **제거**.  
 
 | `memory_type` | 동작 |
 |---------------|------|
@@ -64,6 +48,30 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 활성 핀(기본=env 또는 M1 고정): `AURA_EMBEDDING_MODEL` / `VERSION` / `DIMS` → `model_key=model:version`.  
 Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster.local:8080`)만. 벡터 길이 ≠ dims → 400 `embedding_dims_mismatch`. Gateway 실패 → 502 `embed_provider_error`.  
 입력: §8 + `payload.memory_type` · `payload.item_id` · (선택) `content`. 성공 본문 `type: memory.embedded` · `payload.status=accepted`.
+
+---
+
+## Capture Deployment (§3.2 · inline pipeline)
+
+계획: [`deploy/docs/memory-capture-inline-pipeline.md`](../../deploy/docs/memory-capture-inline-pipeline.md).  
+코드: `src/capture.rs` · bin `src/bin/aura-memory-capture.rs`.  
+이미지: **`aura/memory-capture`** (`Dockerfile.capture`) — batch 바이너리 **미포함**.
+
+| 필드 | 값 |
+|------|-----|
+| topic | `aura.tasks.memory.capture` |
+| consumer | `aura_memory_capture` |
+| stream | `AURA_TASKS` |
+| respTopic | `aura.events.memory.capture.done` |
+| errorTopic | `aura.events.memory.capture.error` |
+| image | `aura/memory-capture` |
+| replicas | **1** (lab) |
+| 매니페스트 | [`deploy/k8s/memory-capture/`](../../deploy/k8s/memory-capture/) |
+
+한 프로세스에서 extract → embed(Gateway) → store(모듈) **순차** (NATS store/embed hop **없음**).  
+입력: §8 envelope (`id` · `tenant_id` · `payload.text`|`messages`).  
+성공: `type: memory.capture.done` · `payload.{candidates,embedded,stored}`.  
+금지: capture 파일에 SQL 인라인 · 캡처 이미지에 consolidate/ttl/archive/object_gc · Fission MQT.
 
 ---
 
@@ -167,12 +175,12 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 |------|-----|
 | subject | `aura.rpc.memory.recall` |
 | NATS | 공용 `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` · **replicas ≥ 2** |
-| Function | `aura-memory-recall` · **poolmgr** · env `aura-nodejs-sync` (`poolsize ≥ 2`) |
-| 트리거 | 브리지 → Fission Router — **MQT 없음** · **JetStream lag ScaledObject 없음** · **서비스별 `*-rr` 없음** |
+| Target | Deployment+Service `aura-memory-recall` · **replicas ≥ 2** · ns `aura` |
+| 트리거 | 브리지 → Service HTTP — **MQT 없음** · **JetStream lag ScaledObject 없음** · **서비스별 `*-rr` 없음** · **Fission Function 아님** |
 | 매니페스트 | [`deploy/k8s/memory-recall/`](../../deploy/k8s/memory-recall/) · 브리지 [`deploy/k8s/nats-rpc-bridge/`](../../deploy/k8s/nats-rpc-bridge/) |
 
 요청 envelope: ARCHITECTURE §6.3 (`tenant_id` · `query` · 선택 `types`/`top_k`/`session_id`/`principal_id` · 선택 `query_embedding[]`).  
-핸들러(`services/memory/recall/handler.js`): `mode: hybrid_rrf` · `type: memory.recall.done`.
+핸들러(`aura-memory-recall` / `handlers.rs`): `mode: hybrid_rrf` · `type: memory.recall.done`.
 
 | 단계 | 동작 |
 |------|------|
@@ -191,7 +199,7 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 
 ## 트랜잭션 헬퍼
 
-`services/memory/store/tenant-tx.js` — `BEGIN` → `set_config('app.tenant_id', $1, true)` → work → `COMMIT`/`ROLLBACK`.  
+`aura-tenant-tx` / memory lib — `set_config('app.tenant_id', $1, true)` (sqlx 후속).  
 store·embed·consolidate·**recall** handler는 이 헬퍼만 경유한다(short_term embed skip 제외).
 
 ---
@@ -199,30 +207,13 @@ store·embed·consolidate·**recall** handler는 이 헬퍼만 경유한다(shor
 ## Commands
 
 ```bash
-bash deploy/scripts/check-memory-store.sh          # DESIGN + store MQT + set_config(..., true) + selftests
-bash deploy/scripts/check-memory-embed.sh          # DESIGN + embed MQT + short_term skip + selftests
-bash deploy/scripts/check-memory-consolidate.sh    # 승격 규칙 + similarity_only 금지 + MQT + selftests
-bash deploy/scripts/check-memory-ttl.sh            # TTL DROP 14d/24mo/12mo + needs_archive + MQT + selftests
-bash deploy/scripts/check-memory-archive.sh        # Parquet Put → DETACH/DROP + MQT + selftests
-bash deploy/scripts/check-memory-recall.sh         # DESIGN + hybrid RRF + graph walk + GUCs + Warm Pool + no MQT
-bash deploy/scripts/check-memory-graph-traversal.sh # edges out/in + 순회 한도 + walk 구현
-bash deploy/scripts/check-memory-graph-supernode.sh # hub≫cap · LIMIT/반환 상한 · 폭증 없음
-bash deploy/scripts/check-agent-inject-contract.sh # Agent 주입 슬롯·토큰 예산 문서 게이트
-bash deploy/scripts/check-object-store-content-ref.sh # Object Store=Garage · content_ref · 256KB
-bash deploy/scripts/check-object-store-orphan-gc.sh # 90d · object_gc MQT · skip-if-ref
-node services/memory/store/tenant-tx.selftest.js   # fake client: true before work, never false
-node services/memory/store/handler.selftest.js     # MQT handler → withTenantTx
-node services/memory/embed/handler.selftest.js     # short_term skip · embeddable withTenantTx
-node services/memory/consolidate/promote.selftest.js  # 허용 전이 · similarity_only 거부
-node services/memory/consolidate/handler.selftest.js  # consolidate MQT · withTenantTx · no UPDATE type
-node services/memory/ttl/partition-plan.selftest.js   # 14d/24mo/12mo · needs_archive
-node services/memory/ttl/handler.selftest.js          # DROP RESTRICT · episodic skip · unsafe name
-node services/memory/object-gc/plan.selftest.js       # 90d · refs/ · batch 100
-node services/memory/object-gc/handler.selftest.js    # live skip · Delete 404=ok
-node services/memory/recall/graph-walk.selftest.js # visited · depth≤2 · caps · 유효 predicate
-node services/memory/recall/supernode-fixture.selftest.js # hub_degree=500 · candidates≤50 · LIMIT≤cap
-node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant WHERE · graph walk
-cargo test -p aura-memory                         # Rust Phase 4 guards/subjects
+cargo test -p aura-memory --lib
+bash deploy/scripts/check-memory-capture.sh
+bash deploy/scripts/check-memory-recall.sh
+bash deploy/scripts/build-hardcoded-memory-images.sh
+docker build -f services/memory/Dockerfile.capture -t aura/memory-capture:local .
+docker build -f services/memory/Dockerfile.recall -t aura/memory-recall:local .
+docker build -f services/memory/Dockerfile.batch -t aura/memory-batch:local .
 ```
 
 ---

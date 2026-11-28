@@ -6,9 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DOC="$ROOT/deploy/docs/llm-gateway-router.md"
 DESIGN="$ROOT/services/llm-gateway/DESIGN.md"
-RS_ROUTER="$ROOT/services/llm-gateway/rs/src/router.rs"
-RS_LIB="$ROOT/services/llm-gateway/rs/src/lib.rs"
-SELFTEST="$ROOT/services/llm-gateway/gateway.selftest.js"
+RS_ROUTER="$ROOT/services/llm-gateway/src/router.rs"
+RS_LIB="$ROOT/services/llm-gateway/src/lib.rs"
 CM="$ROOT/deploy/k8s/llm-gateway/providers-configmap.yaml"
 ARCH="$ROOT/ARCHITECTURE.md"
 ROADMAP="$ROOT/ROADMAP.md"
@@ -22,7 +21,6 @@ ok() { echo "OK: $*"; }
 [[ -f "$DESIGN" ]] || fail "missing $DESIGN"
 [[ -f "$RS_ROUTER" ]] || fail "missing Rust router.rs"
 [[ -f "$RS_LIB" ]] || fail "missing Rust lib.rs"
-[[ -f "$SELFTEST" ]] || fail "missing $SELFTEST"
 [[ -f "$CM" ]] || fail "missing $CM"
 
 grep -Eq 'aura-auto|AUTO_MODEL|resolve_route|score_prompt' "$RS_ROUTER" \
@@ -49,7 +47,6 @@ grep -Eq 'llm-gateway-router|콘텐츠 라우터|aura-auto' "$AGENTS" \
   || fail "AGENTS must mention content router"
 
 (cd "$ROOT" && cargo test -p aura-llm-gateway --quiet) || fail "cargo test -p aura-llm-gateway failed"
-node "$SELFTEST" || fail "gateway.selftest.js failed"
 
 ok "llm-gateway aura-auto heuristic content router"
 echo "check-llm-gateway-router: PASS"

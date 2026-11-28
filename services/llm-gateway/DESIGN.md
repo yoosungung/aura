@@ -94,5 +94,5 @@ bash deploy/scripts/check-llm-gateway-fallback-billing.sh
 bash deploy/scripts/check-llm-gateway-router.sh
 node services/llm-gateway/gateway.selftest.js
 cargo test -p aura-llm-gateway
-docker build -f services/llm-gateway/rs/Dockerfile -t aura/llm-gateway:local .
+docker build -f services/llm-gateway/Dockerfile -t aura/llm-gateway:local .
 ```

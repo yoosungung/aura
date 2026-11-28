@@ -89,6 +89,7 @@ async function main() {
 
   const frames = [];
   const rpcCalls = { resolve: 0, recall: 0, mcp: 0 };
+  const capturePubs = [];
 
   const done = await invokeOnce(
     {
@@ -135,6 +136,9 @@ async function main() {
       publishStream: async (runId, frame) => {
         frames.push({ runId, frame });
       },
+      publishCapture: async (envelope) => {
+        capturePubs.push(envelope);
+      },
     },
   );
 
@@ -147,6 +151,10 @@ async function main() {
   assert.strictEqual(rpcCalls.resolve, 1);
   assert.strictEqual(rpcCalls.recall, 1);
   assert.strictEqual(rpcCalls.mcp, 1);
+  assert.strictEqual(capturePubs.length, 1);
+  assert.strictEqual(capturePubs[0].type, 'memory.capture');
+  assert.strictEqual(capturePubs[0].tenant_id, '11111111-1111-1111-1111-111111111111');
+  assert.ok(capturePubs[0].payload && capturePubs[0].payload.text);
 
   const types = frames.map((f) => f.frame.type);
   assert.deepStrictEqual(types.slice(0, 1), ['run.started']);

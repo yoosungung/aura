@@ -1,0 +1,31 @@
+# aura/memory-batch (Rust) — four binaries; Deployment sets command.
+#   docker build -f services/memory/Dockerfile.batch -t aura/memory-batch:local .
+FROM rust:1.94-bookworm AS builder
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY services/nats-rpc-bridge ./services/nats-rpc-bridge
+COPY services/nats-task-bridge ./services/nats-task-bridge
+COPY services/gateway ./services/gateway
+COPY services/llm-gateway ./services/llm-gateway
+COPY services/control ./services/control
+COPY services/memory ./services/memory
+COPY services/compliance ./services/compliance
+RUN cargo build --release -p aura-memory \
+      --bin aura-memory-consolidate \
+      --bin aura-memory-ttl \
+      --bin aura-memory-archive \
+      --bin aura-memory-object-gc \
+      --bin aura-memory-batch-cron
+
+FROM gcr.io/distroless/cc-debian12:nonroot
+COPY --from=builder /src/target/release/aura-memory-consolidate /aura-memory-consolidate
+COPY --from=builder /src/target/release/aura-memory-ttl /aura-memory-ttl
+COPY --from=builder /src/target/release/aura-memory-archive /aura-memory-archive
+COPY --from=builder /src/target/release/aura-memory-object-gc /aura-memory-object-gc
+COPY --from=builder /src/target/release/aura-memory-batch-cron /aura-memory-batch-cron
+USER nonroot:nonroot
+LABEL org.opencontainers.image.logo="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg" \
+      dev.orbstack.icon="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg"
+# Default; each Deployment/CronJob overrides command.
+ENTRYPOINT ["/aura-memory-consolidate"]

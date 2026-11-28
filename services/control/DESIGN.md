@@ -22,8 +22,8 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | 런타임 | resolve Deployment는 **read**만 (`aura.rpc.control.resolve`) |
 | PG | **CloudNativePG Pooler** `aura-pg-pooler` · `set_config('app.tenant_id', $1, true)` 매 트랜잭션 |
 | 관리 HTTP | `aura-control-admin` replicas≥2 · Bearer ops · `X-Aura-Tenant-Id` |
-| 이미지 | `aura/control-admin:local` · **Rust** `rs/` (`aura-control-admin`) · distroless · `dev.orbstack.icon` · 소스 ConfigMap 금지 |
-| Rust (Phase 3) | `rs/` (`aura-control`) · resolve wire + admin stub · `parity_tests.rs` · **Pooler=`StubPooler`** · live DSN/activate=후속 |
+| 이미지 | `aura/control-admin:local` · `aura/control-resolve:local` · Rust distroless · `dev.orbstack.icon` |
+| Rust | `aura-control` · resolve wire + admin · `parity_tests.rs` · **Pooler=`StubPooler`** · live DSN/activate=후속 |
 | 금지 | 세션 GUC · resolve 파드→PG 직접(lookup inject만) · plaintext 시크릿 · invoke에 번들/config · RPC에 MQT · 콘텐츠 컬럼 UPDATE |
 
 ---
@@ -32,14 +32,11 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 
 | 파일 | 역할 |
 |------|------|
-| `resolve.js` | Function archive용 `validateResolveRequest` · `mergeConfigs` · `buildResolveResponse` (Rust lib 패리티) |
-| `bridge.js` | Function archive용 `handleResolve` · stub / injectable `lookup` |
-| `tenant-tx.js` | `withTenantTx` — `set_config(..., true)` only |
-| `pooler-lookup.js` | Pooler SELECT → `{source,user}` (active only) |
-| `rs/` (`aura-control-admin`) | **관리 HTTP 제품 이미지** · tenants/audit stub · live activate/Pooler=후속 |
-| `secrets-mask.js` | `maskSecrets` |
-| `secrets-cache.js` | TTL≤60s · rotate 무효화 |
-| `nats-tls.js` | mTLS 클라이언트 가드 |
+| `src/lib.rs` | `validate_resolve_request` · `merge_configs` · `build_resolve_response` · `resolve_with_pooler` |
+| `src/bin/aura-control-resolve.rs` | sync HTTP RPC (`/rpc`) · StubPooler / injectable lookup |
+| `src/main.rs` | `aura-control-admin` 관리 HTTP |
+| `crates/aura-tenant-tx` | `SET_TENANT_GUC_SQL` — `set_config(..., true)` only |
+| `crates/aura-otel` | `mask_secrets` |
 
 `cfg` = 1-depth section merge, user wins. 응답에 `secrets` 객체 없음.
 
@@ -51,7 +48,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 |------|-----|
 | subject | `aura.rpc.control.resolve` |
 | NATS | `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` |
-| Target | Deployment+Service `aura-control-resolve` · **replicas ≥ 2** · ns `aura` |
+| Target | Deployment+Service `aura-control-resolve` · lab `replicas: 1` (HA ≥2) · ns `aura` |
 | lookup | injectable · 생산=`createPoolerLookup` |
 | 금지 | MessageQueueTrigger · JetStream lag · 서비스별 `*-rr` · Fission Function |
 
@@ -84,12 +81,7 @@ bash deploy/scripts/check-nats-mtls-secrets.sh
 bash deploy/scripts/build-admin-images.sh
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
-node services/control/resolve.selftest.js
-node services/control/bridge.selftest.js
-node services/control/pooler-lookup.selftest.js
-node services/control/secrets-mask.selftest.js
-node services/control/secrets-cache.selftest.js
-node services/control/nats-tls.selftest.js
 cargo test -p aura-control
-docker build -f services/control/rs/Dockerfile -t aura/control-admin:local .
+docker build -f services/control/Dockerfile -t aura/control-admin:local .
+docker build -f services/control/Dockerfile.resolve -t aura/control-resolve:local .
 ```

@@ -18,7 +18,7 @@ Fair Queue 본문: [`gateway-fair-queue.md`](gateway-fair-queue.md).
 | JetStream event | `aura.events.agent.invoke.done` \| `aura.events.agent.invoke.error` | `releaseInflightFromEvent(subject, tenant_id, run_id)` |
 
 - `release`는 `runs[run_id]` 제거 + `inflight -= 1` — **멱등** (이중 호출·스트림+이벤트 동시 와도 1회만 감산).
-- 생산 NATS 구독 배선은 후속; `gateway.selftest.js`가 계약 정본.
+- 생산 NATS 구독 배선은 후속; `cargo test -p aura-gateway`가 계약 정본.
 
 ---
 
@@ -34,7 +34,7 @@ Gateway 없이 `aura.tasks.agent.invoke`에 task가 올 수 있다.
 | 우회·초과 | HTTP **429** · body `type: agent.invoke.error` · **poison** (턴/RPC 미실행 · 재큐 금지) |
 | 미주입 (로컬) | noop stub; 생산은 Gateway와 공유 limiter 필수 |
 
-구현: [`services/gateway/rate-limit.js`](../../services/gateway/rate-limit.js) · [`services/agent-invoke/handler.js`](../../services/agent-invoke/handler.js).
+구현: [`services/gateway/src/rate_limit.rs`](../../services/gateway/src/rate_limit.rs) · [`services/agent-invoke/handler.js`](../../services/agent-invoke/handler.js).
 
 ---
 
@@ -42,6 +42,6 @@ Gateway 없이 `aura.tasks.agent.invoke`에 task가 올 수 있다.
 
 ```bash
 bash deploy/scripts/check-gateway-inflight-release.sh
-node services/gateway/gateway.selftest.js
+cargo test -p aura-gateway
 node services/agent-invoke/handler.selftest.js
 ```

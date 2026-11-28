@@ -76,6 +76,7 @@ fn validation_and_defaults() {
         &providers,
         &billing,
         None,
+        None,
     );
     assert_eq!(missing.status, 400);
     assert_eq!(missing.body["error"], "tenant_id_required");
@@ -88,12 +89,13 @@ fn validation_and_defaults() {
         &providers,
         &billing,
         None,
+        None,
     );
     assert_eq!(bad.status, 400);
     assert_eq!(bad.body["error"], "messages_required");
 
-    const { assert!(DEFAULT_RATE_PER_SEC > 0.0) };
-    const { assert!(DEFAULT_BURST >= 1.0) };
+    assert!(DEFAULT_RATE_PER_SEC > 0.0);
+    assert!(DEFAULT_BURST >= 1.0);
 }
 
 #[test]
@@ -111,6 +113,7 @@ fn chat_happy_path_and_billing() {
         &tiers(),
         &providers,
         &billing,
+        None,
         None,
     );
     assert_eq!(out.status, 200);
@@ -175,6 +178,7 @@ fn fallback_on_primary_failure() {
         &providers,
         &billing,
         None,
+        None,
     );
     assert_eq!(res.status, 200);
     assert_eq!(primary_calls.load(Ordering::SeqCst), 1);
@@ -207,6 +211,7 @@ fn aura_auto_routes_and_records_tier() {
         &providers,
         &billing,
         None,
+        None,
     );
     assert_eq!(hi.status, 200);
     assert_eq!(hi.body["model"], "model-cheap");
@@ -230,6 +235,7 @@ fn tenant_rate_limit_429() {
         &providers,
         &billing,
         Some(&rl),
+        None,
     );
     assert_eq!(a.status, 200);
 
@@ -241,6 +247,7 @@ fn tenant_rate_limit_429() {
         &providers,
         &billing,
         Some(&rl),
+        None,
     );
     assert_eq!(b.status, 429);
     assert_eq!(b.body["error"], "rate_limited");
@@ -253,6 +260,7 @@ fn tenant_rate_limit_429() {
         &providers,
         &billing,
         Some(&rl),
+        None,
     );
     assert_eq!(other.status, 200);
 }
@@ -272,8 +280,134 @@ fn all_providers_fail_returns_502() {
         &providers,
         &billing,
         None,
+        None,
     );
     assert_eq!(out.status, 502);
     assert_eq!(out.body["error"], "all_providers_failed");
     assert!(out.body["aura"]["attempts"].as_array().unwrap().len() >= 2);
+}
+
+#[test]
+fn circuit_breaker_opens_after_failures() {
+    let billing = BillingStore::default();
+    let fail_count = Arc::new(AtomicU32::new(0));
+    let fc = Arc::clone(&fail_count);
+    let providers: Vec<Box<dyn ChatProvider>> = vec![Box::new(FnProvider {
+        id: "flaky".into(),
+        f: Box::new(move |_m, _msgs| {
+            fc.fetch_add(1, Ordering::SeqCst);
+            ProviderOutcome::Err {
+                code: "provider_error".into(),
+                message: "upstream_down".into(),
+            }
+        }),
+    })];
+    let cb = CircuitBreaker::new(2, 60_000, Arc::new(|| 1_000_000u64));
+
+    let r1 = chat_completions(
+        "cb",
+        &json!({"model":"m","messages":[{"role":"user","content":"1"}]}),
+        None,
+        &tiers(),
+        &providers,
+        &billing,
+        None,
+        Some(&cb),
+    );
+    assert_eq!(r1.status, 502);
+
+    let r2 = chat_completions(
+        "cb",
+        &json!({"model":"m","messages":[{"role":"user","content":"2"}]}),
+        None,
+        &tiers(),
+        &providers,
+        &billing,
+        None,
+        Some(&cb),
+    );
+    assert_eq!(r2.status, 502);
+
+    let r3 = chat_completions(
+        "cb",
+        &json!({"model":"m","messages":[{"role":"user","content":"3"}]}),
+        None,
+        &tiers(),
+        &providers,
+        &billing,
+        None,
+        Some(&cb),
+    );
+    assert_eq!(r3.status, 503);
+    assert_eq!(r3.body["error"], "circuit_open");
+    assert_eq!(
+        fail_count.load(Ordering::SeqCst),
+        2,
+        "open circuit must not call provider"
+    );
+}
+
+#[test]
+fn fallback_skips_open_circuit() {
+    let billing = BillingStore::default();
+    let primary_calls = Arc::new(AtomicU32::new(0));
+    let fallback_calls = Arc::new(AtomicU32::new(0));
+    let p_calls = Arc::clone(&primary_calls);
+    let f_calls = Arc::clone(&fallback_calls);
+
+    let providers: Vec<Box<dyn ChatProvider>> = vec![
+        Box::new(FnProvider {
+            id: "prim-open".into(),
+            f: Box::new(move |_m, _msgs| {
+                p_calls.fetch_add(1, Ordering::SeqCst);
+                ProviderOutcome::Err {
+                    code: "provider_error".into(),
+                    message: "should_not".into(),
+                }
+            }),
+        }),
+        Box::new(FnProvider {
+            id: "fb-ok".into(),
+            f: Box::new(move |model, _msgs| {
+                f_calls.fetch_add(1, Ordering::SeqCst);
+                ProviderOutcome::Ok(ProviderResponse {
+                    id: "ok".into(),
+                    model: if model.is_empty() {
+                        "aura-fallback".into()
+                    } else {
+                        model.to_string()
+                    },
+                    content: "circuit-skip".into(),
+                    prompt_tokens: 1,
+                    completion_tokens: 1,
+                    provider: "fb-ok".into(),
+                })
+            }),
+        }),
+    ];
+
+    let cb = CircuitBreaker::new(1, 60_000, Arc::new(|| 1_000_000u64));
+    cb.record_failure("prim-open");
+
+    let res = chat_completions(
+        "t-cb-fb",
+        &json!({
+            "model":"aura-default",
+            "messages":[{"role":"user","content":"x"}]
+        }),
+        None,
+        &tiers(),
+        &providers,
+        &billing,
+        None,
+        Some(&cb),
+    );
+    assert_eq!(res.status, 200);
+    assert_eq!(
+        primary_calls.load(Ordering::SeqCst),
+        0,
+        "open circuit must skip primary"
+    );
+    assert_eq!(fallback_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(res.body["aura"]["fallback_used"], true);
 }

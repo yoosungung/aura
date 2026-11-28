@@ -5,12 +5,47 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[[bin]]
+name = "aura-memory-capture"
+path = "src/bin/aura-memory-capture.rs"
+
+[[bin]]
+name = "aura-memory-recall"
+path = "src/bin/aura-memory-recall.rs"
+
+[[bin]]
+name = "aura-memory-consolidate"
+path = "src/bin/aura-memory-consolidate.rs"
+
+[[bin]]
+name = "aura-memory-ttl"
+path = "src/bin/aura-memory-ttl.rs"
+
+[[bin]]
+name = "aura-memory-archive"
+path = "src/bin/aura-memory-archive.rs"
+
+[[bin]]
+name = "aura-memory-object-gc"
+path = "src/bin/aura-memory-object-gc.rs"
+
+[[bin]]
+name = "aura-memory-batch-cron"
+path = "src/bin/aura-memory-batch-cron.rs"
+
 [dependencies]
 aura-envelope = { workspace = true }
+aura-js-worker = { workspace = true }
+aura-nats = { workspace = true }
 aura-tenant-tx = { workspace = true }
+async-nats = { workspace = true }
+axum = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

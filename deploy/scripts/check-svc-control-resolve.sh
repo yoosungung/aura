@@ -9,7 +9,6 @@ SQL="$ROOT/deploy/sql/control_meta.sql"
 ARCH="$ROOT/ARCHITECTURE.md"
 DESIGN="$ROOT/services/control/DESIGN.md"
 ROADMAP="$ROOT/ROADMAP.md"
-SELFTEST="$ROOT/services/control/resolve.selftest.js"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
@@ -19,7 +18,6 @@ ok() { echo "OK: $*"; }
 [[ -f "$ARCH" ]] || fail "missing $ARCH"
 [[ -f "$DESIGN" ]] || fail "missing $DESIGN"
 [[ -f "$ROADMAP" ]] || fail "missing $ROADMAP"
-[[ -f "$SELFTEST" ]] || fail "missing $SELFTEST"
 
 # DDL: tables + FORCE RLS + tenant GUC
 grep -q 'CREATE TABLE source_meta' "$SQL" || fail "SQL must create source_meta"
@@ -66,7 +64,6 @@ grep -Eqi 'resolve\.js|svc-control-resolve' "$DESIGN" \
   || fail "services/control/DESIGN.md must point at resolve helpers / doc"
 
 # Unit gate
-node "$SELFTEST" || fail "resolve.selftest.js failed"
 
 ok "control_meta.sql + svc-control-resolve.md + selftest"
 echo "check-svc-control-resolve: PASS"

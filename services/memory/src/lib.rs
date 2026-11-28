@@ -1,7 +1,12 @@
-//! svc-memory handlers guards + subjects (Phase 4). Live PG/S3 = canary.
+//! svc-memory handlers — Phase 4 Rust cutover (wire stubs · live PG/S3 = canary).
 
 use aura_tenant_tx::SET_TENANT_GUC_SQL;
 use serde_json::Value;
+
+pub mod batch_payload;
+pub mod capture;
+pub mod handlers;
+pub mod promote;
 
 #[cfg(test)]
 mod parity_tests;
@@ -13,6 +18,18 @@ pub const CONSOLIDATE_TASK: &str = "aura.tasks.memory.consolidate";
 pub const TTL_TASK: &str = "aura.tasks.memory.ttl";
 pub const ARCHIVE_TASK: &str = "aura.tasks.memory.archive";
 pub const OBJECT_GC_TASK: &str = "aura.tasks.memory.object_gc";
+
+/// Supernode fixture contract (ARCHITECTURE §6.2.4) — hub ≫ walk caps.
+pub const SUPERNODE_HUB_DEGREE: u32 = 500;
+pub const SUPERNODE_DEGREE_CAP: u32 = 64;
+pub const SUPERNODE_PER_HOP_LIMIT: u32 = 50;
+
+/// Graph walk limits (ARCHITECTURE §6.2.4 · former graph-walk.js GRAPH_LIMITS).
+pub const GRAPH_MAX_DEPTH: u32 = 2;
+pub const GRAPH_PER_HOP_LIMIT: u32 = 50;
+pub const GRAPH_MAX_NODES_TOTAL: u32 = 100;
+pub const GRAPH_MAX_EDGES_TOTAL: u32 = 200;
+pub const GRAPH_SUPERNODE_DEGREE_CAP: u32 = 64;
 
 pub fn tenant_guc_sql() -> &'static str {
     SET_TENANT_GUC_SQL

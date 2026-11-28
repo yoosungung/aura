@@ -41,7 +41,6 @@ bash "$ROOT/deploy/scripts/build-mcp-invoke-python-archive.sh" || fail "mcp py a
 [[ -f "$ROOT/deploy/k8s/mcp-invoke-py/archive.zip" ]] || fail "missing mcp-invoke-py zip"
 
 # Node regression paths
-node "$ROOT/services/control/resolve.selftest.js" || fail "resolve.selftest"
 node "$ROOT/services/agent-invoke/nodejs/handler.selftest.js" || fail "agent nodejs selftest"
 node "$ROOT/services/mcp-invoke/nodejs/handler.selftest.js" || fail "mcp nodejs selftest"
 bash "$ROOT/deploy/scripts/check-nats-task-bridge.sh" || fail "task-bridge check"

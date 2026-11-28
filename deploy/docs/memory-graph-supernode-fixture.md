@@ -1,8 +1,7 @@
 # 슈퍼노드 픽스처 (M4)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #15 · **§6.2.4**.  
-순회 한도·walk: [`memory-graph-traversal.md`](memory-graph-traversal.md) · [`../../services/memory/recall/graph-walk.js`](../../services/memory/recall/graph-walk.js).  
-하네스: [`../../services/memory/recall/supernode-fixture.js`](../../services/memory/recall/supernode-fixture.js).
+순회 한도·walk: [`memory-graph-traversal.md`](memory-graph-traversal.md) · [`../../services/memory/src/lib.rs`](../../services/memory/src/lib.rs) (`GRAPH_*` / `SUPERNODE_*`).
 
 **이 문서 범위:** 허브 1노드에 엣지 **≫** `supernode_degree_cap` / `per_hop_limit` 인 픽스처로  
 (1) 방어 walk가 **반환·읽기 상한**을 지키고,  
@@ -48,7 +47,7 @@
 
 ```bash
 bash deploy/scripts/check-memory-graph-supernode.sh
-node services/memory/recall/supernode-fixture.selftest.js
+cargo test -p aura-memory --lib supernode
 ```
 
 ---
@@ -56,7 +55,7 @@ node services/memory/recall/supernode-fixture.selftest.js
 ## V1.x 매핑
 
 ROADMAP M4: *슈퍼노드 픽스처: 허브 1노드에 엣지 ≫ cap → 쿼리 시간/반환 상한 준수(폭발 없음)*  
-→ 이 문서 + `supernode-fixture.js` + `check-memory-graph-supernode.sh`.
+→ 이 문서 + `SUPERNODE_* caps in aura-memory` + `check-memory-graph-supernode.sh`.
 
 ---
 

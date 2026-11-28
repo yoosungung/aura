@@ -188,6 +188,77 @@ impl LlmRateLimiter {
     }
 }
 
+#[derive(Debug, Clone)]
+struct CircuitState {
+    failures: u32,
+    open_until_ms: u64,
+}
+
+/// Per-provider circuit breaker (JS `createCircuitBreaker` parity).
+pub struct CircuitBreaker {
+    failure_threshold: u32,
+    cooldown_ms: u64,
+    now_ms: Arc<dyn Fn() -> u64 + Send + Sync>,
+    state: Mutex<HashMap<String, CircuitState>>,
+}
+
+impl CircuitBreaker {
+    pub fn new(
+        failure_threshold: u32,
+        cooldown_ms: u64,
+        now_ms: Arc<dyn Fn() -> u64 + Send + Sync>,
+    ) -> Self {
+        Self {
+            failure_threshold: failure_threshold.max(1),
+            cooldown_ms,
+            now_ms,
+            state: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn allow(&self, name: &str) -> bool {
+        let now = (self.now_ms)();
+        let map = self.state.lock().unwrap();
+        match map.get(name) {
+            Some(s) if s.open_until_ms > 0 && now < s.open_until_ms => false,
+            _ => true,
+        }
+    }
+
+    pub fn record_success(&self, name: &str) {
+        let mut map = self.state.lock().unwrap();
+        map.insert(
+            name.to_string(),
+            CircuitState {
+                failures: 0,
+                open_until_ms: 0,
+            },
+        );
+    }
+
+    pub fn record_failure(&self, name: &str) {
+        let now = (self.now_ms)();
+        let mut map = self.state.lock().unwrap();
+        let prev = map.get(name).cloned().unwrap_or(CircuitState {
+            failures: 0,
+            open_until_ms: 0,
+        });
+        let failures = prev.failures.saturating_add(1);
+        let open_until_ms = if failures >= self.failure_threshold {
+            now.saturating_add(self.cooldown_ms)
+        } else {
+            0
+        };
+        map.insert(
+            name.to_string(),
+            CircuitState {
+                failures,
+                open_until_ms,
+            },
+        );
+    }
+}
+
 #[derive(Debug)]
 pub struct ChatResult {
     pub status: u16,
@@ -207,6 +278,7 @@ pub fn chat_completions(
     providers: &[Box<dyn ChatProvider>],
     billing: &BillingStore,
     rate_limiter: Option<&LlmRateLimiter>,
+    circuit: Option<&CircuitBreaker>,
 ) -> ChatResult {
     if tenant_id.is_empty() {
         return ChatResult {
@@ -261,8 +333,23 @@ pub fn chat_completions(
     let mut last_err: Option<(String, String)> = None;
 
     for (i, p) in providers.iter().enumerate() {
+        let pid = p.id().to_string();
+        if let Some(cb) = circuit {
+            if !cb.allow(&pid) {
+                attempts.push(json!({
+                    "provider": pid,
+                    "ok": false,
+                    "error": "circuit_open",
+                }));
+                last_err = Some(("circuit_open".into(), "circuit_open".into()));
+                continue;
+            }
+        }
         match p.complete(&model, &messages) {
             ProviderOutcome::Ok(resp) => {
+                if let Some(cb) = circuit {
+                    cb.record_success(&pid);
+                }
                 let fallback_used = i > 0;
                 attempts.push(json!({
                     "provider": p.id(),
@@ -315,6 +402,9 @@ pub fn chat_completions(
                 };
             }
             ProviderOutcome::Err { code, message } => {
+                if let Some(cb) = circuit {
+                    cb.record_failure(&pid);
+                }
                 attempts.push(json!({
                     "provider": p.id(),
                     "ok": false,
@@ -327,6 +417,14 @@ pub fn chat_completions(
     }
 
     let _ = last_err;
+    if attempts.len() == 1
+        && attempts[0].get("error").and_then(|v| v.as_str()) == Some("circuit_open")
+    {
+        return ChatResult {
+            status: 503,
+            body: json!({"error":"circuit_open","aura":{"attempts": attempts}}),
+        };
+    }
     ChatResult {
         status: 502,
         body: json!({
@@ -355,7 +453,7 @@ pub fn chat_completions_stub(
             }) as Box<dyn ChatProvider>
         })
         .collect();
-    chat_completions(tenant_id, body, pin, tiers, &boxed, billing, None)
+    chat_completions(tenant_id, body, pin, tiers, &boxed, billing, None, None)
 }
 
 /// Legacy metadata used by main/Dockerfile smoke path.

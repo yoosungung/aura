@@ -16,7 +16,7 @@ def _load_gateway_client():
     here = Path(__file__).resolve().parent
     candidates = [
         here / "llm_gateway_client.py",  # archive layout
-        here.parents[1] / "llm-gateway" / "client.py",  # monorepo services/llm-gateway
+        here.parents[1] / "llm-gateway" / "clients" / "client.py",  # monorepo
     ]
     for path in candidates:
         if path.is_file():

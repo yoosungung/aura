@@ -69,7 +69,6 @@ grep -q 'check-pg-pitr-drill' "$SETUP" || fail "SETUP must name check-pg-pitr-dr
 grep -Eqi 'pg-pitr-drill|PITR 드릴|pitr-drill' "$AGENTS" \
   || fail "AGENTS must mention PITR drill"
 
-node "$SELFTEST" || fail "measure.selftest.js failed"
 
 # Record must pass budgets (numbers may refresh if lab re-run)
 node - <<NODE
@@ -87,6 +86,8 @@ if (rec.mode !== "lab" && rec.mode !== "cluster") {
 }
 console.log("record-ok", { rpo_ms: m.rpo_ms, rto_ms: m.rto_ms });
 NODE
+
+node "$SELFTEST" || fail "selftest failed"
 
 ok "PG PITR drill #1 RPO/RTO evidence"
 echo "check-pg-pitr-drill: PASS"

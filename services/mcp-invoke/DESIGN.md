@@ -61,5 +61,5 @@ bash deploy/scripts/build-mcp-invoke-archive.sh
 bash deploy/scripts/build-mcp-invoke-python-archive.sh
 node services/mcp-invoke/nodejs/handler.selftest.js
 node services/mcp-invoke/nodejs/streamable-http.selftest.js
-cargo test -p aura-mcp-invoke-orch   # Phase 5 orch · dual async/rpc · PG 금지
+# aura-mcp-invoke-orch (rs/) removed — SoR = Node/Python Function
 ```

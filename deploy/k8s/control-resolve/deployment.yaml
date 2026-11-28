@@ -1,0 +1,65 @@
+# aura-control-resolve — sync RPC Deployment (rpc-bridge → Service HTTP).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-control-resolve
+  namespace: aura
+  labels:
+    aura.runtime/class: sync
+    aura.service: control
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-control-resolve
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aura-control-resolve
+  template:
+    metadata:
+      labels:
+        aura.runtime/class: sync
+        aura.service: control
+        app.kubernetes.io/part-of: aura
+        app.kubernetes.io/name: aura-control-resolve
+    spec:
+      containers:
+        - name: resolve
+          image: aura/control-resolve:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-control-resolve
+  namespace: aura
+  labels:
+    app.kubernetes.io/name: aura-control-resolve
+spec:
+  selector:
+    app.kubernetes.io/name: aura-control-resolve
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

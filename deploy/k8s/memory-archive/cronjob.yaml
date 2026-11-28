@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aura-memory-archive-cron
+  namespace: aura
+  labels:
+    aura.runtime/class: batch-cron
+    aura.service: memory
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: aura-memory-archive-cron
+spec:
+  schedule: "0 0 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: aura-memory-archive-cron
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: publish
+              image: aura/memory-batch:local
+              imagePullPolicy: IfNotPresent
+              command: ["/aura-memory-batch-cron"]
+              env:
+                - name: NATS_URL
+                  value: nats://nats.aura.svc.cluster.local:4222
+                - name: TASK_SUBJECT
+                  value: aura.tasks.memory.archive
