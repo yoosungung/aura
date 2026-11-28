@@ -1,0 +1,71 @@
+# Platform Rust workspace — Phase 0 gate (test + clippy).
+# Policy: deploy/docs/service-rust-phase0.md · crates/DESIGN.md
+name: rust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "services/nats-rpc-bridge/rs/**"
+      - "services/nats-task-bridge/rs/**"
+      - "services/gateway/rs/**"
+      - "services/llm-gateway/rs/**"
+      - "services/control/rs/**"
+      - "services/memory-capture/rs/**"
+      - "services/memory/rs/**"
+      - "services/agent-invoke/rs/**"
+      - "services/mcp-invoke/rs/**"
+      - ".github/workflows/rust.yml"
+      - "deploy/docs/service-rust-phase0.md"
+      - "deploy/docs/service-rust-strangler-lab.md"
+      - "deploy/scripts/check-service-rust-phase0.sh"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "services/nats-rpc-bridge/rs/**"
+      - "services/nats-task-bridge/rs/**"
+      - "services/gateway/rs/**"
+      - "services/llm-gateway/rs/**"
+      - "services/control/rs/**"
+      - "services/memory-capture/rs/**"
+      - "services/memory/rs/**"
+      - "services/agent-invoke/rs/**"
+      - "services/mcp-invoke/rs/**"
+      - ".github/workflows/rust.yml"
+      - "deploy/docs/service-rust-phase0.md"
+      - "deploy/docs/service-rust-strangler-lab.md"
+      - "deploy/scripts/check-service-rust-phase0.sh"
+  workflow_dispatch:
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.80"
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Phase 0 static gate
+        run: bash deploy/scripts/check-service-rust-phase0.sh

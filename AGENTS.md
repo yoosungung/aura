@@ -15,6 +15,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `MESSAGE-FLOW.md` | 전체 시스템 **메시지·호출 흐름** 다이어그램 (채널·E2E·MQT 파드·메모리·RPC) | 루트 |
 | `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
 | `package.json` · `requirements.txt` · `.venv/` · `node_modules/` | 모노레포 **로컬 deps** (npm workspaces + 공유 venv; `admin-ui`는 제외·자체 lock) | 루트 |
+| `Cargo.toml` · `crates/` · `services/*/rs` | 플랫폼 **Rust workspace** (공유 crate · Phase 0–5 `services/*/rs`) — [`crates/DESIGN.md`](crates/DESIGN.md) · [`deploy/docs/service-rust-phase0.md`](deploy/docs/service-rust-phase0.md) · Strangler [`service-rust-strangler-lab.md`](deploy/docs/service-rust-strangler-lab.md) | 루트 |
+| `.github/workflows/rust.yml` | Rust `cargo test` + `clippy -D warnings` | `.github/workflows/` |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
 | `deploy/SETUP.md` | 클러스터 부트스트랩 런북 (NATS·KEDA·Fission) | `deploy/` |
@@ -27,8 +29,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/runtime-envs/` | Fission 런타임×계급 공용 Environment — `aura-nodejs-async|sync` · `aura-python-async|sync` (후속 custom) | `deploy/k8s/runtime-envs/` |
 | `deploy/k8s/nats-rpc-bridge/` | 공용 NATS Core RR→Fission Router 브리지 (`aura-nats-rpc-bridge` replicas≥2 · **ns `aura`** · deps 포함 이미지) | `deploy/k8s/nats-rpc-bridge/` |
 | `deploy/k8s/nats-task-bridge/` | agent/mcp async JetStream→Router 브리지 (`aura-nats-task-bridge` · runtime→Function · **ns `aura`**) | `deploy/k8s/nats-task-bridge/` |
-| `services/nats-rpc-bridge/` | RPC 브리지 DESIGN + `bridge.js` (중계만 · handler 금지 · runtime 매핑) | `services/nats-rpc-bridge/` |
-| `services/nats-task-bridge/` | task 브리지 DESIGN + consumer (중계만 · handler 금지) | `services/nats-task-bridge/` |
+| `services/nats-rpc-bridge/` | RPC 브리지 DESIGN + `bridge.js` + **`rs/`** Rust 바이너리 (중계만 · handler 금지 · runtime 매핑 · Phase 1) | `services/nats-rpc-bridge/` |
+| `services/nats-task-bridge/` | task 브리지 DESIGN + consumer + **`rs/`** Rust 바이너리 (중계만 · handler 금지 · Phase 1) | `services/nats-task-bridge/` |
 | `deploy/k8s/agent-invoke-py/` · `mcp-invoke-py/` · `mcp-invoke-rpc-py/` | Python 병행 Function/Package (**MQT 없음** · task/rpc 브리지) | `deploy/k8s/` |
 | `deploy/dev/` | **smoke·로컬 하네스만** (프로덕션 제외) — [`deploy/dev/README.md`](deploy/dev/README.md) | `deploy/dev/` |
 | `deploy/dev/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/dev/k8s/async-smoke/` |
@@ -58,6 +60,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `services/object-store/` | 번들 `GetObject` + Pod LRU (`get-object` · `bundle-cache`) · activate는 캐시 없음 | `services/object-store/` |
 | `deploy/k8s/rustfs/` | **RustFS 단독** · 버킷 `aura-content` · Secret `aura-object-store-creds` (Barman `aura-pg` 제외 · CI 라이브 비의존) | `deploy/k8s/rustfs/` |
 | `deploy/docs/object-store-rustfs-migration.md` | Garage 제거 · RustFS 단독 이관 요건 (서비스 Rust 전환과 별개) | `deploy/docs/` |
+| `deploy/docs/service-rust-phase0.md` | 플랫폼 서비스 Rust **Phase 0** 기반 게이트 (workspace·CI·distroless·envelope/mTLS 패리티) | `deploy/docs/` |
+| `deploy/docs/service-rust-strangler-lab.md` | Rust Strangler **lab canary** 체크리스트 (shadow→canary→cutover→deprecate·롤백) | `deploy/docs/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`gateway.js`) | `services/gateway/` |
 | `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `ensure-task-bridge-consumers.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** 포함) | `deploy/scripts/` |
 
@@ -103,6 +107,6 @@ M5 진행: **LLM Gateway Fallback + 테넌트 과금 대시보드** · **M5.1 `a
 M6 진행: **관리 UI ops-only MVP** [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · `check-admin-ui-mvp.sh` · 관리 HTTP · 서버 checksum activate · `control_audit` · resolve Pooler SELECT · [`services/admin-ui/`](services/admin-ui/).  
 M6.1 진행: **Admin UI React 재설계** [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `check-admin-ui.sh` · Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · `GET /v1/audit` · PG SoR · KV=Gateway만 · Phase2 quota=control-admin→NATS RR.  
 **GHCR 이미지:** [`deploy/docs/ghcr-images.md`](deploy/docs/ghcr-images.md) · `check-ghcr-images.sh` · `images.yml` (`latest`+`sha-<short>` · keep 3 · 랩 `:local` 유지).  
-다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · M6 live Pooler · k8s GHCR 컷오버 · **플랫폼 서비스 Rust 전환**(브리지→…→**memory_capture 포함** 메모리 경로→invoke 셸 · [`ROADMAP.md`](ROADMAP.md) 「플랫폼 서비스 Rust 전환」).
+다음: M3.5 잔여 스모크 · async 콜드 p95 · Fission MQT Term 미들웨어 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · M6 live Pooler · k8s GHCR 컷오버 · **플랫폼 서비스 Rust** Phase 0–5 로컬 패리티 + Deployment cutover(Gateway/LLM/control-admin/브리지) 완료 · Function(`memory`/`resolve`/`invoke`)·sqlx/live Pooler 후속([`ROADMAP.md`](ROADMAP.md) 「플랫폼 서비스 Rust 전환」 · [`service-rust-strangler-lab.md`](deploy/docs/service-rust-strangler-lab.md)).
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

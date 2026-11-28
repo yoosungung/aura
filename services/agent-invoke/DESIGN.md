@@ -69,4 +69,5 @@ bash deploy/scripts/build-agent-invoke-python-archive.sh
 node services/agent-invoke/nodejs/handler.selftest.js
 node services/agent-invoke/nodejs/run-turn-create-agent.selftest.js
 node services/agent-invoke/nodejs/checkpoints.selftest.js
+cargo test -p aura-agent-invoke-orch   # Phase 5 orch only · createAgent 비포함
 ```

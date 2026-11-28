@@ -17,6 +17,7 @@
 | 역할 | 쿼터 검사 후 제출 수락 → `run_id` → `aura.tasks.agent.invoke` publish; Core `aura.stream.<run_id>` → SSE/WS |
 | 실행 계급 | **상시 ≥2** (Deployment · **ns `aura`**). Fission MQT / scale-to-zero **금지** |
 | 이미지 | `aura/gateway:local` · `gateway.js`+`rate-limit.js`+`nats` 베이크 · `dev.orbstack.icon` · `node -e` 금지 |
+| Rust (Phase 2A) | `rs/` (`aura-gateway`) · distroless · Fair Queue/run_id/SSE·WS 인가 패리티 · **Deployment** · lab canary 후 cutover |
 | PG | **없음** |
 | 인가 | `run_id` 소유 principal(`id`+`tenant_id`)만 구독 (그 외 403/404) |
 | 쿼터 | `quota.{tenant_id}` 키 · Token Bucket(`ratePerSec`/`burst`) + `maxInflight` · 거부 **429** |
@@ -46,6 +47,7 @@
 | `rate-limit.js` | `createTenantRateLimiter` · `tryAcquire`/`ensureAdmitted`/`release` · memory CAS KV |
 | `entrypoint.js` | HTTP 배선 · NATS publish/subscribe · memory KV (live JetStream KV=Non-goal) |
 | `gateway.selftest.js` | UUIDv7 · 인가 · **노이지** · done/error 감산 · 429 HTTP |
+| `rs/` | Rust 패리티 (`aura-gateway`) · `parity_tests.rs` = Node selftest 계약 |
 
 ---
 
@@ -57,4 +59,12 @@ bash deploy/scripts/check-gateway-sse-ws.sh
 bash deploy/scripts/check-gateway-fair-queue.sh
 bash deploy/scripts/check-gateway-inflight-release.sh
 node services/gateway/gateway.selftest.js
+cargo test -p aura-gateway
+docker build -f services/gateway/rs/Dockerfile -t aura/gateway:local .
 ```
+
+### Lab canary (후속 · 클러스터)
+
+1. Rust 이미지 `aura/gateway:local` 빌드
+2. Deployment에 Rust 레플리카 병행 → `check-gateway-*.sh`
+3. cutover → Node replicas 0 · 이전 태그 롤백

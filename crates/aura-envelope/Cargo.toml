@@ -1,0 +1,14 @@
+[package]
+name = "aura-envelope"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Aura event JSON envelope (§8) — wire-invariant parse/serialize"
+
+[dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }

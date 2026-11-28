@@ -1,0 +1,23 @@
+[package]
+name = "aura-llm-gateway"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "LLM Gateway — aura-auto router + Fallback stub (Phase 2B)"
+
+[[bin]]
+name = "aura-llm-gateway"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
+regex = "1.11"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

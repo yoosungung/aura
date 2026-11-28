@@ -40,6 +40,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-28 | **Object Store = RustFS 단독** (Apache-2.0 · S3/SigV4). Garage **AGPL 제거** — 병행 금지 · `deploy/k8s/garage` 이관 후 삭제 · mirror 후 클러스터·git·이미지 0. 버킷 `aura-content` · prefix·Secret/env 이름 불변 · Barman=`aura-pg` 비공유. 서비스 Rust 전환과 **별 트랙** | [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · [`deploy/docs/object-store-rustfs-migration.md`](deploy/docs/object-store-rustfs-migration.md) · `check-object-store-content-ref.sh` |
 | 2026-11-28 | **랩 RustFS cutover** — 이미지 `rustfs/rustfs:1.0.3` · S3 `:9000` · region `us-east-1` · PVC `local-path` · `check-object-store-rustfs.sh` · Garage 클러스터·git 0 | [`deploy/k8s/rustfs/`](deploy/k8s/rustfs/) · `bootstrap.sh` |
 | 2026-11-28 | **플랫폼 서비스 Rust 전환 범위** — 브리지·Gateway·LLM Gateway·control·`svc-memory`·**`memory_capture` 포함**·agent/mcp **오케스트레이터**. Admin UI·테넌트 agent/MCP 번들은 Node/Python 유지. capture는 **성능 이득 낮음**(병목=LLM Gateway)이나 **Node 단독 잔존 방지(관리 일관성)** 로 포함. Object Store RustFS와 **별 트랙** | 캔버스 `service-rust-migration` · 아래 「플랫폼 서비스 Rust 전환」 |
+| 2026-11-28 | **Rust lab cutover (Deployment)** — Gateway·LLM·control-admin·nats-rpc/task-bridge → `*:rust-local` replicas=2 · Node RS desired=0 (orbstack). Function(`memory_*`·`control-resolve`·`agent/mcp-invoke`)는 Node/Python 유지 · Rust Function 이미지 **미배선**. Pooler/PG live·S3·sqlx 본배선=후속. Object Store(**RustFS 단독**·Garage 제거)=**별 인프라 트랙** | [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service-rust-strangler-lab.md) · 아래 「플랫폼 서비스 Rust 전환」 |
 | 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
 | 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Warm은 별 항목 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 Warm M3 고정** — subject/queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` replicas≥2 · MQT 금지 · stub/injectable handler · live Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · `deploy/k8s/control-resolve/` |
@@ -78,8 +79,8 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-21 | **M3.6 후속 fastapi-env** — `aura-python-*` → `python-fastapi-env:1.35.0`+builder · `async def main(request)` · async Function `concurrency:4` · archive 유지 | [`deploy/docs/multi-env-followup.md`](deploy/docs/multi-env-followup.md) · [`deploy/docs/fission-python-archive.md`](deploy/docs/fission-python-archive.md) · `check-python-env-parity.sh` |
 | 2026-11-22 | **공유 `agent_invoke` + cfg별 에이전트** — 조회 키 유지 · `cfg.system_prompt`/`model`/`tools` allowlist/`sub_agents` 참조 · 같은 `run_id` 깊이 2 · 스트림 `agent` · payload 스펙 거부 · 번들 factory는 GetObject 슬라이스 | §1 #18 · [`deploy/docs/agent-invoke-create-agent.md`](deploy/docs/agent-invoke-create-agent.md) · [`services/agent-invoke/DESIGN.md`](services/agent-invoke/DESIGN.md) |
 | 2026-11-22 | **MCP 코드·cfg 선별** — 제3자 HTTP는 Function 안 Streamable HTTP · 서명 번들은 `factory(cfg, secrets_ref)` · 없으면 `mcp_backend_missing` · 미서명은 `bundle_untrusted` · Router/agent 직접 HTTP 없음 | §1 #12 · [`services/mcp-invoke/DESIGN.md`](services/mcp-invoke/DESIGN.md) · [`deploy/docs/mcp-invoke-dual.md`](deploy/docs/mcp-invoke-dual.md) |
-| 2026-11-23 | **번들 GetObject + Pod LRU** — `aura-content`만 · 키=`checksum` · 값은 검증 바이트 · activate는 캐시 없음 · agent `module.path:attr` factory · `aura:createAgent`는 GetObject 스킵 · Garage 단일 노드 매니페스트 · CI는 이름 게이트만 | §8 · [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md) · `check-object-store-garage.sh` · [`deploy/k8s/garage/`](deploy/k8s/garage/) |
-| 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/Garage · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 Garage sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
+| 2026-11-23 | **번들 GetObject + Pod LRU** — `aura-content`만 · 키=`checksum` · 값은 검증 바이트 · activate는 캐시 없음 · agent `module.path:attr` factory · `aura:createAgent`는 GetObject 스킵 · **RustFS 단독** StatefulSet(`rustfs/rustfs:1.0.3`) · CI는 이름 게이트만 · (Garage 매니페스트·`check-object-store-garage`는 2026-11-28 제거) | §8 · [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md) · `check-object-store-rustfs.sh` · [`deploy/k8s/rustfs/`](deploy/k8s/rustfs/) |
+| 2026-11-20 | **관리 UI 1차 MVP (ops-only) M6 고정** — Admin UI→`svc-control` HTTP→Pooler/**RustFS** · 런타임 resolve는 NATS 유지 · `source_meta` 콘텐츠 불변·`status`만 `pending→active`/`active→retired` · activate 시 **서버 object-store sha256** · Tenant picker=`DISTINCT`∪`AURA_ADMIN_TENANT_IDS`∪UUID 입력 · `control_audit` append-only · resolve Pooler SELECT 동슬라이스 · tenants/ACL·과금 SPA·Chat UI 비범위 | §2·§6.1 · [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md)·`check-admin-ui-mvp.sh` · [`services/control/`](services/control/) · [`services/admin-ui/`](services/admin-ui/) |
 | 2026-11-20 | **Admin UI React 재설계 M6.1** — Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · 전수 인벤토리 · PG=SoR · KV=`quota.*`는 Gateway만 · Phase2=control-admin HTTP→`aura.rpc.gateway.quota` · `GET /v1/audit` · Audit 화면 | §2·§6.1 · [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md)·`check-admin-ui.sh` · [`services/admin-ui/`](services/admin-ui/) |
 | 2026-11-25 | **Admin UI quota 한도 수정 = 이번 범위 밖** — Phase 2 UI는 **조회+리셋만**(KV 카운터 · Gateway RR). `rate/burst/maxInflight` 등 **한도 수정**은 PG `tenant_plan`(후보) SoR + Gateway 재로드 후속. OIDC/SSO 제외 유지 · Tenant alias=`tenant_meta` DDL 방향 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · 아래 M6.2 후보 |
 | 2026-11-25 | **`AURA_ADMIN_TENANT_IDS` 제거** — picker=`tenant_meta` ∪ `DISTINCT source_meta` ∪ UI UUID. env CSV seed 폐기 | [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `control-admin` Deployment |
@@ -87,7 +88,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-25 | **Tenant bundle scaffold + Download** — 로컬 소스→Bundles 업로드 · Sources `GET …/bundle` 패치 보조 · Admin **Download scaffold**(SoT=`scaffolds/` 정적 미러) | [`deploy/docs/tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · [`scaffolds/`](scaffolds/) |
 | 2026-11-25 | **Tenant allowed packages** — 공유 Function deps allowlist 문서 · 테넌트 `requirements.txt` 설치 비채택 · 핀 SoT=`package.json`/`requirements.txt` | [`scaffolds/ALLOWED_PACKAGES.md`](scaffolds/ALLOWED_PACKAGES.md) |
 | 2026-11-25 | **Python allowlist Node 패리티** — agent=`langchain`/`langchain-core`/`nats-py`/`psycopg[binary]` · mcp=`nats-py`(PG 금지) · scaffold 미러 | [`scaffolds/ALLOWED_PACKAGES.md`](scaffolds/ALLOWED_PACKAGES.md) · `services/*/python/requirements.txt` |
-| 2026-11-25 | **Tenant multi-file zip** — Garage 객체=소스 zip · `entrypoint` 모듈 · zip 내 상대 require/import · 단일 파일 하위호환 · `node_modules` 금지 | §1 #11 · [`deploy/docs/tenant-bundle-multifile.md`](deploy/docs/tenant-bundle-multifile.md) · `bundle-zip` |
+| 2026-11-25 | **Tenant multi-file zip** — RustFS `aura-content` 객체=소스 zip · `entrypoint` 모듈 · zip 내 상대 require/import · 단일 파일 하위호환 · `node_modules` 금지 | §1 #11 · [`deploy/docs/tenant-bundle-multifile.md`](deploy/docs/tenant-bundle-multifile.md) · `bundle-zip` |
 | 2026-11-26 | **MCP scaffold 이원화** — nodejs=`naver_search`(시크릿) · python=`weather`(Open-Meteo·키 없음) · **httpx 미도입**(mcp allowlist/핀 확대 보류 · stdlib) · mock 오프라인 selftest | [`deploy/docs/tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · `scaffolds/mcp-*` |
 | 2026-11-26 | **온디맨드 memory tool = 갭** — inject(턴 시작 recall 요약) ≠ Agent tool. 유형 드릴/`item_id` 상세는 미구현. 후보=플랫폼 tool→`aura.rpc.memory.recall`\|`memory.get` · **MCP PG SELECT 금지** | §6.3 · [`agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · 아래 미결정 |
 | 2026-11-26 | **Agent scaffold = 동일 2-tool agent** — nodejs≡python · `cfg.tools`=`naver_search`+`weather` · MCP 인라인 금지 · `_mcp_tool`/ctx.`mcpTool` mock selftest | [`tenant-bundle-scaffold.md`](deploy/docs/tenant-bundle-scaffold.md) · `scaffolds/agent-*` |
@@ -269,7 +270,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] M3.6 — python-env **병행** (Node 유지·동일 subject·resolve `runtime`·task/rpc 브리지) — 아래 §M3.6
 - [x] 공유 Function + cfg별 에이전트 — `system_prompt`·툴 allowlist·서브에이전트 깊이 2 · 스트림 `agent` (§1 #18)
 - [x] MCP 코드·cfg 선별 — HTTP / 서명 factory / `mcp_backend_missing` (§1 #12)
-- [x] 번들 GetObject + Pod LRU — `aura-content` · agent/mcp 기본 `loadBundle` · Garage 매니페스트 · `check-object-store-garage.sh` ([`services/object-store/DESIGN.md`](services/object-store/DESIGN.md))
+- [x] 번들 GetObject + Pod LRU — `aura-content` · agent/mcp 기본 `loadBundle` · **RustFS 단독** (`deploy/k8s/rustfs/` · `rustfs/rustfs:1.0.3`) · `check-object-store-rustfs.sh` ([`services/object-store/DESIGN.md`](services/object-store/DESIGN.md))
 - [~] (후속) — `rust-env` 핫패스 PoC · `custom-env`
 
 **성공 기준**
@@ -354,7 +355,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 **작업**
 
 - [x] 계약·문서 봉인 — [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · ARCHITECTURE §2/§6.1 · `svc-control-resolve` 관리 HTTP 경로 교체 · `control_audit` DDL
-- [x] `svc-control` 관리 HTTP — tenants/sources/overlays/presign/activate/retire · 서버측 Garage sha256 · `control_audit` · Bearer ops-only · `X-Aura-Tenant-Id`
+- [x] `svc-control` 관리 HTTP — tenants/sources/overlays/presign/activate/retire · 서버측 object-store(RustFS) sha256 · `control_audit` · Bearer ops-only · `X-Aura-Tenant-Id`
 - [x] resolve Pooler SELECT — `pooler-lookup.js` + `withTenantTx` (`set_config(..., true)`)
 - [x] Admin UI MVP (`services/admin-ui`) — Tenant picker · Sources · Bundle 등록 · overlays
 - [x] 게이트 — `check-admin-ui-mvp.sh` + control admin/pooler selftests
@@ -407,27 +408,86 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 ## 플랫폼 서비스 Rust 전환 (계획 · 구현 후속)
 
-**목표**: 플랫폼 핫패스·메모리 파이프라인을 Rust로. **테넌트 AI 번들·Admin UI는 Node/Python 유지.** Object Store RustFS 트랙과 **별개**.
+**목표**: 플랫폼 핫패스·메모리 파이프라인을 Rust로. **테넌트 AI 번들·Admin UI는 Node/Python 유지.** Object Store(**RustFS 단독** · Garage 제거 완료)는 **별 인프라 트랙**(서비스 코드 Rust와 축 분리).
+
+**현황 요약 (2026-11-28 · orbstack lab)**
+
+| 축 | 상태 |
+|----|------|
+| Phase 0–1 | **완료** (workspace·CI·브리지 코드 + prod cutover) |
+| Phase 2–5 | **로컬 패리티 완료** (`cargo test` · Gateway **8** · LLM Gateway **11** 등) |
+| Deployment cutover | Gateway · LLM · control-admin · nats-rpc/task-bridge → `*:local`(Rust) **replicas=2** · Node RS **desired=0** · OrbStack logo LABEL |
+| Fission Function | `memory_*` · `aura-control-resolve` · `agent/mcp-invoke` = **Node/Python 유지** · Rust Function/`custom` 이미지 **미배선** |
+| control resolve/admin | resolve·admin **stub** · **Pooler stub** · PG live·S3 **스킵** |
+| sqlx | Phase 3–5 **후순위**(단위/가드 우선 · live Pooler 본배선 후속) |
+| Strangler 문서 | shadow→canary→cutover→deprecate→롤백 · lab `check-*.sh` 목록 **보강됨** · Function live canary **실행 범위 밖** |
 
 **범위 (포함)**
 
-- [ ] `nats-rpc-bridge` · `nats-task-bridge`
-- [ ] Gateway · LLM Gateway
-- [ ] `svc-control` (resolve + control-admin)
-- [ ] **`memory_capture`** — PG 금지·MQT·candidates envelope 유지. **성능 이득은 Gateway 대비 낮음**이나 플랫폼 Function **Node 단독 잔존 금지(관리 일관성)** 로 포함
-- [ ] `svc-memory` (store/embed/recall/consolidate/ttl/archive/object_gc)
-- [ ] `agent_invoke` / `mcp_invoke` **오케스트레이터만** (factory/`createAgent`/번들은 Node/Python 워커)
+- [x] `nats-rpc-bridge` · `nats-task-bridge` — 코드 패리티 + **prod cutover** (`:local` Rust ×2 · logo LABEL)
+- [x] Gateway · LLM Gateway — 로컬 패리티(Gateway 8 · LLM 11) + **prod cutover**
+- [x] `svc-control` — resolve/admin **코드 패리티** · control-admin **prod cutover** · resolve Function·Pooler=stub/후속
+- [x] **`memory_capture` / `svc-memory`** — **rs 가드·envelope·subject 패리티만** (Function 이미지·live PG/S3 미배선)
+- [x] `agent_invoke` / `mcp_invoke` **오케스트레이터 rs만** — factory/`createAgent`/워커 Node/Python · Function cutover **미실시**
 
 **비범위**
 
-- Admin UI · 테넌트 agent/MCP zip · (워커용) `aura-nodejs-*` / `aura-python-*` Environment
+- Admin UI · 테넌트 agent/MCP zip · (워커용) `aura-nodejs-*` / `aura-python-*` Environment  
+- **Object Store RustFS 어플라이언스**(별 트랙 · 랩 cutover 완료 · [`object-store-rustfs-migration.md`](deploy/docs/object-store-rustfs-migration.md))  
+- Function live canary의 PG/S3/provider assert(문서 체크리스트만 · 본 실행 범위 밖)
 
 **순서 (요약)** — Phase 0 기반 → 1 브리지 → 2 엣지 게이트웨이 → 3 control → **4 메모리(`memory_capture`→svc-memory)** → 5 invoke 셸.  
-정본 시각화: 워크스페이스 캔버스 `service-rust-migration.canvas.tsx`.
+정본 시각화: 워크스페이스 캔버스 `service-rust-migration.canvas.tsx`.  
+Strangler lab: [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service-rust-strangler-lab.md) · Deployment 롤백 스크립트·side-by-side canary **제거 완료**(2026-11-28).
 
-**성공 기준 (착수 시)**
+**Phase 0 (기반)** — [`deploy/docs/service-rust-phase0.md`](deploy/docs/service-rust-phase0.md) · [`crates/DESIGN.md`](crates/DESIGN.md) · `check-service-rust-phase0.sh`
 
-- subject/envelope/Function 이름 불변 · 기존 `check-*.sh` 계약 통과 · capture·memory Node 이미지 플랫폼 경로에서 제거.
+- [x] Cargo workspace (`aura-envelope` · `aura-nats` · `aura-tenant-tx` · `aura-otel` · `aura-nats-smoke`)
+- [x] envelope 패리티 · mTLS 가드 · tenant GUC `true` 전용 · otel/maskSecrets 패리티
+- [x] CI `rust.yml` (test + clippy) · distroless 스모크 Dockerfile
+- [x] 성공: Core RR + JetStream pull echo (`aura-nats-smoke`; live NATS는 lab optional)
+
+**Phase 1 (NATS 브리지)** — 동일 queue-group/durable · inflight·AckWait 이식 · Strangler
+
+- [x] `nats-rpc-bridge` Rust (`services/nats-rpc-bridge/rs`) — mapping/inflight/handle 패리티 · distroless
+- [x] `nats-task-bridge` Rust (`services/nats-task-bridge/rs`) — AckWait≥150s · Progress heartbeat · MaxDeliver=5 · durable 동일
+- [x] lab canary(동일 queue-group/durable) → 이미지 cutover → Node replicas 0 / deprecate (orbstack · `*:local` Rust ×2 · 2026-11-28)
+
+**Phase 2 (엣지 게이트웨이)** — Gateway → LLM Gateway · client.js/py 유지
+
+- [x] Gateway Rust (`services/gateway/rs`) — UUIDv7 · Fair Queue · submit 202/429 · release · distroless · **parity_tests 8 passed**
+- [x] LLM Gateway Rust (`services/llm-gateway/rs`) — aura-auto · Fallback · billing stub · **parity_tests 11 passed**
+- [x] lab canary → cutover → Node deprecate (orbstack · `*:local` Rust ×2 · Node RS desired=0 · 2026-11-28)
+
+**Phase 3 (svc-control)** — `services/control/rs`
+
+- [x] resolve mergeConfigs / validate · `aura-tenant-tx` GUC · secrets 미노출 · **StubPooler**
+- [x] control-admin stub `/v1` · audit mask(`aura-otel`) · distroless
+- [x] lab cutover **control-admin** → `:local` Rust ×2 (StubPooler · logo LABEL · **live Pooler DSN=후속**)
+- [ ] `aura-control-resolve` Fission Function → Rust/`custom` 이미지 · live Pooler SELECT (현 **Node sync** · resolve stub)
+- [ ] sqlx 실배선(후순위) · PG live
+
+**Phase 4 (메모리)** — capture → store/embed/recall → consolidate/ttl/archive/object_gc
+
+- [x] `memory-capture/rs` · `memory/rs` — PG 금지/가드 · candidates envelope · subject/idempotency (**로컬 패리티**)
+- [ ] Rust Function/`custom` 이미지 · Fission cutover (현 **Node** `aura-memory-*`)
+- [ ] live Pooler/S3 · Function canary의 live `check-memory-*.sh` assert (**문서 보강 · 실행 범위 밖**)
+
+**Phase 5 (invoke 셸)** — 오케스트레이터만
+
+- [x] `agent-invoke/rs` · `mcp-invoke/rs` — envelope · allowlist · checkpoints GUC · Node/Python 워커 유지 (**로컬 패리티**)
+- [ ] Rust orch Function 이미지 · lab canary/cutover (현 **Node/Python** Function 유지)
+- [ ] Function live `check-agent-invoke.sh` / `check-mcp-invoke-dual.sh` canary 창 (**문서 보강 · 실행 범위 밖**)
+
+**Strangler 후반 (문서)**
+
+- [x] shadow→canary→cutover→deprecate 절차 · Phase별 `check-*.sh` 표 · Deployment canary/롤백 아티팩트 **삭제**(계획 종료)
+- [ ] Function 경로 live canary/cutover 실행 (Deployment cutover와 분리 · **후속**)
+
+**성공 기준**
+
+- **즉시(충족):** subject/envelope/wire 불변 · workspace `cargo test`/`clippy` · Deployment 5종 Rust cutover · Object Store 트랙 비포함 · Admin UI/client/createAgent 미변경  
+- **후속:** Function Rust 이미지·cutover · live Pooler/sqlx · capture·memory Node 플랫폼 경로 제거
 
 ---
 

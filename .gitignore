@@ -36,6 +36,10 @@ htmlcov/
 *.egg-info/
 .eggs/
 
+# Rust
+/target/
+**/*.rs.bk
+
 # Editors (local)
 .idea/
 *.swp

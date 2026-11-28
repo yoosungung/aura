@@ -222,6 +222,7 @@ node services/memory/object-gc/handler.selftest.js    # live skip · Delete 404=
 node services/memory/recall/graph-walk.selftest.js # visited · depth≤2 · caps · 유효 predicate
 node services/memory/recall/supernode-fixture.selftest.js # hub_degree=500 · candidates≤50 · LIMIT≤cap
 node services/memory/recall/handler.selftest.js    # hybrid RRF · GUC · tenant WHERE · graph walk
+cargo test -p aura-memory                         # Rust Phase 4 guards/subjects
 ```
 
 ---

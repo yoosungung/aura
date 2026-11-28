@@ -44,6 +44,7 @@
 ```bash
 bash deploy/scripts/check-memory-capture.sh   # DESIGN + MQT + PG-금지 selftest (no cluster)
 node services/memory-capture/handler.selftest.js
+cargo test -p aura-memory-capture   # Phase 4 Rust · PG 금지 패리티
 ```
 
 ---

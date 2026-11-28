@@ -1,0 +1,24 @@
+[package]
+name = "aura-nats-rpc-bridge"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "NATS Core RR → Fission Router bridge (Rust · Phase 1)"
+
+[[bin]]
+name = "aura-nats-rpc-bridge"
+path = "src/main.rs"
+
+[dependencies]
+aura-nats = { workspace = true }
+async-nats = { workspace = true }
+bytes = { workspace = true }
+futures-util = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

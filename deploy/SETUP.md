@@ -474,6 +474,7 @@ bash deploy/scripts/check-dlq-replay.sh                 # DLQ Replay 런북 + pl
 bash deploy/scripts/check-nats-mtls-secrets.sh  # NATS mTLS overlay + secrets mask/TTL cache (no live cert)
 bash deploy/scripts/check-otel-function-nats-pg.sh  # OTel Function·NATS·PG attrs + allowlist (no live collector)
 bash deploy/scripts/check-compliance-erase.sh       # compliance.erase crypto-shred draft (no live OpenBao)
+bash deploy/scripts/check-service-rust-phase0.sh    # Rust Phase 0 workspace · envelope/mTLS · clippy (live NATS optional)
 ```
 
 | 항목 | M3 고정 |

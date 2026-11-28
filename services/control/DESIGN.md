@@ -22,6 +22,7 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | PG | **CloudNativePG Pooler** `aura-pg-pooler` · `set_config('app.tenant_id', $1, true)` 매 트랜잭션 |
 | 관리 HTTP | `aura-control-admin` replicas≥2 · Bearer ops · `X-Aura-Tenant-Id` |
 | 이미지 | `aura/control-admin:local` · `admin-*.js`+`tenant-tx.js`+`pg` 베이크 · `dev.orbstack.icon` · 소스 ConfigMap 금지 |
+| Rust (Phase 3) | `rs/` (`aura-control`) · `parity_tests.rs` · mergeConfigs/audit/mask · **Pooler=`StubPooler`** · live DSN=canary |
 | 금지 | 세션 GUC · Function→PG 직접 · plaintext 시크릿 · invoke에 번들/config · RPC에 MQT · 콘텐츠 컬럼 UPDATE |
 
 ---
@@ -89,4 +90,6 @@ node services/control/admin-http.selftest.js
 node services/control/secrets-mask.selftest.js
 node services/control/secrets-cache.selftest.js
 node services/control/nats-tls.selftest.js
+cargo test -p aura-control
+docker build -f services/control/rs/Dockerfile -t aura/control-admin:local .
 ```

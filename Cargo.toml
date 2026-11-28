@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/aura-envelope",
+  "crates/aura-nats",
+  "crates/aura-tenant-tx",
+  "crates/aura-otel",
+  "crates/aura-nats-smoke",
+  "services/nats-rpc-bridge/rs",
+  "services/nats-task-bridge/rs",
+  "services/gateway/rs",
+  "services/llm-gateway/rs",
+  "services/control/rs",
+  "services/memory-capture/rs",
+  "services/memory/rs",
+  "services/agent-invoke/rs",
+  "services/mcp-invoke/rs",
+]
+default-members = [
+  "crates/aura-envelope",
+  "crates/aura-nats",
+  "crates/aura-tenant-tx",
+  "crates/aura-otel",
+  "crates/aura-nats-smoke",
+  "services/nats-rpc-bridge/rs",
+  "services/nats-task-bridge/rs",
+  "services/gateway/rs",
+  "services/llm-gateway/rs",
+  "services/control/rs",
+  "services/memory-capture/rs",
+  "services/memory/rs",
+  "services/agent-invoke/rs",
+  "services/mcp-invoke/rs",
+]
+
+[workspace.package]
+edition = "2021"
+license = "LicenseRef-Proprietary"
+rust-version = "1.80"
+
+[workspace.dependencies]
+aura-envelope = { path = "crates/aura-envelope" }
+aura-nats = { path = "crates/aura-nats" }
+aura-tenant-tx = { path = "crates/aura-tenant-tx" }
+aura-otel = { path = "crates/aura-otel" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread", "time", "sync"] }
+async-nats = "0.39"
+bytes = "1.9"
+tracing = "0.1"
+uuid = { version = "1.11", features = ["v7", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rustls-pemfile = "2.2"
+tokio-rustls = "0.26"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros"] }
+aura-nats-rpc-bridge = { path = "services/nats-rpc-bridge/rs" }
