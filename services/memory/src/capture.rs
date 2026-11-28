@@ -64,12 +64,9 @@ pub fn plan_embed(memory_type: &str) -> Value {
     })
 }
 
-/// Plan store step after embed (store module owns PG; stub status for parity).
+/// Plan store step after embed (store module owns PG INSERT/UPSERT).
 pub fn plan_store(memory_type: &str) -> Value {
-    json!({
-        "status": "accepted_stub",
-        "memory_type": memory_type
-    })
+    crate::store::plan_store_status(memory_type)
 }
 
 pub fn build_capture_done_envelope(

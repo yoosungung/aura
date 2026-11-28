@@ -1,4 +1,5 @@
-//! svc-memory handlers — Phase 4 Rust cutover (wire stubs · live PG/S3 = canary).
+//! svc-memory handlers — Phase 4 Rust cutover.
+//! memory_items INSERT/UPSERT lives in `store` (RecordingClient / live sqlx follow-up).
 
 use aura_tenant_tx::SET_TENANT_GUC_SQL;
 use serde_json::Value;
@@ -7,6 +8,7 @@ pub mod batch_payload;
 pub mod capture;
 pub mod handlers;
 pub mod promote;
+pub mod store;
 
 #[cfg(test)]
 mod parity_tests;
