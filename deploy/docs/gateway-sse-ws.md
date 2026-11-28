@@ -6,7 +6,8 @@
 프레임 업스트림: [`agent-invoke-mqt.md`](agent-invoke-mqt.md).
 
 **이 문서 범위:** 제출 wire · `run_id`(UUIDv7) · 스트림 subject · SSE/WS 인가 · 브리지 규칙.  
-**Non-goals:** Fair Queue / Token Bucket / max_inflight · NATS KV · live NATS SDK 배선 · live LLM Gateway · `mcp_invoke` 이원화. (resolve 브리지: [`control-resolve-bridge.md`](control-resolve-bridge.md))
+**Non-goals:** Fair Queue / Token Bucket / max_inflight · NATS KV · live NATS SDK 배선 · live LLM Gateway · `mcp_invoke` 이원화. (resolve 브리지: [`control-resolve-bridge.md`](control-resolve-bridge.md))  
+lab E2E (in-cluster DNS · authorize+202): [`gateway-agent-invoke-e2e.md`](gateway-agent-invoke-e2e.md) · `smoke-gateway-agent-invoke.sh`.
 
 ---
 

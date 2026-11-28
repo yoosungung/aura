@@ -444,16 +444,19 @@ bash deploy/scripts/check-service-rust-phase0.sh    # Rust Phase 0 workspace · 
 
 ```bash
 bash deploy/scripts/check-gateway-sse-ws.sh   # DESIGN + Deployment≥2 + principal/SSE selftest (no cluster)
+SMOKE_GATEWAY_AGENT_INVOKE_STATIC=1 bash deploy/scripts/smoke-gateway-agent-invoke.sh
+bash deploy/scripts/smoke-gateway-agent-invoke.sh   # lab E2E via aura-gateway.aura.svc.cluster.local:8080
 ```
 
 | 항목 | M3 고정 |
 |------|---------|
-| 문서 | [`docs/gateway-sse-ws.md`](docs/gateway-sse-ws.md) · [`../services/gateway/DESIGN.md`](../services/gateway/DESIGN.md) |
+| 문서 | [`docs/gateway-sse-ws.md`](docs/gateway-sse-ws.md) · [`docs/gateway-agent-invoke-e2e.md`](docs/gateway-agent-invoke-e2e.md) · [`../services/gateway/DESIGN.md`](../services/gateway/DESIGN.md) |
 | 제출 | `POST /v1/agent/invoke` → UUIDv7 `run_id` → `aura.tasks.agent.invoke` |
 | 브리지 | SSE `GET /v1/runs/:run_id/events` · WS `…/ws` · exact `aura.stream.<run_id>` |
 | 인가 | 소유 principal만 · 403/404 · 와일드카드 구독 금지 |
+| lab E2E | in-cluster DNS `http://aura-gateway.aura.svc.cluster.local:8080` · **port-forward 금지** · authorize+202 (SSE pump=후속) |
 | 매니페스트 | `k8s/gateway/` Deployment **replicas≥2** · Service · **MQT 없음** · **PG 없음** |
-| Non-goals (SSE 슬라이스) | live NATS SDK · live LLM Gateway (Fair Queue는 아래 절) |
+| Non-goals (SSE 슬라이스) | live NATS SDK · live LLM Gateway (Fair Queue는 아래 절) · admin-ui Chat |
 
 ### Gateway · Fair Queue / Rate Limit (M3 · §2.2)
 

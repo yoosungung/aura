@@ -56,6 +56,8 @@ bash deploy/scripts/build-gateway-images.sh
 bash deploy/scripts/check-gateway-sse-ws.sh
 bash deploy/scripts/check-gateway-fair-queue.sh
 bash deploy/scripts/check-gateway-inflight-release.sh
+SMOKE_GATEWAY_AGENT_INVOKE_STATIC=1 bash deploy/scripts/smoke-gateway-agent-invoke.sh
+bash deploy/scripts/smoke-gateway-agent-invoke.sh   # lab: in-cluster DNS → aura-gateway
 cargo test -p aura-gateway
 docker build -f services/gateway/Dockerfile -t aura/gateway:local .
 ```

@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DESIGN="$ROOT/services/gateway/DESIGN.md"
 DOCS="$ROOT/deploy/docs/gateway-sse-ws.md"
+E2E_DOC="$ROOT/deploy/docs/gateway-agent-invoke-e2e.md"
+SMOKE="$ROOT/deploy/scripts/smoke-gateway-agent-invoke.sh"
+SMOKE_INNER="$ROOT/deploy/scripts/smoke-gateway-agent-invoke-inner.sh"
 GW_DIR="$ROOT/services/gateway"
 LIB="$GW_DIR/src/lib.rs"
 K8S_DIR="$ROOT/deploy/k8s/gateway"
@@ -65,6 +68,20 @@ grep -Eq 'aura/gateway' "$DESIGN" || fail "DESIGN must name aura/gateway image"
 
 grep -Eq '\[x\].*Gateway:.*run_id' "$ROADMAP" \
   || fail "ROADMAP M3 Gateway run_id/SSE checkbox must be [x]"
+
+[[ -f "$E2E_DOC" ]] || fail "missing $E2E_DOC"
+[[ -f "$SMOKE" ]] || fail "missing $SMOKE"
+[[ -f "$SMOKE_INNER" ]] || fail "missing $SMOKE_INNER"
+grep -q 'aura-gateway.aura.svc.cluster.local:8080' "$E2E_DOC" \
+  || fail "e2e doc must pin in-cluster Gateway DNS"
+grep -Eqi 'port-forward 금지|port-forward.*금지' "$E2E_DOC" \
+  || fail "e2e doc must forbid port-forward"
+grep -q 'gateway-agent-invoke-e2e' "$DOCS" \
+  || fail "gateway-sse-ws.md must link e2e doc"
+grep -q 'smoke-gateway-agent-invoke' "$DESIGN" \
+  || fail "DESIGN Commands must name smoke-gateway-agent-invoke"
+SMOKE_GATEWAY_AGENT_INVOKE_STATIC=1 bash "$SMOKE" \
+  || fail "static smoke-gateway-agent-invoke failed"
 
 ok "gateway run_id + SSE/WS + principal auth (Rust)"
 echo "check-gateway-sse-ws: PASS"
