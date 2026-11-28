@@ -101,3 +101,13 @@ Admin UI 정적 미러:
 ```bash
 cd services/admin-ui && npm run sync:scaffolds
 ```
+
+lab 일괄 등록 (control-admin API · in-cluster DNS):
+
+```bash
+bash deploy/scripts/build-admin-images.sh
+kubectl -n aura rollout restart deploy/aura-control-admin
+bash deploy/scripts/register-scaffold-bundles.sh
+# tenant default=11111111-1111-4111-8111-111111111111
+# mcp: naver-search@1 · weather@1 · agent: research-agent@1-nodejs|1-python → active
+```

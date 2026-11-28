@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const crypto = require('crypto');
-const { getObject, sha256Prefixed } = require('./get-object');
+const { getObject, sha256Prefixed, presignPut } = require('./get-object');
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const URI = `s3://aura-content/tenants/${TENANT}/bundles/mcp/demo/1/mod.js`;
@@ -93,6 +93,18 @@ async function main() {
   }
   assert.ok(!errLogs.join('\n').includes(SECRET));
   assert.ok(!crypto.createHash('sha256').update(SECRET).digest('hex').includes(' '));
+
+  const signed = presignPut(
+    envOpts({
+      bundle_uri: URI,
+      tenant_id: TENANT,
+    })
+  );
+  assert.ok(signed.upload_url.includes('/aura-content/tenants/'));
+  assert.equal(signed.bundle_uri, URI);
+  assert.ok(signed.headers.Authorization);
+  assert.equal(signed.headers['x-amz-content-sha256'], 'UNSIGNED-PAYLOAD');
+  assert.equal(signed.headers['content-type'], 'application/octet-stream');
 
   console.log('get-object.selftest: PASS');
 }

@@ -1,21 +1,17 @@
-# syntax=docker/dockerfile:1
-FROM rust:1.94-bookworm AS builder
-WORKDIR /src
-COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
-COPY services/nats-rpc-bridge ./services/nats-rpc-bridge
-COPY services/nats-task-bridge ./services/nats-task-bridge
-COPY services/gateway ./services/gateway
-COPY services/llm-gateway ./services/llm-gateway
-COPY services/control ./services/control
-COPY services/memory ./services/memory
-COPY services/compliance ./services/compliance
-RUN cargo build --release -p aura-control
-
-FROM gcr.io/distroless/cc-debian12:nonroot
-COPY --from=builder /src/target/release/aura-control-admin /aura-control-admin
-USER nonroot
+# aura-control-admin — live Pooler + RustFS (admin-ui.md).
+# Build context = repo root so activate/presign can require services/object-store/get-object.js.
+# Rust resolve remains Dockerfile.resolve; admin live S3/Pooler stays Node until Rust sqlx canary.
+FROM node:22-alpine
+WORKDIR /app/services/control
+COPY services/control/package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
+COPY services/control/admin-entrypoint.js \
+     services/control/admin-server.js \
+     services/control/admin-http.js \
+     services/control/tenant-tx.js ./
+COPY services/object-store/get-object.js /app/services/object-store/get-object.js
+USER node
 EXPOSE 8080
+CMD ["node", "admin-entrypoint.js"]
 LABEL org.opencontainers.image.logo="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg" \
       dev.orbstack.icon="https://raw.githubusercontent.com/yoosungung/aura/main/services/admin-ui/public/aura-logo.jpg"
-ENTRYPOINT ["/aura-control-admin"]

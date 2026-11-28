@@ -65,7 +65,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/docs/service-rust-phase0.md` | 플랫폼 서비스 Rust **Phase 0** 기반 게이트 (workspace·CI·distroless·envelope/mTLS 패리티) | `deploy/docs/` |
 | `deploy/docs/service-rust-strangler-lab.md` | Rust Strangler **lab canary** 체크리스트 (shadow→canary→cutover→deprecate·롤백) | `deploy/docs/` |
 | `services/gateway/` | Gateway 내부 DESIGN + `run_id`/SSE/WS/principal (`aura-gateway` Rust) | `services/gateway/` |
-| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `ensure-task-bridge-consumers.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** · **`smoke-gateway-agent-invoke`** 포함) | `deploy/scripts/` |
+| `deploy/scripts/` | `install-runtime.sh` · `ensure-streams.sh` · `ensure-task-bridge-consumers.sh` · `apply-product.sh` · `check-*.sh` · `smoke-*.sh` (… · **svc-control resolve** · **admin-ui** · **admin-ui-mvp** · **control.resolve 브리지** · **agent_invoke** · **gateway** · **`smoke-gateway-agent-invoke`** · **`register-scaffold-bundles`** 포함) | `deploy/scripts/` |
 
 규칙:
 

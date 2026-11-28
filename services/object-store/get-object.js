@@ -61,22 +61,30 @@ function creds(opts) {
   };
 }
 
-function authorizeGet(url, cred) {
+function signRequest(method, url, cred, payloadHash, extraHeaders) {
   const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const dateStamp = amzDate.slice(0, 8);
   const host = url.host;
-  const canonicalHeaders =
-    `host:${host}\n` +
-    `x-amz-content-sha256:${EMPTY_PAYLOAD_HASH}\n` +
-    `x-amz-date:${amzDate}\n`;
-  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  const headers = {
+    host,
+    'x-amz-content-sha256': payloadHash,
+    'x-amz-date': amzDate,
+    ...(extraHeaders || {}),
+  };
+  const signedHeaderNames = Object.keys(headers)
+    .map((k) => k.toLowerCase())
+    .sort();
+  const canonicalHeaders = signedHeaderNames
+    .map((k) => `${k}:${String(headers[k]).trim()}\n`)
+    .join('');
+  const signedHeaders = signedHeaderNames.join(';');
   const canonicalRequest = [
-    'GET',
+    method,
     url.pathname,
     '',
     canonicalHeaders,
     signedHeaders,
-    EMPTY_PAYLOAD_HASH,
+    payloadHash,
   ].join('\n');
   const scope = `${dateStamp}/${cred.region}/s3/aws4_request`;
   const stringToSign = [
@@ -89,10 +97,46 @@ function authorizeGet(url, cred) {
     .createHmac('sha256', signingKey(cred.secretAccessKey, dateStamp, cred.region))
     .update(stringToSign, 'utf8')
     .digest('hex');
-  return {
-    'x-amz-content-sha256': EMPTY_PAYLOAD_HASH,
+  const out = {
+    'x-amz-content-sha256': payloadHash,
     'x-amz-date': amzDate,
     Authorization: `AWS4-HMAC-SHA256 Credential=${cred.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+  };
+  for (const [k, v] of Object.entries(extraHeaders || {})) {
+    out[k] = v;
+  }
+  return out;
+}
+
+function authorizeGet(url, cred) {
+  return signRequest('GET', url, cred, EMPTY_PAYLOAD_HASH, null);
+}
+
+function authorizePut(url, cred) {
+  // Body is uploaded by the client after presign; UNSIGNED-PAYLOAD is required.
+  return signRequest('PUT', url, cred, 'UNSIGNED-PAYLOAD', {
+    'content-type': 'application/octet-stream',
+  });
+}
+
+/**
+ * Presign a path-style PUT against aura-content (Admin Bundles upload).
+ * @param {{ bundle_uri: string, tenant_id?: string, tenantId?: string, endpoint?: string, region?: string, accessKeyId?: string, secretAccessKey?: string, env?: object }} opts
+ */
+function presignPut(opts) {
+  const o = opts || {};
+  const tenantId = o.tenant_id || o.tenantId;
+  const key = assertBundleUri(o.bundle_uri, tenantId);
+  const cred = creds(o);
+  if (!cred.endpoint || !cred.region || !cred.accessKeyId || !cred.secretAccessKey) {
+    throw fail('object_store_unconfigured', 500);
+  }
+  const base = String(cred.endpoint).replace(/\/$/, '');
+  const url = new URL(`${base}/aura-content/${encodeKey(key)}`);
+  return {
+    upload_url: url.toString(),
+    bundle_uri: o.bundle_uri,
+    headers: authorizePut(url, cred),
   };
 }
 
@@ -149,4 +193,6 @@ module.exports = {
   sha256Prefixed,
   assertBundleUri,
   getObject,
+  authorizePut,
+  presignPut,
 };

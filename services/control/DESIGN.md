@@ -23,7 +23,8 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 | PG | **CloudNativePG Pooler** `aura-pg-pooler` · `set_config('app.tenant_id', $1, true)` 매 트랜잭션 |
 | 관리 HTTP | `aura-control-admin` replicas≥2 · Bearer ops · `X-Aura-Tenant-Id` |
 | 이미지 | `aura/control-admin:local` · `aura/control-resolve:local` · Rust distroless · `dev.orbstack.icon` |
-| Rust | `aura-control` · resolve wire + admin · `parity_tests.rs` · **Pooler=`StubPooler`** · live DSN/activate=후속 |
+| Rust | `aura-control` · resolve wire + admin parity helpers · `parity_tests.rs` · resolve **Pooler=`StubPooler`** |
+| Admin live | **Node** `admin-entrypoint.js` · Pooler DSN · RustFS `getObject`/`presignPut`(SigV4) · image `aura/control-admin:local` · Rust admin HTTP live sqlx/S3=후속 |
 | 금지 | 세션 GUC · resolve 파드→PG 직접(lookup inject만) · plaintext 시크릿 · invoke에 번들/config · RPC에 MQT · 콘텐츠 컬럼 UPDATE |
 
 ---
@@ -34,7 +35,8 @@ NATS 구독은 공용 [`../nats-rpc-bridge/DESIGN.md`](../nats-rpc-bridge/DESIGN
 |------|------|
 | `src/lib.rs` | `validate_resolve_request` · `merge_configs` · `build_resolve_response` · `resolve_with_pooler` |
 | `src/bin/aura-control-resolve.rs` | sync HTTP RPC (`/rpc`) · StubPooler / injectable lookup |
-| `src/main.rs` | `aura-control-admin` 관리 HTTP |
+| `admin-entrypoint.js` · `admin-http.js` · `admin-server.js` | **live** `aura-control-admin` (Pooler+RustFS) |
+| `src/main.rs` | Rust admin stub (parity) · live cutover=후속 |
 | `crates/aura-tenant-tx` | `SET_TENANT_GUC_SQL` — `set_config(..., true)` only |
 | `crates/aura-otel` | `mask_secrets` |
 
@@ -81,6 +83,9 @@ bash deploy/scripts/check-nats-mtls-secrets.sh
 bash deploy/scripts/build-admin-images.sh
 bash deploy/scripts/check-admin-ui.sh
 bash deploy/scripts/check-admin-ui-mvp.sh
+node services/control/admin-http.selftest.js
+node services/object-store/get-object.selftest.js
+bash deploy/scripts/register-scaffold-bundles.sh
 cargo test -p aura-control
 docker build -f services/control/Dockerfile -t aura/control-admin:local .
 docker build -f services/control/Dockerfile.resolve -t aura/control-resolve:local .
