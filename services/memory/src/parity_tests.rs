@@ -55,11 +55,13 @@ fn object_gc_and_idempotency() {
 fn wire_handlers_stub_ok() {
     use crate::handlers::*;
     let (st, body) = handle_store_request(
-        br#"{"id":"1","tenant_id":"t","payload":{"items":[{"id":"a","kind":"episodic"}]}}"#,
+        br#"{"id":"11111111-1111-1111-1111-111111111111","tenant_id":"22222222-2222-2222-2222-222222222222","payload":{"items":[{"id":"33333333-3333-3333-3333-333333333333","kind":"episodic","content":"hi","created_at":"2026-11-28T00:00:00Z"}]}}"#,
     )
     .unwrap();
     assert_eq!(st, 200);
     assert!(body.contains("memory.stored"));
+    assert!(body.contains("\"status\":\"accepted\""));
+    assert!(!body.contains("accepted_stub"));
     let (st, body) = handle_recall_request(br#"{"tenant_id":"t","query":"hi"}"#).unwrap();
     assert_eq!(st, 200);
     assert!(body.contains("hybrid_rrf"));
@@ -116,7 +118,7 @@ fn capture_extract_embed_store_sequence() {
     assert!(extract_candidates("   ").is_empty());
     assert_eq!(plan_embed("short_term")["status"], "skipped_short_term");
     assert_eq!(plan_embed("episodic")["status"], "accepted");
-    assert_eq!(plan_store("episodic")["status"], "accepted_stub");
+    assert_eq!(plan_store("episodic")["status"], "accepted");
 
     let env = handle_capture("tenant-a", "remember the meeting").unwrap();
     assert_eq!(env.event_type, "memory.capture.done");
@@ -129,7 +131,7 @@ fn capture_extract_embed_store_sequence() {
     assert_eq!(emb.len(), 1);
     assert_eq!(emb[0]["status"], "skipped_short_term");
     assert_eq!(stored.len(), 1);
-    assert_eq!(stored[0]["status"], "accepted_stub");
+    assert_eq!(stored[0]["status"], "accepted");
     assert_eq!(handle_capture("t", "").unwrap_err(), CaptureError::TextRequired);
     assert_eq!(
         build_capture_done_envelope("", vec![], vec![], vec![]).unwrap_err(),

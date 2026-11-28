@@ -1,8 +1,10 @@
-//! Domain handlers (wire stubs) — live Pooler/sqlx = canary follow-up.
+//! Domain handlers — store uses real INSERT/UPSERT SQL (RecordingClient until live sqlx).
 
 use crate::{
     embed_plan, object_gc_batch_key, promote::plan_promotion, recall_request_ok,
-    should_skip_object_gc, ARCHIVE_TASK, CONSOLIDATE_TASK, OBJECT_GC_TASK, TTL_TASK,
+    should_skip_object_gc,
+    store::{store_items, RecordingClient, StoreItem},
+    ARCHIVE_TASK, CONSOLIDATE_TASK, OBJECT_GC_TASK, TTL_TASK,
 };
 use serde_json::{json, Value};
 
@@ -21,7 +23,8 @@ fn parse(raw: &[u8]) -> Result<Value, String> {
     serde_json::from_slice(raw).map_err(|e| format!("invalid_json:{e}"))
 }
 
-/// store module boundary (capture calls this plan; standalone store Deployment retired).
+/// store module boundary (capture calls this; standalone store Deployment retired).
+/// Builds memory_items UPSERT under withTenantTx. Live Pooler DSN = sqlx follow-up.
 pub fn handle_store_request(raw: &[u8]) -> Result<(u16, String), String> {
     let v = parse(raw)?;
     let tenant = tenant_id(&v);
@@ -31,21 +34,81 @@ pub fn handle_store_request(raw: &[u8]) -> Result<(u16, String), String> {
             json!({"type":"memory.stored.error","error":"tenant_id_required"}).to_string(),
         ));
     }
-    let items = v
+    let event_id = req_id(&v);
+    let envelope_ref = v.get("content_ref").cloned().filter(|x| !x.is_null());
+    let mut raw_items = v
         .pointer("/payload/items")
         .and_then(|x| x.as_array())
         .cloned()
         .unwrap_or_default();
-    Ok((
-        200,
-        json!({
-            "type": "memory.stored",
-            "id": req_id(&v),
-            "tenant_id": tenant,
-            "payload": { "status": "accepted_stub", "count": items.len() }
-        })
-        .to_string(),
-    ))
+    if raw_items.is_empty() {
+        // single-item envelope: payload fields + optional top-level content_ref
+        let mut one = v.get("payload").cloned().unwrap_or(json!({}));
+        if let Some(obj) = one.as_object_mut() {
+            if !obj.contains_key("id") && !event_id.is_empty() {
+                obj.insert("id".into(), json!(event_id));
+            }
+            if !obj.contains_key("content_ref") {
+                if let Some(r) = envelope_ref.clone() {
+                    obj.insert("content_ref".into(), r);
+                }
+            }
+        }
+        raw_items.push(one);
+    }
+    let mut items = Vec::new();
+    for it in &raw_items {
+        match StoreItem::from_value(it, Some(event_id).filter(|s| !s.is_empty())) {
+            Ok(mut item) => {
+                if item.content_ref.is_none() {
+                    item.content_ref = envelope_ref.clone();
+                }
+                if item.source_event_id.is_none() && !event_id.is_empty() {
+                    item.source_event_id = Some(event_id.to_string());
+                }
+                items.push(item);
+            }
+            Err(e) => {
+                return Ok((
+                    e.status(),
+                    json!({
+                        "type": "memory.stored.error",
+                        "error": e.code(),
+                        "id": event_id,
+                        "tenant_id": tenant
+                    })
+                    .to_string(),
+                ));
+            }
+        }
+    }
+    let mut client = RecordingClient::default();
+    match store_items(&mut client, tenant, &items) {
+        Ok(stored) => Ok((
+            200,
+            json!({
+                "type": "memory.stored",
+                "id": event_id,
+                "tenant_id": tenant,
+                "payload": {
+                    "status": "accepted",
+                    "count": stored.len(),
+                    "items": stored
+                }
+            })
+            .to_string(),
+        )),
+        Err(e) => Ok((
+            e.status(),
+            json!({
+                "type": "memory.stored.error",
+                "error": e.code(),
+                "id": event_id,
+                "tenant_id": tenant
+            })
+            .to_string(),
+        )),
+    }
 }
 
 pub fn handle_embed_request(raw: &[u8]) -> Result<(u16, String), String> {

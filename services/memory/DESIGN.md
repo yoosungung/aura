@@ -7,9 +7,9 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 **이 문서 범위:** `svc-memory` **store**/ **embed** **모듈**(capture in-process) + **recall**(sync Deployment) + **consolidate**/ **ttl**/ **archive**/ **object_gc**(async Deployment · `aura/memory-batch` · CronJob).  
 하드코드 런북: [`deploy/docs/memory-control-hardcode.md`](../../deploy/docs/memory-control-hardcode.md) (`erase≠object_gc`).  
 캡처 통합: [`memory-capture-inline-pipeline.md`](../../deploy/docs/memory-capture-inline-pipeline.md).  
-**Non-goals (본 슬라이스):** LLM extract 본문 · 실 `halfvec`/`memory_items` UPSERT 본문 · recall query 자동 embed · 파드→Ollama/TEI **직접** · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE`.
+**Non-goals (본 슬라이스):** LLM extract 본문 · 실 `halfvec` UPSERT · recall query 자동 embed · 파드→Ollama/TEI **직접** · live Pooler DSN/sqlx 본배선(RecordingClient 단위 경로만) · live 클러스터 apply 필수(정적 게이트만) · `WITH RECURSIVE`.
 
-수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` 적재만; embed는 Gateway `/v1/embeddings`. 단독 store/embed Deployment **퇴역**.
+수치·모델 발명 금지 — 생산 임베딩은 이미 `BAAI/bge-m3:1` 핀. store는 `memory_items` INSERT/UPSERT; embed는 Gateway `/v1/embeddings`. 단독 store/embed Deployment **퇴역**.
 
 ---
 
@@ -28,9 +28,18 @@ DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embe
 
 ## Store 모듈 (Deployment 퇴역)
 
-코드: `services/memory` `handle_store_request` · capture in-process.  
-단독 topic `aura.tasks.memory.store` / `deploy/k8s/memory-store` Deployment **제거**.  
-스켈레톤: `withTenantTx` → stub SELECT · 실 `memory_items` INSERT 후속.
+코드: `services/memory/src/store.rs` · `handle_store_request` · capture in-process.  
+단독 topic `aura.tasks.memory.store` / `deploy/k8s/memory-store` Deployment **제거**.
+
+| 항목 | 규칙 |
+|------|------|
+| GUC | `with_tenant_tx` → `set_config('app.tenant_id', $1, true)` 만 |
+| 쓰기 | `INSERT INTO memory_items … ON CONFLICT (id, memory_type, created_at) DO UPDATE` |
+| 본문 | `content` 인라인 **또는** `content_ref`→`metadata.content_ref` (빈 content 허용) |
+| tsv | `content_tsv` GENERATED — INSERT 컬럼 목록에 **넣지 않음** |
+| 멱등 | 동일 `(id, memory_type, created_at)` 재배달 → UPSERT |
+| 클라이언트 | 단위=`RecordingClient` · live Pooler/sqlx=후속 |
+| 금지 | stub `SELECT` 쓰기 경로 · capture 파일 내 SQL |
 
 ---
 
@@ -208,6 +217,7 @@ store·embed·consolidate·**recall** handler는 이 헬퍼만 경유한다(shor
 
 ```bash
 cargo test -p aura-memory --lib
+bash deploy/scripts/check-memory-store.sh
 bash deploy/scripts/check-memory-capture.sh
 bash deploy/scripts/check-memory-recall.sh
 bash deploy/scripts/build-hardcoded-memory-images.sh

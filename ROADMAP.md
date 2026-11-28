@@ -176,7 +176,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **멀티테넌트 HNSW 픽스처**: 대형 A + 소형 B — ON≥1 / OFF 대조 회귀; 실패 시 T1/T2 — [`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md) · `check-memory-hnsw-multitenant.sh` · `smoke-memory-hnsw-multitenant.sh`
 - [x] 활성 `AURA_EMBEDDING_MODEL` / `version` / `dims` → 결정 로그 (TTL 수치는 `memory-ttl-policy.md` 고정) — [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md) · `check-memory-embedding-active.sh` (`BAAI/bge-m3` · `1` · `1024`)
 - [x] `services/memory/DESIGN.md` + store Deployment **스켈레톤** — 매 트랜잭션 `set_config(..., true)` (`services/memory/` · `deploy/k8s/memory-store/` · `check-memory-store.sh`) · **실 DDL INSERT 아님**
-- [ ] **`memory_items` 실 INSERT/UPSERT** — Pooler + `withTenantTx` · 멱등 `id` · `content`/`content_ref` · GENERATED `content_tsv` (현 `store/handler.js` = `SELECT` stub · **미완**)
+- [x] **`memory_items` 실 INSERT/UPSERT** — `withTenantTx` + `ON CONFLICT (id, memory_type, created_at)` · `content`/`content_ref` · GENERATED `content_tsv` (`services/memory/src/store.rs` · RecordingClient; live sqlx DSN=후속)
 - [x] (스모크) 무차원 HNSW 실패; short_term→embed 거부 (`smoke-memory-embed-guard.sh`; live 또는 `SMOKE_MEMORY_EMBED_GUARD_STATIC=1`)
 
 **검증 체크리스트 (권고 반영)**
@@ -189,7 +189,7 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 
 **성공 기준**
 
-- `svc-memory` 외 쓰기 거부; store 멱등; short_term 비-임베딩. (**멱등 실 INSERT = 위 미완 항목**)
+- `svc-memory` 외 쓰기 거부; store 멱등 INSERT/UPSERT(`store.rs`); short_term 비-임베딩.
 - V1.1–V1.3 합격 (DDL·정책·픽스처).
 - **소형 테넌트 B recall ≥1** (iterative_scan); 앱 post-filter 없음.
 
@@ -482,7 +482,8 @@ Strangler lab: [`deploy/docs/service-rust-strangler-lab.md`](deploy/docs/service
 - [x] `memory/capture/rs` · `memory/rs` — PG 금지/가드 · candidates envelope · subject/idempotency (**로컬 패리티**)
 - [x] **Rust Deployment 바이너리** — `aura-memory-capture` · `aura-memory-recall` · batch 4종 + cron · 이미지 `aura/memory-{capture,recall,batch}:local` · **Node memory/compliance 핸들러 삭제** · **live sqlx/PG 본배선=후속**(wire stub)
 - [x] **compliance-erase / control-resolve Rust** — `aura-compliance-erase` · `aura-control-resolve` · 이미지 `:local` · OpenBao/Pooler live=후속
-- [ ] **실 SQL** — `memory_items` INSERT/UPSERT · `memory_embeddings` halfvec · graph write · consolidate soft_close+insert (현 **stub**)
+- [x] **실 SQL (store)** — `memory_items` INSERT/UPSERT (`store.rs` · GUC+ON CONFLICT · live DSN=후속)
+- [ ] **실 SQL (잔여)** — `memory_embeddings` halfvec · graph write · consolidate soft_close+insert (현 **stub**)
 - [ ] live Pooler/S3 · live `check-memory-*.sh` assert (**후속**)
 
 **Phase 5 (invoke 셸)** — 오케스트레이터만
