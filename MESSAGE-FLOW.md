@@ -248,7 +248,7 @@ sequenceDiagram
 
 ## 5. 메모리 파이프라인 (inline capture + batch CronJob)
 
-`agent_invoke`는 `memory_*`에 직접 쓰지 않는다. 턴 종료 시 `aura.tasks.memory.capture` publish → capture 파드가 extract→embed→store 모듈을 **in-process** 실행. 배치(consolidate/ttl/archive/object_gc)는 **K8s CronJob**이 subject publish (ARCHITECTURE §3.2 · §5).
+`agent_invoke`는 `memory_*`에 직접 쓰지 않는다. 턴 종료 시 `aura.tasks.memory.capture` publish → capture 파드가 extract→embed→store 모듈을 **in-process** 실행. 배치(consolidate/ttl/archive/object_gc)는 **K8s CronJob**이 `/aura-memory-*` one-shot 실행(상시 파드 없음 · ARCHITECTURE §3.2 · §5 · [`memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md)).
 
 ```mermaid
 sequenceDiagram
@@ -265,7 +265,7 @@ sequenceDiagram
   Cap->>GW: POST /v1/embeddings (skip short_term)
   Cap->>PG: store 모듈 withTenantTx
   Cap->>Ev: aura.events.memory.capture.done
-  Cron->>T: consolidate/ttl/archive/object_gc (UTC daily)
+  Note over Cron: one-shot /aura-memory-{consolidate,ttl,archive,object-gc} (UTC daily · no always-on pod)
 ```
 
 대화 턴 중 **읽기**는 sync: `agent_invoke` → `aura.rpc.memory.recall` → bridge → `aura-memory-recall` → Pooler.

@@ -34,7 +34,7 @@ default-members = [
 [workspace.package]
 edition = "2021"
 license = "LicenseRef-Proprietary"
-rust-version = "1.80"
+rust-version = "1.94"
 
 [workspace.dependencies]
 aura-envelope = { path = "crates/aura-envelope" }

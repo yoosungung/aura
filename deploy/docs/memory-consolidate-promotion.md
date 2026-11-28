@@ -59,11 +59,11 @@
 
 ## 담당 태스크
 
-| Subject | Consumer | resp / error |
-|---------|----------|--------------|
-| `aura.tasks.memory.consolidate` | `aura_memory_consolidate` | `aura.events.memory.consolidated` / `aura.events.memory.consolidate.error` |
+| 실행 | 이벤트 |
+|------|--------|
+| **CronJob** `aura-memory-consolidate-cron` → `/aura-memory-consolidate` (`aura/memory-batch`) | `aura.events.memory.consolidated` / `.error` |
 
-MQT · `minReplicaCount=0` · stream `AURA_TASKS` (§3.2 · §4.1).
+상시 Deployment · JetStream durable consumer **없음** — [`memory-batch-cronjobs.md`](memory-batch-cronjobs.md).
 
 ---
 

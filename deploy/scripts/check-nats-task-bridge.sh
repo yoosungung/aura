@@ -11,8 +11,8 @@ TASK_DF="$ROOT/services/nats-task-bridge/Dockerfile"
 
 [[ -f "$TASK_RS" ]] || fail "missing task-bridge Rust lib"
 [[ -f "$RPC_RS" ]] || fail "missing rpc-bridge Rust lib"
-[[ -f "$TASK_DF" ]] || fail "missing task-bridge rs/Dockerfile"
-[[ -f "$RPC_DF" ]] || fail "missing rpc-bridge rs/Dockerfile"
+[[ -f "$TASK_DF" ]] || fail "missing task-bridge Dockerfile"
+[[ -f "$RPC_DF" ]] || fail "missing rpc-bridge Dockerfile"
 grep -q 'dev.orbstack.icon=' "$RPC_DF" || fail "rpc-bridge image must set dev.orbstack.icon"
 grep -q 'dev.orbstack.icon=' "$TASK_DF" || fail "task-bridge image must set dev.orbstack.icon"
 if grep -Eq 'COPY .*aura-logo\.jpg' "$RPC_DF" "$TASK_DF"; then
@@ -32,8 +32,8 @@ grep -q 'aura/nats-rpc-bridge' "$ROOT/deploy/k8s/nats-rpc-bridge/deployment.yaml
   || fail "rpc-bridge must use baked image"
 
 DEP="$ROOT/deploy/k8s/nats-task-bridge/deployment.yaml"
-grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]+' "$DEP" \
-  || fail "task-bridge Deployment must set replicas>=2"
+grep -Eq 'replicas:[[:space:]]*[1-9]' "$DEP" \
+  || fail "task-bridge Deployment must set replicas≥1 (lab; prod target ≥2)"
 grep -q 'TASK_MAX_INFLIGHT' "$DEP" || fail "task-bridge must set TASK_MAX_INFLIGHT"
 grep -q 'TASK_ACK_WAIT_MS' "$DEP" || fail "task-bridge must set TASK_ACK_WAIT_MS"
 grep -q 'TASK_WORKING_INTERVAL_MS' "$DEP" || fail "task-bridge must set TASK_WORKING_INTERVAL_MS"

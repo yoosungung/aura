@@ -15,9 +15,9 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 | 항목 | 값 |
 |------|-----|
 | 역할 | Function·`agent_invoke`/`memory_capture` 등 → **클러스터 LLM Gateway만** → 공급자 |
-| 실행 계급 | **상시 ≥2** Deployment (`aura-llm-gateway`). Fission MQT / scale-to-zero **금지** |
-| 이미지 | `aura/llm-gateway:local` · **Rust** `rs/` (`aura-llm-gateway`) · distroless · `dev.orbstack.icon` |
-| 클라이언트 | `client.js` / `client.py` 유지 (Function egress 가드) · `gateway.selftest.js` = client만 |
+| 실행 계급 | Deployment (`aura-llm-gateway`) · **lab replicas=1**(목표≥2). Fission MQT / scale-to-zero **금지** |
+| 이미지 | `aura/llm-gateway:local` · **Rust** `src/` (`aura-llm-gateway`) · distroless · `dev.orbstack.icon` |
+| 클라이언트 | `clients/client.js` / `clients/client.py` (Function egress 가드) |
 | PG | **없음** |
 | 라벨 | `app: aura-llm-gateway` (샌드박스 NP allow peer) |
 | 금지 | Function→`api.openai.com` 등 공급자 **직접** (`client.js` + NP) |
@@ -39,7 +39,7 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 ---
 
-## 콘텐츠 라우팅 (`rs/src/router.rs`)
+## 콘텐츠 라우팅 (`src/router.rs`)
 
 | 항목 | 값 |
 |------|-----|
@@ -56,9 +56,8 @@ Egress NP: [`deploy/docs/egress-block-verify.md`](../../deploy/docs/egress-block
 
 | 경로 | 역할 |
 |------|------|
-| `rs/` (`aura-llm-gateway`) | HTTP · aura-auto · Fallback · billing stub · `parity_tests.rs` |
-| `client.js` / `client.py` | Function egress 가드 · `chatCompletions` / `chat_completions` · `X-Aura-Route-Pin` |
-| `gateway.selftest.js` | client egress only (서버 패리티=`cargo test`) |
+| `src/` (`aura-llm-gateway`) | HTTP · aura-auto · Fallback · billing stub · `parity_tests.rs` |
+| `clients/client.js` / `clients/client.py` | Function egress 가드 · `chatCompletions` / `chat_completions` · `X-Aura-Route-Pin` |
 
 기본 쿼터: rate **20**/s · burst **40** (`DEFAULT_RATE_PER_SEC` / `DEFAULT_BURST`).  
 Deps: ConfigMap `providers[]` (또는 단일 `provider`) · `fallbackModels` · `routing` (`tiers`).
@@ -92,7 +91,6 @@ bash deploy/scripts/build-gateway-images.sh
 bash deploy/scripts/check-llm-gateway.sh
 bash deploy/scripts/check-llm-gateway-fallback-billing.sh
 bash deploy/scripts/check-llm-gateway-router.sh
-node services/llm-gateway/gateway.selftest.js
 cargo test -p aura-llm-gateway
 docker build -f services/llm-gateway/Dockerfile -t aura/llm-gateway:local .
 ```

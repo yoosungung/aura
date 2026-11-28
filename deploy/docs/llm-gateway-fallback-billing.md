@@ -37,5 +37,5 @@
 ```bash
 bash deploy/scripts/check-llm-gateway-fallback-billing.sh
 cargo test -p aura-llm-gateway
-node services/llm-gateway/gateway.selftest.js
+cargo test -p aura-llm-gateway
 ```

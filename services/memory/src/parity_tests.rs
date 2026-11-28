@@ -6,8 +6,10 @@ use serde_json::json;
 #[test]
 fn supernode_caps() {
     assert_eq!(SUPERNODE_HUB_DEGREE, 500);
-    assert!(SUPERNODE_HUB_DEGREE > SUPERNODE_DEGREE_CAP);
-    assert!(SUPERNODE_HUB_DEGREE > SUPERNODE_PER_HOP_LIMIT);
+    const {
+        assert!(SUPERNODE_HUB_DEGREE > SUPERNODE_DEGREE_CAP);
+        assert!(SUPERNODE_HUB_DEGREE > SUPERNODE_PER_HOP_LIMIT);
+    }
     assert_eq!(SUPERNODE_DEGREE_CAP, 64);
     assert_eq!(SUPERNODE_PER_HOP_LIMIT, 50);
     assert_eq!(GRAPH_MAX_DEPTH, 2);

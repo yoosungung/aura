@@ -311,80 +311,29 @@ bash deploy/scripts/check-memory-embedding-active.sh   # doc gate: BAAI/bge-m3 �
 | MODEL / VERSION / DIMS | `BAAI/bge-m3` / `1` / `1024` (`model_key=BAAI/bge-m3:1`) |
 | TTL | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) (14d/24mo/12mo · 재고정 아님) |
 
-### svc-memory store MQT (M1 · `set_config(..., true)`)
+### svc-memory (Rust · capture inline · recall Deployment · batch CronJob)
 
 ```bash
-bash deploy/scripts/check-memory-store.sh   # DESIGN + MQT + withTenantTx selftests (no cluster)
+bash deploy/scripts/check-memory-capture.sh
+bash deploy/scripts/check-memory-recall.sh
+bash deploy/scripts/check-memory-ttl.sh
+bash deploy/scripts/check-memory-consolidate.sh
+bash deploy/scripts/check-memory-archive.sh
+bash deploy/scripts/check-object-store-orphan-gc.sh
+bash deploy/scripts/check-memory-control-hardcode.sh
+bash deploy/scripts/build-hardcoded-memory-images.sh
 ```
 
 | 항목 | 값 |
 |------|-----|
 | DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) |
-| 코드 | `services/memory/store/tenant-tx.js` · `handler.js` |
-| 매니페스트 | [`k8s/memory-store/`](k8s/memory-store/) — topic `aura.tasks.memory.store` · consumer `aura_memory_store` · resp/error `aura.events.memory.stored` / `.store.error` · `minReplicaCount=0` |
-| 테넌트 GUC | 매 트랜잭션 `SELECT set_config('app.tenant_id', $1, true)` (`is_local=true`); `false`/세션 `SET` 금지 |
-| Non-goals | embed/recall/consolidate 본구현 · TEI · live apply 필수 · 실 `memory_items` UPSERT(동일 헬퍼 위 후속) |
-
-### memory_capture Deployment (M2 · PG 금지)
-
-```bash
-bash deploy/scripts/check-memory-capture.sh   # DESIGN + Deployment + PG-forbidden selftest (no cluster)
-```
-
-| 항목 | 값 |
-|------|-----|
-| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Capture Deployment) |
-| 코드 | `services/memory/src/capture.rs` · bin `aura-memory-capture` (`aura-memory`) |
-| 매니페스트 | [`k8s/memory-capture/`](k8s/memory-capture/) Deployment — topic `aura.tasks.memory.capture` · durable `aura_memory_capture` · resp/error `aura.events.memory.candidates` / `.capture.error` · **replicas=1** · ScaledObject/MQT 없음 |
-| PG | **금지** — Pooler DSN/`set_config`/`query` 미사용 |
-| Non-goals | 라이브 LLM Gateway · `content_ref` Object Store 업로드 · live apply 필수 |
-
-### svc-memory embed MQT (M2 · short_term 스킵)
-
-```bash
-bash deploy/scripts/check-memory-embed.sh   # DESIGN + MQT + short_term skip selftest (no cluster)
-```
-
-| 항목 | 값 |
-|------|-----|
-| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Embed MQT 절) |
-| 코드 | `services/memory/embed/handler.js` (+ `store/tenant-tx.js`) |
-| 매니페스트 | [`k8s/memory-embed/`](k8s/memory-embed/) — topic `aura.tasks.memory.embed` · consumer `aura_memory_embed` · resp/error `aura.events.memory.embedded` / `.embed.error` · `minReplicaCount=0` |
-| short_term | **스킵** — PG INSERT 미시도 (`skipped_short_term`) |
-| embeddable | episodic/long_term/semantic → Gateway `/v1/embeddings` → dims 검증 → `set_config(..., true)` stub (HNSW); BM25=`content_tsv` |
-| Lab Ollama | [`docs/memory-embed-ollama-lab.md`](docs/memory-embed-ollama-lab.md) · Function env embeddinggemma 768d · Gateway ConfigMap `embeddings` |
-| Non-goals | 실 halfvec INSERT · recall query 자동 embed · Function→Ollama 직접 · live apply 필수 |
-
-### svc-memory consolidate MQT (M4 · 유형 승격 규칙)
-
-```bash
-bash deploy/scripts/check-memory-consolidate.sh   # 승격 규칙 + similarity_only 금지 + MQT selftest (no cluster)
-```
-
-| 항목 | 값 |
-|------|-----|
-| 정책 | [`docs/memory-consolidate-promotion.md`](docs/memory-consolidate-promotion.md) |
-| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Consolidate MQT 절) |
-| 코드 | `services/memory/consolidate/{promote,handler}.js` (+ `store/tenant-tx.js`) |
-| 매니페스트 | [`k8s/memory-consolidate/`](k8s/memory-consolidate/) — topic `aura.tasks.memory.consolidate` · consumer `aura_memory_consolidate` · resp/error `aura.events.memory.consolidated` / `.consolidate.error` · `minReplicaCount=0` |
-| 불변식 | consolidate만 유형 변경 · `similarity_only` 거부 · soft_close+insert_promoted (no `UPDATE memory_type`) |
-| Non-goals | LLM extract 본문 · graph write · 실 UPSERT · ttl/archive · live apply 필수 |
-
-### svc-memory recall RPC (M2 · Warm Pool · hybrid RRF)
-
-```bash
-bash deploy/scripts/check-memory-recall.sh   # DESIGN + hybrid RRF + GUCs + Core RR deploy (no cluster)
-```
-
-| 항목 | 값 |
-|------|-----|
-| DESIGN | [`../services/memory/DESIGN.md`](../services/memory/DESIGN.md) (Recall RPC 절) |
-| 코드 | `services/memory/recall/handler.js` (`mode: hybrid_rrf` · short_term 최근순 + BM25/vector RRF + graph walk) · `graph-walk.js` |
-| 매니페스트 | [`k8s/memory-recall/`](k8s/memory-recall/) — Function `aura-memory-recall` **poolmgr** · NATS=`aura-nats-rpc-bridge` · subject `aura.rpc.memory.recall` |
-| GUC | Pooler + `set_config(..., true)` · `SET LOCAL hnsw.iterative_scan/ef_search/max_scan_tuples` |
-| 금지 | MessageQueueTrigger · JetStream lag ScaledObject · 앱 post-filter |
-| 슈퍼노드 | [`docs/memory-graph-supernode-fixture.md`](docs/memory-graph-supernode-fixture.md) |
-| Non-goals | 라이브 TEI · live apply 필수 |
+| 런북 | [`docs/memory-control-hardcode.md`](docs/memory-control-hardcode.md) · [`docs/memory-capture-inline-pipeline.md`](docs/memory-capture-inline-pipeline.md) · [`docs/memory-batch-cronjobs.md`](docs/memory-batch-cronjobs.md) |
+| capture | Deployment `aura-memory-capture` · 이미지 `aura/memory-capture` · JetStream `aura.tasks.memory.capture` · inline extract→embed→store · **replicas=1** |
+| recall | Deployment+Service `aura-memory-recall` · 이미지 `aura/memory-recall` · rpc-bridge → Service HTTP · lab **replicas=1** |
+| batch | CronJob only (`consolidate`/`ttl`/`archive`/`object_gc`) · 이미지 `aura/memory-batch` · **상시 Deployment 없음** · UTC 일 1회 |
+| store/embed | 단독 Deployment **퇴역** (capture in-process 모듈) |
+| 테넌트 GUC | `crates/aura-tenant-tx` · `set_config('app.tenant_id', $1, true)` |
+| Non-goals | live sqlx UPSERT · Fission MQT for memory · NATS 스케줄러 |
 
 ### Agent 주입 계약 (M2 수치 고정 · 패킹 비범위)
 
@@ -538,7 +487,7 @@ bash deploy/scripts/check-gateway-inflight-release.sh   # terminal release + ens
 ```bash
 bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: RustFS + 256KB ref-only + schema
 bash deploy/scripts/check-object-store-rustfs.sh         # aura-content 매니페스트 · Function Secret · activate 리더
-bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([docs/memory-object-gc.md](docs/memory-object-gc.md))     # doc gate: 90d orphan GC + object_gc + skip-if-ref
+bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc CronJob ([docs/memory-object-gc.md](docs/memory-object-gc.md))
 bash deploy/scripts/check-compliance-erase.sh          # OpenBao Transit crypto-shred + refs/ erase draft
 ```
 
@@ -557,14 +506,14 @@ bash deploy/scripts/check-compliance-erase.sh          # OpenBao Transit crypto-
 ### memory TTL 정책 + 월 파티션 DROP (M1 수치 · M4 job)
 
 ```bash
-bash deploy/scripts/check-memory-ttl.sh       # 14d/24mo/12mo + DROP MQT + needs_archive + selftests
-bash deploy/scripts/check-memory-archive.sh   # Parquet → DETACH/DROP + MQT
+bash deploy/scripts/check-memory-ttl.sh       # 14d/24mo/12mo + DROP CronJob + needs_archive
+bash deploy/scripts/check-memory-archive.sh   # Parquet → DETACH/DROP CronJob
 ```
 
 | 항목 | 고정 |
 |------|------|
 | 수치 | [`docs/memory-ttl-policy.md`](docs/memory-ttl-policy.md) — short **14일** · epi **24개월** · audit **12개월** · 일 1회 |
-| M4 DROP | [`docs/memory-ttl-drop.md`](docs/memory-ttl-drop.md) · `services/memory/ttl/` · `k8s/memory-ttl/` |
+| M4 DROP | [`docs/memory-ttl-drop.md`](docs/memory-ttl-drop.md) · CronJob `k8s/memory-ttl/` · handlers=`services/memory/src/handlers.rs` |
 | short_term / audit | 만료 월 파티션 **DROP RESTRICT** |
 | episodic | 콜드 → `needs_archive` (archive 후 DROP) |
 | 태스크 | `aura.tasks.memory.ttl` / consumer `aura_memory_ttl` |

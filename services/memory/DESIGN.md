@@ -1,7 +1,7 @@
 # svc-memory (내부 설계)
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §1 #3–#5 · §2.1 · §3.2–§3.3 · §4.2 · §5 · §6.3.  
-일정: [ROADMAP.md](../../ROADMAP.md) M1 (store MQT + `set_config`) · M2 (embed MQT · recall Warm · **hybrid RRF SELECT**) · M4 (consolidate 유형 승격 · **recall graph 방어적 walk** · **ttl 월 파티션 DROP**).  
+일정: [ROADMAP.md](../../ROADMAP.md) M1–M2 (store/embed 모듈 · recall hybrid RRF) · M4 (consolidate/ttl/archive/object_gc **CronJob** · graph walk).  
 DDL: [`deploy/sql/`](../../deploy/sql/) · 활성 핀: [`deploy/docs/memory-embedding-active.md`](../../deploy/docs/memory-embedding-active.md) · 가드: [`deploy/docs/memory-embed-guard-iterative-scan.md`](../../deploy/docs/memory-embed-guard-iterative-scan.md) · 승격: [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md) · 그래프: [`deploy/docs/memory-graph-traversal.md`](../../deploy/docs/memory-graph-traversal.md) · TTL: [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md).
 
 **이 문서 범위:** `svc-memory` **store**/ **embed** **모듈**(capture in-process) + **recall**(sync Deployment) + **consolidate**/ **ttl**/ **archive**/ **object_gc**(**CronJob one-shot** · `aura/memory-batch` · 상시 Deployment 없음).  
@@ -84,16 +84,14 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 
 ---
 
-## Object GC MQT (§3.2 · §8 · M4)
+## Object GC CronJob (§3.2 · §8 · M4)
 
 | 필드 | 값 |
 |------|-----|
-| topic | `aura.tasks.memory.object_gc` |
-| consumer | `aura_memory_object_gc` |
-| stream | `AURA_TASKS` |
-| respTopic | `aura.events.memory.object_gc.done` |
-| errorTopic | `aura.events.memory.object_gc.error` |
-| 매니페스트 | [`deploy/k8s/memory-object-gc/`](../../deploy/k8s/memory-object-gc/) |
+| task id | `aura.tasks.memory.object_gc` (식별용 · JetStream durable **아님**) |
+| 실행 | **CronJob** `aura-memory-object-gc-cron` → `/aura-memory-object-gc` (`aura/memory-batch`) |
+| 이벤트 | `aura.events.memory.object_gc.done` / `.error` (handler publish) |
+| 매니페스트 | [`deploy/k8s/memory-object-gc/`](../../deploy/k8s/memory-object-gc/) · **deployment 없음** |
 
 **정본:** [`object-store-orphan-gc.md`](../../deploy/docs/object-store-orphan-gc.md) · 구현 [`memory-object-gc.md`](../../deploy/docs/memory-object-gc.md)
 
@@ -106,16 +104,14 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 
 성공 본문 `type: memory.object_gc.done`.
 
-## Archive MQT (§3.2 · §6.2.2 · §8 · M4)
+## Archive CronJob (§3.2 · §6.2.2 · §8 · M4)
 
 | 필드 | 값 |
 |------|-----|
-| topic | `aura.tasks.memory.archive` |
-| consumer | `aura_memory_archive` |
-| stream | `AURA_TASKS` |
-| respTopic | `aura.events.memory.archived` |
-| errorTopic | `aura.events.memory.archive.error` |
-| 매니페스트 | [`deploy/k8s/memory-archive/`](../../deploy/k8s/memory-archive/) |
+| task id | `aura.tasks.memory.archive` (식별용 · JetStream durable **아님**) |
+| 실행 | **CronJob** `aura-memory-archive-cron` → `/aura-memory-archive` (`aura/memory-batch`) |
+| 이벤트 | `aura.events.memory.archived` / `.error` |
+| 매니페스트 | [`deploy/k8s/memory-archive/`](../../deploy/k8s/memory-archive/) · **deployment 없음** |
 
 **정본:** [`deploy/docs/memory-archive.md`](../../deploy/docs/memory-archive.md) · 경로 [`object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md)
 
@@ -127,17 +123,14 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 
 성공 본문 `type: memory.archived`. TTL `needs_archive` 핸드오프.
 
-## TTL MQT (§3.2 · §6.2.2 · M4)
+## TTL CronJob (§3.2 · §6.2.2 · M4)
 
 | 필드 | 값 |
 |------|-----|
-| topic | `aura.tasks.memory.ttl` |
-| consumer | `aura_memory_ttl` |
-| stream | `AURA_TASKS` |
-| respTopic | `aura.events.memory.ttl.done` |
-| errorTopic | `aura.events.memory.ttl.error` |
-| mqtype / kind | `nats-jetstream` / `keda` |
-| 매니페스트 | [`deploy/k8s/memory-ttl/`](../../deploy/k8s/memory-ttl/) |
+| task id | `aura.tasks.memory.ttl` (식별용 · JetStream durable **아님**) |
+| 실행 | **CronJob** `aura-memory-ttl-cron` → `/aura-memory-ttl` (`aura/memory-batch`) |
+| 이벤트 | `aura.events.memory.ttl.done` / `.error` |
+| 매니페스트 | [`deploy/k8s/memory-ttl/`](../../deploy/k8s/memory-ttl/) · **deployment 없음** |
 
 **정본:** [`deploy/docs/memory-ttl-drop.md`](../../deploy/docs/memory-ttl-drop.md) · 수치 [`memory-ttl-policy.md`](../../deploy/docs/memory-ttl-policy.md)
 
@@ -151,17 +144,14 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 
 ---
 
-## Consolidate MQT (§3.2 · §5 · M4)
+## Consolidate CronJob (§3.2 · §5 · M4)
 
 | 필드 | 값 |
 |------|-----|
-| topic | `aura.tasks.memory.consolidate` |
-| consumer | `aura_memory_consolidate` |
-| stream | `AURA_TASKS` |
-| respTopic | `aura.events.memory.consolidated` |
-| errorTopic | `aura.events.memory.consolidate.error` |
-| mqtype / kind | `nats-jetstream` / `keda` |
-| 매니페스트 | [`deploy/k8s/memory-consolidate/`](../../deploy/k8s/memory-consolidate/) |
+| task id | `aura.tasks.memory.consolidate` (식별용 · JetStream durable **아님**) |
+| 실행 | **CronJob** `aura-memory-consolidate-cron` → `/aura-memory-consolidate` (`aura/memory-batch`) |
+| 이벤트 | `aura.events.memory.consolidated` / `.error` |
+| 매니페스트 | [`deploy/k8s/memory-consolidate/`](../../deploy/k8s/memory-consolidate/) · **deployment 없음** |
 
 **승격 규칙 (정본):** [`deploy/docs/memory-consolidate-promotion.md`](../../deploy/docs/memory-consolidate-promotion.md)
 
@@ -184,7 +174,7 @@ Gateway: `AURA_LLM_GATEWAY_URL`(기본 `http://aura-llm-gateway.aura.svc.cluster
 |------|-----|
 | subject | `aura.rpc.memory.recall` |
 | NATS | 공용 `aura-nats-rpc-bridge` · queue `aura-rpc-bridge` · **replicas ≥ 2** |
-| Target | Deployment+Service `aura-memory-recall` · **replicas ≥ 2** · ns `aura` |
+| Target | Deployment+Service `aura-memory-recall` · **lab replicas=1**(목표≥2) · ns `aura` |
 | 트리거 | 브리지 → Service HTTP — **MQT 없음** · **JetStream lag ScaledObject 없음** · **서비스별 `*-rr` 없음** · **Fission Function 아님** |
 | 매니페스트 | [`deploy/k8s/memory-recall/`](../../deploy/k8s/memory-recall/) · 브리지 [`deploy/k8s/nats-rpc-bridge/`](../../deploy/k8s/nats-rpc-bridge/) |
 
@@ -216,10 +206,14 @@ store·embed·consolidate·**recall** handler는 이 헬퍼만 경유한다(shor
 ## Commands
 
 ```bash
-cargo test -p aura-memory --lib
-bash deploy/scripts/check-memory-store.sh
+cargo test -p aura-memory
 bash deploy/scripts/check-memory-capture.sh
 bash deploy/scripts/check-memory-recall.sh
+bash deploy/scripts/check-memory-ttl.sh
+bash deploy/scripts/check-memory-consolidate.sh
+bash deploy/scripts/check-memory-archive.sh
+bash deploy/scripts/check-object-store-orphan-gc.sh
+bash deploy/scripts/check-memory-control-hardcode.sh
 bash deploy/scripts/build-hardcoded-memory-images.sh
 docker build -f services/memory/Dockerfile.capture -t aura/memory-capture:local .
 docker build -f services/memory/Dockerfile.recall -t aura/memory-recall:local .

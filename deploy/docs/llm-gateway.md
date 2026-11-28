@@ -47,7 +47,7 @@
 
 ```bash
 bash deploy/scripts/check-llm-gateway.sh
-node services/llm-gateway/gateway.selftest.js   # client egress
+cargo test -p aura-llm-gateway
 cargo test -p aura-llm-gateway                  # server parity
 ```
 

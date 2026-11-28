@@ -29,7 +29,7 @@ ok() { echo "OK: $*"; }
 [[ -f "$CLIENT" ]] || fail "missing $CLIENT"
 [[ -f "$RS_LIB" ]] || fail "missing Rust lib"
 [[ -f "$RS_MAIN" ]] || fail "missing Rust main"
-[[ -f "$RS_DF" ]] || fail "missing llm-gateway rs/Dockerfile"
+[[ -f "$RS_DF" ]] || fail "missing llm-gateway Dockerfile"
 [[ -f "$DEP" ]] || fail "missing $DEP"
 [[ -f "$CM" ]] || fail "missing $CM"
 [[ -f "$SVC" ]] || fail "missing $SVC"
@@ -57,8 +57,8 @@ grep -q 'llm-gateway.md' "$DESIGN" || fail "DESIGN must link llm-gateway.md"
 grep -Eq 'Rust|rs/' "$DESIGN" || fail "DESIGN must name Rust image"
 
 grep -q 'app: aura-llm-gateway' "$DEP" || fail "Deployment must label app: aura-llm-gateway"
-grep -Eq 'replicas:[[:space:]]*[2-9]|replicas:[[:space:]]*[1-9][0-9]' "$DEP" \
-  || fail "Deployment replicas must be ≥ 2"
+grep -Eq 'replicas:[[:space:]]*[1-9]' "$DEP" \
+  || fail "Deployment replicas must be ≥ 1 (lab; prod target ≥2)"
 grep -q 'aura-llm-gateway' "$SVC" || fail "Service must be aura-llm-gateway"
 grep -q 'image: aura/llm-gateway:local' "$DEP" || fail "llm-gateway image must be aura/llm-gateway:local"
 grep -q 'aura-llm-gateway-providers' "$DEP" || fail "Deployment must mount provider ConfigMap"
@@ -78,7 +78,7 @@ done
 grep -q '8000' "$DESIGN" || fail "DESIGN must name vllm port 8000"
 grep -q '30000' "$DESIGN" || fail "DESIGN must name sglang port 30000"
 grep -q 'dev.orbstack.icon=' "$RS_DF" || fail "llm-gateway image must set dev.orbstack.icon"
-grep -q 'aura-llm-gateway' "$RS_DF" || fail "rs Dockerfile must build aura-llm-gateway"
+grep -q 'aura-llm-gateway' "$RS_DF" || fail "Dockerfile must build aura-llm-gateway"
 if grep -Eq 'node -e|node:22-alpine' "$DEP"; then
   fail "llm-gateway must not use node:22-alpine / node -e stub"
 fi
@@ -100,5 +100,5 @@ grep -Eqi 'llm-gateway|LLM Gateway' "$EGRESS_DOC" || fail "egress doc must refer
 
 (cd "$ROOT" && cargo test -p aura-llm-gateway --quiet) || fail "cargo test -p aura-llm-gateway failed"
 
-ok "llm-gateway client egress guard + Rust RL/circuit + Deployment≥2"
+ok "llm-gateway client egress guard + Rust RL/circuit + Deployment (lab≥1)"
 echo "check-llm-gateway: PASS"

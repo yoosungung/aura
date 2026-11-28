@@ -12,8 +12,8 @@
 
 | 경로 | 역할 |
 |------|------|
-| `rs/src/lib.rs` | kid 해석 · steps · envelope wire stub (`openbao-transit`) |
-| `rs/src/main.rs` | JetStream worker (`aura-compliance-erase`) |
+| `src/lib.rs` | kid 해석 · steps · envelope wire stub (`openbao-transit`) |
+| `src/main.rs` | JetStream worker (`aura-compliance-erase`) |
 
 ## Commands
 

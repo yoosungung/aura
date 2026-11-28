@@ -44,7 +44,7 @@
 
 ## 알고리즘 (배치)
 
-담당: `svc-memory` object_gc (MQT · scale-to-zero OK). 의사코드:
+담당: `svc-memory` object_gc (**CronJob** one-shot · [`memory-batch-cronjobs.md`](memory-batch-cronjobs.md)). 의사코드:
 
 ```
 for each tenant_id (또는 태스크 payload.tenant_id):
@@ -103,7 +103,7 @@ LIMIT 1;
 | 태스크 envelope `id` | `object-gc:{tenant_id\|all}:{yyyy-mm-dd}` | 동일 UTC 일자 재발행은 같은 작업으로 취급(중복 실행 OK — Delete 멱등) |
 | 객체 삭제 | `(bucket, key)` | `DeleteObject` 재시도·404 = 성공. 별도 tombstone 테이블 불필요(M2) |
 
-MQT·`MaxDeliver`·DLQ는 §3.2 공통. Function/MQT 본문=M4 [`memory-object-gc.md`](memory-object-gc.md).
+배치 실행=CronJob one-shot · 본문 M4 [`memory-object-gc.md`](memory-object-gc.md) · [`memory-batch-cronjobs.md`](memory-batch-cronjobs.md).
 
 ---
 

@@ -2,7 +2,7 @@
 # Apply product workloads (not deploy/dev smoke). Requires install-runtime + install-pg-pooler.
 # Shared Fission Environments: agent/mcp only (async/sync poolmgr).
 # Sync: rpc-bridge → Deployment Service (recall/resolve) or Fission (mcp.tool).
-# Memory/compliance async: JetStream Deployments (no Fission MQT).
+# Memory: capture/erase=JetStream Deployment; batch=CronJob only; recall/resolve=Service HTTP.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

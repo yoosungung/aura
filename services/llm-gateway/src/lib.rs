@@ -219,10 +219,10 @@ impl CircuitBreaker {
     pub fn allow(&self, name: &str) -> bool {
         let now = (self.now_ms)();
         let map = self.state.lock().unwrap();
-        match map.get(name) {
-            Some(s) if s.open_until_ms > 0 && now < s.open_until_ms => false,
-            _ => true,
-        }
+        !matches!(
+            map.get(name),
+            Some(s) if s.open_until_ms > 0 && now < s.open_until_ms
+        )
     }
 
     pub fn record_success(&self, name: &str) {
@@ -270,6 +270,7 @@ fn estimate_cost(prompt: u64, completion: u64) -> f64 {
 }
 
 /// Ordered Fallback over providers; first success wins. Live HTTP providers = canary.
+#[allow(clippy::too_many_arguments)]
 pub fn chat_completions(
     tenant_id: &str,
     body: &Value,

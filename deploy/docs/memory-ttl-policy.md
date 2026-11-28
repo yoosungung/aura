@@ -5,7 +5,7 @@
 전제 DDL: [`../sql/memory_items.sql`](../sql/memory_items.sql) · [`../sql/memory_audit.sql`](../sql/memory_audit.sql).
 
 **이 문서 범위:** 핫 유지 일수·월 파티션 DROP 판정·담당 태스크 이름을 **수치와 함께 고정**.  
-**M4 구현:** [`memory-ttl-drop.md`](memory-ttl-drop.md) · `services/memory/ttl/` · `deploy/k8s/memory-ttl/`.  
+**M4 구현:** [`memory-ttl-drop.md`](memory-ttl-drop.md) · CronJob [`deploy/k8s/memory-ttl/`](../k8s/memory-ttl/) · `services/memory/src/handlers.rs`.  
 **Non-goals (본 정책 문서):** archive Parquet 본문 · embeddings/HNSW · nodes/edges · Soft-delete-only 대량 정리.
 
 수치 출처: ARCHITECTURE §6.2.2 (기획 확정 초안). 운영 튜닝은 M4 부하 후 결정 로그 1행 + 이 문서·§6.2.2를 **같이** 고친다 — 여기서 새 숫자를 발명하지 않는다.
@@ -50,7 +50,7 @@
 
 **DROP 주기 (M1 고정):** `aura.tasks.memory.ttl` 발행 **일 1회**(UTC).
 
-MQT·scale-to-zero OK (ARCHITECTURE §3.2). Function/MQT 본구현·게이트: [`memory-ttl-drop.md`](memory-ttl-drop.md) · `check-memory-ttl.sh`.
+실행=CronJob one-shot (ARCHITECTURE §3.2 · [`memory-batch-cronjobs.md`](memory-batch-cronjobs.md)). 게이트: [`memory-ttl-drop.md`](memory-ttl-drop.md) · `check-memory-ttl.sh`.
 
 ---
 

@@ -17,10 +17,10 @@ fn tiers() -> HashMap<String, String> {
 
 #[test]
 fn clients_remain_node_python() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    assert!(root.join("client.js").is_file(), "client.js must stay");
-    assert!(root.join("client.py").is_file(), "client.py must stay");
-    let js = std::fs::read_to_string(root.join("client.js")).unwrap();
+    let clients = Path::new(env!("CARGO_MANIFEST_DIR")).join("clients");
+    assert!(clients.join("client.js").is_file(), "clients/client.js must stay");
+    assert!(clients.join("client.py").is_file(), "clients/client.py must stay");
+    let js = std::fs::read_to_string(clients.join("client.js")).unwrap();
     assert!(js.contains("provider_direct_forbidden") || js.contains("assertFunctionLlmEgress"));
 }
 
@@ -94,8 +94,8 @@ fn validation_and_defaults() {
     assert_eq!(bad.status, 400);
     assert_eq!(bad.body["error"], "messages_required");
 
-    assert!(DEFAULT_RATE_PER_SEC > 0.0);
-    assert!(DEFAULT_BURST >= 1.0);
+    assert!(DEFAULT_RATE_PER_SEC.is_finite() && DEFAULT_RATE_PER_SEC > f64::EPSILON);
+    assert!(DEFAULT_BURST.is_finite() && DEFAULT_BURST >= 1.0);
 }
 
 #[test]

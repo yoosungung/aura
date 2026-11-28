@@ -1,4 +1,4 @@
-# Platform Rust workspace — Phase 0 gate (test + clippy).
+# Platform Rust workspace — test + clippy.
 # Policy: deploy/docs/service-rust-phase0.md · crates/DESIGN.md
 name: rust
 
@@ -14,9 +14,8 @@ on:
       - "services/gateway/**"
       - "services/llm-gateway/**"
       - "services/control/**"
-      -       - "services/memory/**"
+      - "services/memory/**"
       - "services/compliance/**"
-      - "crates/aura-js-worker/**"
       - ".github/workflows/rust.yml"
       - "deploy/docs/service-rust-phase0.md"
       - "deploy/docs/service-rust-strangler-lab.md"
@@ -31,9 +30,8 @@ on:
       - "services/gateway/**"
       - "services/llm-gateway/**"
       - "services/control/**"
-      -       - "services/memory/**"
+      - "services/memory/**"
       - "services/compliance/**"
-      - "crates/aura-js-worker/**"
       - ".github/workflows/rust.yml"
       - "deploy/docs/service-rust-phase0.md"
       - "deploy/docs/service-rust-strangler-lab.md"
@@ -53,7 +51,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.80"
+          toolchain: "1.94"
           components: clippy
 
       - name: Cache cargo

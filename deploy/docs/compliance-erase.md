@@ -4,7 +4,7 @@
 `content_ref`/`enc.kid`: [`object-store-content-ref.md`](object-store-content-ref.md).  
 코드: [`services/compliance/`](../../services/compliance/) · 매니페스트: [`../k8s/compliance-erase/`](../k8s/compliance-erase/).
 
-**이 문서 범위:** GDPR 잊힐 권리 **초안** — DEK **crypto-shred** → 핫 PG redact → `aura-content` `refs/` DeleteObject(방어) · MQT 와이어 · `test:` 게이트.  
+**이 문서 범위:** GDPR 잊힐 권리 **초안** — DEK **crypto-shred** → 핫 PG redact → `aura-content` `refs/` DeleteObject(방어) · JetStream Deployment 와이어 · `test:` 게이트.  
 **Non-goals:** live OpenBao/Transit apply CI 필수 · 전 테넌트 wipe 라이브 · PITR 드릴 · archive/bundles 물리 삭제 · OTel Collector · M5 운영화.
 
 성공 기준(ROADMAP M4): erase 후 핫 데이터·**복호 가능 ciphertext 부재**.
@@ -52,7 +52,7 @@
 
 ---
 
-## MQT
+## Deployment (JetStream)
 
 | 필드 | 값 |
 |------|-----|
@@ -61,7 +61,7 @@
 | stream | `AURA_TASKS` |
 | respTopic | `aura.events.compliance.erase.done` |
 | errorTopic | `aura.events.compliance.erase.error` |
-| minReplicaCount | **0** |
+| 실행 | **별도** Deployment `aura-compliance-erase` (memory 파드 비포함 · Fission MQT 아님) |
 
 멱등 envelope id: `erase:{tenant}:tenant:{request_id}` 또는 `erase:{tenant}:user:{user_id}:{request_id}`.
 

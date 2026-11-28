@@ -18,7 +18,7 @@
 | `aura-otel` | attribute allowlist · `maskSecrets` 패리티 · 상관 ID 필수 |
 | `aura-nats-smoke` | Phase 0 성공 바이너리: Core RR echo + JetStream pull echo · **distroless** 이미지 템플릿 |
 | `aura-js-worker` | memory/compliance JetStream pull 워커 (Node `jetstream-worker.js` 패리티) |
-| `services/<name>/` | 플랫폼 서비스 **Rust 루트** (`Cargo.toml`·`src/`) · 잔여 Node는 `js/` · LLM egress client는 `clients/` |
+| `services/<name>/` | 플랫폼 서비스 **Rust 루트** (`Cargo.toml`·`src/`) · agent/mcp는 `nodejs/`/`python/` · LLM egress client는 `clients/` |
 
 스택 핀: `tokio` · `async-nats` · `serde`/`serde_json` · `reqwest` · (후속) `axum` · `sqlx`. Object Store RustFS 트랙과 **별개**.
 

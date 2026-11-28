@@ -15,7 +15,7 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `MESSAGE-FLOW.md` | 전체 시스템 **메시지·호출 흐름** 다이어그램 (채널·E2E·MQT 파드·메모리·RPC) | 루트 |
 | `README.md` | 저장소 방문자용 소개 + 로컬 quickstart | 루트 |
 | `package.json` · `requirements.txt` · `.venv/` · `node_modules/` | 모노레포 **로컬 deps** (npm workspaces + 공유 venv; `admin-ui`는 제외·자체 lock) | 루트 |
-| `Cargo.toml` · `crates/` · `services/*/` | 플랫폼 **Rust workspace** (서비스 루트에 Rust · 잔여 JS는 `js/`/`clients/`) — [`crates/DESIGN.md`](crates/DESIGN.md) · [`deploy/docs/service-rust-phase0.md`](deploy/docs/service-rust-phase0.md) | 루트 |
+| `Cargo.toml` · `crates/` · `services/*/` | 플랫폼 **Rust workspace** (서비스 루트 `src/` · agent/mcp는 `nodejs/`/`python/` · LLM clients=`clients/`) — [`crates/DESIGN.md`](crates/DESIGN.md) · [`deploy/docs/service-rust-phase0.md`](deploy/docs/service-rust-phase0.md) | 루트 |
 | `.github/workflows/rust.yml` | Rust `cargo test` + `clippy -D warnings` | `.github/workflows/` |
 | `ROADMAP.md` | 수행 계획(마일스톤·순서·미결정 항목) | 루트 |
 | `<comp>/DESIGN.md` | 컴포넌트 *내부* 설계 + `## Commands` | 코드 진입 시: `services/memory/`, `services/control/`, `runtimes/` 등 |
@@ -29,8 +29,8 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/runtime-envs/` | Fission 런타임×계급 공용 Environment — `aura-nodejs-async|sync` · `aura-python-async|sync` (후속 custom) | `deploy/k8s/runtime-envs/` |
 | `deploy/k8s/nats-rpc-bridge/` | 공용 NATS Core RR→Fission Router 브리지 (`aura-nats-rpc-bridge` replicas≥2 · **ns `aura`** · deps 포함 이미지) | `deploy/k8s/nats-rpc-bridge/` |
 | `deploy/k8s/nats-task-bridge/` | agent/mcp async JetStream→Router 브리지 (`aura-nats-task-bridge` · runtime→Function · **ns `aura`**) | `deploy/k8s/nats-task-bridge/` |
-| `services/nats-rpc-bridge/` | RPC 브리지 DESIGN + `bridge.js` + **`rs/`** Rust 바이너리 (중계만 · handler 금지 · runtime 매핑 · Phase 1) | `services/nats-rpc-bridge/` |
-| `services/nats-task-bridge/` | task 브리지 DESIGN + consumer + **`rs/`** Rust 바이너리 (중계만 · handler 금지 · Phase 1) | `services/nats-task-bridge/` |
+| `services/nats-rpc-bridge/` | RPC 브리지 DESIGN + Rust (`aura-nats-rpc-bridge` · 중계만 · handler 금지 · recall/resolve Service HTTP) | `services/nats-rpc-bridge/` |
+| `services/nats-task-bridge/` | task 브리지 DESIGN + Rust (`aura-nats-task-bridge` · 중계만 · handler 금지 · agent/mcp) | `services/nats-task-bridge/` |
 | `deploy/k8s/agent-invoke-py/` · `mcp-invoke-py/` · `mcp-invoke-rpc-py/` | Python 병행 Function/Package (**MQT 없음** · task/rpc 브리지) | `deploy/k8s/` |
 | `deploy/dev/` | **smoke·로컬 하네스만** (프로덕션 제외) — [`deploy/dev/README.md`](deploy/dev/README.md) | `deploy/dev/` |
 | `deploy/dev/k8s/async-smoke/` | async MQT echo (`aura.tasks.smoke` → resp/error, `minReplicaCount=0`) | `deploy/dev/k8s/async-smoke/` |
@@ -40,16 +40,16 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 | `deploy/k8s/memory-consolidate/` · `memory-ttl/` · `memory-archive/` · `memory-object-gc/` | memory batch **CronJob only** (`aura/memory-batch` one-shot · 상시 Deployment 없음 · UTC 일 1회 · ns `aura`) | `deploy/k8s/` |
 | `deploy/k8s/memory-recall/` | `svc-memory` recall **Deployment+Service** (`aura/memory-recall` Rust · replicas=1 lab · rpc-bridge→Service HTTP) | `deploy/k8s/memory-recall/` |
 | `services/memory/` · `compliance/` | memory/compliance **Rust** → `aura/memory-{capture,recall,batch}` · `aura/compliance-erase` | `services/` |
-| `deploy/docs/memory-control-hardcode.md` | memory/control-resolve/compliance-erase Fission→Deployment 런북 | `deploy/docs/` |
+| `deploy/docs/memory-control-hardcode.md` | memory/control-resolve/compliance-erase Fission→Deployment·CronJob 런북 | `deploy/docs/` |
 | `deploy/docs/memory-capture-inline-pipeline.md` | capture in-process 순차(extract→embed→store) 통합 **계획** · 로컬 replicas=1 · 캡처/배치 이미지 분리 | `deploy/docs/` |
-| `deploy/docs/memory-batch-cronjobs.md` | memory consolidate/TTL/archive/object_gc **CronJob** 스케줄 **계획** · `aura/memory-batch` 전용 이미지 | `deploy/docs/` |
+| `deploy/docs/memory-batch-cronjobs.md` | memory consolidate/TTL/archive/object_gc **CronJob only**(one-shot · 상시 파드 없음) · `aura/memory-batch` | `deploy/docs/` |
 | `deploy/k8s/agent-invoke/` | `agent_invoke` Node Function (`aura-agent-invoke` · `aura-nodejs-async`; subject=`aura.tasks.agent.invoke` via **task-bridge**; PG=`agent_checkpoints`만) | `deploy/k8s/agent-invoke/` |
 | `deploy/k8s/mcp-invoke/` | `mcp_invoke` Node async Function (`aura-mcp-invoke` · task-bridge; **PG 금지**) | `deploy/k8s/mcp-invoke/` |
 | `deploy/k8s/mcp-invoke-rpc/` | `mcp_invoke` Node RPC Function (`aura-mcp-invoke-rpc`, **poolmgr sync**, NATS는 공용 브리지) | `deploy/k8s/mcp-invoke-rpc/` |
-| `deploy/k8s/control-resolve/` | `aura-control-resolve` **Deployment+Service** (replicas≥2 · rpc-bridge→Service HTTP · ns `aura`) | `deploy/k8s/control-resolve/` |
+| `deploy/k8s/control-resolve/` | `aura-control-resolve` **Deployment+Service** (lab replicas=1 · rpc-bridge→Service HTTP · ns `aura`) | `deploy/k8s/control-resolve/` |
 | `deploy/k8s/gateway/` | Gateway Deployment+Service (이미지 `aura/gateway` · **ns `aura`**, `replicas≥2`, **MQT 없음**, **PG 없음**; SSE/WS 브리지) | `deploy/k8s/gateway/` |
 | `services/memory/` | `svc-memory` DESIGN + Rust capture/recall/batch (`src/` · `Dockerfile.{capture,recall,batch}`) | `services/memory/` |
-| `services/control/` | `svc-control` **Rust** 루트 + 잔여 Node `js/` · resolve/admin 바이너리 | `services/control/` |
+| `services/control/` | `svc-control` **Rust** (`aura-control-admin` · `aura-control-resolve`) | `services/control/` |
 | `services/admin-ui/` | 플랫폼 ops Admin UI (React+TS+Tailwind · Tenant picker · sources · bundles · overlays · audit) | `services/admin-ui/` |
 | `deploy/k8s/control-admin/` | `aura-control-admin` Deployment+Service (관리 HTTP · 이미지 `aura/control-admin` · Pooler · replicas≥2 · **ns `aura`**) | `deploy/k8s/control-admin/` |
 | `deploy/k8s/admin-ui/` | Admin UI 이미지 `aura/admin-ui` (nginx SPA · `/v1`→control-admin · replicas≥2 · **ns `aura`**) | `deploy/k8s/admin-ui/` |
@@ -75,9 +75,9 @@ This file provides guidance to AI coding assistants (Claude Code, Codex, Gemini,
 - **README.md vs ARCHITECTURE.md / DESIGN.md.** README는 **인간 독자**용이다. 계약·내부 설계는 README에 복사하지 않고 링크로만 둔다.
 - **배포 가능한 패키지·실행 하네스**에는 README를 둘 수 있다 — 해당 디렉터리 **로컬 사용법만**.
 - **`deploy/k8s/` = 제품**, **`deploy/dev/` = smoke·로컬 하네스**. 스모크 매니페스트를 `deploy/k8s/`에 두지 않는다. 프로덕션 apply 경로에 `deploy/dev/`·`apply-split-deploy.sh`·`smoke-*.sh`를 넣지 않는다.
-- **Fission Environment는 `deploy/k8s/runtime-envs/` 런타임×계급 공용** (`aura-nodejs-*` · `aura-python-*`; 후속 custom). 서비스별 Environment·서비스별 `*-rr` Deployment를 추가하지 않는다. **제품 Fission Function = agent 2 + MCP 4만.** memory/control-resolve/compliance-erase는 ns `aura` Deployment([`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md)). sync RPC: `aura-nats-rpc-bridge` → recall/resolve는 **Service HTTP**, mcp는 Fission Router(`poolmgr`). agent/mcp async는 `aura-nats-task-bridge` → Router(언어별 MQT 금지).
+- **Fission Environment는 `deploy/k8s/runtime-envs/` 런타임×계급 공용** (`aura-nodejs-*` · `aura-python-*`; 후속 custom). 서비스별 Environment·서비스별 `*-rr` Deployment를 추가하지 않는다. **제품 Fission Function = agent 2 + MCP 4만.** memory capture/recall · control-resolve · compliance-erase는 ns `aura` Deployment; memory batch는 CronJob([`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md) · [`memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md)). sync RPC: `aura-nats-rpc-bridge` → recall/resolve는 **Service HTTP**, mcp는 Fission Router(`poolmgr`). agent/mcp async는 `aura-nats-task-bridge` → Router(언어별 MQT 금지).
 - 파일이 새로 생기거나 용도가 바뀌면 위 표를 즉시 갱신한다.
-- 배포 런북은 `deploy/SETUP.md`, Kustomize는 `deploy/k8s/base/`, CI는 `.github/workflows/ci.yml`(체크 게이트)·[`.github/workflows/images.yml`](.github/workflows/images.yml)(GHCR 이미지). **빈 stub을 만들지 않는다** — 실제 절차·매니페스트가 생길 때 작성한다.
+- 배포 런북은 `deploy/SETUP.md`, Kustomize는 `deploy/k8s/base/`, CI는 [`.github/workflows/rust.yml`](.github/workflows/rust.yml)(cargo test/clippy)·[`.github/workflows/images.yml`](.github/workflows/images.yml)(GHCR 이미지 11종). **빈 stub을 만들지 않는다** — 실제 절차·매니페스트가 생길 때 작성한다.
 
 ## 2. 수행 방법 (How we work in this repo)
 
@@ -108,7 +108,7 @@ M4 진행: consolidate/graph/TTL/archive/object_gc/shared-bucket · **OTel** · 
 M5 진행: **LLM Gateway Fallback + 테넌트 과금 대시보드** · **M5.1 `aura-auto` 콘텐츠 라우터** [`deploy/docs/llm-gateway-router.md`](deploy/docs/llm-gateway-router.md) · **고위험 RuntimeClass/노드풀** · **DLQ Replay** · **정기 PITR 캘린더** (NATS Account=잔여).  
 M6 진행: **관리 UI ops-only MVP** [`deploy/docs/admin-ui-mvp.md`](deploy/docs/admin-ui-mvp.md) · `check-admin-ui-mvp.sh` · 관리 HTTP · 서버 checksum activate · `control_audit` · resolve Pooler SELECT · [`services/admin-ui/`](services/admin-ui/).  
 M6.1 진행: **Admin UI React 재설계** [`deploy/docs/admin-ui.md`](deploy/docs/admin-ui.md) · `check-admin-ui.sh` · Vite+React+TS+Tailwind+shadcn · TanStack Query+Zustand+RHF/Zod · `GET /v1/audit` · PG SoR · KV=Gateway만 · Phase2 quota=control-admin→NATS RR.  
-**GHCR 이미지:** [`deploy/docs/ghcr-images.md`](deploy/docs/ghcr-images.md) · `check-ghcr-images.sh` · `images.yml` (`latest`+`sha-<short>` · keep 3 · 랩 `:local` 유지).  
-다음: M3.5 잔여 스모크 · async 콜드 p95 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · M6 live Pooler · k8s GHCR 컷오버 · memory/control/compliance **Deployment hardcode** 완료(잔여 Fission=`agent`+`MCP`) · agent/mcp `rs/` orch 삭제 완료 · sqlx/live Pooler·agent/MCP Function canary 후속([`ROADMAP.md`](ROADMAP.md) · [`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md)).
+**GHCR 이미지:** [`deploy/docs/ghcr-images.md`](deploy/docs/ghcr-images.md) · `check-ghcr-images.sh` · `images.yml` (gateway/llm/bridges/admin/control-resolve/memory-{capture,recall,batch}/compliance-erase · `latest`+`sha-<short>` · keep 3 · 랩 `:local` 유지).  
+다음: M3.5 잔여 스모크 · async 콜드 p95 · store/embed 실 DDL INSERT · M5 잔여(NATS Account 후보) · M6 live Pooler · k8s GHCR 컷오버 · memory batch **CronJob only** · capture/recall/resolve/erase **Deployment hardcode** 완료(잔여 Fission=`agent`+`MCP`) · sqlx/live Pooler·agent/MCP Function canary 후속([`ROADMAP.md`](ROADMAP.md) · [`memory-control-hardcode.md`](deploy/docs/memory-control-hardcode.md) · [`memory-batch-cronjobs.md`](deploy/docs/memory-batch-cronjobs.md)).
 
 요약 계약: NATS 삼원화+DLQ; Fair Queue; LLM Gateway; 샌드박스/mTLS; PG Pooler+HA; GDPR erase; Warm sync SLA; `svc-memory`; 수명 파티션; iterative_scan; edges 가드. NATS Account는 출시 후.

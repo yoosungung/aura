@@ -12,7 +12,8 @@ on:
       - "services/nats-task-bridge/**"
       - "services/control/**"
       - "services/admin-ui/**"
-      - "services/object-store/get-object.js"
+      - "services/memory/**"
+      - "services/compliance/**"
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -50,9 +51,24 @@ jobs:
           - name: aura-control-admin
             context: .
             file: services/control/Dockerfile
+          - name: aura-control-resolve
+            context: .
+            file: services/control/Dockerfile.resolve
           - name: aura-admin-ui
             context: .
             file: services/admin-ui/Dockerfile
+          - name: aura-memory-capture
+            context: .
+            file: services/memory/Dockerfile.capture
+          - name: aura-memory-recall
+            context: .
+            file: services/memory/Dockerfile.recall
+          - name: aura-memory-batch
+            context: .
+            file: services/memory/Dockerfile.batch
+          - name: aura-compliance-erase
+            context: .
+            file: services/compliance/Dockerfile
     steps:
       - uses: actions/checkout@v5
 
@@ -96,7 +112,12 @@ jobs:
           - aura-nats-rpc-bridge
           - aura-nats-task-bridge
           - aura-control-admin
+          - aura-control-resolve
           - aura-admin-ui
+          - aura-memory-capture
+          - aura-memory-recall
+          - aura-memory-batch
+          - aura-compliance-erase
     steps:
       - name: Retain last 3 tagged versions
         uses: dataaxiom/ghcr-cleanup-action@v1

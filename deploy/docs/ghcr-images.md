@@ -1,11 +1,11 @@
 # GHCR 제품 이미지 게시 (GHA)
 
-**이 문서 범위:** `main` 푸시 시 제품 Deployment 이미지를 GHCR에 빌드·푸시 · 태그 `latest` + `sha-<short>` · `sha` 계열 **최근 3**개 유지.  
+**이 문서 범위:** `main` 푸시 시 제품 이미지를 GHCR에 빌드·푸시 · 태그 `latest` + `sha-<short>` · `sha` 계열 **최근 3**개 유지.  
 **Non-goals:** 매니페스트 `:local` → GHCR 컷오버 · multi-arch · Fission Function archive 게시 · live pull 스모크 필수.
 
 게이트: `bash deploy/scripts/check-ghcr-images.sh`  
 워크플로: [`.github/workflows/images.yml`](../../.github/workflows/images.yml)  
-로컬 빌드(랩): `deploy/scripts/build-*-images.sh` → `aura/*:local`
+로컬 빌드(랩): `deploy/scripts/build-*-images.sh` · `build-hardcoded-memory-images.sh` → `aura/*:local`
 
 ---
 
@@ -29,7 +29,12 @@
 | `ghcr.io/<owner>/aura-nats-rpc-bridge` | 저장소 루트 | `services/nats-rpc-bridge/Dockerfile` | `aura/nats-rpc-bridge:local` |
 | `ghcr.io/<owner>/aura-nats-task-bridge` | 저장소 루트 | `services/nats-task-bridge/Dockerfile` | `aura/nats-task-bridge:local` |
 | `ghcr.io/<owner>/aura-control-admin` | 저장소 루트 | `services/control/Dockerfile` | `aura/control-admin:local` |
+| `ghcr.io/<owner>/aura-control-resolve` | 저장소 루트 | `services/control/Dockerfile.resolve` | `aura/control-resolve:local` |
 | `ghcr.io/<owner>/aura-admin-ui` | 저장소 루트 | `services/admin-ui/Dockerfile` | `aura/admin-ui:local` |
+| `ghcr.io/<owner>/aura-memory-capture` | 저장소 루트 | `services/memory/Dockerfile.capture` | `aura/memory-capture:local` |
+| `ghcr.io/<owner>/aura-memory-recall` | 저장소 루트 | `services/memory/Dockerfile.recall` | `aura/memory-recall:local` |
+| `ghcr.io/<owner>/aura-memory-batch` | 저장소 루트 | `services/memory/Dockerfile.batch` | `aura/memory-batch:local` |
+| `ghcr.io/<owner>/aura-compliance-erase` | 저장소 루트 | `services/compliance/Dockerfile` | `aura/compliance-erase:local` |
 
 `<owner>` = `github.repository_owner`.
 
@@ -48,5 +53,5 @@ GHCR 자동 보존 없음 → 워크플로 cleanup:
 ## 운영 메모
 
 1. 패키지 Settings → Actions에 저장소 `GITHUB_TOKEN` write 허용.
-2. 첫 푸시 후 Packages에 `aura-*` 6개가 생긴다.
+2. 첫 푸시 후 Packages에 `aura-*` 11개가 생긴다.
 3. 클러스터가 GHCR을 쓸 때는 `imagePullSecrets` + 태그/`sha-*` 핀을 매니페스트에 반영(별 티켓).
