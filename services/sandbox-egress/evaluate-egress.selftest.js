@@ -18,7 +18,7 @@ function main() {
     'nats.aura.svc.cluster.local:4222',
     'aura-pg-pooler.aura.svc.cluster.local:5432',
     'aura-llm-gateway.aura.svc.cluster.local:8080',
-    'garage.aura.svc.cluster.local:3900',
+    'rustfs.aura.svc.cluster.local:9000',
     'kube-dns.kube-system.svc.cluster.local:53',
     'aura-mcp-proxy.aura.svc.cluster.local:443',
   ];
@@ -40,7 +40,7 @@ function main() {
   const appPolicy = {
     ...DEFAULT_POLICY,
     mcpHosts: ['mcp.tenant.example'],
-    objectStoreHosts: ['garage.aura.svc.cluster.local'],
+    objectStoreHosts: ['rustfs.aura.svc.cluster.local'],
   };
 
   const combinedAllow = [

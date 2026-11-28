@@ -21,14 +21,14 @@ function main() {
   const policy = {
     ...DEFAULT_POLICY,
     mcpHosts: ['mcp.tenant.example', 'tools.partner.example'],
-    objectStoreHosts: ['garage.aura.svc.cluster.local'],
+    objectStoreHosts: ['rustfs.aura.svc.cluster.local'],
   };
 
   const allowCases = [
     ['nats.aura.svc.cluster.local:4222', 'nats'],
     ['aura-pg-pooler.aura.svc.cluster.local:5432', 'pooler'],
     ['aura-llm-gateway.aura.svc.cluster.local:8080', 'llm_gateway'],
-    ['garage.aura.svc.cluster.local:443', 'object_store'],
+    ['rustfs.aura.svc.cluster.local:443', 'object_store'],
     ['https://mcp.tenant.example/v1', 'mcp'],
     ['kube-dns.kube-system.svc.cluster.local:53', 'dns'],
   ];

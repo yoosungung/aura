@@ -45,14 +45,14 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    # Object store (Garage / aura-content)
+    # Object store (RustFS / aura-content)
     - to:
         - podSelector:
             matchLabels:
               app: aura-content
       ports:
         - protocol: TCP
-          port: 3900
+          port: 9000
         - protocol: TCP
           port: 443
         - protocol: TCP

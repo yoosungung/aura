@@ -15,14 +15,14 @@ const MANIFEST_DIR = path.join(__dirname);
 const APP_POLICY = {
   ...DEFAULT_POLICY,
   mcpHosts: ['mcp.tenant.example'],
-  objectStoreHosts: ['garage.aura.svc.cluster.local'],
+  objectStoreHosts: ['rustfs.aura.svc.cluster.local'],
 };
 
 const MATRIX = [
   { dest: 'nats.aura.svc.cluster.local:4222', expect: 'allow', note: 'NATS' },
   { dest: 'aura-pg-pooler.aura.svc.cluster.local:5432', expect: 'allow', note: 'Pooler' },
   { dest: 'aura-llm-gateway.aura.svc.cluster.local:8080', expect: 'allow', note: 'LLM Gateway' },
-  { dest: 'garage.aura.svc.cluster.local:3900', expect: 'allow', note: 'aura-content' },
+  { dest: 'rustfs.aura.svc.cluster.local:9000', expect: 'allow', note: 'aura-content' },
   { dest: 'kube-dns.kube-system.svc.cluster.local:53', expect: 'allow', note: 'DNS' },
   { dest: 'aura-mcp-proxy.aura.svc.cluster.local:443', expect: 'allow', note: 'MCP proxy' },
   { dest: 'https://mcp.tenant.example/mcp', expect: 'allow', note: 'registered MCP (app)' },

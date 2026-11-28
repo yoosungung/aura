@@ -41,7 +41,7 @@ function buildObjectStore() {
     },
     async presignPut({ bundle_uri }) {
       return {
-        upload_url: `https://garage.pending.invalid/upload?uri=${encodeURIComponent(bundle_uri)}`,
+        upload_url: `https://rustfs.pending.invalid/upload?uri=${encodeURIComponent(bundle_uri)}`,
         bundle_uri,
         headers: { 'content-type': 'application/octet-stream' },
       };

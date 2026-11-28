@@ -10,8 +10,8 @@ const SECRET = 'lab-secret-not-for-logs';
 
 function envOpts(extra) {
   return {
-    endpoint: 'http://garage.aura.svc.cluster.local:3900',
-    region: 'garage',
+    endpoint: 'http://rustfs.aura.svc.cluster.local:9000',
+    region: 'us-east-1',
     accessKeyId: 'lab-access',
     secretAccessKey: SECRET,
     tenantId: TENANT,

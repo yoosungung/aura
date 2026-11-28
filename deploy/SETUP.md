@@ -535,23 +535,23 @@ bash deploy/scripts/check-gateway-inflight-release.sh   # terminal release + ens
 ### Object Store · `content_ref` (M2 / V2.1 · 번들 GetObject)
 
 ```bash
-bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: Garage + 256KB ref-only + schema
-bash deploy/scripts/check-object-store-garage.sh        # aura-content 매니페스트 · Function Secret · activate 리더
+bash deploy/scripts/check-object-store-content-ref.sh   # doc gate: RustFS + 256KB ref-only + schema
+bash deploy/scripts/check-object-store-rustfs.sh         # aura-content 매니페스트 · Function Secret · activate 리더
 bash deploy/scripts/check-object-store-orphan-gc.sh  # 90d + object_gc MQT ([docs/memory-object-gc.md](docs/memory-object-gc.md))     # doc gate: 90d orphan GC + object_gc + skip-if-ref
 bash deploy/scripts/check-compliance-erase.sh          # OpenBao Transit crypto-shred + refs/ erase draft
 ```
 
 | 항목 | M2 고정 |
 |------|---------|
-| 문서 | [`docs/object-store-content-ref.md`](docs/object-store-content-ref.md) · [`docs/object-store-orphan-gc.md`](docs/object-store-orphan-gc.md) · [`../services/object-store/DESIGN.md`](../services/object-store/DESIGN.md) |
-| 제품 | **Garage** (S3-compatible / SigV4); NCP/AWS는 endpoint 스왑 |
+| 문서 | [`docs/object-store-content-ref.md`](docs/object-store-content-ref.md) · [`docs/object-store-rustfs-migration.md`](docs/object-store-rustfs-migration.md) · [`docs/object-store-orphan-gc.md`](docs/object-store-orphan-gc.md) · [`../services/object-store/DESIGN.md`](../services/object-store/DESIGN.md) |
+| 제품 | **RustFS** (S3-compatible / SigV4 · Apache-2.0); NCP/AWS는 endpoint 스왑 |
 | 버킷 | **`aura-content` 단일** — `refs/` · `archive/` · `bundles/` prefix 공유; Barman=`aura-pg` 분리 |
-| 매니페스트 | [`k8s/garage/`](k8s/garage/) 단일 노드 · Secret `aura-object-store-creds` · ConfigMap `aura-s3` · 랩 `bootstrap.sh` |
+| 매니페스트 | [`k8s/rustfs/`](k8s/rustfs/) 단일 노드 · Secret `aura-object-store-creds` · ConfigMap `aura-s3` · 랩 `bootstrap.sh` |
 | 규칙 | >256KB 또는 PII → `content_ref` only · public ACL 금지 · `enc.kid` |
 | 번들 읽기 | agent/mcp 기본 `loadBundle`=Pod LRU→`GetObject` · activate는 캐시 없음 |
 | 고아 GC | grace **90일** · `aura.tasks.memory.object_gc` · live 참조 시 스킵 (구현=M4) |
 | erase 초안 | KMS=**OpenBao Transit** · [`docs/compliance-erase.md`](docs/compliance-erase.md) · `check-compliance-erase.sh` · shred→PG redact→`refs/` Delete |
-| Non-goals | CI 라이브 Garage · SDK 업로드 · live OpenBao destroy CI |
+| Non-goals | CI 라이브 RustFS · SDK 업로드 · live OpenBao destroy CI |
 
 ### memory TTL 정책 + 월 파티션 DROP (M1 수치 · M4 job)
 

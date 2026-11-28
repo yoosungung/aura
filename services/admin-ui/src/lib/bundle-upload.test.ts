@@ -16,11 +16,11 @@ describe('bundle-upload', () => {
     const file = new File([new Uint8Array([1, 2, 3])], 'b.zip', {
       type: 'application/zip',
     });
-    await putBundle('https://garage.test/put', file, {
+    await putBundle('https://rustfs.test/put', file, {
       'content-type': 'application/zip',
       'x-amz-meta-aura': '1',
     });
-    expect(fetchMock).toHaveBeenCalledWith('https://garage.test/put', {
+    expect(fetchMock).toHaveBeenCalledWith('https://rustfs.test/put', {
       method: 'PUT',
       body: file,
       headers: {
@@ -37,7 +37,7 @@ describe('bundle-upload', () => {
       vi.fn().mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden' })
     );
     await expect(
-      putBundle('https://garage.test/put', new Blob(['x']), {})
+      putBundle('https://rustfs.test/put', new Blob(['x']), {})
     ).rejects.toThrow(/403/);
     vi.unstubAllGlobals();
   });

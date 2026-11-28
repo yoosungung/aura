@@ -111,8 +111,8 @@ async def test_default_load_bundle_caches_bytes(fixtures):
 
     deps = {
         "object_fetch": fetch,
-        "object_endpoint": "http://garage.aura.svc.cluster.local:3900",
-        "object_region": "garage",
+        "object_endpoint": "http://rustfs.aura.svc.cluster.local:9000",
+        "object_region": "us-east-1",
         "object_access_key_id": "lab-access",
         "object_secret_access_key": "lab-secret-not-for-logs",
         "bundle_cache": cache,

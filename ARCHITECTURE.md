@@ -92,7 +92,7 @@ Aura의 **컴포넌트 간 계약**과 그 계약을 구현하는 **인터페이
 | `svc-memory` store/embed/consolidate | 적재·인덱스·승격 | **async** MQT (0 허용) | 메모리 **유일 쓰기** → **Pooler** |
 | `svc-memory` recall | hybrid Top-K → Function `aura-memory-recall` | **sync** poolmgr Warm | 메모리 SELECT → **Pooler** |
 | `svc-control` + resolve Function | 메타 쓰기(HTTP); `aura.rpc.control.resolve` → `aura-control-resolve` | 관리 HTTP + **sync** poolmgr Warm | 컨트롤 메타 **유일 쓰기** → **Pooler** |
-| **`aura-control-admin`** | ops 관리 HTTP (`/v1/sources`·bundles·overlays·`/v1/audit`) · **ns `aura`** · Admin UI 전용 · Phase 2 quota는 NATS RR로 Gateway만 호출(KV 직접 금지) | 상시 ≥2 | 컨트롤 메타 쓰기 + `control_audit` → **Pooler**; Garage GetObject(activate checksum) |
+| **`aura-control-admin`** | ops 관리 HTTP (`/v1/sources`·bundles·overlays·`/v1/audit`) · **ns `aura`** · Admin UI 전용 · Phase 2 quota는 NATS RR로 Gateway만 호출(KV 직접 금지) | 상시 ≥2 | 컨트롤 메타 쓰기 + `control_audit` → **Pooler**; RustFS GetObject(activate checksum) |
 | **Admin UI** | 플랫폼 ops 콘솔(소스·번들·overlay·audit). Chat UI·테넌트 self-serve **비범위** · Gateway HTTP 금지 | Vite SPA → `aura-control-admin`만 | 없음(API 경유) |
 | **Connection Pooler** | FaaS fan-out ↔ PG `max_connections` 완충 | 상시 | **CloudNativePG `Pooler`**, **transaction** 모드 |
 
@@ -318,7 +318,7 @@ Alibaba Cloud Agentic Memory 유형 모델을 따른다.
 
 **`source_meta` 불변 vs status:** `entrypoint`/`function`/`bundle_uri`/`checksum`/`sig_uri`/`config`/`runtime`/`kind`/`name`/`version` 은 INSERT 후 **UPDATE 금지**(새 version만). **`status`만** `pending→active`(activate)·`active→retired`(retire) 전이 UPDATE 허용. INSERT 초기값=`pending`. `config`에 `runtime`/`function` 키 금지. custom은 `function` NOT NULL·`entrypoint` NULL, nodejs/python은 그 반대.
 
-**activate checksum:** 클라이언트 제출 checksum은 기대값. `POST …/activate` 시 `svc-control`이 Garage 객체를 읽어 sha256을 **서버에서** 계산·대조한 뒤에만 `pending→active`.
+**activate checksum:** 클라이언트 제출 checksum은 기대값. `POST …/activate` 시 `svc-control`이 RustFS 객체를 읽어 sha256을 **서버에서** 계산·대조한 뒤에만 `pending→active`.
 
 **Tenant picker:** `tenant_meta` ∪ `DISTINCT source_meta.tenant_id` ∪ UI UUID 직접 입력. `display_name`은 `tenant_meta`만. ACL/OIDC·env CSV tenant seed 비범위.
 
@@ -733,7 +733,7 @@ Function은 `aura.rpc.control.resolve` 브리지로 `source_meta`+`user_meta`를
 
 `id`는 멱등 키. NATS 페이로드 **256KB(262144) 초과** 또는 PII 본문은 **`content_ref`만** 넣고 `payload`에 원문을 두지 않는다(§9.3).
 
-**Object Store 제품 (M2 / V2.1 · M4 경로 봉인):** **Garage** (S3-compatible / SigV4). 앱 버킷 **`aura-content` 단일** — prefix `tenants/{tenant_id}/refs/…` · `archive/…` · `bundles/…` 공유(용도별 버킷 분리 금지). PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals. `agent_invoke`와 `mcp_invoke`의 번들 읽기는 `GetObject`만이고, 캐시는 그 Pod의 메모리다. 리더: [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md). 단일 노드 `aura-content` 매니페스트: [`deploy/k8s/garage/`](deploy/k8s/garage/). CI는 라이브 Garage를 요구하지 않는다.
+**Object Store 제품 (M2 / V2.1 · M4 경로 봉인):** **RustFS** (S3-compatible / SigV4 · Apache-2.0). 앱 버킷 **`aura-content` 단일** — prefix `tenants/{tenant_id}/refs/…` · `archive/…` · `bundles/…` 공유(용도별 버킷 분리 금지). PG Barman은 **`aura-pg` 별도 버킷·자격증명**. `content_ref` JSON·권한·암호화(`enc.kid`) 정본: [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md). 라이브 provision은 그 문서 Non-goals. `agent_invoke`와 `mcp_invoke`의 번들 읽기는 `GetObject`만이고, 캐시는 그 Pod의 메모리다. 리더: [`services/object-store/DESIGN.md`](services/object-store/DESIGN.md). 단일 노드 `aura-content` 매니페스트: [`deploy/k8s/rustfs/`](deploy/k8s/rustfs/). CI는 라이브 RustFS를 요구하지 않는다. Garage(AGPL)는 제거 — [`deploy/docs/object-store-rustfs-migration.md`](deploy/docs/object-store-rustfs-migration.md).
 
 **고아 객체 GC (M2 / V2.2 · 구현=M4):** `aura.tasks.memory.object_gc` — `refs/` prefix만, 객체 age **≥ 90일**(`AURA_EVENTS` retention 정합)이고 PG live 참조가 없을 때만 `DeleteObject`. 참조 존재 시 **스킵**. 알고리즘·멱등 키·배치: [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md).
 

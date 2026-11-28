@@ -281,7 +281,7 @@ async function main() {
       },
       async presignPut({ bundle_uri }) {
         return {
-          upload_url: 'https://garage.test/put',
+          upload_url: 'https://rustfs.test/put',
           bundle_uri,
           headers: {},
         };

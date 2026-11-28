@@ -5,7 +5,7 @@
 전제: NATS envelope §8 · CNPG Barman 초안 [`pg-ha-pitr-topology.md`](pg-ha-pitr-topology.md).
 
 **이 문서 범위:** Object Store **제품명** · S3 클라이언트 계약 · **버킷/경로(번들 공유 포함)** · `content_ref` JSON · 권한/암호화 · **256KB 초과 시 ref-only**.  
-**Non-goals:** SDK 업로드 본구현 · Barman 자격증명 실값 · CI 라이브 Garage. 단일 노드 `aura-content` 매니페스트는 [`../k8s/garage/`](../k8s/garage/) · 리더·Pod LRU는 [`../../services/object-store/DESIGN.md`](../../services/object-store/DESIGN.md). GC 본구현=[`memory-object-gc.md`](memory-object-gc.md) · Parquet=[`memory-archive.md`](memory-archive.md).
+**Non-goals:** SDK 업로드 본구현 · Barman 자격증명 실값 · CI 라이브 object-store. 단일 노드 `aura-content` 매니페스트는 [`../k8s/rustfs/`](../k8s/rustfs/) · 이관·Garage 제거 요건 [`object-store-rustfs-migration.md`](object-store-rustfs-migration.md) · 리더·Pod LRU는 [`../../services/object-store/DESIGN.md`](../../services/object-store/DESIGN.md). GC 본구현=[`memory-object-gc.md`](memory-object-gc.md) · Parquet=[`memory-archive.md`](memory-archive.md).
 
 수치·제품 출처: ARCHITECTURE §8 256KB · ROADMAP V2.1. 운영 endpoint/비용 교체는 결정 로그 1행 + 이 문서·§8을 **같이** 고친다 — 여기서 새 스키마를 발명하지 않는다.
 
@@ -15,13 +15,13 @@
 
 | 후보 | 적합성 | 비고 |
 |------|--------|------|
-| **Garage** | **채택 (in-cluster 기준)** | 경량 S3 코어 · k8s 친화 · Put/Get/Delete/Head 충분. 버전닝·S3 ACL/bucket policy **미구현** → Aura는 앱 ACL+키 prefix로 보완 |
+| **RustFS** | **채택 (in-cluster · 어플라이언스)** | Apache-2.0 · S3/SigV4 · Put/Get/Delete/Head(+presign). Garage **비채택·제거** (AGPL-3.0) — [`object-store-rustfs-migration.md`](object-store-rustfs-migration.md) |
 | NCP Object Storage | 운영 대안 (managed) | S3-compatible · 동일 클라이언트·스키마로 endpoint만 교체. **비용/리전은 `@eric` escalate** |
 | AWS S3 | 운영 대안 (managed) | 기능 최다. 동일 스키마. 클라우드 종속·비용은 별도 승인 |
+| Garage | **비채택 · 제거** | AGPL-3.0 · 어플라이언스 부적합. 이관 후 클러스터·git·이미지에서 0 |
 | MinIO CE | **비채택** | Community Edition 아카이브(유지보수 중단) — 신규 기준선 금지 |
 
-**결정 (2026-11-19):** Aura `content_ref` / (예정) episodic 아카이브 Object Store 제품 = **Garage** (S3-compatible / SigV4).  
-클라이언트는 **AWS S3 API 부분집합**만 사용하므로 이후 NCP·AWS로 endpoint 스왑 가능. **라이브 provision·유료 클라우드 택일은 보류** — 인프라/디스크/비용은 티켓 escalate `@eric`.
+**결정 (2026-11-28):** in-cluster / 어플라이언스 Object Store = **RustFS 단독** (S3-compatible / SigV4 / Apache-2.0). 이전 결정(2026-11-19 Garage) **철회**. 클라이언트는 **AWS S3 API 부분집합**만 사용 → NCP·AWS endpoint 스왑 가능. **Garage 병행·잔존 금지.**
 
 ---
 
@@ -31,8 +31,8 @@
 |------|-----|
 | API | **S3-compatible** · **SigV4** |
 | 필수 연산 | `PutObject` · `GetObject` · `DeleteObject` · `HeadObject` (multipart는 >5MiB 후속) |
-| Endpoint | env `AURA_S3_ENDPOINT` (Garage/NCP/AWS). path-style 허용 |
-| Region | env `AURA_S3_REGION` (Garage dummy `garage` 가능) |
+| Endpoint | env `AURA_S3_ENDPOINT` (RustFS/NCP/AWS). **path-style** |
+| Region | env `AURA_S3_REGION` (RustFS 설정과 서명 scope 일치) |
 | Creds | K8s Secret `aura-object-store-creds` (`ACCESS_KEY_ID` / `ACCESS_SECRET_KEY`) — **git 금지** |
 | SDK | 구현 시 AWS SDK v3 또는 동등 (본 슬라이스 Non-goal) |
 
@@ -51,7 +51,7 @@
 
 ### M4 계약 봉인 (공유 버킷 · prefix 격리)
 
-**결정 (2026-11-19, M4):** 앱 Object Store는 **단일 버킷 `aura-content`** 를 content_ref · archive Parquet · **번들 스토어**가 **공유**한다. 격리는 **키 prefix만** (`refs/` · `archive/` · `bundles/`). 용도별 별도 버킷 **비채택**(Garage grant·Egress allowlist·자격증명 단순화).  
+**결정 (2026-11-19, M4):** 앱 Object Store는 **단일 버킷 `aura-content`** 를 content_ref · archive Parquet · **번들 스토어**가 **공유**한다. 격리는 **키 prefix만** (`refs/` · `archive/` · `bundles/`). 용도별 별도 버킷 **비채택**(Egress allowlist·자격증명 단순화).  
 **불변:** Barman/`aura-pg` 는 content와 **버킷·자격증명 비공유**. `object_gc` 는 `refs/` only — `archive/`·`bundles/` 미나열([`object-store-orphan-gc.md`](object-store-orphan-gc.md)).  
 **대안 기각:** 번들 전용 버킷 — Egress/시크릿 이중화 대비 이득 없음(샌드박스 격리는 RuntimeClass·NP, 버킷 분리가 아님).
 
@@ -98,7 +98,7 @@ NATS envelope `content_ref` 필드(§8). `null` = 인라인 `payload`만 사용.
 | 규칙 | 내용 |
 |------|------|
 | 공개 ACL | **금지** — 버킷 public-read / 익명 Get **없음** |
-| Garage 권한 | key → bucket grant (write/read/delete). S3 bucket policy 미사용 |
+| 스토어 권한 | access key → 버킷 read/write/delete. 앱 prefix 인가. S3 public ACL 미사용 |
 | 쓰기 | `svc-memory`(store·후속 archive) 및 capture/에이전트가 256KB 초과 시 **업로드 후 ref만 publish**. 런타임 Zero Direct Write는 PG에만 적용(§1 #10) |
 | 읽기 | `svc-memory` · (필요 시) compliance erase. Agent는 recall 응답만 |
 | 네트워크 | Pod **Egress NetworkPolicy deny-default**; 허용 object store endpoint(`AURA_S3_ENDPOINT`)만 allow (§9.1) |
@@ -111,7 +111,7 @@ NATS envelope `content_ref` 필드(§8). `null` = 인라인 `payload`만 사용.
 
 | 항목 | 상태 |
 |------|------|
-| Garage 단일 노드 · `aura-content` · Secret | **매니페스트** [`../k8s/garage/`](../k8s/garage/) · 랩 `bootstrap.sh` · CI 라이브 비의존 |
+| RustFS 단독 · `aura-content` · Secret | **매니페스트** [`../k8s/rustfs/`](../k8s/rustfs/) · 이관 [`object-store-rustfs-migration.md`](object-store-rustfs-migration.md) · CI 라이브 비의존 |
 | NCP vs AWS vs self-host 디스크 비용 | **`@eric` escalate** |
 | SDK Put/Get 본구현 · 업로드 헬퍼 | 후속 티켓 (store/capture 경로) |
 | 고아 GC 알고리즘 | **고정** — [`object-store-orphan-gc.md`](object-store-orphan-gc.md) (V2.2 · 구현=M4) |
@@ -125,12 +125,12 @@ NATS envelope `content_ref` 필드(§8). `null` = 인라인 `payload`만 사용.
 bash deploy/scripts/check-object-store-content-ref.sh
 ```
 
-PASS = 본 문서에 Garage · S3/SigV4 · 256KB ref-only · schema/권한 · ARCHITECTURE 링크 존재.
+PASS = 본 문서에 RustFS · S3/SigV4 · 256KB ref-only · schema/권한 · ARCHITECTURE 링크 존재.
 
 ---
 
 ## 참고
 
-- §8 envelope · §9.3 crypto-shred · ROADMAP 결정 로그 (2026-11-19 Object Store = Garage)
+- §8 envelope · §9.3 crypto-shred · ROADMAP 결정 로그 (2026-11-28 Object Store = RustFS 단독 · Garage 제거)
 - Barman 버킷 분리: [`pg-ha-pitr-topology.md`](pg-ha-pitr-topology.md)
 - wiki: Aura Object Store 제품 페이지 없음(2026-11-19 검색) — 본 L0가 정본

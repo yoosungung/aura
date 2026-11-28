@@ -2,16 +2,16 @@
 
 계약: [ARCHITECTURE.md](../../ARCHITECTURE.md) §8 · §1 #11 · #12.  
 버킷·prefix: [`deploy/docs/object-store-content-ref.md`](../../deploy/docs/object-store-content-ref.md).  
-매니페스트: [`deploy/k8s/garage/`](../../deploy/k8s/garage/).
+매니페스트: [`deploy/k8s/rustfs/`](../../deploy/k8s/rustfs/)(후속) · 이관 [`object-store-rustfs-migration.md`](../../deploy/docs/object-store-rustfs-migration.md).
 
 **이 문서 범위:** `aura-content` 번들 `GetObject` · Function Pod LRU · **테넌트 zip 해제**(`bundle-zip`).  
-**Non-goals:** `content_ref` 업로드 SDK · `PutObject` · 서명 알고리즘 검증 · Barman 버킷 `aura-pg` · NCP/AWS 전환 · CI 라이브 Garage.
+**Non-goals:** `content_ref` 업로드 SDK · `PutObject` · 서명 알고리즘 검증 · Barman 버킷 `aura-pg` · NCP/AWS 전환 · CI 라이브 object-store · Garage 재도입.
 
 ---
 
 ## 리더
 
-`get-object.js` / `get_object.py`. `GetObject`만. fetch는 주입하고, 없으면 env의 Garage로 읽는다.
+`get-object.js` / `get_object.py`. `GetObject`만. fetch는 주입하고, 없으면 env의 S3 endpoint(RustFS)로 읽는다.
 
 | 조건 | 결과 |
 |------|------|
@@ -42,7 +42,7 @@ node services/object-store/bundle-cache.selftest.js
 node services/object-store/bundle-zip.selftest.js
 # root shared .venv (see README Quickstart)
 .venv/bin/python -m pytest services/object-store/test_get_object.py services/object-store/test_bundle_zip.py
-bash deploy/scripts/check-object-store-garage.sh
+bash deploy/scripts/check-object-store-rustfs.sh
 ```
 
-랩 apply (CI 아님): `kubectl apply -k deploy/k8s/garage` → `bash deploy/k8s/garage/bootstrap.sh`(버킷·키·Secret upsert) → Secret을 마운트한 Deployment를 restart. `secret.yaml`은 템플릿만 — kustomization에 넣지 않는다(`apply -k`가 라이브 키를 덮어쓰지 않게). Secret·`aura-s3`는 `aura`(control-admin)와 `default`(Fission Function) 양쪽에 둔다 — Fission은 Function과 다른 ns의 Secret/ConfigMap을 거부한다. StatefulSet은 `command: ["/garage"]`, 단일 노드 `rpc_public_addr=127.0.0.1:3901`, bootstrap은 node-id hex prefix만 `layout assign`에 넘긴다. 데이터는 `emptyDir`(Pod 삭제 시 소실).
+랩 apply (CI 아님): `bash deploy/k8s/rustfs/bootstrap.sh` (rustfs-root · apply -k · 버킷 · Garage mirror 시 철거 · Secret upsert) → Secret 마운트 소비자 restart. Secret·`aura-s3`는 `aura`와 `default` 양쪽. 정본 [`deploy/k8s/rustfs/`](../../deploy/k8s/rustfs/) — [`object-store-rustfs-migration.md`](../../deploy/docs/object-store-rustfs-migration.md).

@@ -30,10 +30,10 @@ const PEER_CATALOG = Object.freeze({
     namespace: 'aura',
     ports: [80, 443, 8080],
   },
-  'garage.aura.svc.cluster.local': {
+  'rustfs.aura.svc.cluster.local': {
     labels: { app: 'aura-content' },
     namespace: 'aura',
-    ports: [80, 443, 3900],
+    ports: [80, 443, 9000],
   },
   'aura-mcp-proxy.aura.svc.cluster.local': {
     labels: { app: 'aura-mcp-proxy' },

@@ -392,8 +392,8 @@ async function main() {
       fetches += 1;
       return { status: 200, body: bytes };
     },
-    objectEndpoint: 'http://garage.aura.svc.cluster.local:3900',
-    objectRegion: 'garage',
+    objectEndpoint: 'http://rustfs.aura.svc.cluster.local:9000',
+    objectRegion: 'us-east-1',
     objectAccessKeyId: 'lab-access',
     objectSecretAccessKey: 'lab-secret-not-for-logs',
     bundleCache,

@@ -14,8 +14,8 @@ function uriFor(name) {
 function opts(fetchImpl, cache) {
   return {
     tenantId: TENANT,
-    endpoint: 'http://garage.aura.svc.cluster.local:3900',
-    region: 'garage',
+    endpoint: 'http://rustfs.aura.svc.cluster.local:9000',
+    region: 'us-east-1',
     accessKeyId: 'lab-access',
     secretAccessKey: 'lab-secret-not-for-logs',
     fetchImpl,

@@ -5,4 +5,4 @@ resources:
   - configmap.yaml
   - service.yaml
   - statefulset.yaml
-# Secret aura-object-store-creds: bootstrap.sh upsert only (not a kustomize resource).
+# Secrets rustfs-root + aura-object-store-creds: bootstrap.sh upsert only (not kustomize resources).

@@ -17,8 +17,10 @@ ok() { echo "OK: $*"; }
 [[ -f "$DESIGN" ]] || fail "missing $DESIGN"
 [[ -f "$ROADMAP" ]] || fail "missing $ROADMAP"
 
-# Product name locked (V2.1).
-grep -qi 'Garage' "$DOC" || fail "doc must name Garage as Object Store product"
+# Product name locked (V2.1 → RustFS 단독 · Garage 제거).
+grep -qi 'RustFS' "$DOC" || fail "doc must name RustFS as Object Store product"
+grep -Eqi '비채택.*Garage|Garage.*제거|Garage.*비채택' "$DOC" \
+  || fail "doc must mark Garage as rejected/removed"
 grep -Eqi 'S3|SigV4|s3-compatible|S3-compatible' "$DOC" \
   || fail "doc must lock S3-compatible / SigV4 client contract"
 grep -qi 'Non-goals\|본구현\|보류\|provision' "$DOC" \
@@ -65,12 +67,12 @@ grep -Eq 'refs/|archive/|bundles/' "$ARCH" \
 grep -Eq 'object-store-content-ref\.md' "$ARCH" \
   || fail "ARCHITECTURE must link deploy/docs/object-store-content-ref.md"
 grep -q '256' "$ARCH" || fail "ARCHITECTURE must keep 256KB ceiling"
-grep -Eqi 'Garage|object-store-content-ref' "$ROADMAP" \
-  || fail "ROADMAP decision log / M2 must cite Garage or object-store doc"
+grep -Eqi 'RustFS|object-store-content-ref|object-store-rustfs' "$ROADMAP" \
+  || fail "ROADMAP decision log must cite RustFS or object-store doc"
 grep -Eqi 'bundles/|번들 스토어|공유 버킷|aura-content' "$ROADMAP" \
   || fail "ROADMAP must seal shared-bucket / bundles path contract"
 grep -Eqi 'content_ref|Object Store|object.store' "$DESIGN" \
   || fail "services/memory/DESIGN.md must point at Object Store / content_ref"
 
-ok "object-store-content-ref.md product + schema + 256KB + shared bucket/prefixes + ARCHITECTURE link"
+ok "object-store-content-ref.md RustFS product + schema + 256KB + shared bucket/prefixes + ARCHITECTURE link"
 echo "check-object-store-content-ref: PASS"

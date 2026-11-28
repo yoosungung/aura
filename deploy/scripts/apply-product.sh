@@ -82,8 +82,8 @@ for name in "${PRODUCT[@]}"; do
   kubectl apply -k "$ROOT/deploy/k8s/$name"
 done
 
-echo "== garage (aura-content) =="
-kubectl apply -k "$ROOT/deploy/k8s/garage"
+echo "== rustfs (aura-content) =="
+kubectl apply -k "$ROOT/deploy/k8s/rustfs"
 
 echo "== control-admin + admin-ui (Pooler DDL + SPA) =="
 bash "$ROOT/deploy/scripts/apply-admin-ui.sh"

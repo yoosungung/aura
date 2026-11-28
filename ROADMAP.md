@@ -36,7 +36,10 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 | 2026-11-18 | **멀티테넌트 HNSW 픽스처 PASS (L2)** — A=2000 + B=2 · `halfvec_l2` · `LIMIT 10` · ON(`relaxed_order`) B≥1 · OFF B=0; 기본=공유 `model_key`+iterative_scan. **갭:** 생산 `halfvec_cosine` 동일 왜곡은 ON 미달 관측 → cosine 재실측 또는 T1/T2 후보(스키마 미적용) | §6.2.3·[`deploy/docs/memory-hnsw-multitenant-fixture.md`](deploy/docs/memory-hnsw-multitenant-fixture.md)·`check-memory-hnsw-multitenant.sh` |
 | 2026-11-18 | **활성 임베딩 M1 고정** — `AURA_EMBEDDING_MODEL=BAAI/bge-m3` · `version=1` · `dims=1024` · `model_key=BAAI/bge-m3:1` (dense only). TTL 수치는 기존 로그·`memory-ttl-policy.md` 유지 | 클러스터 TEI `bge-m3-tei` + HF model card dims=1024 · [`deploy/docs/memory-embedding-active.md`](deploy/docs/memory-embedding-active.md)·`check-memory-embedding-active.sh` |
 | 2026-11-19 | **Agent 주입 계약 M2 고정** — recall `items[]`만 주입; 원문/`content_ref` 덤프 금지; 슬롯 short_term **512** · episodic **768** · long_term+semantic **768**(합 **2048**); 아이템 short **4** · `top_k` **12**; 패킹 구현=M3 | §1 #9·§6.3 · [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md)·`check-agent-inject-contract.sh` |
-| 2026-11-19 | **Object Store = Garage** (S3/SigV4). 버킷 `aura-content` · 키 `tenants/{tenant_id}/refs/…`(+ archive prefix 공유) · Barman=`aura-pg` 분리. 256KB 초과/`PII` → `content_ref` only. 라이브 provision·NCP/AWS 비용=`@eric` 보류 | V2.1 · §8 · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md)·`check-object-store-content-ref.sh` |
+| 2026-11-19 | **Object Store = Garage** (S3/SigV4). 버킷 `aura-content` · … — **2026-11-28 RustFS 단독으로 대체(아래)** | V2.1 역사 · §8 |
+| 2026-11-28 | **Object Store = RustFS 단독** (Apache-2.0 · S3/SigV4). Garage **AGPL 제거** — 병행 금지 · `deploy/k8s/garage` 이관 후 삭제 · mirror 후 클러스터·git·이미지 0. 버킷 `aura-content` · prefix·Secret/env 이름 불변 · Barman=`aura-pg` 비공유. 서비스 Rust 전환과 **별 트랙** | [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · [`deploy/docs/object-store-rustfs-migration.md`](deploy/docs/object-store-rustfs-migration.md) · `check-object-store-content-ref.sh` |
+| 2026-11-28 | **랩 RustFS cutover** — 이미지 `rustfs/rustfs:1.0.3` · S3 `:9000` · region `us-east-1` · PVC `local-path` · `check-object-store-rustfs.sh` · Garage 클러스터·git 0 | [`deploy/k8s/rustfs/`](deploy/k8s/rustfs/) · `bootstrap.sh` |
+| 2026-11-28 | **플랫폼 서비스 Rust 전환 범위** — 브리지·Gateway·LLM Gateway·control·`svc-memory`·**`memory_capture` 포함**·agent/mcp **오케스트레이터**. Admin UI·테넌트 agent/MCP 번들은 Node/Python 유지. capture는 **성능 이득 낮음**(병목=LLM Gateway)이나 **Node 단독 잔존 방지(관리 일관성)** 로 포함. Object Store RustFS와 **별 트랙** | 캔버스 `service-rust-migration` · 아래 「플랫폼 서비스 Rust 전환」 |
 | 2026-11-19 | **고아 content_ref GC 설계 M2 고정** — grace **90일**(`AURA_EVENTS` 정합) · prefix=`refs/` only · live PG 참조 시 스킵 · 배치 100/일 · 태스크=`aura.tasks.memory.object_gc` · 멱등 `object-gc:{tenant\|all}:{yyyy-mm-dd}` (구현=M4) | V2.2 · [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md)·`check-object-store-orphan-gc.sh` |
 | 2026-11-19 | **`svc-control` 최소 resolve API/스키마 M3 고정** — `source_meta`/`user_meta` DDL+RLS · resolve wire(`control.resolve.done`) · 1-depth cfg merge(user wins) · `secrets_ref` only · 브리지 Warm은 별 항목 | [`deploy/docs/svc-control-resolve.md`](deploy/docs/svc-control-resolve.md)·`control_meta.sql`·`check-svc-control-resolve.sh` |
 | 2026-11-19 | **`aura.rpc.control.resolve` 브리지 Warm M3 고정** — subject/queue `aura-control-resolve` · **MinScale≥2** + Deployment `aura-control-resolve-rr` replicas≥2 · MQT 금지 · stub/injectable handler · live Pooler SELECT=후속 | [`deploy/docs/control-resolve-bridge.md`](deploy/docs/control-resolve-bridge.md)·`check-control-resolve-bridge.sh` · `deploy/k8s/control-resolve/` |
@@ -197,14 +200,14 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [x] **recall RPC Function** 별도 배포: `minReplicas >= 2`, Core queue-group, MQT 없음 (`services/memory/recall/` · `deploy/k8s/memory-recall/` · `check-memory-recall.sh`)
 - [x] recall: short_term=최근순; 나머지 hybrid RRF (+ graph walk M4); iterative_scan + tenant WHERE (`services/memory/recall/` · `check-memory-recall.sh`)
 - [x] Agent 주입 계약(프롬프트 슬롯·토큰 예산) — [`deploy/docs/agent-inject-contract.md`](deploy/docs/agent-inject-contract.md) · `check-agent-inject-contract.sh` (패킹 구현=M3)
-- [x] **Object Store 제품 확정**(Garage/S3/NCP 등) → 결정 로그; `content_ref` 스키마·권한 — **Garage** · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · `check-object-store-content-ref.sh` (라이브 provision 보류)
+- [x] **Object Store 제품 확정** → **RustFS 단독**(Garage 제거) · [`deploy/docs/object-store-content-ref.md`](deploy/docs/object-store-content-ref.md) · [`object-store-rustfs-migration.md`](deploy/docs/object-store-rustfs-migration.md) · `check-object-store-content-ref.sh`
 - [x] **고아 객체 GC 설계**: 이벤트/메모리 TTL(예: 90일) 후 미참조 `content_ref` 삭제 배치·멱등 키 — [`deploy/docs/object-store-orphan-gc.md`](deploy/docs/object-store-orphan-gc.md) · `check-object-store-orphan-gc.sh` (구현=M4)
 
 **검증 체크리스트**
 
 | # | 검증 | 합격 |
 |---|------|------|
-| V2.1 | Object Store 제품·버킷/경로 | 결정 로그 **Garage**; `aura-content`+`tenants/{tenant_id}/…`; 256KB 초과=`content_ref`만; `check-object-store-content-ref.sh` PASS |
+| V2.1 | Object Store 제품·버킷/경로 | 결정 로그 **RustFS 단독**(Garage 제거); `aura-content`+`tenants/{tenant_id}/…`; 256KB 초과=`content_ref`만; `check-object-store-content-ref.sh` PASS |
 | V2.2 | 90일(또는 정책일) 고아 GC 설계 | DESIGN/doc에 GC 쿼리/태스크·안전장치(참조 존재 시 스킵); `check-object-store-orphan-gc.sh` PASS |
 | V2.3 | Agent 주입 슬롯·토큰 예산 | ARCHITECTURE §6.3 + doc에 2048/512/768/768·short=4·top_k=12; `check-agent-inject-contract.sh` PASS |
 
@@ -399,6 +402,32 @@ Aura **Agent + MCP Serverless Runtime** 수행 계획. 계약 정본은 [ARCHITE
 - [~] Gateway payload `function` 스탬프 live 배선 (`resolve.function` → task)
 
 **Non-goals:** OIDC/SSO · KV 직접 접속 · Admin→Gateway HTTP · 과금 SPA.
+
+---
+
+## 플랫폼 서비스 Rust 전환 (계획 · 구현 후속)
+
+**목표**: 플랫폼 핫패스·메모리 파이프라인을 Rust로. **테넌트 AI 번들·Admin UI는 Node/Python 유지.** Object Store RustFS 트랙과 **별개**.
+
+**범위 (포함)**
+
+- [ ] `nats-rpc-bridge` · `nats-task-bridge`
+- [ ] Gateway · LLM Gateway
+- [ ] `svc-control` (resolve + control-admin)
+- [ ] **`memory_capture`** — PG 금지·MQT·candidates envelope 유지. **성능 이득은 Gateway 대비 낮음**이나 플랫폼 Function **Node 단독 잔존 금지(관리 일관성)** 로 포함
+- [ ] `svc-memory` (store/embed/recall/consolidate/ttl/archive/object_gc)
+- [ ] `agent_invoke` / `mcp_invoke` **오케스트레이터만** (factory/`createAgent`/번들은 Node/Python 워커)
+
+**비범위**
+
+- Admin UI · 테넌트 agent/MCP zip · (워커용) `aura-nodejs-*` / `aura-python-*` Environment
+
+**순서 (요약)** — Phase 0 기반 → 1 브리지 → 2 엣지 게이트웨이 → 3 control → **4 메모리(`memory_capture`→svc-memory)** → 5 invoke 셸.  
+정본 시각화: 워크스페이스 캔버스 `service-rust-migration.canvas.tsx`.
+
+**성공 기준 (착수 시)**
+
+- subject/envelope/Function 이름 불변 · 기존 `check-*.sh` 계약 통과 · capture·memory Node 이미지 플랫폼 경로에서 제거.
 
 ---
 

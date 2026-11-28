@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aura-s3
+  namespace: aura
+  labels:
+    app.kubernetes.io/part-of: aura
+    app.kubernetes.io/name: rustfs
+data:
+  AURA_S3_ENDPOINT: http://rustfs.aura.svc.cluster.local:9000
+  AURA_S3_REGION: us-east-1
